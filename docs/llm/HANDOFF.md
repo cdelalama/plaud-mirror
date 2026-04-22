@@ -7,7 +7,7 @@ This file is the current operational snapshot. Long-form rationale lives in `doc
 
 - Last Updated: 2026-04-22 - Codex GPT-5
 - Session Focus: Publish the initial Plaud Mirror repository and leave the bootstrap state ready for new sessions
-- Status: `v0.1.0` is in place and the public GitHub repository exists at `cdelalama/plaud-mirror`. Core docs, upstream baseline tracking, external-context config, and an upstream-watch script/workflow stub are present. Runtime implementation has not started.
+- Status: `v0.1.0` is in place, the public GitHub repository exists at `cdelalama/plaud-mirror`, and the initial bootstrap commit is published on `origin/main`. Core docs, upstream baseline tracking, external-context config, and an upstream-watch script/workflow stub are present. Runtime implementation has not started.
 
 ## Project Summary
 

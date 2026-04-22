@@ -82,7 +82,7 @@ Recommended reading order:
 Source of truth: docs/llm/HANDOFF.md.
 - Last Updated: 2026-04-22 - Codex GPT-5
 - Working on: v0.1.0 published bootstrap baseline
-- Status: Public GitHub repo exists, documentation scaffold is in place, and runtime implementation has not started yet.
+- Status: Public GitHub repo exists, the bootstrap baseline is pushed to `origin/main`, and runtime implementation has not started yet.
 
 Keep this section synchronized with the "Current Status" block in docs/llm/HANDOFF.md.
 

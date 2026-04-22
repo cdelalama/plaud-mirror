@@ -43,6 +43,7 @@ The system is designed around an audio-first contract. It does not need to own t
 Plaud Mirror `v0.1.0` is a repository and architecture bootstrap. The project now has:
 - a concrete name and product scope
 - a public GitHub repository: `https://github.com/cdelalama/plaud-mirror`
+- an initial published baseline on `main`
 - a downstream `LLM-DocKit` setup
 - architecture and operations docs
 - an upstream baseline manifest plus checker script
