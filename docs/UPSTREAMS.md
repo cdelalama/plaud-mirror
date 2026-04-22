@@ -1,7 +1,7 @@
 <!-- doc-version: 0.1.0 -->
 # Upstream Strategy
 
-Last verified against GitHub: 2026-04-21
+Last verified against GitHub: 2026-04-22
 
 Plaud Mirror is its own project, but it is intentionally informed by existing work in the Plaud ecosystem. This document records:
 - which upstreams matter
@@ -15,6 +15,21 @@ Plaud Mirror is its own project, but it is intentionally informed by existing wo
 - Treat AGPL or no-license repositories as reference-only unless a licensing decision is explicitly documented.
 - Prioritize changes related to auth, token renewal, regional API behavior, recording discovery, temp-URL download flow, and operator UX.
 - Never adopt upstream behavior blindly. Every adoption must preserve Plaud Mirror's audio-first and always-logged-in goals.
+
+## Selection Summary
+
+Plaud Mirror is intentionally based on a composite reading of the ecosystem, not on a blind fork of a single upstream.
+
+- `rsteckler/applaud` is the closest fit for product shape because it already thinks like a server: periodic sync, local storage, UI, and operator workflows.
+- `iiAtlas/plaud-recording-downloader` is the best reference for fast-moving auth and region behavior because it reacts quickly to changes in the Plaud web frontend.
+- `JamesStuder/Plaud_API` and `JamesStuder/Plaud_BulkDownloader` are useful research references for endpoint sequencing and export/download flow, but Plaud Mirror does not want its core auth path to depend on an opaque third-party client.
+- `openplaud/openplaud` is useful for product and UX ideas, but its AGPL license and broader product scope make it the wrong direct base for Plaud Mirror.
+
+The result is deliberate:
+- service shape and operator UX are inspired mainly by `Applaud`
+- auth and token resilience are informed heavily by `iiAtlas`
+- endpoint and export behavior are checked against the Studer projects
+- licensing and product-scope discipline keep Plaud Mirror independent
 
 ## Primary Inspiration
 
@@ -38,6 +53,13 @@ Plaud Mirror is its own project, but it is intentionally informed by existing wo
 | `openplaud/openplaud` | AGPL-3.0 | `v0.1.0`, `cc1892b23f39ed0567129be239b0028c91aa658b` | Product ideas around UX, secret handling, and sync ergonomics | No code copy into MIT Plaud Mirror without an explicit license decision |
 | `sergivalverde/plaud-toolkit` | No clear repo license | `dd5774b306f13cc2b11ce917d17575165b527bd4` | Auth/token-management ideas and a TypeScript ecosystem view | Reference only until license is clarified |
 | `josephhyatt/plaud-exporter` | No clear repo license | `456b32a04afa9d6a8664c0137f5656a0513db975` | Minimal exporter ideas and alternate download approaches | Reference only until license is clarified |
+
+## Security Notes From Upstream Research
+
+- Running third-party Plaud tools means executing local code that can see your Plaud credentials or bearer token. The risk is not "remote execution elsewhere"; the risk is trusting a third-party implementation with local secrets.
+- During source inspection, `JamesStuder/Plaud_BulkDownloader` was found to echo the password to the console. That does not prove credential theft, but it is a real handling flaw and a useful warning sign for Plaud Mirror's own standards.
+- During source inspection, `JamesStuder/Plaud_API` did not show obvious hardcoded credential-exfiltration endpoints in the reviewed code. That still does not amount to a full supply-chain guarantee.
+- Because of that gap between "reviewed source" and "fully trusted runtime artifact", Plaud Mirror keeps a conservative rule: the core auth and download path should stay auditable in-repo rather than hidden behind an opaque dependency.
 
 ## Official Plaud References
 

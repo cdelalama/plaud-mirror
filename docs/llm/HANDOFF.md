@@ -7,7 +7,7 @@ This file is the current operational snapshot. Long-form rationale lives in `doc
 
 - Last Updated: 2026-04-22 - Codex GPT-5
 - Session Focus: Publish the initial Plaud Mirror repository and leave the bootstrap state ready for new sessions
-- Status: `v0.1.0` is in place, the public GitHub repository exists at `cdelalama/plaud-mirror`, and the initial bootstrap commit is published on `origin/main`. Core docs, upstream baseline tracking, external-context config, and an upstream-watch script/workflow stub are present. Runtime implementation has not started.
+- Status: `v0.1.0` is in place, the public GitHub repository exists at `cdelalama/plaud-mirror`, and the initial bootstrap commit is published on `origin/main`. Core docs, upstream baseline tracking, external-context config, and an upstream-watch script/workflow stub are present. The rationale for composite upstream reuse and conservative third-party auth trust has also been documented. Runtime implementation has not started.
 
 ## Project Summary
 
@@ -53,6 +53,8 @@ License boundary:
 - D-003: Auth strategy is dual-mode: token-first plus optional credential-based renewal
 - D-004: Upstream-watch discipline is mandatory for auth and download resilience
 - D-005: MIT remains the intended license boundary
+- D-007: Reuse strategy is composite, not a single-upstream fork
+- D-008: Core auth and download logic must stay auditable in-repo
 
 See `docs/llm/DECISIONS.md` for rationale.
 

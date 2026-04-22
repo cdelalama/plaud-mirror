@@ -106,3 +106,37 @@ Titles can change and are not guaranteed unique. The remote ID is the most stabl
 
 - Default path shape is `recordings/<recording-id>/...`
 - Human-readable metadata belongs in filenames only as optional secondary detail
+
+---
+
+## D-007 - Reuse strategy is composite, not a single-upstream fork
+
+**Status:** accepted
+
+### Decision
+Plaud Mirror will combine ideas from multiple upstreams instead of treating one existing project as the canonical base.
+
+### Rationale
+No single upstream matches the target product cleanly. `Applaud` is strongest on server shape and operator UX. `iiAtlas` is strongest on fast-moving auth and region heuristics. The Studer projects are strongest as direct endpoint/export references. A composite strategy gives better fit and lowers lock-in.
+
+### Implications
+
+- `Applaud` and `iiAtlas` remain the two highest-priority upstreams to watch.
+- Plaud Mirror can evolve its own identity without inheriting another project's full product surface or constraints.
+
+---
+
+## D-008 - Core auth and download logic must stay auditable in-repo
+
+**Status:** accepted
+
+### Decision
+Plaud Mirror should not hide its critical Plaud auth and audio download flow behind an opaque third-party runtime dependency.
+
+### Rationale
+Source review of third-party tools is useful but not equivalent to a full trust guarantee. Upstream inspection also surfaced at least one concrete credential-handling flaw in the ecosystem: `JamesStuder/Plaud_BulkDownloader` echoes the password to the console. That finding reinforces the value of keeping the critical path readable and reviewable inside Plaud Mirror itself.
+
+### Implications
+
+- Upstream code can be referenced, adapted, or vendored with review, but the auth/download path should remain understandable from this repository alone.
+- Token-first auth remains the preferred operator mode where practical because it reduces password exposure.

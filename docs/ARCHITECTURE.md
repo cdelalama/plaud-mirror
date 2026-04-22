@@ -2,7 +2,7 @@
 # Plaud Mirror Architecture
 
 > Version: 0.1.0
-> Last Updated: 2026-04-21
+> Last Updated: 2026-04-22
 > Status: Design
 > Authors: Plaud Mirror maintainers
 
@@ -18,6 +18,7 @@ The intended users are operators running their own infrastructure who care more 
 - Staying logged in is a first-class feature, not an implementation detail.
 - Secrets must never be stored or logged in plaintext.
 - Upstream changes in auth, token extraction, regional behavior, and export/download flows must be easy to detect and review.
+- The core Plaud auth/download path must remain auditable in this repository, even when upstream code informs the design.
 - MIT remains the intended project license. AGPL or no-license upstreams are reference-only unless a licensing decision is explicitly documented.
 
 ## High-Level Architecture
@@ -94,6 +95,8 @@ Retention policy:
   Single-operator admin model for v1, with local service access only unless explicitly exposed behind another auth layer
 - Secrets management:
   Store secrets encrypted at rest, with the encryption key supplied via Docker secret or `PLAUD_MIRROR_MASTER_KEY`
+- Third-party dependency policy:
+  Upstream code may inform implementation, but the critical auth and download path should not disappear behind an opaque binary or unreviewed client dependency
 - Data sensitivity:
   Plaud titles, timestamps, tags, and audio content may contain sensitive personal or business information
 - Logging:
