@@ -1,4 +1,4 @@
-<!-- doc-version: 0.3.0 -->
+<!-- doc-version: 0.3.1 -->
 # Plaud Mirror
 
 Self-hosted Plaud audio mirror with a local web panel, manual sync/backfill controls, and Docker deployment.
@@ -51,6 +51,16 @@ cd ~/src/plaud-mirror
 export PLAUD_MIRROR_MASTER_KEY="<long-random-secret>"
 docker compose up --build
 ```
+
+If Docker Hub is timing out on this `dev-vm`, force the build to reuse the cached local Kali image:
+
+```bash
+export PLAUD_MIRROR_DOCKER_BUILD_IMAGE="vxcontrol/kali-linux:latest"
+export PLAUD_MIRROR_DOCKER_RUNTIME_IMAGE="vxcontrol/kali-linux:latest"
+docker compose up --build
+```
+
+That fallback no longer depends on `apt` inside the container build. The local image already provides `node`, `corepack`, and the build tools needed by the current dependency set, so the build can stay inside Docker even when both Docker Hub and Kali package mirrors are unreliable.
 
 Runtime data lands in:
 

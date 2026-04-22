@@ -1,10 +1,15 @@
-FROM node:20-bookworm-slim AS build
+ARG BUILD_BASE_IMAGE=node:20-bookworm-slim
+ARG RUNTIME_BASE_IMAGE=node:20-bookworm-slim
+
+FROM ${BUILD_BASE_IMAGE} AS build
+
+SHELL ["/bin/bash", "-lc"]
 
 WORKDIR /app
 
-RUN apt-get update \
-  && apt-get install -y --no-install-recommends python3 make g++ \
-  && rm -rf /var/lib/apt/lists/*
+RUN command -v node >/dev/null 2>&1 \
+  && command -v corepack >/dev/null 2>&1 \
+  && corepack enable
 
 COPY package.json package-lock.json ./
 COPY tsconfig.base.json ./
@@ -12,14 +17,17 @@ COPY apps/api/package.json apps/api/package.json
 COPY apps/web/package.json apps/web/package.json
 COPY packages/shared/package.json packages/shared/package.json
 
-RUN npm ci
+RUN corepack npm ci
 
 COPY . .
 
-RUN npm run build \
-  && npm prune --omit=dev
+RUN corepack npm run build:runtime \
+  && corepack npm run build --workspace @plaud-mirror/web \
+  && corepack npm prune --omit=dev
 
-FROM node:20-bookworm-slim AS runtime
+FROM ${RUNTIME_BASE_IMAGE} AS runtime
+
+SHELL ["/bin/bash", "-lc"]
 
 WORKDIR /app
 
@@ -38,7 +46,8 @@ COPY --from=build /app/packages/shared/package.json ./packages/shared/package.js
 COPY --from=build /app/packages/shared/dist ./packages/shared/dist
 COPY --from=build /app/VERSION ./VERSION
 
-RUN mkdir -p /var/lib/plaud-mirror/data /var/lib/plaud-mirror/recordings
+RUN command -v node >/dev/null 2>&1 \
+  && mkdir -p /var/lib/plaud-mirror/data /var/lib/plaud-mirror/recordings
 
 EXPOSE 3040
 

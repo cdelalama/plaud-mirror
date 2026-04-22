@@ -1,4 +1,4 @@
-<!-- doc-version: 0.3.0 -->
+<!-- doc-version: 0.3.1 -->
 # LLM Start Guide - Plaud Mirror
 
 ## Read This First (Mandatory)
@@ -86,8 +86,8 @@ Recommended reading order:
 
 Source of truth: docs/llm/HANDOFF.md.
 - Last Updated: 2026-04-22 - Codex GPT-5
-- Working on: validate the new Phase 2 web+Docker slice on `dev-vm` with a real Plaud token and confirm the live backfill/webhook path
-- Status: `v0.3.0` turns Plaud Mirror into the first usable internal slice. The repo now has a Fastify API, a React/Vite panel, encrypted persisted manual-token auth, manual sync and filtered historical backfill, SQLite-backed recording and delivery state, HMAC-signed webhook delivery, Docker packaging for `dev-vm`, and the original Phase 1 CLI spike for direct Plaud probing. The missing pieces are the later-phase ones: live validation with a real token, scheduler-driven sync, retry/outbox resilience, automatic re-login, and NAS rollout.
+- Working on: validate the live UI flow with a real Plaud token now that the Phase 2 Docker slice is up on `dev-vm`, and confirm the backfill/webhook path
+- Status: `v0.3.1` keeps the Phase 2 usable slice intact and adds a Docker deployment fallback for this `dev-vm`: the build can override its base images, reuse the local cached `vxcontrol/kali-linux:latest` image when Docker Hub times out pulling `node:20-bookworm-slim`, complete the fallback build without `apt` because it uses `corepack npm` directly, and has now been verified locally with `docker compose up --build -d` plus a healthy `/api/health` response. The missing pieces are still the later-phase ones: live validation with a real token, scheduler-driven sync, retry/outbox resilience, automatic re-login, and NAS rollout.
 
 Keep this section synchronized with the "Current Status" block in docs/llm/HANDOFF.md.
 

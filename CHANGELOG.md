@@ -4,6 +4,21 @@ All notable changes to Plaud Mirror are documented in this file.
 
 This project follows Semantic Versioning (SemVer): MAJOR.MINOR.PATCH.
 
+## [0.3.1] - 2026-04-22
+
+### Added
+- Docker base-image override support for environments that already have a compatible local image cached
+
+### Changed
+- `compose.yml` can now pass custom build/runtime base images into the Docker build
+- The fallback Docker build now uses `corepack npm` and no longer installs tooling through `apt`
+- Deploy docs now document the `vxcontrol/kali-linux:latest` fallback path for this `dev-vm`
+
+### Fixed
+- Docker deployment on this `dev-vm` no longer depends on a successful pull from Docker Hub when the cached local fallback image is available
+- The local fallback image no longer fails on flaky Kali mirrors just to obtain `npm`
+- The fallback path has been verified locally with `docker compose up --build -d` and a healthy `/api/health` response
+
 ## [0.3.0] - 2026-04-22
 
 ### Added

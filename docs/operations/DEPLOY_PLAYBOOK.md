@@ -1,4 +1,4 @@
-<!-- doc-version: 0.3.0 -->
+<!-- doc-version: 0.3.1 -->
 # Deploy Playbook
 
 This runbook describes the actual Phase 2 Docker deployment path for Plaud Mirror.
@@ -24,6 +24,16 @@ cd ~/src/plaud-mirror
 export PLAUD_MIRROR_MASTER_KEY="<long-random-secret>"
 docker compose up --build -d
 ```
+
+If Docker Hub is timing out when pulling `node:20-bookworm-slim` on `dev-vm`, use the cached local fallback image:
+
+```bash
+export PLAUD_MIRROR_DOCKER_BUILD_IMAGE="vxcontrol/kali-linux:latest"
+export PLAUD_MIRROR_DOCKER_RUNTIME_IMAGE="vxcontrol/kali-linux:latest"
+docker compose up --build -d
+```
+
+This fallback now uses `corepack npm` inside the container build and does not rely on `apt` to install `npm`, `node`, or build tools. That matters on this `dev-vm`, because Docker Hub and Kali mirrors have both shown intermittent timeouts.
 
 Then open `http://<host>:3040`.
 

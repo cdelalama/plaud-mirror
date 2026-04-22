@@ -3,6 +3,9 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        BUILD_BASE_IMAGE: ${PLAUD_MIRROR_DOCKER_BUILD_IMAGE:-node:20-bookworm-slim}
+        RUNTIME_BASE_IMAGE: ${PLAUD_MIRROR_DOCKER_RUNTIME_IMAGE:-node:20-bookworm-slim}
     ports:
       - "3040:3040"
     environment:
