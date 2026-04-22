@@ -1,0 +1,17 @@
+services:
+  plaud-mirror:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "3040:3040"
+    environment:
+      PLAUD_MIRROR_MASTER_KEY: ${PLAUD_MIRROR_MASTER_KEY:?set PLAUD_MIRROR_MASTER_KEY}
+      PLAUD_MIRROR_API_BASE: ${PLAUD_MIRROR_API_BASE:-}
+      PLAUD_MIRROR_WEBHOOK_URL: ${PLAUD_MIRROR_WEBHOOK_URL:-}
+      PLAUD_MIRROR_WEBHOOK_SECRET: ${PLAUD_MIRROR_WEBHOOK_SECRET:-}
+      PLAUD_MIRROR_DEFAULT_SYNC_LIMIT: ${PLAUD_MIRROR_DEFAULT_SYNC_LIMIT:-100}
+    volumes:
+      - ./runtime/data:/var/lib/plaud-mirror/data
+      - ./runtime/recordings:/var/lib/plaud-mirror/recordings
+    restart: unless-stopped

@@ -1,4 +1,4 @@
-<!-- doc-version: 0.2.1 -->
+<!-- doc-version: 0.3.0 -->
 # LLM Start Guide - Plaud Mirror
 
 ## Read This First (Mandatory)
@@ -8,13 +8,14 @@ Welcome to Plaud Mirror. This repository is building a self-hosted Plaud audio m
 Recommended reading order:
 1. This file
 2. [docs/PROJECT_CONTEXT.md](docs/PROJECT_CONTEXT.md)
-3. [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
-4. [docs/UPSTREAMS.md](docs/UPSTREAMS.md)
-5. [docs/operations/AUTH_AND_SYNC.md](docs/operations/AUTH_AND_SYNC.md)
-6. [docs/VERSIONING_RULES.md](docs/VERSIONING_RULES.md)
-7. [docs/llm/HANDOFF.md](docs/llm/HANDOFF.md)
-8. [docs/llm/DECISIONS.md](docs/llm/DECISIONS.md)
-9. [docs/llm/README.md](docs/llm/README.md) — index of LLM working memory, owner shorthand glossary (e.g. **HO** → `HANDOFF.md`), and the enriched review-entry convention used by `docs/llm/REVIEWS.md`
+3. [docs/ROADMAP.md](docs/ROADMAP.md)
+4. [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
+5. [docs/UPSTREAMS.md](docs/UPSTREAMS.md)
+6. [docs/operations/AUTH_AND_SYNC.md](docs/operations/AUTH_AND_SYNC.md)
+7. [docs/VERSIONING_RULES.md](docs/VERSIONING_RULES.md)
+8. [docs/llm/HANDOFF.md](docs/llm/HANDOFF.md)
+9. [docs/llm/DECISIONS.md](docs/llm/DECISIONS.md)
+10. [docs/llm/README.md](docs/llm/README.md) — index of LLM working memory, owner shorthand glossary (e.g. **HO** → `HANDOFF.md`), and the enriched review-entry convention used by `docs/llm/REVIEWS.md`
 
 ## Critical Rules (Non-Negotiable)
 
@@ -29,6 +30,7 @@ Recommended reading order:
 - Do not print secrets to logs, CLI output, or debug traces.
 - Prefer MIT-licensed upstream code with attribution. AGPL or no-license repositories are reference-only unless the user explicitly approves a licensing change.
 - Any change to auth, token renewal, sync cadence, storage layout, or upstream baselines must update `docs/ARCHITECTURE.md`, `docs/UPSTREAMS.md`, and `docs/operations/AUTH_AND_SYNC.md` in the same session.
+- Phase boundaries live in `docs/ROADMAP.md`. Do not silently pull next-phase scope into the current phase.
 - Every new runtime case must come with explicit tests in the same session. If behavior changes, update or add the tests that prove that case.
 - Runtime work is not done until the relevant test suite passes locally. At the current stage that means at least `npm test`, plus any narrower smoke check for the touched entrypoint.
 - Plaud Mirror is audio-first. Transcript and summary features are intentionally out of the critical path for v1 unless the user explicitly changes scope.
@@ -84,8 +86,8 @@ Recommended reading order:
 
 Source of truth: docs/llm/HANDOFF.md.
 - Last Updated: 2026-04-22 - Codex GPT-5
-- Working on: run the new Phase 1 spike harness on `dev-vm` with a real Plaud bearer token and capture the first live report/download
-- Status: `v0.2.1` keeps runtime implementation moving and makes the test discipline explicit. The repo has an npm workspace monorepo, shared Zod schemas, a Plaud client with browser-aligned headers plus regional retry, and a Phase 1 CLI spike that can validate `/user/me`, list `/file/simple/web`, inspect `/file/detail/<id>`, download via `/file/temp-url/<id>`, and write local artifacts under `recordings/` plus `.state/phase1/`. The suite now also covers client error cases, spike filtering/report helpers, and CLI argument parsing. Live Plaud validation on `dev-vm` is still pending because no bearer token was provided in-session.
+- Working on: validate the new Phase 2 web+Docker slice on `dev-vm` with a real Plaud token and confirm the live backfill/webhook path
+- Status: `v0.3.0` turns Plaud Mirror into the first usable internal slice. The repo now has a Fastify API, a React/Vite panel, encrypted persisted manual-token auth, manual sync and filtered historical backfill, SQLite-backed recording and delivery state, HMAC-signed webhook delivery, Docker packaging for `dev-vm`, and the original Phase 1 CLI spike for direct Plaud probing. The missing pieces are the later-phase ones: live validation with a real token, scheduler-driven sync, retry/outbox resilience, automatic re-login, and NAS rollout.
 
 Keep this section synchronized with the "Current Status" block in docs/llm/HANDOFF.md.
 
@@ -113,6 +115,7 @@ Keep this section synchronized with the "Current Status" block in docs/llm/HANDO
 ## Quick Navigation
 - Project Overview: docs/PROJECT_CONTEXT.md
 - Architecture: docs/ARCHITECTURE.md
+- Roadmap: docs/ROADMAP.md
 - Upstream Matrix: docs/UPSTREAMS.md
 - Auth and Sync: docs/operations/AUTH_AND_SYNC.md
 - Upstream Watch: docs/operations/UPSTREAM_WATCH.md

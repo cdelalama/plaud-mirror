@@ -1,6 +1,6 @@
 {
   "name": "plaud-mirror",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "private": true,
   "type": "module",
   "packageManager": "npm@11.6.2",
@@ -12,11 +12,15 @@
     "packages/*"
   ],
   "scripts": {
-    "build": "tsc -b packages/shared/tsconfig.json apps/api/tsconfig.json",
-    "test": "npm run build && node --test packages/shared/dist/plaud.test.js apps/api/dist/plaud/client.test.js apps/api/dist/phase1/spike.test.js apps/api/dist/cli/spike.test.js",
-    "spike": "npm run build && node apps/api/dist/cli/spike.js"
+    "build": "npm run build:runtime && npm run build:web",
+    "build:runtime": "tsc -b packages/shared/tsconfig.json apps/api/tsconfig.json",
+    "build:web": "npm run build --workspace @plaud-mirror/web",
+    "start": "npm run build && node apps/api/dist/cli/server.js",
+    "test": "npm run build && node --test packages/shared/dist/plaud.test.js apps/api/dist/plaud/client.test.js apps/api/dist/phase1/spike.test.js apps/api/dist/cli/spike.test.js apps/api/dist/runtime/secrets.test.js apps/api/dist/runtime/store.test.js apps/api/dist/runtime/service.test.js apps/api/dist/server.test.js tests/integration/http.test.mjs tests/integration/web-build.test.mjs",
+    "spike": "npm run build:runtime && node apps/api/dist/cli/spike.js"
   },
   "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^24.9.1",
     "typescript": "^5.9.3"
   }

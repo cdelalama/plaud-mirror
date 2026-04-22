@@ -1,72 +1,64 @@
-<!-- doc-version: 0.2.1 -->
+<!-- doc-version: 0.3.0 -->
 # Project Context - Plaud Mirror
 
 ## Vision
 
-Build a self-hosted service that mirrors Plaud audio recordings to local infrastructure reliably, with minimal operator friction. The project exists because Plaud's official export flow is manual and not designed for server-side automation, while many downstream uses only need the audio artifact and a stable handoff into another pipeline.
+Build a self-hosted Plaud mirror that gets the original audio artifact out of Plaud and into local infrastructure with low operator friction.
 
 ## Objectives
 
-- Keep Plaud authentication alive with minimal human intervention.
-- Detect and download new recordings automatically.
-- Persist mirrored audio locally in a predictable, automation-friendly layout.
-- Offer a small web UI for configuration, visibility, and manual control.
-- Emit clean downstream delivery signals so another system can run speech-to-text.
-- Track ecosystem upstreams and surface changes that could improve or break Plaud Mirror.
+- Persist mirrored audio locally in a predictable layout.
+- Offer a small web panel for auth, visibility, and manual control.
+- Deliver a generic webhook that downstream systems can consume.
+- Keep auth and download behavior auditable in-repo.
+- Track upstream changes that can break or improve the Plaud path.
 
-## Stakeholders
+## Architectural Summary
 
-- Product owner: `cdelalama`
-- Technical owner: Plaud Mirror core maintainers
-- Primary users: Self-hosting operators who want their Plaud audio on their own server
-- Additional stakeholders: Downstream STT/indexing services, home infrastructure operators
+Plaud Mirror is a server-first product with two runtime surfaces:
 
-## Architectural Overview
+- `apps/api/`: Fastify API plus same-process worker logic
+- `apps/web/`: React/Vite operator panel served by the API runtime
 
-Plaud Mirror is planned as a Docker-first service with two main runtime surfaces: a backend API/worker and a web UI. The backend owns auth, scheduling, downloading, storage, webhook delivery, and upstream-watch automation. The UI is intentionally operational, not consumer-facing: configuration, sync status, auth status, and local artifact visibility.
-
-The system is designed around an audio-first contract. It does not need to own transcription. Its core promise is: "if a recording appears in Plaud, Plaud Mirror should stay logged in long enough to detect it, mirror it locally, and notify the next system."
-
-## Key Components
-
-| Component | Purpose | Owner | Notes |
-|-----------|---------|-------|-------|
-| Auth Manager | Maintain Plaud session state and token freshness | Core | Manual bearer-token first; optional credential-based re-login later |
-| Plaud Adapter | Encapsulate Plaud API calls and regional quirks | Core | Inspired by existing reverse-engineered clients, but not locked to a single upstream |
-| Sync Engine | Poll for new recordings, queue downloads, retry failures | Core | Audio-first behavior for v1 |
-| Artifact Store | Persist audio and sync metadata locally | Core | Predictable on-disk layout for downstream automation |
-| Web UI | Show config, health, auth status, recordings, and manual actions | Core | Operational UI, not a public portal |
-| Upstream Watch | Detect useful changes in upstream repos | Core | Focus on auth, token handling, and download flow changes |
+Persistence is split between SQLite for state/indexes and the filesystem for mirrored audio artifacts. Secrets are encrypted at rest with a master key supplied by the surrounding deployment.
 
 ## Current Status (2026-04-22)
 
-Plaud Mirror `v0.2.1` is in Phase 1 implementation. The project now has:
-- a concrete name and product scope
-- a public GitHub repository: `https://github.com/cdelalama/plaud-mirror`
-- a published docs/governance baseline on `main`
-- a downstream `LLM-DocKit` setup
-- architecture and operations docs
-- an upstream baseline manifest plus checker script
-- an explicit policy for licensing boundaries and upstream reuse
-- a converged implementation plan for the first usable release on `dev-vm`
-- a TypeScript monorepo skeleton with a Phase 1 CLI spike in `apps/api`
-- shared Plaud response schemas in `packages/shared`
+Plaud Mirror `v0.3.0` is the first usable internal slice. The repository now has:
 
-The full runtime service still does not exist yet: there is no Fastify admin API, no web UI, no encrypted secret storage, and no Docker deployment. What now exists is a live-flow spike harness that can validate a bearer token, list recordings, inspect recording detail, download audio through Plaud temp URLs, and write a local Phase 1 report plus canonical recording artifacts. Automatic re-login remains explicitly deferred.
+- a live Fastify API
+- a web panel for token setup, webhook configuration, sync/backfill controls, and recordings visibility
+- encrypted persisted manual bearer-token auth
+- manual sync and filtered historical backfill
+- SQLite-backed recording and delivery state
+- immediate HMAC-signed webhook delivery with persisted attempt logging
+- Docker packaging for `dev-vm`
+- the original Phase 1 spike CLI for direct Plaud probing
 
-## Upcoming Milestones
+What it still does not have:
 
-1. Phase 1 (in progress): Plaud spike on `dev-vm` to validate manual-token auth, recordings listing, real audio download, and actual metadata/filter shape
-2. Phase 2: first usable internal release with product UI, encrypted persisted manual-token auth, filtered historical backfill, and HMAC-signed generic webhook delivery
-3. Phase 3: continuous sync and resilience with scheduler, resumable backfill, and stronger health/status surfaces
-4. Phase 4: optional automatic re-login if a reliable non-browser path exists
-5. Phase 5: deployment hardening and NAS rollout
-6. Phase 6: OSS preparation and public-facing quickstart/documentation tightening
+- continuous scheduler-driven sync
+- resumable backfill
+- automatic retry outbox for webhook delivery
+- automatic re-login
+- NAS validation
+
+## Phase Boundaries
+
+The roadmap is normative. See [docs/ROADMAP.md](ROADMAP.md).
+
+Short version:
+
+1. Phase 1 proved the Plaud path.
+2. Phase 2 ships the first manual usable product slice.
+3. Phase 3 adds unattended operation and resilience.
+4. Phase 4 revisits automatic re-login.
+5. Phase 5 hardens deployment and validates NAS.
+6. Phase 6 prepares public OSS fit and finish.
 
 ## References
 
+- [docs/ROADMAP.md](ROADMAP.md)
 - [docs/ARCHITECTURE.md](ARCHITECTURE.md)
-- [docs/UPSTREAMS.md](UPSTREAMS.md)
+- [docs/operations/API_CONTRACT.md](operations/API_CONTRACT.md)
 - [docs/operations/AUTH_AND_SYNC.md](operations/AUTH_AND_SYNC.md)
-- Plaud export help: <https://support.plaud.ai/hc/en-us/articles/51573949068697-How-to-export-my-data>
-- Plaud developer overview: <https://plaud.mintlify.app/documentation/get_started/overview>

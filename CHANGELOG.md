@@ -4,6 +4,24 @@ All notable changes to Plaud Mirror are documented in this file.
 
 This project follows Semantic Versioning (SemVer): MAJOR.MINOR.PATCH.
 
+## [0.3.0] - 2026-04-22
+
+### Added
+- Fastify admin API and React/Vite web panel for the first usable Plaud Mirror slice
+- Encrypted persisted bearer-token storage backed by `PLAUD_MIRROR_MASTER_KEY`
+- SQLite-backed runtime state for recordings, sync runs, and webhook delivery attempts
+- Docker packaging via `Dockerfile` and `compose.yml`
+- Runtime and integration tests covering secrets, store, service, server, built API, and built web output
+- `docs/ROADMAP.md` as the canonical phase-boundary document
+
+### Changed
+- Phase 2 is now explicitly the manual usable slice with UI and Docker, while unattended sync and retry resilience move to Phase 3
+- The README, architecture, auth, deploy, and handoff docs now describe the live runtime instead of a planned one
+- The web workspace is now part of version sync and the build pipeline
+
+### Fixed
+- Phase 1 download reporting now measures real written byte count even when Plaud serves chunked responses
+
 ## [0.2.1] - 2026-04-22
 
 ### Added

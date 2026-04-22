@@ -1,5 +1,5 @@
 import { createWriteStream } from "node:fs";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, stat, writeFile } from "node:fs/promises";
 import { basename, extname, join, relative } from "node:path";
 import { pipeline } from "node:stream/promises";
 import { Readable } from "node:stream";
@@ -286,19 +286,20 @@ export function buildFilterRecommendations(recordings: PlaudRawRecording[]): Pha
   return recommendations;
 }
 
-async function downloadAudioArtifact(
+export async function downloadAudioArtifact(
   client: PlaudClient,
   recordingId: string | null,
   recordingsDir: string,
   detailSnapshot: Record<string, unknown> | null,
   opus: boolean,
+  fetchImpl: typeof fetch = fetch,
 ): Promise<Phase1DownloadedArtifact | null> {
   if (!recordingId) {
     return null;
   }
 
   const tempUrl = await client.getAudioTempUrl(recordingId, opus);
-  const response = await fetch(tempUrl);
+  const response = await fetchImpl(tempUrl);
   if (!response.ok) {
     throw new Error(`Plaud temp URL fetch failed with HTTP ${response.status} for recording ${recordingId}`);
   }
@@ -315,7 +316,7 @@ async function downloadAudioArtifact(
   const output = createWriteStream(destinationPath);
   await pipeline(Readable.fromWeb(response.body as never), output);
 
-  const bytesWritten = Number(response.headers.get("content-length") ?? 0);
+  const bytesWritten = (await stat(destinationPath)).size;
   const contentType = response.headers.get("content-type") ?? "application/octet-stream";
   const tempUrlHost = new URL(tempUrl).host;
 

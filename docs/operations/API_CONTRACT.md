@@ -1,48 +1,81 @@
-<!-- doc-version: 0.2.1 -->
+<!-- doc-version: 0.3.0 -->
 # API Contract
 
-This document captures the planned stable surfaces for Plaud Mirror before the stable HTTP/API surface ships.
+This document describes the Phase 2 HTTP and webhook surface that now exists in-repo.
 
-Phase 1 note: the repository now contains a CLI spike in `apps/api/src/cli/spike.ts`, but it is intentionally an internal research tool and not part of the stable admin HTTP contract documented here.
-
-## Scope
-
-Plaud Mirror is expected to expose:
-- an admin HTTP API used by the local web UI
-- a webhook payload for downstream delivery after audio sync
-
-## Planned Admin API
-
-Phase 2 target surface for the first usable release:
+## Admin API
 
 | Method | Path | Purpose |
 |--------|------|---------|
-| `GET` | `/api/health` | Liveness and high-level service status |
-| `GET` | `/api/config` | Return sanitized runtime configuration |
-| `PUT` | `/api/config` | Update non-secret config such as poll interval or webhook target |
-| `POST` | `/api/auth/token` | Save or validate a bearer token |
-| `POST` | `/api/sync/run` | Trigger an immediate sync |
-| `POST` | `/api/backfill/run` | Trigger a filtered historical backfill job |
-| `GET` | `/api/recordings` | List mirrored recordings with local status |
-| `GET` | `/api/auth/status` | Return auth mode, token expiry, and last successful validation |
+| `GET` | `/api/health` | Return version, phase, auth summary, last sync, warning list |
+| `GET` | `/api/config` | Return sanitized runtime config |
+| `PUT` | `/api/config` | Update webhook URL and optional webhook secret |
+| `GET` | `/api/auth/status` | Return current auth state |
+| `POST` | `/api/auth/token` | Validate and persist a Plaud bearer token |
+| `POST` | `/api/sync/run` | Trigger a manual sync over the latest listings |
+| `POST` | `/api/backfill/run` | Trigger a filtered historical backfill |
+| `GET` | `/api/recordings` | List recent mirrored recordings |
 
-Later-phase candidate route:
+## Request Shapes
 
-| Method | Path | Purpose |
-|--------|------|---------|
-| `POST` | `/api/auth/credentials` | Save or validate Plaud credentials for automatic re-login once that mode exists |
+### `POST /api/auth/token`
 
-## Planned Webhook Contract
-
-Plaud Mirror should emit a downstream webhook when a new audio artifact is mirrored. The same `recording.synced` event shape is used for both ongoing sync and historical backfill.
-
-Webhook deliveries for the first usable release should be signed with an HMAC-SHA256 header, for example:
-
+```json
+{
+  "accessToken": "plaud-bearer-token"
+}
 ```
+
+### `PUT /api/config`
+
+```json
+{
+  "webhookUrl": "https://example.internal/hooks/plaud",
+  "webhookSecret": "optional-secret-to-store"
+}
+```
+
+`webhookSecret` is optional on update. Omitting it keeps the current secret unchanged. Sending `null` clears it.
+
+### `POST /api/sync/run`
+
+```json
+{
+  "limit": 100,
+  "forceDownload": false
+}
+```
+
+### `POST /api/backfill/run`
+
+```json
+{
+  "from": "2026-04-01",
+  "to": "2026-04-22",
+  "serialNumber": "PLAUD-1",
+  "scene": 7,
+  "limit": 100,
+  "forceDownload": false
+}
+```
+
+All backfill filters are optional.
+
+## Webhook Contract
+
+Event name:
+
+```text
+recording.synced
+```
+
+Header:
+
+```text
 X-Plaud-Mirror-Signature-256: sha256=<hex-digest>
 ```
 
-Example payload:
+Payload:
 
 ```json
 {
@@ -51,28 +84,20 @@ Example payload:
   "recording": {
     "id": "plaud-recording-id",
     "title": "Weekly sync",
-    "createdAt": "2026-04-21T10:22:00Z",
-    "localPath": "recordings/plaud-recording-id/audio.ogg",
-    "format": "ogg"
+    "createdAt": "2026-04-21T10:22:00.000Z",
+    "localPath": "recordings/plaud-recording-id/audio.mp3",
+    "format": "mp3",
+    "contentType": "audio/mpeg",
+    "bytesWritten": 123456
   },
   "sync": {
-    "syncedAt": "2026-04-21T10:25:11Z",
-    "deliveryAttempt": 1
+    "syncedAt": "2026-04-21T10:25:11.000Z",
+    "deliveryAttempt": 1,
+    "mode": "backfill"
   }
 }
 ```
 
-## Contract Change Workflow
+## Phase Boundary Note
 
-1. Decide whether the change is breaking.
-2. Update this document and the implementation in the same session.
-3. Update shared schemas in `packages/shared/`.
-4. Add or update integration tests in `tests/integration/`.
-5. Record the impact in `docs/llm/HISTORY.md` and `docs/VERSIONING_RULES.md` if needed.
-
-## Checklist
-
-- [ ] HTTP route documented
-- [ ] Webhook schema documented
-- [ ] Breaking change reviewed
-- [ ] Version impact assessed
+Phase 2 delivers the route surface and immediate webhook delivery with persisted attempt logging. Durable retry/outbox semantics remain a Phase 3 concern and should not be implied here.

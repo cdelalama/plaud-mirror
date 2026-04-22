@@ -168,3 +168,24 @@ This decision is a **posture statement**, not a legal opinion. It does not claim
 - Multi-tenant features (per-user tokens, account separation beyond a single operator) are out of scope without a new decision revisiting this posture.
 - Redistribution of Plaud-sourced audio by Plaud Mirror itself (e.g. a public gallery, a re-publishing webhook target) is out of scope.
 - If Plaud publishes terms or a program that changes this picture, this decision should be revisited explicitly rather than drifted through.
+
+---
+
+## D-010 - Roadmap phases are normative
+
+**Status:** accepted
+
+### Decision
+The roadmap phases in `docs/ROADMAP.md` are the source of truth for what belongs in each delivery slice. In particular:
+
+- **Phase 2** means the first usable **manual** vertical slice: UI, Docker, encrypted token persistence, manual sync/backfill, local mirroring, and immediate signed webhook delivery.
+- **Phase 3** means unattended operation and resilience: scheduler, retry/outbox, resumable backfill, and stronger health behavior.
+
+### Rationale
+The project already hit a failure mode where the implementation drifted toward a CLI-heavy spike while the product discussion still assumed the first usable release included a web UI. The fix is not only "remember better"; the phase boundary itself needs to be explicit and treated as binding.
+
+### Implications
+
+- New work must be checked against `docs/ROADMAP.md` before claiming it belongs to the current phase.
+- If scope moves across a phase boundary, update the roadmap and handoff before calling the work aligned.
+- Phase 2 should not quietly absorb scheduler/outbox work unless the roadmap is deliberately re-cut.

@@ -1,97 +1,102 @@
-<!-- doc-version: 0.2.1 -->
+<!-- doc-version: 0.3.0 -->
 # Plaud Mirror
 
-Self-hosted Plaud audio mirror with web UI, auto-sync, and webhook delivery.
+Self-hosted Plaud audio mirror with a local web panel, manual sync/backfill controls, and Docker deployment.
 
 **Version:** see [VERSION](VERSION) | [CHANGELOG](CHANGELOG.md)
 
 ## Overview
 
-Plaud Mirror is a Docker-first service for mirroring Plaud recordings to local storage as soon as they appear in the account. Its job is deliberately narrow: stay authenticated, discover new recordings, download the audio artifact, and hand the result to downstream systems that do speech-to-text, indexing, or archival work.
+Plaud Mirror is an operator-run service for mirroring Plaud recordings into local storage and notifying downstream systems through a generic webhook. It is intentionally audio-first: it validates auth, lists recordings, downloads the original artifact, stores it in a predictable layout, and hands off the result.
 
-The project is meant to be a real OSS with its own identity, not a thin wrapper around somebody else's code. At the same time, it does not ignore the existing ecosystem. Plaud Mirror takes concrete inspiration from several upstream projects, documents exactly what it keeps from each one, and maintains a watchlist so changes in auth, token handling, regional API behavior, or download flows are visible quickly.
+The repository now contains the first usable internal slice:
 
-Version `0.2.1` keeps Phase 1 moving and hardens the testing discipline around it. The repository contains the documentation system, upstream-watch tooling, version-sync enforcement for package manifests, and a real TypeScript spike harness for validating Plaud bearer-token auth, recordings listing, detail lookup, and audio download from `dev-vm`. The production API, UI, and Docker deployment are still pending.
+- Fastify admin API
+- React/Vite web panel
+- encrypted persisted bearer-token auth
+- manual sync and filtered historical backfill
+- local recording index in SQLite
+- immediate HMAC-signed webhook delivery with persisted delivery attempts
+- Docker packaging for `dev-vm`
+
+Continuous sync, resumable backfill, retry outbox, and automatic re-login are explicitly later phases.
+
+## Operator Posture
+
+Plaud Mirror is for personal/operator use against the operator's own Plaud account. It is not a hosted multi-tenant service and does not present itself as a redistribution layer for Plaud-sourced audio.
 
 ## Quick Start
 
-### Prerequisites
-- `gh` authenticated against GitHub
-- Local access to `home-infra` if you want external-context generation
-- POSIX shell environment for repository scripts
+### Local Node Run
 
-### Setup
+Prerequisites:
+
+- Node `>=20`
+- `PLAUD_MIRROR_MASTER_KEY` set
+
 ```bash
-cp scripts/pre-commit-hook.sh .git/hooks/pre-commit
-chmod +x .git/hooks/pre-commit
+cd ~/src/plaud-mirror
 npm install
-scripts/dockit-generate-external-context.sh --apply --claude-rules --project .
-scripts/check-version-sync.sh
-scripts/check-upstreams.sh
+
+export PLAUD_MIRROR_MASTER_KEY="<long-random-secret>"
+npm start
 ```
 
-### What Works Today
+Then open `http://localhost:3040`.
+
+### Docker on `dev-vm`
+
 ```bash
-npm test
-npm run spike -- --help
-scripts/dockit-validate-session.sh --human
-scripts/check-upstreams.sh --markdown
+cd ~/src/plaud-mirror
+export PLAUD_MIRROR_MASTER_KEY="<long-random-secret>"
+docker compose up --build
 ```
+
+Runtime data lands in:
+
+- `./runtime/data`
+- `./runtime/recordings`
 
 ## Phase 1 Spike
 
-The current implementation target is a CLI spike in `apps/api` that proves the live Plaud flow before the full Fastify/React product slice exists.
-
-Required environment:
+The original CLI spike is still available for direct Plaud probing:
 
 ```bash
 export PLAUD_MIRROR_ACCESS_TOKEN="<your-bearer-token>"
-```
-
-Optional environment:
-
-```bash
-export PLAUD_MIRROR_API_BASE="https://api.plaud.ai"
-```
-
-Useful commands:
-
-```bash
-npm run spike -- validate
-npm run spike -- list --limit 50 --from 2026-04-01 --to 2026-04-22
-npm run spike -- detail --id <recording-id>
-npm run spike -- download --id <recording-id>
 npm run spike -- probe --limit 100 --download-first
 ```
 
-Outputs:
-- `.state/phase1/latest-report.json` for the spike summary
-- `recordings/<recording-id>/audio.<ext>` for mirrored audio
-- `recordings/<recording-id>/metadata.json` for the local metadata snapshot
+This remains useful for live Plaud validation and metadata discovery.
+
+## What Works Today
+
+```bash
+npm test
+npm start
+docker compose up --build
+scripts/check-version-sync.sh
+scripts/dockit-validate-session.sh --human
+```
 
 ## Documentation
 
 | Document | Purpose |
 |----------|---------|
 | [LLM_START_HERE.md](LLM_START_HERE.md) | Entry point for LLM contributors |
-| [docs/PROJECT_CONTEXT.md](docs/PROJECT_CONTEXT.md) | Vision, architecture, milestones, current state |
-| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Technical design for auth, sync, storage, and UI |
-| [docs/UPSTREAMS.md](docs/UPSTREAMS.md) | Upstream matrix, baselines, and reuse policy |
-| [docs/STRUCTURE.md](docs/STRUCTURE.md) | Repository layout |
-| [docs/VERSIONING_RULES.md](docs/VERSIONING_RULES.md) | Version management policy |
-| [docs/operations/AUTH_AND_SYNC.md](docs/operations/AUTH_AND_SYNC.md) | Auth renewal and sync behavior |
-| [docs/operations/UPSTREAM_WATCH.md](docs/operations/UPSTREAM_WATCH.md) | How upstream changes are detected and reviewed |
-| [docs/llm/HANDOFF.md](docs/llm/HANDOFF.md) | Current work state |
-| [HOW_TO_USE.md](HOW_TO_USE.md) | Project workflow and DocKit usage guide |
+| [docs/PROJECT_CONTEXT.md](docs/PROJECT_CONTEXT.md) | Product intent and current state |
+| [docs/ROADMAP.md](docs/ROADMAP.md) | Canonical phase boundaries |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Runtime structure and flow design |
+| [docs/operations/API_CONTRACT.md](docs/operations/API_CONTRACT.md) | Actual HTTP and webhook surface |
+| [docs/operations/AUTH_AND_SYNC.md](docs/operations/AUTH_AND_SYNC.md) | Auth model and sync behavior |
+| [docs/operations/DEPLOY_PLAYBOOK.md](docs/operations/DEPLOY_PLAYBOOK.md) | Docker deployment and rollback |
+| [docs/llm/HANDOFF.md](docs/llm/HANDOFF.md) | Current implementation snapshot |
 
 ## Contributing
 
-This repository is still documentation-heavy, but runtime work has now started. Any change touching auth, token renewal, sync cadence, storage layout, or upstream baselines must update the matching docs in the same session. Every new runtime case must also add or update tests, and the relevant suite must pass before the work is considered done.
+- Every new runtime case must add or update tests in the same session.
+- Runtime work is not done until the relevant suite passes locally.
+- Scope changes must be reflected in `docs/ROADMAP.md`, not only in code or handoff notes.
 
 ## License
 
 Released under the MIT License. See [LICENSE](LICENSE) for details.
-
----
-
-*Project documentation scaffolded from [LLM-DocKit](https://github.com/cdelalama/LLM-DocKit).*

@@ -1,4 +1,4 @@
-<!-- doc-version: 0.2.1 -->
+<!-- doc-version: 0.3.0 -->
 # Versioning Rules
 
 ## Version Format
@@ -14,6 +14,7 @@ Current version sources:
 - `docs/version-sync-manifest.yml`: lists all files tracked for version sync
 - `package.json`: root workspace manifest
 - `apps/api/package.json`: API workspace manifest
+- `apps/web/package.json`: web workspace manifest
 - `packages/shared/package.json`: shared-schema workspace manifest
 
 ## Impact Guidelines For This Project
@@ -29,6 +30,7 @@ Current version sources:
 - New auth capabilities that are backward compatible
 - New optional delivery mechanisms or operator UI features
 - New configuration options that preserve old behavior
+- Phase-boundary shifts captured in `docs/ROADMAP.md` when they do not break existing contracts
 
 ### Major (X.y.z)
 

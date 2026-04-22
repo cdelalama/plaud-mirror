@@ -1,4 +1,4 @@
-<!-- doc-version: 0.2.1 -->
+<!-- doc-version: 0.3.0 -->
 # Upstream Strategy
 
 Last verified against GitHub: 2026-04-22
@@ -35,6 +35,11 @@ Phase 1 adoption now landed in-repo:
 - browser-aligned request headers and pseudo device/request IDs are informed by `JamesStuder/Plaud_API`
 - regional API retry on `status = -302` / region mismatch payloads is informed by `iiAtlas/plaud-recording-downloader`
 - the `/user/me`, `/file/simple/web`, `/file/detail/<id>`, and `/file/temp-url/<id>` sequence was cross-checked against `Applaud` and the Studer client before implementation
+
+Phase 2 adoption now landed in-repo:
+- the product panel and server-first operator flow continue to follow the `Applaud` shape rather than a browser-extension shape
+- manual-token persistence with explicit degraded-auth handling keeps Plaud Mirror aligned with its own phased-auth decision instead of inheriting a browser-session-only model
+- Docker-first packaging now exists, but scheduler/outbox behavior is still intentionally deferred to the next phase rather than copied prematurely from upstreams
 
 ## Primary Inspiration
 

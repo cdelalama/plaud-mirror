@@ -1,0 +1,13 @@
+.git
+.github
+.claude
+.codex
+node_modules
+data
+recordings
+.state
+runtime
+tmp
+dist
+coverage
+test-results

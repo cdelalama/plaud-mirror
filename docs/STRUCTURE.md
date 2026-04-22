@@ -1,123 +1,92 @@
+<!-- doc-version: 0.3.0 -->
 # Repository Structure Guide
 
-This document describes the actual Plaud Mirror repository layout as of `v0.2.1`.
+This document describes the actual Plaud Mirror repository layout as of the first usable Phase 2 slice.
 
 ## Top-Level Layout
-```
+
+```text
 plaud-mirror/
 +- README.md
 +- LLM_START_HERE.md
 +- VERSION
 +- CHANGELOG.md
-+- HOW_TO_USE.md
-+- .dockit-enabled
-+- .dockit-config.yml
++- Dockerfile
++- compose.yml
 +- package.json
 +- package-lock.json
 +- tsconfig.base.json
-+- docs/
-|  +- PROJECT_CONTEXT.md
-|  +- ARCHITECTURE.md
-|  +- UPSTREAMS.md
-|  +- STRUCTURE.md
-|  +- VERSIONING_RULES.md
-|  +- version-sync-manifest.yml
-|  +- llm/
-|  +- operations/
-+- scripts/
-|  +- bump-version.sh
-|  +- check-version-sync.sh
-|  +- check-upstreams.sh
-|  +- dockit-generate-external-context.sh
-|  +- dockit-validate-session.sh
-|  +- pre-commit-hook.sh
-+- config/
-|  +- upstreams.tsv
 +- apps/
 |  +- api/
 |  |  +- package.json
 |  |  +- tsconfig.json
 |  |  +- src/
+|  |     +- cli/
+|  |     +- phase1/
+|  |     +- plaud/
+|  |     +- runtime/
+|  |     +- server.ts
 |  +- web/
+|     +- package.json
+|     +- index.html
+|     +- src/
 +- packages/
 |  +- shared/
-|  |  +- package.json
-|  |  +- tsconfig.json
-|  |  +- src/
++- docs/
+|  +- PROJECT_CONTEXT.md
+|  +- ROADMAP.md
+|  +- ARCHITECTURE.md
+|  +- STRUCTURE.md
+|  +- VERSIONING_RULES.md
+|  +- UPSTREAMS.md
+|  +- llm/
+|  +- operations/
++- scripts/
 +- tests/
 |  +- integration/
-+- .claude/
-|  +- settings.json
-|  +- rules/
-|  |  +- require-docs-on-code-change.md
-|  |  +- external-context-triggers.md  (generated)
-|  +- skills/
-|     +- update-docs/
-|        +- SKILL.md
-+- .github/
-|  +- workflows/
-|     +- doc-validation.yml
-|     +- upstream-watch.yml
 ```
 
 ## Directory Descriptions
 
 | Path | Purpose | Notes |
 |------|---------|-------|
-| `docs/` | Primary documentation for product, architecture, upstreams, and policy | Required |
-| `docs/llm/` | LLM working memory: handoff, history, decisions, reviews | Required |
-| `docs/operations/` | Operational runbooks for auth, deploy, contracts, and upstream watch | Required for this project |
-| `docs/version-sync-manifest.yml` | Source of truth for doc-version tracking | Required |
-| `.dockit-enabled` | Opt-in marker for DocKit sync from the upstream template repo | Required |
-| `.dockit-config.yml` | Local DocKit config plus external-context definition | Required |
-| `scripts/check-upstreams.sh` | Compares GitHub upstream state against the committed baseline | Project-specific |
-| `scripts/dockit-generate-external-context.sh` | Generates local external-context block and Claude rule | Required |
-| `scripts/dockit-validate-session.sh` | Validates LLM documentation discipline | Required |
-| `config/upstreams.tsv` | Baseline list of tracked Plaud ecosystem upstreams | Required |
-| `package.json` | Root workspace manifest | Version-synced with `VERSION` |
-| `package-lock.json` | Locked npm dependency graph for the Phase 1 monorepo | Generated from the root workspace |
-| `tsconfig.base.json` | Shared TypeScript compiler settings | Used by `apps/api` and `packages/shared` |
-| `apps/api/` | Phase 1 spike runtime plus future backend home | Contains the live Plaud CLI spike |
-| `apps/web/` | Planned operational UI | Empty placeholder at `v0.2.1` |
-| `packages/shared/` | Shared schemas/contracts package | Contains Zod Plaud response schemas and Phase 1 report schema |
-| `tests/integration/` | Planned end-to-end and integration tests | Empty placeholder at `v0.2.1` |
-| `.claude/` | Claude Code rules and skills | Local workflow support |
-| `.github/workflows/upstream-watch.yml` | Scheduled upstream drift detection | Project-specific |
+| `apps/api/` | Fastify API, Plaud adapter, encrypted secret handling, manual sync/backfill orchestration | Phase 2 runtime backend |
+| `apps/web/` | React + Vite operator panel | Served by the API container |
+| `packages/shared/` | Shared Zod schemas and TypeScript contracts | Source of truth for Plaud and runtime payloads |
+| `tests/integration/` | Post-build integration smoke tests | Exercises built API and web artifacts |
+| `docs/ROADMAP.md` | Canonical phase boundary document | Use this when scope questions appear |
+| `Dockerfile` | Single-container production image | Builds API and panel together |
+| `compose.yml` | Local `dev-vm` launch path | Mounts `runtime/data` and `runtime/recordings` |
 
-## Generated / Runtime Directories
+## Runtime Directories
 
 These paths are expected at runtime and should remain uncommitted:
-- `data/` - SQLite DB, encrypted secrets blob, internal runtime metadata
-- `recordings/` - mirrored Plaud audio artifacts
-- `.state/` - optional local watcher or runtime state
-- `tmp/downloads/` - transient download workspace
 
-## Custom Modules or Packages
+- `data/` - SQLite DB and encrypted secrets blob
+- `recordings/` - mirrored Plaud artifacts
+- `.state/` - spike reports and optional local state
+- `runtime/` - Docker bind mounts for local compose usage
 
-- `apps/api/`
-  Home for the Plaud adapter, auth manager, sync scheduler, storage coordinator, and admin API. Today it contains the Phase 1 CLI spike (`src/cli/spike.ts`), the Plaud client, and unit tests.
-- `apps/web/`
-  Planned home for the Docker-hosted operator UI.
-- `packages/shared/`
-  Home for config schema, Plaud response parsing, webhook contracts, and shared types used by both apps.
-- `config/upstreams.tsv`
-  Not runtime configuration. This is governance state for tracking useful external projects.
+## Key Runtime Modules
 
-## Naming Conventions
-
-- Repository, directories, and files use English names.
-- Environment variables should use the `PLAUD_MIRROR_` prefix.
-- Upstream repos are always referenced as `owner/repo`.
-- Local mirrored recordings should use the Plaud recording ID as the canonical directory key.
+- `apps/api/src/plaud/`
+  Plaud API client and region-retry logic.
+- `apps/api/src/phase1/`
+  The original spike utilities. Still useful for live probing and regression checks.
+- `apps/api/src/runtime/`
+  SQLite store, encrypted secret storage, sync/backfill service, and runtime tests.
+- `apps/api/src/server.ts`
+  Fastify app factory and static web serving.
+- `apps/web/src/App.tsx`
+  Product panel for token setup, webhook config, manual sync, backfill, and recordings list.
 
 ## Onboarding Notes
 
-Start in this order:
+Read in this order before changing runtime scope:
+
 1. `README.md`
 2. `LLM_START_HERE.md`
 3. `docs/PROJECT_CONTEXT.md`
-4. `docs/ARCHITECTURE.md`
-5. `docs/UPSTREAMS.md`
+4. `docs/ROADMAP.md`
+5. `docs/ARCHITECTURE.md`
 6. `docs/operations/AUTH_AND_SYNC.md`
-
-Only then start implementation work in `apps/api/` or `apps/web/`.

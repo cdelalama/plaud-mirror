@@ -1,0 +1,485 @@
+import { randomUUID } from "node:crypto";
+import { mkdirSync } from "node:fs";
+import { dirname } from "node:path";
+
+import Database from "better-sqlite3";
+
+import {
+  AuthStatusSchema,
+  RecordingMirrorSchema,
+  RuntimeConfigSchema,
+  SyncFiltersSchema,
+  SyncRunSummarySchema,
+  type AuthStatus,
+  type RecordingMirror,
+  type RuntimeConfig,
+  type SyncFilters,
+  type SyncRunMode,
+  type SyncRunSummary,
+} from "@plaud-mirror/shared";
+
+interface SyncRunRow {
+  id: string;
+  mode: string;
+  status: string;
+  filters_json: string;
+  started_at: string;
+  finished_at: string | null;
+  examined: number;
+  matched: number;
+  downloaded: number;
+  delivered: number;
+  skipped: number;
+  error_message: string | null;
+}
+
+interface RecordingRow {
+  id: string;
+  title: string;
+  created_at: string | null;
+  duration_seconds: number;
+  serial_number: string | null;
+  scene: number | null;
+  local_path: string | null;
+  content_type: string | null;
+  bytes_written: number;
+  mirrored_at: string | null;
+  last_webhook_status: "skipped" | "success" | "failed" | null;
+  last_webhook_attempt_at: string | null;
+}
+
+export interface DeliveryAttemptRecord {
+  recordingId: string;
+  status: "skipped" | "success" | "failed";
+  webhookUrl: string | null;
+  httpStatus: number | null;
+  errorMessage: string | null;
+  payloadJson: string;
+  attemptedAt: string;
+}
+
+export interface RuntimeStoreConfig {
+  dbPath: string;
+  dataDir: string;
+  recordingsDir: string;
+  defaultSyncLimit: number;
+}
+
+const DEFAULT_AUTH_STATUS: AuthStatus = {
+  mode: "manual-token",
+  configured: false,
+  state: "missing",
+  resolvedApiBase: null,
+  lastValidatedAt: null,
+  lastError: null,
+  userSummary: null,
+};
+
+export class RuntimeStore {
+  private readonly db: Database.Database;
+  private readonly dataDir: string;
+  private readonly recordingsDir: string;
+  private readonly defaultSyncLimit: number;
+
+  constructor(config: RuntimeStoreConfig) {
+    mkdirSync(dirname(config.dbPath), { recursive: true });
+    this.db = new Database(config.dbPath);
+    this.db.pragma("journal_mode = WAL");
+    this.dataDir = config.dataDir;
+    this.recordingsDir = config.recordingsDir;
+    this.defaultSyncLimit = config.defaultSyncLimit;
+    this.migrate();
+  }
+
+  close(): void {
+    this.db.close();
+  }
+
+  seedWebhookDefaults(webhookUrl?: string): void {
+    if (webhookUrl && !this.getSetting<string>("config.webhookUrl")) {
+      this.setSetting("config.webhookUrl", webhookUrl);
+    }
+  }
+
+  getConfig(hasWebhookSecret: boolean): RuntimeConfig {
+    return RuntimeConfigSchema.parse({
+      dataDir: this.dataDir,
+      recordingsDir: this.recordingsDir,
+      webhookUrl: this.getSetting<string>("config.webhookUrl") ?? null,
+      hasWebhookSecret,
+      defaultSyncLimit: this.defaultSyncLimit,
+    });
+  }
+
+  saveConfig(input: { webhookUrl?: string | null }): RuntimeConfig {
+    if (input.webhookUrl !== undefined) {
+      if (input.webhookUrl) {
+        this.setSetting("config.webhookUrl", input.webhookUrl);
+      } else {
+        this.deleteSetting("config.webhookUrl");
+      }
+    }
+
+    return this.getConfig(Boolean(this.getSetting<string>("config.webhookSecretSentinel")));
+  }
+
+  setWebhookSecretPresence(hasSecret: boolean): void {
+    if (hasSecret) {
+      this.setSetting("config.webhookSecretSentinel", "present");
+      return;
+    }
+
+    this.deleteSetting("config.webhookSecretSentinel");
+  }
+
+  getAuthStatus(configured: boolean): AuthStatus {
+    const stored = this.getJsonSetting<AuthStatus>("auth.status");
+    return AuthStatusSchema.parse({
+      ...(stored ?? DEFAULT_AUTH_STATUS),
+      configured,
+      state: configured ? (stored?.state ?? "degraded") : "missing",
+    });
+  }
+
+  saveAuthStatus(status: AuthStatus): AuthStatus {
+    this.setJsonSetting("auth.status", status);
+    return status;
+  }
+
+  countRecordings(): number {
+    const row = this.db.prepare("SELECT COUNT(*) AS count FROM recordings").get() as { count: number };
+    return row.count;
+  }
+
+  listRecordings(limit: number): RecordingMirror[] {
+    const rows = this.db.prepare(`
+      SELECT
+        id,
+        title,
+        created_at,
+        duration_seconds,
+        serial_number,
+        scene,
+        local_path,
+        content_type,
+        bytes_written,
+        mirrored_at,
+        last_webhook_status,
+        last_webhook_attempt_at
+      FROM recordings
+      ORDER BY COALESCE(mirrored_at, created_at) DESC, id DESC
+      LIMIT ?
+    `).all(limit) as RecordingRow[];
+
+    return rows.map(mapRecordingRow);
+  }
+
+  getRecording(recordingId: string): RecordingMirror | null {
+    const row = this.db.prepare(`
+      SELECT
+        id,
+        title,
+        created_at,
+        duration_seconds,
+        serial_number,
+        scene,
+        local_path,
+        content_type,
+        bytes_written,
+        mirrored_at,
+        last_webhook_status,
+        last_webhook_attempt_at
+      FROM recordings
+      WHERE id = ?
+    `).get(recordingId) as RecordingRow | undefined;
+
+    return row ? mapRecordingRow(row) : null;
+  }
+
+  upsertRecording(recording: RecordingMirror): RecordingMirror {
+    const normalized = RecordingMirrorSchema.parse(recording);
+    this.db.prepare(`
+      INSERT INTO recordings (
+        id,
+        title,
+        created_at,
+        duration_seconds,
+        serial_number,
+        scene,
+        local_path,
+        content_type,
+        bytes_written,
+        mirrored_at,
+        last_webhook_status,
+        last_webhook_attempt_at
+      ) VALUES (
+        @id,
+        @title,
+        @createdAt,
+        @durationSeconds,
+        @serialNumber,
+        @scene,
+        @localPath,
+        @contentType,
+        @bytesWritten,
+        @mirroredAt,
+        @lastWebhookStatus,
+        @lastWebhookAttemptAt
+      )
+      ON CONFLICT(id) DO UPDATE SET
+        title = excluded.title,
+        created_at = excluded.created_at,
+        duration_seconds = excluded.duration_seconds,
+        serial_number = excluded.serial_number,
+        scene = excluded.scene,
+        local_path = excluded.local_path,
+        content_type = excluded.content_type,
+        bytes_written = excluded.bytes_written,
+        mirrored_at = excluded.mirrored_at,
+        last_webhook_status = excluded.last_webhook_status,
+        last_webhook_attempt_at = excluded.last_webhook_attempt_at
+    `).run({
+      id: normalized.id,
+      title: normalized.title,
+      createdAt: normalized.createdAt,
+      durationSeconds: normalized.durationSeconds,
+      serialNumber: normalized.serialNumber,
+      scene: normalized.scene,
+      localPath: normalized.localPath,
+      contentType: normalized.contentType,
+      bytesWritten: normalized.bytesWritten,
+      mirroredAt: normalized.mirroredAt,
+      lastWebhookStatus: normalized.lastWebhookStatus,
+      lastWebhookAttemptAt: normalized.lastWebhookAttemptAt,
+    });
+
+    return normalized;
+  }
+
+  startSyncRun(mode: SyncRunMode, filters: SyncFilters): { id: string; startedAt: string } {
+    const id = randomUUID();
+    const startedAt = new Date().toISOString();
+
+    this.db.prepare(`
+      INSERT INTO sync_runs (
+        id,
+        mode,
+        status,
+        filters_json,
+        started_at,
+        finished_at,
+        examined,
+        matched,
+        downloaded,
+        delivered,
+        skipped,
+        error_message
+      ) VALUES (?, ?, 'running', ?, ?, NULL, 0, 0, 0, 0, 0, NULL)
+    `).run(id, mode, JSON.stringify(filters), startedAt);
+
+    return { id, startedAt };
+  }
+
+  finishSyncRun(summary: SyncRunSummary): SyncRunSummary {
+    const normalized = SyncRunSummarySchema.parse(summary);
+    this.db.prepare(`
+      UPDATE sync_runs
+      SET
+        status = ?,
+        filters_json = ?,
+        finished_at = ?,
+        examined = ?,
+        matched = ?,
+        downloaded = ?,
+        delivered = ?,
+        skipped = ?,
+        error_message = ?
+      WHERE id = ?
+    `).run(
+      normalized.status,
+      JSON.stringify(normalized.filters),
+      normalized.finishedAt,
+      normalized.examined,
+      normalized.matched,
+      normalized.downloaded,
+      normalized.delivered,
+      normalized.skipped,
+      normalized.error,
+      normalized.id,
+    );
+
+    return normalized;
+  }
+
+  getLastSyncRun(): SyncRunSummary | null {
+    const row = this.db.prepare(`
+      SELECT
+        id,
+        mode,
+        status,
+        filters_json,
+        started_at,
+        finished_at,
+        examined,
+        matched,
+        downloaded,
+        delivered,
+        skipped,
+        error_message
+      FROM sync_runs
+      WHERE finished_at IS NOT NULL
+      ORDER BY finished_at DESC
+      LIMIT 1
+    `).get() as SyncRunRow | undefined;
+
+    if (!row) {
+      return null;
+    }
+
+    return mapSyncRunRow(row);
+  }
+
+  recordDeliveryAttempt(attempt: DeliveryAttemptRecord): void {
+    this.db.prepare(`
+      INSERT INTO webhook_deliveries (
+        id,
+        recording_id,
+        status,
+        webhook_url,
+        http_status,
+        error_message,
+        payload_json,
+        attempted_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      randomUUID(),
+      attempt.recordingId,
+      attempt.status,
+      attempt.webhookUrl,
+      attempt.httpStatus,
+      attempt.errorMessage,
+      attempt.payloadJson,
+      attempt.attemptedAt,
+    );
+  }
+
+  countDeliveryAttempts(recordingId: string): number {
+    const row = this.db.prepare(`
+      SELECT COUNT(*) AS count
+      FROM webhook_deliveries
+      WHERE recording_id = ?
+    `).get(recordingId) as { count: number };
+
+    return row.count;
+  }
+
+  private migrate(): void {
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS settings (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS recordings (
+        id TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        created_at TEXT,
+        duration_seconds REAL NOT NULL DEFAULT 0,
+        serial_number TEXT,
+        scene INTEGER,
+        local_path TEXT,
+        content_type TEXT,
+        bytes_written INTEGER NOT NULL DEFAULT 0,
+        mirrored_at TEXT,
+        last_webhook_status TEXT,
+        last_webhook_attempt_at TEXT
+      );
+
+      CREATE TABLE IF NOT EXISTS sync_runs (
+        id TEXT PRIMARY KEY,
+        mode TEXT NOT NULL,
+        status TEXT NOT NULL,
+        filters_json TEXT NOT NULL,
+        started_at TEXT NOT NULL,
+        finished_at TEXT,
+        examined INTEGER NOT NULL DEFAULT 0,
+        matched INTEGER NOT NULL DEFAULT 0,
+        downloaded INTEGER NOT NULL DEFAULT 0,
+        delivered INTEGER NOT NULL DEFAULT 0,
+        skipped INTEGER NOT NULL DEFAULT 0,
+        error_message TEXT
+      );
+
+      CREATE TABLE IF NOT EXISTS webhook_deliveries (
+        id TEXT PRIMARY KEY,
+        recording_id TEXT NOT NULL,
+        status TEXT NOT NULL,
+        webhook_url TEXT,
+        http_status INTEGER,
+        error_message TEXT,
+        payload_json TEXT NOT NULL,
+        attempted_at TEXT NOT NULL
+      );
+    `);
+  }
+
+  private getSetting<T = string>(key: string): T | null {
+    const row = this.db.prepare("SELECT value FROM settings WHERE key = ?").get(key) as { value: string } | undefined;
+    return row ? (row.value as T) : null;
+  }
+
+  private setSetting(key: string, value: string): void {
+    this.db.prepare(`
+      INSERT INTO settings (key, value)
+      VALUES (?, ?)
+      ON CONFLICT(key) DO UPDATE SET value = excluded.value
+    `).run(key, value);
+  }
+
+  private deleteSetting(key: string): void {
+    this.db.prepare("DELETE FROM settings WHERE key = ?").run(key);
+  }
+
+  private getJsonSetting<T>(key: string): T | null {
+    const raw = this.getSetting<string>(key);
+    return raw ? (JSON.parse(raw) as T) : null;
+  }
+
+  private setJsonSetting(key: string, value: unknown): void {
+    this.setSetting(key, JSON.stringify(value));
+  }
+}
+
+function mapRecordingRow(row: RecordingRow): RecordingMirror {
+  return RecordingMirrorSchema.parse({
+    id: row.id,
+    title: row.title,
+    createdAt: row.created_at,
+    durationSeconds: Number(row.duration_seconds ?? 0),
+    serialNumber: row.serial_number,
+    scene: row.scene,
+    localPath: row.local_path,
+    contentType: row.content_type,
+    bytesWritten: row.bytes_written ?? 0,
+    mirroredAt: row.mirrored_at,
+    lastWebhookStatus: row.last_webhook_status,
+    lastWebhookAttemptAt: row.last_webhook_attempt_at,
+  });
+}
+
+function mapSyncRunRow(row: SyncRunRow): SyncRunSummary {
+  return SyncRunSummarySchema.parse({
+    id: row.id,
+    mode: row.mode,
+    status: row.status,
+    startedAt: row.started_at,
+    finishedAt: row.finished_at,
+    examined: row.examined,
+    matched: row.matched,
+    downloaded: row.downloaded,
+    delivered: row.delivered,
+    skipped: row.skipped,
+    filters: SyncFiltersSchema.parse(JSON.parse(row.filters_json)),
+    error: row.error_message,
+  });
+}

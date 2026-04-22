@@ -1,12 +1,17 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { mkdtemp, readFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 import type { PlaudRawRecording } from "@plaud-mirror/shared";
+import type { PlaudClient } from "../plaud/client.js";
 
 import {
   applyLocalFilters,
   buildFilterRecommendations,
   buildRecordingStats,
+  downloadAudioArtifact,
   loadSpikeEnvironment,
   resolveAudioExtension,
 } from "./spike.js";
@@ -131,5 +136,36 @@ test("resolveAudioExtension prefers the url suffix and falls back to content typ
   assert.equal(
     resolveAudioExtension("https://storage.example.com/audio/file", null),
     ".bin",
+  );
+});
+
+test("downloadAudioArtifact measures bytes from the written file instead of content-length", async () => {
+  const recordingsDir = await mkdtemp(join(tmpdir(), "plaud-mirror-phase1-"));
+  const client = {
+    async getAudioTempUrl() {
+      return "https://storage.example.com/audio/test";
+    },
+  } as unknown as PlaudClient;
+
+  const artifact = await downloadAudioArtifact(
+    client,
+    "rec-1",
+    recordingsDir,
+    { file_name: "test" },
+    false,
+    async () => new Response("hello", {
+      status: 200,
+      headers: {
+        "content-type": "audio/mpeg",
+        "transfer-encoding": "chunked",
+      },
+    }),
+  );
+
+  assert.ok(artifact);
+  assert.equal(artifact.bytesWritten, 5);
+  assert.equal(
+    await readFile(join(recordingsDir, "rec-1", "audio.mp3"), "utf8"),
+    "hello",
   );
 });

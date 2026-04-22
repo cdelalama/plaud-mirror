@@ -1,84 +1,73 @@
-<!-- doc-version: 0.2.1 -->
+<!-- doc-version: 0.3.0 -->
 # Authentication and Sync Operations
 
-This runbook defines how Plaud Mirror should behave around authentication, token retention, and recording sync.
+This runbook defines the live Phase 2 behavior for Plaud Mirror.
 
-## Scope
+## Auth Mode
 
-- Plaud auth modes
-- Token renewal policy
-- Sync cadence and retry behavior
-- Failure handling and operator expectations
+### Current Mode: Manual Bearer Token
 
-## Auth Modes
+- Operator pastes a Plaud bearer token in the web UI.
+- API validates it against Plaud before storing it.
+- Token is encrypted at rest in `data/secrets.enc`.
+- If Plaud later rejects the token, the service moves into a degraded auth state and requires operator action.
 
-### Phase 1 Spike Mode: Bearer Token via Environment
+### Later Mode: Automatic Re-login
 
-The Phase 1 CLI spike reads `PLAUD_MIRROR_ACCESS_TOKEN` from the environment and validates it directly against Plaud. It does not persist the token, but it does prove the live auth path, region fallback, and download flow before Phase 2 adds encrypted storage and UI-driven token management.
+Automatic re-login remains a roadmap item only. It is not part of the current deployment contract.
 
-### Phase 2 Mode: Bearer Token
+## Auth State
 
-This is the required auth mode for the first usable release. The operator pastes a Plaud bearer token in the UI; Plaud Mirror encrypts and persists it, validates it, and surfaces a degraded state when it expires or becomes invalid.
+The service exposes:
 
-### Later Mode: Username and Password
+- whether a token is configured
+- current auth state: `missing`, `healthy`, `degraded`, or `invalid`
+- resolved Plaud API base when known
+- last successful validation timestamp
+- last auth error
 
-Optional later mode for automatic re-login. Credentials are stored encrypted at rest and used only when automatic renewal is actually implemented and considered reliable enough to ship.
+## Sync Behavior
 
-### Explicitly Disfavored: Browser-Assisted Renewal
+### Phase 2
 
-Browser automation is not part of the planned path for the first usable release. Reintroducing it would require explicit new approval.
+- Sync is operator-triggered only.
+- Backfill is operator-triggered only.
+- Supported filters:
+  - date range
+  - `serialNumber`
+  - `scene`
+- Existing mirrored recordings are skipped unless `forceDownload` is requested.
+- Webhook delivery is attempted immediately after mirroring.
+- Delivery attempts are persisted even when the webhook call fails.
 
-## Auth State Model
+### Phase 3
 
-Minimum state to persist:
-- auth mode
-- access token
-- token expiry timestamp
-- Plaud region or API base metadata if discovered
-- last successful auth validation
-- whether automatic renewal is available in the current deployment
-- last renewal attempt and failure reason
+The following are explicitly later:
 
-## Renewal Policy
-
-- Validate the active token on startup.
-- In the Phase 1 spike, retry once against the Plaud regional API host if Plaud responds with the known region-mismatch payload.
-- In the first usable release, do not attempt automatic recovery. If the token is expired, near-useless, or a Plaud API call returns `401`, move the service into a degraded auth state and require the operator to provide a fresh token.
-- If `credentials-relogin` is added in a later phase, renew before expiry rather than after it. Initial target remains less than 15 minutes remaining.
-- Browser-assisted renewal is not a fallback plan; if direct renewal proves too brittle, stop and redesign rather than silently expanding the auth surface.
-
-## Sync Policy
-
-- The Phase 1 spike is manual-only and intentionally CLI-driven.
-- Support manual sync and filtered historical backfill from the first usable release.
-- Once continuous sync lands, poll Plaud on a configurable interval with a conservative default target of 15 minutes.
-- De-duplicate using the Plaud recording ID as the primary key.
-- Download the original audio artifact first. Local transcode is optional and not part of the critical path.
-- Persist sync metadata even when downstream webhook delivery fails.
-- Historical backfill emits the same `recording.synced` webhook contract as ongoing sync.
+- scheduler-driven polling
+- retry queue/outbox behavior
+- resumable backfill
 
 ## Failure Modes
 
-| Failure | Expected Service Response | Operator Action |
-|---------|---------------------------|-----------------|
-| Token expired or invalid in manual-token mode | Mark auth degraded, stop new downloads that require auth, surface warning in UI | Provide a fresh token |
-| Credentials invalid in a later auto-relogin phase | Stop renewal attempts after bounded retries, keep last good token if still valid | Fix credentials |
-| Plaud temp URL download failed | Retry with bounded backoff | Inspect Plaud/API behavior and logs |
-| Region/auth flow changed upstream | Upstream watch should detect likely changes; sync may degrade | Review tracked upstream repos and update adapter logic |
+| Failure | Current response | Operator action |
+|---------|------------------|-----------------|
+| Missing token | UI shows `missing` auth state | Paste and validate a token |
+| Invalid token | UI/API show `invalid` or `degraded` state | Replace token |
+| Plaud download failure | Request fails, sync summary records failure | Re-run after checking logs or upstream drift |
+| Webhook delivery failure | Attempt stored as failed, mirrored file kept locally | Fix webhook target/secret and re-run |
 
 ## Security Rules
 
-- Never log passwords, tokens, or full temporary download URLs.
-- Keep secrets encrypted at rest.
-- Rotate credentials after debugging if exposure is suspected.
-- Treat recording titles and audio content as sensitive data.
+- Never log bearer tokens or webhook secrets.
+- Never log full Plaud temp URLs.
+- `PLAUD_MIRROR_MASTER_KEY` is mandatory for runtime startup.
 
 ## Operational Signals
 
-The UI and health model should expose:
-- current auth mode
-- token expiry countdown
-- last successful auth validation
-- last successful sync
-- whether automatic renewal is available in this deployment
-- number of pending or failed recordings
+The UI and `/api/health` should make it obvious:
+
+- whether auth is usable
+- whether webhook configuration is complete
+- when the last sync ran
+- how many recordings are already mirrored
