@@ -209,7 +209,7 @@ function buildUserSummary(userData: Record<string, unknown>): Record<string, unk
   return summary;
 }
 
-function buildRecordingStats(allRecordings: PlaudRawRecording[], filteredRecordings: PlaudRawRecording[]) {
+export function buildRecordingStats(allRecordings: PlaudRawRecording[], filteredRecordings: PlaudRawRecording[]) {
   const matchedDurations = filteredRecordings.map((recording) => recording.duration / 1000);
   const totalFilesizeBytes = filteredRecordings.reduce((sum, recording) => sum + recording.filesize, 0);
   const uniqueSerialNumbers = uniqueStrings(filteredRecordings.map((recording) => recording.serial_number));
@@ -222,8 +222,12 @@ function buildRecordingStats(allRecordings: PlaudRawRecording[], filteredRecordi
   return {
     examined: allRecordings.length,
     matched: filteredRecordings.length,
-    earliestStartTime: toIsoOrNull(Math.min(...filteredRecordings.map((recording) => recording.start_time))),
-    latestStartTime: toIsoOrNull(Math.max(...filteredRecordings.map((recording) => recording.start_time))),
+    earliestStartTime: filteredRecordings.length === 0
+      ? null
+      : toIsoOrNull(Math.min(...filteredRecordings.map((recording) => recording.start_time))),
+    latestStartTime: filteredRecordings.length === 0
+      ? null
+      : toIsoOrNull(Math.max(...filteredRecordings.map((recording) => recording.start_time))),
     averageDurationSeconds: matchedDurations.length === 0
       ? 0
       : Number((matchedDurations.reduce((sum, value) => sum + value, 0) / matchedDurations.length).toFixed(2)),
@@ -236,7 +240,7 @@ function buildRecordingStats(allRecordings: PlaudRawRecording[], filteredRecordi
   };
 }
 
-function buildFilterRecommendations(recordings: PlaudRawRecording[]): Phase1FilterRecommendation[] {
+export function buildFilterRecommendations(recordings: PlaudRawRecording[]): Phase1FilterRecommendation[] {
   const recommendations: Phase1FilterRecommendation[] = [];
 
   recommendations.push({
@@ -341,7 +345,7 @@ async function writeJson(path: string, value: unknown): Promise<void> {
   await writeFile(path, `${JSON.stringify(value, null, 2)}\n`, "utf8");
 }
 
-function resolveAudioExtension(tempUrl: string, contentType: string | null): string {
+export function resolveAudioExtension(tempUrl: string, contentType: string | null): string {
   const pathname = new URL(tempUrl).pathname;
   const fromUrl = extname(basename(pathname));
   if (fromUrl) {

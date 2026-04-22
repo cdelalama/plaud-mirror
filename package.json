@@ -1,6 +1,6 @@
 {
   "name": "plaud-mirror",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "private": true,
   "type": "module",
   "packageManager": "npm@11.6.2",
@@ -13,7 +13,7 @@
   ],
   "scripts": {
     "build": "tsc -b packages/shared/tsconfig.json apps/api/tsconfig.json",
-    "test": "npm run build && node --test packages/shared/dist/plaud.test.js apps/api/dist/plaud/client.test.js",
+    "test": "npm run build && node --test packages/shared/dist/plaud.test.js apps/api/dist/plaud/client.test.js apps/api/dist/phase1/spike.test.js apps/api/dist/cli/spike.test.js",
     "spike": "npm run build && node apps/api/dist/cli/spike.js"
   },
   "devDependencies": {

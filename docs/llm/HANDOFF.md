@@ -1,4 +1,4 @@
-<!-- doc-version: 0.2.0 -->
+<!-- doc-version: 0.2.1 -->
 # LLM Work Handoff
 
 This file is the current operational snapshot. Long-form rationale lives in `docs/llm/DECISIONS.md`. Archived review commentary lives in `docs/llm/REVIEWS.md`.
@@ -7,7 +7,7 @@ This file is the current operational snapshot. Long-form rationale lives in `doc
 
 - Last Updated: 2026-04-22 - Codex GPT-5
 - Session Focus: Run the new Phase 1 spike harness on `dev-vm` with a real Plaud bearer token and capture the first live report/download
-- Status: `v0.2.0` starts runtime implementation. The repo now has an npm workspace monorepo, shared Zod schemas, a Plaud client with browser-aligned headers plus regional retry, and a Phase 1 CLI spike that can validate `/user/me`, list `/file/simple/web`, inspect `/file/detail/<id>`, download via `/file/temp-url/<id>`, and write local artifacts under `recordings/` plus `.state/phase1/`. Unit tests pass and the CLI help path is verified. Live Plaud validation on `dev-vm` is still pending because no bearer token was provided in-session.
+- Status: `v0.2.1` keeps runtime implementation moving and makes the test discipline explicit. The repo has an npm workspace monorepo, shared Zod schemas, a Plaud client with browser-aligned headers plus regional retry, and a Phase 1 CLI spike that can validate `/user/me`, list `/file/simple/web`, inspect `/file/detail/<id>`, download via `/file/temp-url/<id>`, and write local artifacts under `recordings/` plus `.state/phase1/`. The suite now also covers client error cases, spike filtering/report helpers, and CLI argument parsing. Live Plaud validation on `dev-vm` is still pending because no bearer token was provided in-session.
 
 ## Project Summary
 
@@ -43,6 +43,7 @@ License boundary:
 - **Stable docs aligned with the converged roadmap (2026-04-22).** `docs/PROJECT_CONTEXT.md`, `docs/ARCHITECTURE.md`, `docs/operations/AUTH_AND_SYNC.md`, and `docs/operations/API_CONTRACT.md` now match the actual plan captured in D-003 and the handoff: Phase 1 is a Plaud spike, the first usable release is manual-token-first with filtered backfill and HMAC-signed generic webhooks, and automatic re-login is explicitly deferred to a later phase.
 - **Runtime version sync now covers package manifests (2026-04-22).** Once the Phase 1 monorepo landed, `scripts/bump-version.sh`, `scripts/check-version-sync.sh`, and `docs/version-sync-manifest.yml` were extended so `package.json`, `apps/api/package.json`, and `packages/shared/package.json` stay aligned with `VERSION`.
 - **Phase 1 spike harness landed (2026-04-22).** `apps/api` now contains a real TypeScript CLI spike and unit tests, and `packages/shared` now contains the Plaud response/report schemas used by the spike. This is the first committed runtime code in the repo.
+- **Testing discipline made explicit (2026-04-22).** `LLM_START_HERE.md`, `README.md`, and `docs/VERSIONING_RULES.md` now state that every new runtime case must add or update tests in the same session and that the relevant local suite must pass before the work is considered complete.
 
 ## Top Priorities
 
@@ -137,7 +138,7 @@ Moved to `docs/ARCHITECTURE.md` under "Implementation Stack" (TypeScript monorep
 ## Testing Notes
 
 - `dotnet` is not installed on this machine, so the original C# downloader was only inspected, not executed.
-- `npm test` passes for the shared Zod schemas and Plaud client regional-retry logic.
+- `npm test` passes for the shared Zod schemas, Plaud client regional-retry/error handling, Phase 1 spike helper logic, and CLI argument parsing.
 - `npm run spike -- --help` passes as a CLI smoke test.
 - No live Plaud API call was executed in-session because no bearer token was available.
 

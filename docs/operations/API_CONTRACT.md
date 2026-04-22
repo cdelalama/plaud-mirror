@@ -1,4 +1,4 @@
-<!-- doc-version: 0.2.0 -->
+<!-- doc-version: 0.2.1 -->
 # API Contract
 
 This document captures the planned stable surfaces for Plaud Mirror before the stable HTTP/API surface ships.

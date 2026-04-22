@@ -1,6 +1,6 @@
 # Repository Structure Guide
 
-This document describes the actual Plaud Mirror repository layout as of `v0.2.0`.
+This document describes the actual Plaud Mirror repository layout as of `v0.2.1`.
 
 ## Top-Level Layout
 ```
@@ -78,9 +78,9 @@ plaud-mirror/
 | `package-lock.json` | Locked npm dependency graph for the Phase 1 monorepo | Generated from the root workspace |
 | `tsconfig.base.json` | Shared TypeScript compiler settings | Used by `apps/api` and `packages/shared` |
 | `apps/api/` | Phase 1 spike runtime plus future backend home | Contains the live Plaud CLI spike |
-| `apps/web/` | Planned operational UI | Empty placeholder at `v0.2.0` |
+| `apps/web/` | Planned operational UI | Empty placeholder at `v0.2.1` |
 | `packages/shared/` | Shared schemas/contracts package | Contains Zod Plaud response schemas and Phase 1 report schema |
-| `tests/integration/` | Planned end-to-end and integration tests | Empty placeholder at `v0.2.0` |
+| `tests/integration/` | Planned end-to-end and integration tests | Empty placeholder at `v0.2.1` |
 | `.claude/` | Claude Code rules and skills | Local workflow support |
 | `.github/workflows/upstream-watch.yml` | Scheduled upstream drift detection | Project-specific |
 

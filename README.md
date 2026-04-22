@@ -1,4 +1,4 @@
-<!-- doc-version: 0.2.0 -->
+<!-- doc-version: 0.2.1 -->
 # Plaud Mirror
 
 Self-hosted Plaud audio mirror with web UI, auto-sync, and webhook delivery.
@@ -11,7 +11,7 @@ Plaud Mirror is a Docker-first service for mirroring Plaud recordings to local s
 
 The project is meant to be a real OSS with its own identity, not a thin wrapper around somebody else's code. At the same time, it does not ignore the existing ecosystem. Plaud Mirror takes concrete inspiration from several upstream projects, documents exactly what it keeps from each one, and maintains a watchlist so changes in auth, token handling, regional API behavior, or download flows are visible quickly.
 
-Version `0.2.0` starts Phase 1 implementation. The repository now contains the documentation system, upstream-watch tooling, version-sync enforcement for package manifests, and a real TypeScript spike harness for validating Plaud bearer-token auth, recordings listing, detail lookup, and audio download from `dev-vm`. The production API, UI, and Docker deployment are still pending.
+Version `0.2.1` keeps Phase 1 moving and hardens the testing discipline around it. The repository contains the documentation system, upstream-watch tooling, version-sync enforcement for package manifests, and a real TypeScript spike harness for validating Plaud bearer-token auth, recordings listing, detail lookup, and audio download from `dev-vm`. The production API, UI, and Docker deployment are still pending.
 
 ## Quick Start
 
@@ -86,7 +86,7 @@ Outputs:
 
 ## Contributing
 
-This repository is still documentation-heavy, but runtime work has now started. Any change touching auth, token renewal, sync cadence, storage layout, or upstream baselines must update the matching docs in the same session.
+This repository is still documentation-heavy, but runtime work has now started. Any change touching auth, token renewal, sync cadence, storage layout, or upstream baselines must update the matching docs in the same session. Every new runtime case must also add or update tests, and the relevant suite must pass before the work is considered done.
 
 ## License
 

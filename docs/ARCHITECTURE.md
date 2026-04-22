@@ -1,7 +1,7 @@
-<!-- doc-version: 0.2.0 -->
+<!-- doc-version: 0.2.1 -->
 # Plaud Mirror Architecture
 
-> Version: 0.2.0
+> Version: 0.2.1
 > Last Updated: 2026-04-22
 > Status: Design + Phase 1 spike
 > Authors: Plaud Mirror maintainers

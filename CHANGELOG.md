@@ -4,6 +4,19 @@ All notable changes to Plaud Mirror are documented in this file.
 
 This project follows Semantic Versioning (SemVer): MAJOR.MINOR.PATCH.
 
+## [0.2.1] - 2026-04-22
+
+### Added
+- Tests for Phase 1 spike helpers and CLI argument parsing
+- Tests for Plaud client error handling (`401`, non-JSON payloads, missing temp URLs)
+
+### Changed
+- Project docs now state explicitly that every new runtime case must add or update tests in the same session
+- The CLI no longer auto-executes when imported by tests
+
+### Fixed
+- Runtime coverage now includes the non-happy-path cases already implemented in the Plaud spike
+
 ## [0.2.0] - 2026-04-22
 
 ### Added

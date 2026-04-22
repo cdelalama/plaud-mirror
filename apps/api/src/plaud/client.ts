@@ -287,7 +287,7 @@ export function shouldRetryWithRegionalApi(
   return normalizeApiBase(currentApiBase) !== normalizeApiBase(regionalApiBase);
 }
 
-function extractTempUrl(response: PlaudTempUrlResponse, recordingId: string): string {
+export function extractTempUrl(response: PlaudTempUrlResponse, recordingId: string): string {
   const tempUrl = response.temp_url ?? response.data?.temp_url;
   if (!tempUrl) {
     throw new PlaudApiError(`Plaud returned no temp_url for recording ${recordingId}`, 200, "");

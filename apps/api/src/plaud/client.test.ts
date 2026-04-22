@@ -2,8 +2,11 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  PlaudApiError,
+  PlaudAuthError,
   PlaudClient,
   buildPlaudApiUrl,
+  extractTempUrl,
   extractRegionalApiBase,
   isRegionMismatchPayload,
   normalizeApiBase,
@@ -106,4 +109,45 @@ test("PlaudClient retries with a regional host when Plaud requests it", async ()
   assert.equal(calls[0], "https://api.plaud.ai/file/simple/web?skip=0&limit=1&is_trash=2&sort_by=start_time&is_desc=true");
   assert.equal(calls[1], "https://api-apne1.plaud.ai/file/simple/web?skip=0&limit=1&is_trash=2&sort_by=start_time&is_desc=true");
   assert.equal(client.getResolvedApiBase(), "https://api-apne1.plaud.ai");
+});
+
+test("PlaudClient throws PlaudAuthError on 401", async () => {
+  const client = new PlaudClient({
+    accessToken: "token-value",
+    fetchImpl: async () => createJsonResponse({ status: 401, msg: "expired" }, 401),
+  });
+
+  await assert.rejects(
+    () => client.getCurrentUser(),
+    (error: unknown) => error instanceof PlaudAuthError && error.message.includes("401"),
+  );
+});
+
+test("PlaudClient throws PlaudApiError on non-JSON success body", async () => {
+  const client = new PlaudClient({
+    accessToken: "token-value",
+    fetchImpl: async () => new Response("not-json", { status: 200 }),
+  });
+
+  await assert.rejects(
+    () => client.getCurrentUser(),
+    (error: unknown) => error instanceof PlaudApiError && error.message.includes("non-JSON"),
+  );
+});
+
+test("extractTempUrl accepts nested data.temp_url and rejects missing temp urls", () => {
+  assert.equal(
+    extractTempUrl({
+      status: 0,
+      data: {
+        temp_url: "https://storage.example.com/audio.m4a",
+      },
+    }, "rec-1"),
+    "https://storage.example.com/audio.m4a",
+  );
+
+  assert.throws(
+    () => extractTempUrl({ status: 0 }, "rec-1"),
+    (error: unknown) => error instanceof PlaudApiError && error.message.includes("no temp_url"),
+  );
 });

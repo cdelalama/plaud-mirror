@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 import { inspect } from "node:util";
 
 import {
@@ -17,7 +18,7 @@ import {
 
 type CommandName = "validate" | "list" | "detail" | "download" | "probe";
 
-interface ParsedArguments {
+export interface ParsedArguments {
   command: CommandName;
   json: boolean;
   options: ProbeOptions;
@@ -70,7 +71,7 @@ async function main(): Promise<void> {
   }
 }
 
-function parseArguments(argv: string[]): ParsedArguments {
+export function parseArguments(argv: string[]): ParsedArguments {
   if (argv.includes("--help") || argv.includes("-h")) {
     printUsage();
     process.exit(0);
@@ -235,8 +236,18 @@ function isCommandName(input: string | undefined): input is CommandName {
   return input === "validate" || input === "list" || input === "detail" || input === "download" || input === "probe";
 }
 
-main().catch((error) => {
-  const message = error instanceof Error ? error.message : String(error);
-  process.stderr.write(`${message}\n`);
-  process.exitCode = 1;
-});
+if (isEntrypoint(import.meta.url, process.argv[1])) {
+  main().catch((error) => {
+    const message = error instanceof Error ? error.message : String(error);
+    process.stderr.write(`${message}\n`);
+    process.exitCode = 1;
+  });
+}
+
+function isEntrypoint(moduleUrl: string, entryPath: string | undefined): boolean {
+  if (!entryPath) {
+    return false;
+  }
+
+  return moduleUrl === pathToFileURL(entryPath).href;
+}

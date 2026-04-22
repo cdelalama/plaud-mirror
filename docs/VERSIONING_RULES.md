@@ -1,4 +1,4 @@
-<!-- doc-version: 0.2.0 -->
+<!-- doc-version: 0.2.1 -->
 # Versioning Rules
 
 ## Version Format
@@ -93,6 +93,14 @@ To track a new file:
 4. Update `docs/llm/HANDOFF.md` with the new version context.
 5. Append a `HISTORY.md` entry documenting the version rationale.
 6. Run `scripts/check-version-sync.sh`.
+7. If runtime code changed, run the relevant test suite and leave it green before commit.
+
+## Testing Discipline
+
+- Every new runtime case must add or update tests in the same session.
+- Treat tests as part of the feature, not as follow-up cleanup.
+- If behavior changes, update the existing assertions to reflect the intended contract.
+- A code change is not complete until the relevant local tests pass.
 
 ## Environment Variables
 
