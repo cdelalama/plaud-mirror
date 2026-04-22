@@ -31,7 +31,7 @@ The system is designed around an audio-first contract. It does not need to own t
 
 | Component | Purpose | Owner | Notes |
 |-----------|---------|-------|-------|
-| Auth Manager | Maintain Plaud session state and token freshness | Core | Supports token-first mode and optional credential-based re-login |
+| Auth Manager | Maintain Plaud session state and token freshness | Core | Manual bearer-token first; optional credential-based re-login later |
 | Plaud Adapter | Encapsulate Plaud API calls and regional quirks | Core | Inspired by existing reverse-engineered clients, but not locked to a single upstream |
 | Sync Engine | Poll for new recordings, queue downloads, retry failures | Core | Audio-first behavior for v1 |
 | Artifact Store | Persist audio and sync metadata locally | Core | Predictable on-disk layout for downstream automation |
@@ -48,15 +48,18 @@ Plaud Mirror `v0.1.0` is a repository and architecture bootstrap. The project no
 - architecture and operations docs
 - an upstream baseline manifest plus checker script
 - an explicit policy for licensing boundaries and upstream reuse
+- a converged implementation plan for the first usable release on `dev-vm`
 
-The runtime service does not exist yet. No Plaud auth, download, Docker image, or UI implementation has been committed.
+The runtime service does not exist yet. No Plaud auth, download, Docker image, or UI implementation has been committed. The current plan is manual-token-first, with a small product UI, filtered historical backfill, and generic HMAC-signed webhook delivery in the first usable release; automatic re-login is explicitly deferred.
 
 ## Upcoming Milestones
 
-1. Phase 0 complete: repository bootstrap, documentation, and upstream baselines - 2026-04-21
-2. Phase 1: backend skeleton plus configuration and status UI shell - 2026-04-28
-3. Phase 2: Plaud auth manager, token renewal path, and recording discovery - 2026-05-05
-4. Phase 3: audio download pipeline, local storage, webhook delivery, and first Docker deployment - 2026-05-12
+1. Phase 1: Plaud spike on `dev-vm` to validate manual-token auth, recordings listing, real audio download, and actual metadata/filter shape
+2. Phase 2: first usable internal release with product UI, encrypted persisted manual-token auth, filtered historical backfill, and HMAC-signed generic webhook delivery
+3. Phase 3: continuous sync and resilience with scheduler, resumable backfill, and stronger health/status surfaces
+4. Phase 4: optional automatic re-login if a reliable non-browser path exists
+5. Phase 5: deployment hardening and NAS rollout
+6. Phase 6: OSS preparation and public-facing quickstart/documentation tightening
 
 ## References
 

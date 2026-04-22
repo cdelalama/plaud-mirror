@@ -34,15 +34,28 @@ The intended users are operators running their own infrastructure who care more 
 5. `scripts/`
    Repo operations: DocKit validation, external-context generation, version sync, and upstream-change detection.
 
+## Implementation Stack
+
+Recommended stack for the first usable release, subject to final confirmation after the Phase 1 Plaud spike:
+
+- **Monorepo:** TypeScript, Node.js, one shared toolchain across `apps/` and `packages/`.
+- **`apps/api/`:** Fastify service covering the Plaud adapter, session/auth management, sync and backfill orchestration, webhook outbox, and admin HTTP API.
+- **`apps/web/`:** React + Vite product panel for setup, sync/backfill controls, auth state, recordings list, and error visibility. Not just an operator console — it is the product-facing surface for a single operator.
+- **`packages/shared/`:** Zod schemas and TypeScript types for config, HTTP responses, recording metadata, jobs, and webhook payloads. Single source of truth for contracts shared between API and web.
+- **Persistence:** SQLite for config, recording index, job state, and delivery attempts. Filesystem storage for mirrored audio under `recordings/<recording-id>/`.
+- **Queueing model:** same-process jobs. No Redis, no external queue in v1. Revisit only if concurrency or durability pressure demonstrably requires it.
+- **Secrets at rest:** encrypted local blob. The encryption key comes from environment (e.g. `PLAUD_MIRROR_MASTER_KEY`), supplied by the surrounding deployment.
+- **Configuration source:** plain environment variables at the application boundary. In the owner's infrastructure those env vars are injected by Doppler (workspace Xibstar, project `plaud-mirror`). For OSS users, any env-var mechanism (`.env`, Docker env, systemd `EnvironmentFile`) works equivalently. The application must not depend on Doppler directly.
+
 ## Key Flows
 
 ### Flow 1: Session Bootstrap and Renewal
 
-1. Operator configures either a Plaud bearer token or Plaud account credentials.
+1. For the first usable release, the operator configures a Plaud bearer token in the UI.
 2. Auth Manager validates the token and records `expires_at`, region, and last successful check.
-3. If expiry is near and credentials exist, Auth Manager performs a controlled re-login and rotates the stored token.
-4. If a Plaud call returns `401`, the service performs one forced re-login and retries the original operation once.
-5. Web UI shows the resulting auth state: healthy, expiring soon, degraded, or failed.
+3. If the token expires or a Plaud call returns `401`, the service moves into a degraded auth state and requires operator action to supply a fresh token.
+4. In a later phase, if `credentials-relogin` is implemented, Auth Manager may perform a controlled re-login and rotate the stored token.
+5. Web UI shows the resulting auth state: healthy, expiring soon, degraded, or failed, plus the recovery path available in the current phase.
 
 ### Flow 2: Audio Mirror Sync
 
@@ -64,7 +77,7 @@ The intended users are operators running their own infrastructure who care more 
 
 Stable contracts planned for v1:
 - Admin HTTP API for configuration, health, sync control, and recordings listing
-- Webhook payload for `recording.synced`
+- HMAC-signed webhook payload for `recording.synced`, shared by ongoing sync and historical backfill
 - On-disk artifact layout for mirrored recordings
 - Internal config schema shared by API and web UI
 
@@ -105,7 +118,9 @@ Retention policy:
 ## Roadmap
 
 1. Phase 0 - Documentation and repository bootstrap
-2. Phase 1 - Backend and UI skeleton with local config
-3. Phase 2 - Plaud auth manager plus token renewal
-4. Phase 3 - Audio sync, local storage, and webhook delivery
-5. Phase 4 - Hardened upstream watch automation and operator UX
+2. Phase 1 - Plaud spike and data-model proof on `dev-vm`
+3. Phase 2 - First usable internal release: product UI, encrypted persisted manual-token auth, filtered backfill, and HMAC-signed webhook delivery
+4. Phase 3 - Continuous sync and resilience: scheduler, resumable backfill, retries, and stronger health/status surfaces
+5. Phase 4 - Optional automatic re-login if a reliable non-browser path exists
+6. Phase 5 - Deployment hardening and NAS rollout
+7. Phase 6 - OSS preparation and public quickstart cleanup

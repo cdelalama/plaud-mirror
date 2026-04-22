@@ -11,20 +11,34 @@ Plaud Mirror is expected to expose:
 
 ## Planned Admin API
 
+Phase 2 target surface for the first usable release:
+
 | Method | Path | Purpose |
 |--------|------|---------|
 | `GET` | `/api/health` | Liveness and high-level service status |
 | `GET` | `/api/config` | Return sanitized runtime configuration |
 | `PUT` | `/api/config` | Update non-secret config such as poll interval or webhook target |
 | `POST` | `/api/auth/token` | Save or validate a bearer token |
-| `POST` | `/api/auth/credentials` | Save or validate Plaud credentials for re-login |
 | `POST` | `/api/sync/run` | Trigger an immediate sync |
+| `POST` | `/api/backfill/run` | Trigger a filtered historical backfill job |
 | `GET` | `/api/recordings` | List mirrored recordings with local status |
 | `GET` | `/api/auth/status` | Return auth mode, token expiry, and last successful validation |
 
+Later-phase candidate route:
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `POST` | `/api/auth/credentials` | Save or validate Plaud credentials for automatic re-login once that mode exists |
+
 ## Planned Webhook Contract
 
-Plaud Mirror should emit a downstream webhook when a new audio artifact is mirrored.
+Plaud Mirror should emit a downstream webhook when a new audio artifact is mirrored. The same `recording.synced` event shape is used for both ongoing sync and historical backfill.
+
+Webhook deliveries for the first usable release should be signed with an HMAC-SHA256 header, for example:
+
+```
+X-Plaud-Mirror-Signature-256: sha256=<hex-digest>
+```
 
 Example payload:
 
