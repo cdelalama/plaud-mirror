@@ -1,9 +1,9 @@
-<!-- doc-version: 0.1.1 -->
+<!-- doc-version: 0.2.0 -->
 # Plaud Mirror Architecture
 
-> Version: 0.1.1
+> Version: 0.2.0
 > Last Updated: 2026-04-22
-> Status: Design
+> Status: Design + Phase 1 spike
 > Authors: Plaud Mirror maintainers
 
 ## Overview
@@ -33,6 +33,28 @@ The intended users are operators running their own infrastructure who care more 
    Human-managed configuration assets, including tracked upstream baselines.
 5. `scripts/`
    Repo operations: DocKit validation, external-context generation, version sync, and upstream-change detection.
+
+## Phase 1 Implementation Notes
+
+The current implementation slice is deliberately narrower than the future Fastify service. `apps/api` now contains a CLI spike that proves the core Plaud path on `dev-vm` before the full product surface exists.
+
+What the spike already does:
+
+- validates a manual bearer token with `/user/me`
+- lists recordings via `/file/simple/web`
+- fetches recording detail via `/file/detail/<id>`
+- resolves download URLs via `/file/temp-url/<id>`
+- retries once against a Plaud regional API host when the payload reports a region mismatch
+- mirrors audio into `recordings/<recording-id>/audio.<ext>`
+- writes `recordings/<recording-id>/metadata.json` plus `.state/phase1/latest-report.json`
+
+What the spike does not do yet:
+
+- persist secrets or token metadata
+- expose HTTP routes
+- run a scheduler
+- emit webhooks
+- offer any UI
 
 ## Implementation Stack
 
@@ -101,6 +123,14 @@ Retention policy:
 - Audio files are durable by default and not auto-deleted.
 - Temp download artifacts are disposable.
 - Delivery retries keep bounded history in the local database.
+
+Observed Phase 1 layout today:
+- `recordings/<recording-id>/audio.<ext>`
+  Audio mirrored by the spike CLI from a Plaud temp URL
+- `recordings/<recording-id>/metadata.json`
+  Local snapshot containing the detail payload summary, content type, host, output path, and byte count
+- `.state/phase1/latest-report.json`
+  Spike summary with user metadata, filter recommendations, selected recording, and optional download metadata
 
 ## Security & Privacy Notes
 

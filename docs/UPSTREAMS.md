@@ -1,4 +1,4 @@
-<!-- doc-version: 0.1.1 -->
+<!-- doc-version: 0.2.0 -->
 # Upstream Strategy
 
 Last verified against GitHub: 2026-04-22
@@ -30,6 +30,11 @@ The result is deliberate:
 - auth and token resilience are informed heavily by `iiAtlas`
 - endpoint and export behavior are checked against the Studer projects
 - licensing and product-scope discipline keep Plaud Mirror independent
+
+Phase 1 adoption now landed in-repo:
+- browser-aligned request headers and pseudo device/request IDs are informed by `JamesStuder/Plaud_API`
+- regional API retry on `status = -302` / region mismatch payloads is informed by `iiAtlas/plaud-recording-downloader`
+- the `/user/me`, `/file/simple/web`, `/file/detail/<id>`, and `/file/temp-url/<id>` sequence was cross-checked against `Applaud` and the Studer client before implementation
 
 ## Primary Inspiration
 

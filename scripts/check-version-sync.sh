@@ -84,6 +84,17 @@ while read -r filepath markertype; do
             fi
             CHECKED=$((CHECKED + 1))
             ;;
+        json-version)
+            FOUND=$(sed -n 's/^[[:space:]]*"version":[[:space:]]*"\([0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\)".*/\1/p' "$filepath" | head -1)
+            if [ -z "$FOUND" ]; then
+                echo "DRIFT: $filepath missing \"version\": \"$EXPECTED\" field"
+                ERRORS=$((ERRORS + 1))
+            elif [ "$FOUND" != "$EXPECTED" ]; then
+                echo "DRIFT: $filepath has '$FOUND', expected '$EXPECTED'"
+                ERRORS=$((ERRORS + 1))
+            fi
+            CHECKED=$((CHECKED + 1))
+            ;;
         *)
             echo "WARN: unknown marker type '$markertype' for $filepath"
             ;;

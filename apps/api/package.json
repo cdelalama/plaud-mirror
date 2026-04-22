@@ -1,0 +1,16 @@
+{
+  "name": "@plaud-mirror/api",
+  "version": "0.2.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "plaud-mirror-phase1": "./dist/cli/spike.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "dependencies": {
+    "@plaud-mirror/shared": "file:../../packages/shared"
+  }
+}

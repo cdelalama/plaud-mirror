@@ -8,6 +8,7 @@
 # This script:
 # - Updates VERSION file
 # - Updates <!-- doc-version: X.Y.Z --> markers in tracked docs
+# - Updates "version": "X.Y.Z" in tracked package manifests
 # - Adds a new ## [X.Y.Z] section to CHANGELOG.md
 # - Runs check-version-sync.sh as self-test
 #
@@ -107,6 +108,19 @@ while read -r filepath markertype; do
                 mv "$TMPOUT" "$filepath"
                 printf "  %-40s OK (changelog: added ## [%s])\n" "$filepath" "$NEW_VERSION"
                 UPDATED=$((UPDATED + 1))
+            fi
+            ;;
+        json-version)
+            if grep -q '"version"[[:space:]]*:' "$filepath"; then
+                TMPOUT=$(mktemp)
+                sed '0,/"version"[[:space:]]*:[[:space:]]*"[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*"/s//"version": "'"$NEW_VERSION"'"/' \
+                    "$filepath" > "$TMPOUT"
+                mv "$TMPOUT" "$filepath"
+                printf "  %-40s OK (json-version)\n" "$filepath"
+                UPDATED=$((UPDATED + 1))
+            else
+                printf "  %-40s FAIL (no version field found)\n" "$filepath"
+                FAILED=$((FAILED + 1))
             fi
             ;;
         *)

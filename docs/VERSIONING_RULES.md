@@ -1,4 +1,4 @@
-<!-- doc-version: 0.1.1 -->
+<!-- doc-version: 0.2.0 -->
 # Versioning Rules
 
 ## Version Format
@@ -7,12 +7,14 @@ Use Semantic Versioning (SemVer): MAJOR.MINOR.PATCH.
 
 ## Version Location
 
-Versioning in Plaud Mirror currently lives in documentation and repository governance because runtime packages do not exist yet.
+Versioning in Plaud Mirror now spans both documentation and runtime package manifests.
 
 Current version sources:
 - `VERSION`: primary source of truth for project version
 - `docs/version-sync-manifest.yml`: lists all files tracked for version sync
-- Future package manifests in `apps/` or `packages/` must be kept aligned once implementation starts
+- `package.json`: root workspace manifest
+- `apps/api/package.json`: API workspace manifest
+- `packages/shared/package.json`: shared-schema workspace manifest
 
 ## Impact Guidelines For This Project
 
@@ -49,6 +51,7 @@ scripts/bump-version.sh <new_version>
 The script reads the manifest and updates:
 - `VERSION` file (plain version string)
 - `<!-- doc-version: X.Y.Z -->` HTML comment markers in documentation files
+- `"version": "X.Y.Z"` fields in tracked package manifests
 - `CHANGELOG.md` section header (adds `## [X.Y.Z]` placeholder)
 
 ### Validation
@@ -77,7 +80,9 @@ The hook:
 
 To track a new file:
 1. Add an entry to `docs/version-sync-manifest.yml`.
-2. Insert `<!-- doc-version: X.Y.Z -->` on line 1 of the file.
+2. Use the marker type that matches the file format:
+   - docs: `<!-- doc-version: X.Y.Z -->` on line 1
+   - package manifest: `"version": "X.Y.Z"`
 3. Run `scripts/check-version-sync.sh` to verify.
 
 ## Update Process

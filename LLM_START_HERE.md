@@ -1,4 +1,4 @@
-<!-- doc-version: 0.1.1 -->
+<!-- doc-version: 0.2.0 -->
 # LLM Start Guide - Plaud Mirror
 
 ## Read This First (Mandatory)
@@ -82,8 +82,8 @@ Recommended reading order:
 
 Source of truth: docs/llm/HANDOFF.md.
 - Last Updated: 2026-04-22 - Codex GPT-5
-- Working on: start the Phase 1 Plaud spike on `dev-vm`: validate manual-token auth, recordings listing, real audio download, and the actual metadata/filter shape
-- Status: Stable docs and LLM-governance tooling are now aligned with the converged roadmap. `docs/PROJECT_CONTEXT.md`, `docs/ARCHITECTURE.md`, `docs/operations/AUTH_AND_SYNC.md`, and `docs/operations/API_CONTRACT.md` match the manual-token-first plan; `scripts/dockit-validate-session.sh` now enforces HANDOFF ↔ `LLM_START_HERE.md` snapshot sync; and the next real engineering step is the Phase 1 Plaud spike on `dev-vm`.
+- Working on: run the new Phase 1 spike harness on `dev-vm` with a real Plaud bearer token and capture the first live report/download
+- Status: `v0.2.0` starts runtime implementation. The repo now has an npm workspace monorepo, shared Zod schemas, a Plaud client with browser-aligned headers plus regional retry, and a Phase 1 CLI spike that can validate `/user/me`, list `/file/simple/web`, inspect `/file/detail/<id>`, download via `/file/temp-url/<id>`, and write local artifacts under `recordings/` plus `.state/phase1/`. Unit tests pass and the CLI help path is verified. Live Plaud validation on `dev-vm` is still pending because no bearer token was provided in-session.
 
 Keep this section synchronized with the "Current Status" block in docs/llm/HANDOFF.md.
 

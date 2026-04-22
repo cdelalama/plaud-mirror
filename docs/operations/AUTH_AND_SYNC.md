@@ -1,4 +1,4 @@
-<!-- doc-version: 0.1.1 -->
+<!-- doc-version: 0.2.0 -->
 # Authentication and Sync Operations
 
 This runbook defines how Plaud Mirror should behave around authentication, token retention, and recording sync.
@@ -11,6 +11,10 @@ This runbook defines how Plaud Mirror should behave around authentication, token
 - Failure handling and operator expectations
 
 ## Auth Modes
+
+### Phase 1 Spike Mode: Bearer Token via Environment
+
+The Phase 1 CLI spike reads `PLAUD_MIRROR_ACCESS_TOKEN` from the environment and validates it directly against Plaud. It does not persist the token, but it does prove the live auth path, region fallback, and download flow before Phase 2 adds encrypted storage and UI-driven token management.
 
 ### Phase 2 Mode: Bearer Token
 
@@ -38,12 +42,14 @@ Minimum state to persist:
 ## Renewal Policy
 
 - Validate the active token on startup.
+- In the Phase 1 spike, retry once against the Plaud regional API host if Plaud responds with the known region-mismatch payload.
 - In the first usable release, do not attempt automatic recovery. If the token is expired, near-useless, or a Plaud API call returns `401`, move the service into a degraded auth state and require the operator to provide a fresh token.
 - If `credentials-relogin` is added in a later phase, renew before expiry rather than after it. Initial target remains less than 15 minutes remaining.
 - Browser-assisted renewal is not a fallback plan; if direct renewal proves too brittle, stop and redesign rather than silently expanding the auth surface.
 
 ## Sync Policy
 
+- The Phase 1 spike is manual-only and intentionally CLI-driven.
 - Support manual sync and filtered historical backfill from the first usable release.
 - Once continuous sync lands, poll Plaud on a configurable interval with a conservative default target of 15 minutes.
 - De-duplicate using the Plaud recording ID as the primary key.

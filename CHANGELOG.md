@@ -4,6 +4,21 @@ All notable changes to Plaud Mirror are documented in this file.
 
 This project follows Semantic Versioning (SemVer): MAJOR.MINOR.PATCH.
 
+## [0.2.0] - 2026-04-22
+
+### Added
+- npm workspace monorepo bootstrap for `apps/api` and `packages/shared`
+- Phase 1 CLI spike for Plaud bearer-token validation, recordings listing, detail lookup, and audio download
+- Shared Zod schemas for Plaud responses and the Phase 1 probe report
+- Unit tests for Plaud response parsing and regional API retry handling
+
+### Changed
+- Version sync now covers tracked package manifests in addition to docs and `VERSION`
+- README and runbooks now document the Phase 1 spike workflow and runtime shape
+
+### Fixed
+- The repository now enforces its own "package manifests must stay aligned with VERSION" rule once runtime code exists
+
 ## [0.1.1] - 2026-04-22
 
 ### Added

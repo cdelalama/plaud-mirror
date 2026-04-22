@@ -1,4 +1,4 @@
-<!-- doc-version: 0.1.1 -->
+<!-- doc-version: 0.2.0 -->
 # LLM Work Handoff
 
 This file is the current operational snapshot. Long-form rationale lives in `docs/llm/DECISIONS.md`. Archived review commentary lives in `docs/llm/REVIEWS.md`.
@@ -6,8 +6,8 @@ This file is the current operational snapshot. Long-form rationale lives in `doc
 ## Current Status
 
 - Last Updated: 2026-04-22 - Codex GPT-5
-- Session Focus: Start the Phase 1 Plaud spike on `dev-vm`: validate manual-token auth, recordings listing, real audio download, and the actual metadata/filter shape
-- Status: Stable docs and LLM-governance tooling are now aligned with the converged roadmap. `docs/PROJECT_CONTEXT.md`, `docs/ARCHITECTURE.md`, `docs/operations/AUTH_AND_SYNC.md`, and `docs/operations/API_CONTRACT.md` match the manual-token-first plan; `scripts/dockit-validate-session.sh` now enforces HANDOFF ↔ `LLM_START_HERE.md` snapshot sync; and the next real engineering step is the Phase 1 Plaud spike on `dev-vm`. `v0.1.1` remains a documentation/bootstrap baseline and runtime implementation has not started yet.
+- Session Focus: Run the new Phase 1 spike harness on `dev-vm` with a real Plaud bearer token and capture the first live report/download
+- Status: `v0.2.0` starts runtime implementation. The repo now has an npm workspace monorepo, shared Zod schemas, a Plaud client with browser-aligned headers plus regional retry, and a Phase 1 CLI spike that can validate `/user/me`, list `/file/simple/web`, inspect `/file/detail/<id>`, download via `/file/temp-url/<id>`, and write local artifacts under `recordings/` plus `.state/phase1/`. Unit tests pass and the CLI help path is verified. Live Plaud validation on `dev-vm` is still pending because no bearer token was provided in-session.
 
 ## Project Summary
 
@@ -41,14 +41,16 @@ License boundary:
   - The former "Proposed Runtime Shape" section of this handoff was migrated to `docs/ARCHITECTURE.md` under a new "Implementation Stack" subsection. HO now carries a one-line pointer instead of the full stack description, keeping the handoff operational. The stack content itself is unchanged; only its location moved.
 - **Mechanical enforcement of HANDOFF ↔ LLM_START_HERE sync (2026-04-22).** GPT-5 flagged that Claude had repeatedly updated this handoff without propagating the matching snapshot to `LLM_START_HERE.md` "Current Focus", and that a fix via private memory or session discipline is not reliable because it is invisible to co-maintainers and to the validator. A new `handoff-start-here-sync` check was added to `scripts/dockit-validate-session.sh`: it extracts the `Last Updated:` field from both files, compares them, and fails the validator (non-zero exit, pre-commit hook triggers) if they diverge. Positive and negative test runs were executed locally to confirm PASS and FAIL paths. This supersedes the previous procedural mitigation; any drift now surfaces at commit time.
 - **Stable docs aligned with the converged roadmap (2026-04-22).** `docs/PROJECT_CONTEXT.md`, `docs/ARCHITECTURE.md`, `docs/operations/AUTH_AND_SYNC.md`, and `docs/operations/API_CONTRACT.md` now match the actual plan captured in D-003 and the handoff: Phase 1 is a Plaud spike, the first usable release is manual-token-first with filtered backfill and HMAC-signed generic webhooks, and automatic re-login is explicitly deferred to a later phase.
+- **Runtime version sync now covers package manifests (2026-04-22).** Once the Phase 1 monorepo landed, `scripts/bump-version.sh`, `scripts/check-version-sync.sh`, and `docs/version-sync-manifest.yml` were extended so `package.json`, `apps/api/package.json`, and `packages/shared/package.json` stay aligned with `VERSION`.
+- **Phase 1 spike harness landed (2026-04-22).** `apps/api` now contains a real TypeScript CLI spike and unit tests, and `packages/shared` now contains the Plaud response/report schemas used by the spike. This is the first committed runtime code in the repo.
 
 ## Top Priorities
 
-1. Execute the Phase 1 Plaud spike on `dev-vm`: validate manual-token auth, list recordings, download real audio, and measure artifact size/format/rate.
-2. Lock the implementation stack and minimum filter set from spike results. The current recommendation remains TypeScript monorepo plus Fastify, React/Vite, SQLite, and Zod.
-3. Create the Doppler project `plaud-mirror` before Phase 2 work and scaffold `apps/api/`, `apps/web/`, and `packages/shared/`.
-4. Build the first usable vertical slice: small product UI, encrypted persisted token storage, filtered historical backfill, durable webhook outbox, and HMAC-signed generic webhook delivery.
-5. Add scheduler, resumable backfill, retries, and health/status surfaces before tackling automatic re-login.
+1. Run `npm run spike -- probe` on `dev-vm` with a real `PLAUD_MIRROR_ACCESS_TOKEN` and capture `.state/phase1/latest-report.json`.
+2. Mirror at least one real recording locally and confirm the observed content type, file extension, byte count, and metadata shape.
+3. Decide the minimum Phase 2 backfill filters from live results, especially whether `serial_number` and `scene` are worth exposing beside date range.
+4. Create the Doppler project `plaud-mirror` before Phase 2 work.
+5. Start the Phase 2 vertical slice only after the live spike confirms the current TypeScript stack and Plaud metadata assumptions.
 
 ## Open Questions
 
@@ -124,17 +126,20 @@ Moved to `docs/ARCHITECTURE.md` under "Implementation Stack" (TypeScript monorep
 
 ## Next Session
 
-- Run the Phase 1 Plaud spike.
+- Export a fresh Plaud bearer token on `dev-vm` and run:
+  `npm run spike -- probe --limit 100 --download-first`
+- Inspect `.state/phase1/latest-report.json` and `recordings/<recording-id>/metadata.json`.
 - Confirm the minimal filter set and artifact metadata shape from real Plaud responses.
-- Decide whether the recommended TypeScript stack stands after the spike; if yes, scaffold Phase 2.
+- Decide whether the recommended TypeScript stack stands after the spike; if yes, start Phase 2.
 - Create Doppler project `plaud-mirror` before Phase 2 scaffold begins.
 - Add D-009 posture copy to `README.md` and `LLM_START_HERE.md` during Phase 2, not before, to avoid churn.
 
 ## Testing Notes
 
 - `dotnet` is not installed on this machine, so the original C# downloader was only inspected, not executed.
-- Plaud Mirror runtime does not exist yet, so no Plaud sync code or deployment flow has been validated beyond repository/documentation tooling.
-- This cleanup session only reorganized handoff/review documentation; no runtime code was created.
+- `npm test` passes for the shared Zod schemas and Plaud client regional-retry logic.
+- `npm run spike -- --help` passes as a CLI smoke test.
+- No live Plaud API call was executed in-session because no bearer token was available.
 
 ## Key Decisions (Links)
 

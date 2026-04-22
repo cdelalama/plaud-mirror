@@ -1,6 +1,6 @@
 # Repository Structure Guide
 
-This document describes the actual Plaud Mirror repository layout as of `v0.1.0`.
+This document describes the actual Plaud Mirror repository layout as of `v0.2.0`.
 
 ## Top-Level Layout
 ```
@@ -12,6 +12,9 @@ plaud-mirror/
 +- HOW_TO_USE.md
 +- .dockit-enabled
 +- .dockit-config.yml
++- package.json
++- package-lock.json
++- tsconfig.base.json
 +- docs/
 |  +- PROJECT_CONTEXT.md
 |  +- ARCHITECTURE.md
@@ -32,9 +35,15 @@ plaud-mirror/
 |  +- upstreams.tsv
 +- apps/
 |  +- api/
+|  |  +- package.json
+|  |  +- tsconfig.json
+|  |  +- src/
 |  +- web/
 +- packages/
 |  +- shared/
+|  |  +- package.json
+|  |  +- tsconfig.json
+|  |  +- src/
 +- tests/
 |  +- integration/
 +- .claude/
@@ -65,10 +74,13 @@ plaud-mirror/
 | `scripts/dockit-generate-external-context.sh` | Generates local external-context block and Claude rule | Required |
 | `scripts/dockit-validate-session.sh` | Validates LLM documentation discipline | Required |
 | `config/upstreams.tsv` | Baseline list of tracked Plaud ecosystem upstreams | Required |
-| `apps/api/` | Planned backend runtime | Empty placeholder at `v0.1.0` |
-| `apps/web/` | Planned operational UI | Empty placeholder at `v0.1.0` |
-| `packages/shared/` | Planned shared types/contracts/config package | Empty placeholder at `v0.1.0` |
-| `tests/integration/` | Planned end-to-end and integration tests | Empty placeholder at `v0.1.0` |
+| `package.json` | Root workspace manifest | Version-synced with `VERSION` |
+| `package-lock.json` | Locked npm dependency graph for the Phase 1 monorepo | Generated from the root workspace |
+| `tsconfig.base.json` | Shared TypeScript compiler settings | Used by `apps/api` and `packages/shared` |
+| `apps/api/` | Phase 1 spike runtime plus future backend home | Contains the live Plaud CLI spike |
+| `apps/web/` | Planned operational UI | Empty placeholder at `v0.2.0` |
+| `packages/shared/` | Shared schemas/contracts package | Contains Zod Plaud response schemas and Phase 1 report schema |
+| `tests/integration/` | Planned end-to-end and integration tests | Empty placeholder at `v0.2.0` |
 | `.claude/` | Claude Code rules and skills | Local workflow support |
 | `.github/workflows/upstream-watch.yml` | Scheduled upstream drift detection | Project-specific |
 
@@ -83,11 +95,11 @@ These paths are expected at runtime and should remain uncommitted:
 ## Custom Modules or Packages
 
 - `apps/api/`
-  Planned home for the Plaud adapter, auth manager, sync scheduler, storage coordinator, and admin API.
+  Home for the Plaud adapter, auth manager, sync scheduler, storage coordinator, and admin API. Today it contains the Phase 1 CLI spike (`src/cli/spike.ts`), the Plaud client, and unit tests.
 - `apps/web/`
   Planned home for the Docker-hosted operator UI.
 - `packages/shared/`
-  Planned home for config schema, webhook contracts, and shared types used by both apps.
+  Home for config schema, Plaud response parsing, webhook contracts, and shared types used by both apps.
 - `config/upstreams.tsv`
   Not runtime configuration. This is governance state for tracking useful external projects.
 

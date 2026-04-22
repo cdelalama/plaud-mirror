@@ -1,7 +1,9 @@
-<!-- doc-version: 0.1.1 -->
+<!-- doc-version: 0.2.0 -->
 # API Contract
 
-This document captures the planned stable surfaces for Plaud Mirror before implementation starts.
+This document captures the planned stable surfaces for Plaud Mirror before the stable HTTP/API surface ships.
+
+Phase 1 note: the repository now contains a CLI spike in `apps/api/src/cli/spike.ts`, but it is intentionally an internal research tool and not part of the stable admin HTTP contract documented here.
 
 ## Scope
 

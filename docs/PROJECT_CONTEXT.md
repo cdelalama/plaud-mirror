@@ -1,4 +1,4 @@
-<!-- doc-version: 0.1.1 -->
+<!-- doc-version: 0.2.0 -->
 # Project Context - Plaud Mirror
 
 ## Vision
@@ -40,21 +40,23 @@ The system is designed around an audio-first contract. It does not need to own t
 
 ## Current Status (2026-04-22)
 
-Plaud Mirror `v0.1.1` is a repository and architecture bootstrap. The project now has:
+Plaud Mirror `v0.2.0` is in Phase 1 implementation. The project now has:
 - a concrete name and product scope
 - a public GitHub repository: `https://github.com/cdelalama/plaud-mirror`
-- an initial published baseline on `main`
+- a published docs/governance baseline on `main`
 - a downstream `LLM-DocKit` setup
 - architecture and operations docs
 - an upstream baseline manifest plus checker script
 - an explicit policy for licensing boundaries and upstream reuse
 - a converged implementation plan for the first usable release on `dev-vm`
+- a TypeScript monorepo skeleton with a Phase 1 CLI spike in `apps/api`
+- shared Plaud response schemas in `packages/shared`
 
-The runtime service does not exist yet. No Plaud auth, download, Docker image, or UI implementation has been committed. The current plan is manual-token-first, with a small product UI, filtered historical backfill, and generic HMAC-signed webhook delivery in the first usable release; automatic re-login is explicitly deferred.
+The full runtime service still does not exist yet: there is no Fastify admin API, no web UI, no encrypted secret storage, and no Docker deployment. What now exists is a live-flow spike harness that can validate a bearer token, list recordings, inspect recording detail, download audio through Plaud temp URLs, and write a local Phase 1 report plus canonical recording artifacts. Automatic re-login remains explicitly deferred.
 
 ## Upcoming Milestones
 
-1. Phase 1: Plaud spike on `dev-vm` to validate manual-token auth, recordings listing, real audio download, and actual metadata/filter shape
+1. Phase 1 (in progress): Plaud spike on `dev-vm` to validate manual-token auth, recordings listing, real audio download, and actual metadata/filter shape
 2. Phase 2: first usable internal release with product UI, encrypted persisted manual-token auth, filtered historical backfill, and HMAC-signed generic webhook delivery
 3. Phase 3: continuous sync and resilience with scheduler, resumable backfill, and stronger health/status surfaces
 4. Phase 4: optional automatic re-login if a reliable non-browser path exists

@@ -5,10 +5,14 @@
 #   version-file  -> plain X.Y.Z (first line of file)
 #   changelog     -> ## [X.Y.Z] section header
 #   html-comment  -> <!-- doc-version: X.Y.Z --> on first line of file
+#   json-version  -> "version": "X.Y.Z" in package manifests
 
 targets:
 - path: VERSION                    marker: version-file
 - path: CHANGELOG.md               marker: changelog
+- path: package.json               marker: json-version
+- path: apps/api/package.json      marker: json-version
+- path: packages/shared/package.json marker: json-version
 - path: README.md                  marker: html-comment
 - path: LLM_START_HERE.md          marker: html-comment
 - path: docs/PROJECT_CONTEXT.md    marker: html-comment
