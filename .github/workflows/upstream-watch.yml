@@ -1,0 +1,35 @@
+name: Upstream Watch
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 6 * * *"
+
+jobs:
+  check-upstreams:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compare tracked upstream baselines
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set +e
+          scripts/check-upstreams.sh --markdown > upstream-report.md
+          status=$?
+          cat upstream-report.md >> "$GITHUB_STEP_SUMMARY"
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          if [ "$status" -ne 0 ] && [ "$status" -ne 10 ]; then
+            exit "$status"
+          fi
+
+      - name: Fail when tracked upstreams changed
+        if: steps.check.outputs.status == '10'
+        run: |
+          echo "Tracked upstreams changed. Review the workflow summary and update config/upstreams.tsv if appropriate."
+          exit 1

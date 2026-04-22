@@ -1,0 +1,9 @@
+# repo	track	baseline	license	tier	keep	watch_focus
+rsteckler/applaud	release	v0.5.10	MIT	primary	service-shape-plus-ui	auth-session-reuse-scheduler-download
+iiAtlas/plaud-recording-downloader	release	v1.4.1	MIT	primary	token-and-region-heuristics	token-storage-keys-auth-regions
+JamesStuder/Plaud_API	release	2026.03.20.01	MIT	reference	endpoint-map-and-export-flow	auth-endpoints-export-actions-temp-url
+JamesStuder/Plaud_BulkDownloader	commit	6d6cc1addb84a761a438b8d934ecbc83b7a53a0c	MIT	reference	bulk-audio-sequencing	audio-export-edge-cases
+openplaud/openplaud	release	v0.1.0	AGPL-3.0	watch	product-and-ops-ideas	secrets-sync-ux
+sergivalverde/plaud-toolkit	commit	dd5774b306f13cc2b11ce917d17575165b527bd4	NOASSERTION	watch	auth-management-ideas	license-clarity-token-rotation
+josephhyatt/plaud-exporter	commit	456b32a04afa9d6a8664c0137f5656a0513db975	NOASSERTION	watch	minimal-exporter-ideas	license-clarity-download-simplification
+leonardsellem/plaud-sync-for-obsidian	release	1.0.0	MIT	watch	metadata-and-session-ideas	session-handling-metadata

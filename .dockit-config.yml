@@ -1,0 +1,14 @@
+adoption_mode: full
+
+external_context:
+  path: /home/cdelalama/src/home-infra
+  read:
+    - README.md
+    - docs/PROJECTS.md
+    - docs/SERVICES.md
+    - docs/CONVENTIONS.md
+  update_triggers:
+    - docs/PROJECT_CONTEXT.md
+    - docs/ARCHITECTURE.md
+    - docs/operations/AUTH_AND_SYNC.md
+    - docs/operations/DEPLOY_PLAYBOOK.md
