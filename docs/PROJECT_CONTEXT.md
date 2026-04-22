@@ -1,4 +1,4 @@
-<!-- doc-version: 0.1.0 -->
+<!-- doc-version: 0.1.1 -->
 # Project Context - Plaud Mirror
 
 ## Vision
@@ -40,7 +40,7 @@ The system is designed around an audio-first contract. It does not need to own t
 
 ## Current Status (2026-04-22)
 
-Plaud Mirror `v0.1.0` is a repository and architecture bootstrap. The project now has:
+Plaud Mirror `v0.1.1` is a repository and architecture bootstrap. The project now has:
 - a concrete name and product scope
 - a public GitHub repository: `https://github.com/cdelalama/plaud-mirror`
 - an initial published baseline on `main`

@@ -1,4 +1,4 @@
-<!-- doc-version: 0.1.0 -->
+<!-- doc-version: 0.1.1 -->
 # LLM Work Handoff
 
 This file is the current operational snapshot. Long-form rationale lives in `docs/llm/DECISIONS.md`. Archived review commentary lives in `docs/llm/REVIEWS.md`.
@@ -6,8 +6,8 @@ This file is the current operational snapshot. Long-form rationale lives in `doc
 ## Current Status
 
 - Last Updated: 2026-04-22 - Codex GPT-5
-- Session Focus: Leave the next engineering step unambiguous after the documentation review loop; the next real work is the Phase 1 Plaud spike on `dev-vm`
-- Status: Planning is converged enough to start implementation. D-003 now frames auth as manual-token-first with automatic re-login later; D-009 captures the operator-only TOS posture; and `plaud-mirror` is registered in `home-infra` as a planning-stage project. The first usable release still targets `dev-vm` and includes a small product UI, encrypted persisted manual-token auth, filtered historical backfill, and a generic webhook with HMAC signing. The next real engineering step is the Phase 1 Plaud spike on `dev-vm`. `v0.1.0` remains a documentation/bootstrap baseline and runtime implementation has not started yet.
+- Session Focus: Start the Phase 1 Plaud spike on `dev-vm`: validate manual-token auth, recordings listing, real audio download, and the actual metadata/filter shape
+- Status: Stable docs and LLM-governance tooling are now aligned with the converged roadmap. `docs/PROJECT_CONTEXT.md`, `docs/ARCHITECTURE.md`, `docs/operations/AUTH_AND_SYNC.md`, and `docs/operations/API_CONTRACT.md` match the manual-token-first plan; `scripts/dockit-validate-session.sh` now enforces HANDOFF ↔ `LLM_START_HERE.md` snapshot sync; and the next real engineering step is the Phase 1 Plaud spike on `dev-vm`. `v0.1.1` remains a documentation/bootstrap baseline and runtime implementation has not started yet.
 
 ## Project Summary
 
@@ -35,6 +35,12 @@ License boundary:
 - The roadmap second-opinion pass was merged; the review notes are archived in `docs/llm/REVIEWS.md`.
 - **Review archival convention adopted (2026-04-22).** When a review generates non-trivial pushback, `REVIEWS.md` entries now use an enriched structure — Points of Agreement, Points Raised (with Resolution + Rationale per point), Summary Outcome, Follow-Through Landed — so future sessions can reconstruct *why* each decision was made, not only *what* was decided. Simple sign-offs can stay as a one-paragraph note. The full template is at the top of `REVIEWS.md`. The 2026-04-22 Roadmap Review has been rewritten under this structure as the reference example.
 - **Owner shorthand documented.** The owner uses **HO** as shorthand for **HANDOFF** (this file). Documented in `docs/llm/README.md` under "Glossary / Owner Shorthand" so any LLM working on this project sees it without needing to re-ask.
+- **Documentation consistency fixes (2026-04-22):**
+  - D-006 (canonical local layout keyed by Plaud recording ID) is now listed in "Key Decisions (Links)" below; earlier handoff passes had omitted it inconsistently.
+  - `LLM_START_HERE.md` now links to `docs/llm/README.md` as step 9 of the mandatory reading order so new LLMs discover the glossary (HO shorthand) and the enriched review convention without having to browse the `docs/llm/` folder.
+  - The former "Proposed Runtime Shape" section of this handoff was migrated to `docs/ARCHITECTURE.md` under a new "Implementation Stack" subsection. HO now carries a one-line pointer instead of the full stack description, keeping the handoff operational. The stack content itself is unchanged; only its location moved.
+- **Mechanical enforcement of HANDOFF ↔ LLM_START_HERE sync (2026-04-22).** GPT-5 flagged that Claude had repeatedly updated this handoff without propagating the matching snapshot to `LLM_START_HERE.md` "Current Focus", and that a fix via private memory or session discipline is not reliable because it is invisible to co-maintainers and to the validator. A new `handoff-start-here-sync` check was added to `scripts/dockit-validate-session.sh`: it extracts the `Last Updated:` field from both files, compares them, and fails the validator (non-zero exit, pre-commit hook triggers) if they diverge. Positive and negative test runs were executed locally to confirm PASS and FAIL paths. This supersedes the previous procedural mitigation; any drift now surfaces at commit time.
+- **Stable docs aligned with the converged roadmap (2026-04-22).** `docs/PROJECT_CONTEXT.md`, `docs/ARCHITECTURE.md`, `docs/operations/AUTH_AND_SYNC.md`, and `docs/operations/API_CONTRACT.md` now match the actual plan captured in D-003 and the handoff: Phase 1 is a Plaud spike, the first usable release is manual-token-first with filtered backfill and HMAC-signed generic webhooks, and automatic re-login is explicitly deferred to a later phase.
 
 ## Top Priorities
 
@@ -62,14 +68,7 @@ License boundary:
 
 ## Proposed Runtime Shape
 
-- Recommended stack: TypeScript monorepo
-- `apps/api/`: Fastify service for Plaud adapter, session/auth management, sync/backfill orchestration, webhook outbox, and admin API
-- `apps/web/`: React/Vite product panel for setup, sync control, auth state, recordings, and error visibility
-- `packages/shared/`: shared Zod schemas and TypeScript types for config, API responses, recordings, jobs, and webhook payloads
-- Persistence: SQLite for config/state/jobs/delivery attempts plus filesystem storage for mirrored recordings
-- Secrets: encrypted local blob derived from `PLAUD_MIRROR_MASTER_KEY`; no plaintext token or credentials on disk
-- Configuration source: standard environment variables in the app, with Doppler supplying those env vars in the owner's `dev-vm` and later deployment environments
-- Queueing model: same-process jobs first; no Redis or external queue in v1
+Moved to `docs/ARCHITECTURE.md` under "Implementation Stack" (TypeScript monorepo: Fastify API + React/Vite panel + SQLite + Zod shared schemas; same-process jobs; encrypted-blob secrets; Doppler-injected env vars in this infra, plain env vars in the application contract). Subject to confirmation after the Phase 1 spike.
 
 ## Proposed Roadmap
 
@@ -144,6 +143,7 @@ License boundary:
 - D-003: Auth strategy is phased — manual bearer-token first, automatic re-login deferred to Phase 4, browser-assisted renewal disfavored (amended 2026-04-22)
 - D-004: Upstream-watch discipline is mandatory for auth and download resilience
 - D-005: MIT remains the intended license boundary
+- D-006: Canonical local layout uses the Plaud recording ID as the dedupe key
 - D-007: Reuse strategy is composite, not a single-upstream fork
 - D-008: Core auth and download logic must stay auditable in-repo
 - D-009: Operator-only TOS posture — personal use against the operator's own Plaud account; not a hosted service; no redistribution

@@ -1,4 +1,4 @@
-<!-- doc-version: 0.1.0 -->
+<!-- doc-version: 0.1.1 -->
 # LLM Start Guide - Plaud Mirror
 
 ## Read This First (Mandatory)
@@ -14,6 +14,7 @@ Recommended reading order:
 6. [docs/VERSIONING_RULES.md](docs/VERSIONING_RULES.md)
 7. [docs/llm/HANDOFF.md](docs/llm/HANDOFF.md)
 8. [docs/llm/DECISIONS.md](docs/llm/DECISIONS.md)
+9. [docs/llm/README.md](docs/llm/README.md) — index of LLM working memory, owner shorthand glossary (e.g. **HO** → `HANDOFF.md`), and the enriched review-entry convention used by `docs/llm/REVIEWS.md`
 
 ## Critical Rules (Non-Negotiable)
 
@@ -81,8 +82,8 @@ Recommended reading order:
 
 Source of truth: docs/llm/HANDOFF.md.
 - Last Updated: 2026-04-22 - Codex GPT-5
-- Working on: final handoff sync after the documentation review loop; the next real engineering step is the Phase 1 Plaud spike on `dev-vm`
-- Status: Planning is converged enough to start implementation. D-003 now frames auth as manual-token-first with automatic re-login later; D-009 captures the operator-only TOS posture; and `plaud-mirror` is registered in `home-infra` as a planning-stage project. The first usable release still targets `dev-vm` and includes a small product UI, encrypted persisted manual-token auth, filtered historical backfill, and a generic webhook with HMAC signing.
+- Working on: start the Phase 1 Plaud spike on `dev-vm`: validate manual-token auth, recordings listing, real audio download, and the actual metadata/filter shape
+- Status: Stable docs and LLM-governance tooling are now aligned with the converged roadmap. `docs/PROJECT_CONTEXT.md`, `docs/ARCHITECTURE.md`, `docs/operations/AUTH_AND_SYNC.md`, and `docs/operations/API_CONTRACT.md` match the manual-token-first plan; `scripts/dockit-validate-session.sh` now enforces HANDOFF ↔ `LLM_START_HERE.md` snapshot sync; and the next real engineering step is the Phase 1 Plaud spike on `dev-vm`.
 
 Keep this section synchronized with the "Current Status" block in docs/llm/HANDOFF.md.
 

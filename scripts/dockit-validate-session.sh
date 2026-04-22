@@ -62,7 +62,7 @@ while [ $# -gt 0 ]; do
         --help|-h)
             echo "Usage: $0 [--human|--json] [--quiet] [--check NAME]... [--project PATH]"
             echo ""
-            echo "Checks: handoff-date, history-entry, decisions-referenced, version-sync, external-context, external-triggers"
+            echo "Checks: handoff-date, history-entry, decisions-referenced, version-sync, external-context, external-triggers, handoff-start-here-sync"
             echo ""
             echo "Exit codes: 0=pass, 1=fail, 2=script error"
             exit 0
@@ -95,6 +95,7 @@ fi
 HANDOFF="$PROJECT_ROOT/docs/llm/HANDOFF.md"
 HISTORY="$PROJECT_ROOT/docs/llm/HISTORY.md"
 DECISIONS="$PROJECT_ROOT/docs/llm/DECISIONS.md"
+START_HERE="$PROJECT_ROOT/LLM_START_HERE.md"
 CHECK_VERSION_SCRIPT="$PROJECT_ROOT/scripts/check-version-sync.sh"
 CONFIG_FILE="$PROJECT_ROOT/.dockit-config.yml"
 
@@ -214,6 +215,35 @@ check_decisions_referenced() {
     else
         count=$(echo "$handoff_refs" | wc -w | tr -d ' ')
         add_result "decisions-referenced" "PASS" "All $count D-xxx references found in DECISIONS.md"
+    fi
+}
+
+check_handoff_start_here_sync() {
+    if ! should_run "handoff-start-here-sync"; then return; fi
+
+    # Both files optional in generic DocKit consumers -> skip if missing.
+    if [ ! -f "$HANDOFF" ] || [ ! -f "$START_HERE" ]; then
+        add_result "handoff-start-here-sync" "PASS" "Skipped (HANDOFF or LLM_START_HERE not present)"
+        return
+    fi
+
+    ho_line=$(grep -E '^\s*-?\s*Last Updated:' "$HANDOFF" 2>/dev/null | head -1 || true)
+    sh_line=$(grep -E '^\s*-?\s*Last Updated:' "$START_HERE" 2>/dev/null | head -1 || true)
+
+    # If either side has no Last Updated, skip (project may not use this pattern).
+    if [ -z "$ho_line" ] || [ -z "$sh_line" ]; then
+        add_result "handoff-start-here-sync" "PASS" "Skipped (no 'Last Updated' pattern in one of the files)"
+        return
+    fi
+
+    # Normalize: strip everything up to and including first colon, then trim.
+    ho_val=$(echo "$ho_line" | sed 's/^[^:]*://' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+    sh_val=$(echo "$sh_line" | sed 's/^[^:]*://' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+
+    if [ "$ho_val" = "$sh_val" ]; then
+        add_result "handoff-start-here-sync" "PASS" "LLM_START_HERE 'Current Focus' Last Updated matches HANDOFF: $ho_val"
+    else
+        add_result "handoff-start-here-sync" "FAIL" "Last Updated mismatch — HANDOFF: '$ho_val' vs LLM_START_HERE: '$sh_val'. Update LLM_START_HERE.md 'Current Focus (Snapshot)' to match HANDOFF 'Current Status'."
     fi
 }
 
@@ -422,6 +452,7 @@ check_external_triggers() {
 
 check_handoff_date
 check_history_entry
+check_handoff_start_here_sync
 check_decisions_referenced
 check_version_sync
 check_external_context

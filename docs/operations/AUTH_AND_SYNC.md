@@ -1,4 +1,4 @@
-<!-- doc-version: 0.1.0 -->
+<!-- doc-version: 0.1.1 -->
 # Authentication and Sync Operations
 
 This runbook defines how Plaud Mirror should behave around authentication, token retention, and recording sync.

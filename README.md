@@ -1,4 +1,4 @@
-<!-- doc-version: 0.1.0 -->
+<!-- doc-version: 0.1.1 -->
 # Plaud Mirror
 
 Self-hosted Plaud audio mirror with web UI, auto-sync, and webhook delivery.
@@ -11,7 +11,7 @@ Plaud Mirror is a Docker-first service for mirroring Plaud recordings to local s
 
 The project is meant to be a real OSS with its own identity, not a thin wrapper around somebody else's code. At the same time, it does not ignore the existing ecosystem. Plaud Mirror takes concrete inspiration from several upstream projects, documents exactly what it keeps from each one, and maintains a watchlist so changes in auth, token handling, regional API behavior, or download flows are visible quickly.
 
-Version `0.1.0` is the bootstrap baseline. The repository already contains the documentation system, architecture decisions, upstream baselines, and watch automation stubs. The runtime service itself is still pending implementation.
+Version `0.1.1` is the current bootstrap/docs-governance baseline. The repository already contains the documentation system, architecture decisions, upstream baselines, watch automation stubs, and validator enforcement for key LLM-doc sync rules. The runtime service itself is still pending implementation.
 
 ## Quick Start
 

@@ -20,6 +20,19 @@ This folder is the durable working memory for Plaud Mirror.
 - If it is "why the project is shaped this way": `DECISIONS.md`
 - If it is "what still needs formal review": `REVIEWS.md`
 
+## Enforced Sync Rules
+
+Some sync rules between these files and the repository are enforced by `scripts/dockit-validate-session.sh` (exit code 1 on failure, also wired through the pre-commit hook and CI):
+
+- `handoff-date` — HANDOFF "Last Updated" must match today's date.
+- `history-entry` — HISTORY.md must have an entry for today.
+- `decisions-referenced` — every `D-xxx` ID referenced in HANDOFF must exist in `DECISIONS.md`.
+- `handoff-start-here-sync` — HANDOFF "Current Status" → `Last Updated:` must equal the matching line in `LLM_START_HERE.md` "Current Focus (Snapshot)". If you change one, change the other in the same session.
+- `version-sync` — all tracked doc-version markers must equal the project `VERSION`.
+- `external-context` — files declared under `external_context.read` in `.dockit-config.yml` must exist.
+
+Other rules (e.g. keeping `STRUCTURE.md` aligned with the repo tree, keeping `ARCHITECTURE.md` in sync with external infra docs) are documented in `LLM_START_HERE.md` "doc-sync-rules" but are not yet mechanically enforced.
+
 ## Required Companion Docs
 
 For Plaud Mirror, LLMs should usually read these alongside the LLM docs:
