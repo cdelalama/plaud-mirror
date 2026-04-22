@@ -38,23 +38,29 @@ The primary use case is an always-on home server or similar self-hosted environm
 
 ---
 
-## D-003 - Dual auth strategy
+## D-003 - Phased auth strategy: manual token first, automatic re-login later
 
-**Status:** accepted
+**Status:** accepted (amended 2026-04-22)
 
 ### Decision
-Support two auth modes:
-1. token-first mode using a pasted Plaud bearer token
-2. optional credential mode for automatic re-login and token rotation
+Plaud Mirror's auth strategy is phased, not simultaneous:
+
+1. **First usable release:** manual bearer-token mode only. Operator pastes a Plaud token in the UI; the service encrypts and persists it, monitors validity, and surfaces a clear degraded state when the token expires.
+2. **Later (Phase 4):** introduce automatic re-login via a `SessionProvider` abstraction with `manual-token` and `credentials-relogin` as the intended modes. Implement the least brittle renewal path first; ship the feature only when it is genuinely reliable.
+3. **Explicitly disfavored:** browser-assisted renewal (Puppeteer/Playwright). It is not part of the planned path and would require fresh user approval to revisit.
 
 ### Rationale
-Token-first mode minimizes credential exposure. Credential mode minimizes operator toil and supports longer-lived server automation. Both are useful; neither alone satisfies all operators.
+Automatic re-login is the single most fragile component of a third-party Plaud client: auth endpoints and token formats can change without notice, and debugging a broken renewal flow blocks every other feature. Shipping a useful mirror with manual-token-only auth is strictly better than not shipping because the renewal story isn't solid yet. The original version of this decision treated dual-mode as a v1 requirement; experience from the brainstorm and upstream review showed that framing was too ambitious and would stall the first release.
+
+Browser automation is disfavored because it (a) adds a Chromium/Playwright dependency to a service that holds Plaud credentials, (b) enlarges the attack surface, and (c) is painful to operate on NAS-class hardware with QNAP Docker quirks. Keeping it off the planned path prevents it from quietly becoming the default.
 
 ### Implications
 
-- Secrets storage must handle both token metadata and credentials.
-- UI must clearly show which auth mode is active and whether renewal is possible.
-- On `401`, the service can retry only when credentials are available.
+- Phase 2 (first usable release) only needs to persist and validate a bearer token. No credential storage, no renewal loop.
+- Secrets storage layout must still anticipate future credential fields so Phase 4 does not require a destructive migration.
+- UI must surface the current auth mode, token expiry (when known), and a clear operator action when the token becomes invalid.
+- On `401` in Phase 2, the service transitions to a "degraded auth" state and requires operator intervention; it does not attempt automatic recovery.
+- In Phase 4, if `credentials-relogin` proves too brittle to ship reliably, the correct response is to stop and redesign, not to fall back to browser automation.
 
 ---
 
@@ -140,3 +146,25 @@ Source review of third-party tools is useful but not equivalent to a full trust 
 
 - Upstream code can be referenced, adapted, or vendored with review, but the auth/download path should remain understandable from this repository alone.
 - Token-first auth remains the preferred operator mode where practical because it reduces password exposure.
+
+---
+
+## D-009 - Operator-only TOS posture
+
+**Status:** accepted
+
+### Decision
+Plaud Mirror is published as open source for **personal/operator use against the operator's own Plaud account only**. It is not a hosted service, not a multi-tenant gateway, and does not redistribute Plaud-sourced audio to third parties. This posture is stated in the README and in operator-facing docs before the first usable release.
+
+### Rationale
+A third-party client that automates authenticated access to Plaud and stores the resulting audio locally occupies grey space relative to Plaud's terms of service. The project does not have legal clearance, and pursuing it is not in scope. What is in scope is being explicit about the intended use so the repository does not drift into presenting itself as a general-purpose hosted-mirror product — which would materially increase TOS exposure for both the maintainer and downstream users.
+
+This decision is a **posture statement**, not a legal opinion. It does not claim the project is TOS-compliant; it narrows the claimed use so the reader understands what the project is and is not.
+
+### Implications
+
+- README and `LLM_START_HERE.md` must state the operator-only posture before the first usable release (Phase 2 exit gate).
+- Docs and UI copy must not describe Plaud Mirror as a "service for others" or a "hosted mirror."
+- Multi-tenant features (per-user tokens, account separation beyond a single operator) are out of scope without a new decision revisiting this posture.
+- Redistribution of Plaud-sourced audio by Plaud Mirror itself (e.g. a public gallery, a re-publishing webhook target) is out of scope.
+- If Plaud publishes terms or a program that changes this picture, this decision should be revisited explicitly rather than drifted through.

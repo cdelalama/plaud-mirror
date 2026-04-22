@@ -81,8 +81,8 @@ Recommended reading order:
 
 Source of truth: docs/llm/HANDOFF.md.
 - Last Updated: 2026-04-22 - Codex GPT-5
-- Working on: v0.1.0 published bootstrap baseline
-- Status: Public GitHub repo exists, the bootstrap baseline is pushed to `origin/main`, and runtime implementation has not started yet.
+- Working on: final handoff sync after the documentation review loop; the next real engineering step is the Phase 1 Plaud spike on `dev-vm`
+- Status: Planning is converged enough to start implementation. D-003 now frames auth as manual-token-first with automatic re-login later; D-009 captures the operator-only TOS posture; and `plaud-mirror` is registered in `home-infra` as a planning-stage project. The first usable release still targets `dev-vm` and includes a small product UI, encrypted persisted manual-token auth, filtered historical backfill, and a generic webhook with HMAC signing.
 
 Keep this section synchronized with the "Current Status" block in docs/llm/HANDOFF.md.
 

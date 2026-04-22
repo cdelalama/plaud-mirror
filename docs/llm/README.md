@@ -11,7 +11,7 @@ This folder is the durable working memory for Plaud Mirror.
 - `docs/llm/DECISIONS.md`
   Stable rationale for product, architecture, auth, storage, and licensing choices.
 - `docs/llm/REVIEWS.md`
-  Review notes, quality gates, and follow-up checks.
+  Review notes, quality gates, and follow-up checks. Entries with non-trivial pushback use the enriched structure documented at the top of that file (Points of Agreement / Points Raised / Summary Outcome / Follow-Through Landed) so the reasoning behind each decision survives future sessions.
 
 ## Rules of Thumb
 
@@ -31,3 +31,11 @@ For Plaud Mirror, LLMs should usually read these alongside the LLM docs:
 ## Encoding
 
 Keep `docs/llm/*` ASCII-only when possible.
+
+## Glossary / Owner Shorthand
+
+The project owner uses a few abbreviations in conversation. Treat them as equivalent to the full names when reading instructions:
+
+- **HO** → `docs/llm/HANDOFF.md` (the handoff). E.g. "escribe en el HO" = "update HANDOFF.md".
+
+When in doubt, confirm the expansion in a single sentence before acting rather than guessing.
