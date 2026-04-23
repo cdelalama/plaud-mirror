@@ -61,6 +61,12 @@ button.secondary {
   box-shadow: inset 0 0 0 1px var(--card-border);
 }
 
+button.danger {
+  background: linear-gradient(135deg, #b83a3a, #952d2d);
+  color: white;
+  box-shadow: 0 14px 32px rgba(149, 45, 45, 0.25);
+}
+
 input {
   width: 100%;
   border: 1px solid var(--card-border);
@@ -266,11 +272,30 @@ input {
   display: flex;
   justify-content: space-between;
   gap: 1rem;
-  align-items: center;
+  align-items: flex-start;
   padding: 1rem;
   border-radius: 18px;
   background: rgba(255, 255, 255, 0.72);
   border: 1px solid rgba(69, 50, 30, 0.08);
+}
+
+.recording-row-dismissed {
+  opacity: 0.65;
+  background: rgba(255, 255, 255, 0.45);
+}
+
+.recording-main {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.recording-side {
+  display: grid;
+  gap: 0.6rem;
+  justify-items: end;
+  flex-shrink: 0;
 }
 
 .recording-title {
@@ -279,9 +304,15 @@ input {
 }
 
 .recording-meta {
-  margin: 0.2rem 0 0;
+  margin: 0;
   color: var(--muted);
   font-size: 0.92rem;
+}
+
+.recording-audio {
+  width: 100%;
+  max-width: 520px;
+  margin-top: 0.25rem;
 }
 
 .recording-badges {
@@ -289,6 +320,27 @@ input {
   flex-wrap: wrap;
   justify-content: end;
   gap: 0.5rem;
+}
+
+.recording-controls {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.recording-controls button {
+  padding: 0.55rem 0.9rem;
+  font-size: 0.88rem;
+}
+
+.badge-dismissed {
+  background: rgba(69, 50, 30, 0.15);
+  color: var(--muted);
+}
+
+.library-actions {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
 }
 
 .badge {
@@ -307,6 +359,10 @@ input {
 
   .recording-row {
     display: grid;
+  }
+
+  .recording-side {
+    justify-items: start;
   }
 
   .recording-badges {

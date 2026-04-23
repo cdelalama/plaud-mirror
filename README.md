@@ -1,4 +1,4 @@
-<!-- doc-version: 0.3.1 -->
+<!-- doc-version: 0.4.1 -->
 # Plaud Mirror
 
 Self-hosted Plaud audio mirror with a local web panel, manual sync/backfill controls, and Docker deployment.
@@ -9,7 +9,7 @@ Self-hosted Plaud audio mirror with a local web panel, manual sync/backfill cont
 
 Plaud Mirror is an operator-run service for mirroring Plaud recordings into local storage and notifying downstream systems through a generic webhook. It is intentionally audio-first: it validates auth, lists recordings, downloads the original artifact, stores it in a predictable layout, and hands off the result.
 
-The repository now contains the first usable internal slice:
+The repository now contains the first usable internal slice plus local curation:
 
 - Fastify admin API
 - React/Vite web panel
@@ -17,7 +17,8 @@ The repository now contains the first usable internal slice:
 - manual sync and filtered historical backfill
 - local recording index in SQLite
 - immediate HMAC-signed webhook delivery with persisted delivery attempts
-- Docker packaging for `dev-vm`
+- inline audio player in the library with local-only dismiss and restore (Plaud itself is never mutated)
+- Docker packaging for `dev-vm`, running as non-root `USER 1000:1000`
 
 Continuous sync, resumable backfill, retry outbox, and automatic re-login are explicitly later phases.
 
@@ -52,15 +53,13 @@ export PLAUD_MIRROR_MASTER_KEY="<long-random-secret>"
 docker compose up --build
 ```
 
-If Docker Hub is timing out on this `dev-vm`, force the build to reuse the cached local Kali image:
+If Docker Hub is timing out, the Dockerfile accepts `PLAUD_MIRROR_DOCKER_BUILD_IMAGE` and `PLAUD_MIRROR_DOCKER_RUNTIME_IMAGE` build-arg overrides so you can point the build at a locally cached Node base. Acceptable substitutes:
 
-```bash
-export PLAUD_MIRROR_DOCKER_BUILD_IMAGE="vxcontrol/kali-linux:latest"
-export PLAUD_MIRROR_DOCKER_RUNTIME_IMAGE="vxcontrol/kali-linux:latest"
-docker compose up --build
-```
+- a Node slim or alpine image already cached by another project on the same host;
+- a `node:20-bookworm-slim` image side-loaded via `docker save` / `docker load`;
+- a pull-through registry mirror on your infra (see the open item in `~/src/home-infra/docs/PROJECTS.md`).
 
-That fallback no longer depends on `apt` inside the container build. The local image already provides `node`, `corepack`, and the build tools needed by the current dependency set, so the build can stay inside Docker even when both Docker Hub and Kali package mirrors are unreliable.
+Pentesting distributions such as `vxcontrol/kali-linux:latest` are **not** acceptable substitutes. Kali is a security-tooling base, inflates the attack surface of this service, and does not belong in a Plaud mirror's runtime — even if it happens to be cached locally for an unrelated project.
 
 Runtime data lands in:
 

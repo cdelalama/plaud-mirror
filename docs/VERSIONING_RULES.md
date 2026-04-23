@@ -1,4 +1,4 @@
-<!-- doc-version: 0.3.1 -->
+<!-- doc-version: 0.4.1 -->
 # Versioning Rules
 
 ## Version Format

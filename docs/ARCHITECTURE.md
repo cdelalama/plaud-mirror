@@ -1,9 +1,9 @@
-<!-- doc-version: 0.3.1 -->
+<!-- doc-version: 0.4.1 -->
 # Plaud Mirror Architecture
 
-> Version: 0.3.0
-> Last Updated: 2026-04-22
-> Status: Phase 2 vertical slice
+> Version: 0.4.1
+> Last Updated: 2026-04-23
+> Status: Phase 2 vertical slice (extended through 0.4.x with local curation)
 
 ## Overview
 
@@ -73,10 +73,17 @@ Those belong to [Phase 3 and Phase 4](ROADMAP.md).
 2. If a webhook URL and secret are configured, it signs the payload with HMAC-SHA256.
 3. Delivery result is persisted in SQLite, even when the request fails.
 
+### Local curation (audition then dismiss)
+
+1. The operator auditions an audio file inline in the web panel via `GET /api/recordings/<id>/audio`, which streams the local file with its original content-type. Recording ids are validated against a strict character allowlist before any filesystem access, and the resolved path is confirmed to stay inside the configured recordings directory.
+2. The operator may issue `DELETE /api/recordings/<id>`. The service unlinks the local audio file, clears `localPath` and `bytesWritten` on the SQLite row, and sets `dismissed=true` with a `dismissedAt` timestamp. Plaud itself is not touched.
+3. Subsequent sync/backfill runs detect `dismissed=true` and skip the recording without attempting to re-download it.
+4. The operator can restore a dismissed recording via `POST /api/recordings/<id>/restore`, which clears `dismissed` and allows the next sync to mirror the audio again.
+
 ## Storage Layout
 
 - `data/app.db`
-  SQLite state for config, auth metadata, recordings, sync runs, and webhook delivery attempts
+  SQLite state for config, auth metadata, recordings (including `dismissed` / `dismissed_at` columns for local-only curation), sync runs, and webhook delivery attempts
 - `data/secrets.enc`
   Encrypted secret blob containing the Plaud token and optional webhook secret
 - `recordings/<recording-id>/audio.<ext>`

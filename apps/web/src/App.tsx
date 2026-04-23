@@ -44,21 +44,25 @@ export function App() {
   const [operationResult, setOperationResult] = useState<string | null>(null);
   const [operationError, setOperationError] = useState<string | null>(null);
   const [lastRun, setLastRun] = useState<SyncRunSummary | null>(null);
+  const [showDismissed, setShowDismissed] = useState(false);
 
   useEffect(() => {
     void refreshSnapshot();
-  }, []);
+  }, [showDismissed]);
 
   async function refreshSnapshot(): Promise<void> {
     setLoading(true);
     setOperationError(null);
 
     try {
+      const recordingsQuery = showDismissed
+        ? "/api/recordings?limit=50&includeDismissed=true"
+        : "/api/recordings?limit=50";
       const [healthResponse, configResponse, authResponse, recordingsResponse] = await Promise.all([
         requestJson<ServiceHealth>("/api/health"),
         requestJson<RuntimeConfig>("/api/config"),
         requestJson<AuthStatus>("/api/auth/status"),
-        requestJson<{ recordings: RecordingMirror[] }>("/api/recordings?limit=50"),
+        requestJson<{ recordings: RecordingMirror[] }>(recordingsQuery),
       ]);
 
       setHealth(healthResponse);
@@ -72,6 +76,37 @@ export function App() {
     } finally {
       setLoading(false);
     }
+  }
+
+  async function handleDeleteRecording(recording: RecordingMirror): Promise<void> {
+    const sizeMb = (recording.bytesWritten / (1024 * 1024)).toFixed(1);
+    const confirmed = window.confirm(
+      `Delete local mirror of "${recording.title}"?\n\n` +
+      `This removes the audio file (${sizeMb} MB) and marks the recording as dismissed, ` +
+      `so future syncs will not re-download it. Plaud keeps the recording in your account. ` +
+      `You can restore it later from the "Show dismissed" view.`,
+    );
+    if (!confirmed) {
+      return;
+    }
+
+    await runOperation(async () => {
+      await requestJson<unknown>(`/api/recordings/${encodeURIComponent(recording.id)}`, {
+        method: "DELETE",
+      });
+      await refreshSnapshot();
+      return `Dismissed "${recording.title}". Local file removed.`;
+    });
+  }
+
+  async function handleRestoreRecording(recording: RecordingMirror): Promise<void> {
+    await runOperation(async () => {
+      await requestJson<unknown>(`/api/recordings/${encodeURIComponent(recording.id)}/restore`, {
+        method: "POST",
+      });
+      await refreshSnapshot();
+      return `Restored "${recording.title}". The next sync will mirror it again.`;
+    });
   }
 
   async function handleSaveToken(event: FormEvent<HTMLFormElement>): Promise<void> {
@@ -181,7 +216,7 @@ export function App() {
         <div className="hero-status">
           <Metric label="Version" value={health?.version ?? "loading"} />
           <Metric label="Auth" value={auth?.state ?? "unknown"} />
-          <Metric label="Recordings" value={String(recordings.length)} />
+          <Metric label="Recordings" value={String(health?.recordingsCount ?? recordings.length)} />
         </div>
       </div>
 
@@ -372,32 +407,83 @@ export function App() {
             <p className="kicker">Library</p>
             <h2>Mirrored recordings</h2>
           </div>
-          <button type="button" className="secondary" disabled={busy || loading} onClick={() => void refreshSnapshot()}>
-            Refresh
-          </button>
+          <div className="library-actions">
+            <label className="checkbox">
+              <input
+                type="checkbox"
+                checked={showDismissed}
+                onChange={(event) => setShowDismissed(event.target.checked)}
+              />
+              <span>Show dismissed</span>
+            </label>
+            <button type="button" className="secondary" disabled={busy || loading} onClick={() => void refreshSnapshot()}>
+              Refresh
+            </button>
+          </div>
         </header>
 
         {loading ? <p className="muted">Loading current state…</p> : null}
         {!loading && recordings.length === 0 ? (
-          <p className="muted">No local recordings yet.</p>
+          <p className="muted">
+            {showDismissed ? "No recordings match the current view." : "No local recordings yet."}
+          </p>
         ) : null}
 
         {recordings.length > 0 ? (
           <div className="recordings-list">
             {recordings.map((recording) => (
-              <article className="recording-row" key={recording.id}>
-                <div>
+              <article
+                className={`recording-row${recording.dismissed ? " recording-row-dismissed" : ""}`}
+                key={recording.id}
+              >
+                <div className="recording-main">
                   <p className="recording-title">{recording.title}</p>
                   <p className="recording-meta">
                     {formatDateTime(recording.createdAt)} · {recording.durationSeconds.toFixed(1)}s
                   </p>
+                  {recording.dismissed ? (
+                    <p className="recording-meta">
+                      Dismissed {formatDateTime(recording.dismissedAt)}
+                    </p>
+                  ) : recording.localPath ? (
+                    <audio
+                      controls
+                      preload="none"
+                      className="recording-audio"
+                      src={`/api/recordings/${encodeURIComponent(recording.id)}/audio`}
+                    />
+                  ) : null}
                 </div>
-                <div className="recording-badges">
-                  <span className="badge">{recording.contentType ?? "unknown"}</span>
-                  <span className="badge">{recording.bytesWritten} bytes</span>
-                  <span className={`badge badge-${recording.lastWebhookStatus ?? "neutral"}`}>
-                    webhook {recording.lastWebhookStatus ?? "pending"}
-                  </span>
+                <div className="recording-side">
+                  <div className="recording-badges">
+                    <span className="badge">{recording.contentType ?? "unknown"}</span>
+                    <span className="badge">{formatBytes(recording.bytesWritten)}</span>
+                    <span className={`badge badge-${recording.lastWebhookStatus ?? "neutral"}`}>
+                      webhook {recording.lastWebhookStatus ?? "pending"}
+                    </span>
+                    {recording.dismissed ? <span className="badge badge-dismissed">dismissed</span> : null}
+                  </div>
+                  <div className="recording-controls">
+                    {recording.dismissed ? (
+                      <button
+                        type="button"
+                        className="secondary"
+                        disabled={busy}
+                        onClick={() => void handleRestoreRecording(recording)}
+                      >
+                        Restore (re-mirror on next sync)
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        className="danger"
+                        disabled={busy || !recording.localPath}
+                        onClick={() => void handleDeleteRecording(recording)}
+                      >
+                        Delete local mirror
+                      </button>
+                    )}
+                  </div>
                 </div>
               </article>
             ))}
@@ -466,6 +552,24 @@ function summarizeRun(label: string, summary: SyncRunSummary): string {
 function coercePositiveInteger(value: string, fallback: number): number {
   const parsed = Number(value);
   return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function formatBytes(value: number): string {
+  if (value <= 0) {
+    return "0 B";
+  }
+  if (value < 1024) {
+    return `${value} B`;
+  }
+  const kb = value / 1024;
+  if (kb < 1024) {
+    return `${kb.toFixed(1)} KB`;
+  }
+  const mb = kb / 1024;
+  if (mb < 1024) {
+    return `${mb.toFixed(1)} MB`;
+  }
+  return `${(mb / 1024).toFixed(2)} GB`;
 }
 
 function toErrorMessage(error: unknown): string {

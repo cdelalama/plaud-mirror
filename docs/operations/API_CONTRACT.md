@@ -1,4 +1,4 @@
-<!-- doc-version: 0.3.1 -->
+<!-- doc-version: 0.4.1 -->
 # API Contract
 
 This document describes the Phase 2 HTTP and webhook surface that now exists in-repo.
@@ -14,7 +14,10 @@ This document describes the Phase 2 HTTP and webhook surface that now exists in-
 | `POST` | `/api/auth/token` | Validate and persist a Plaud bearer token |
 | `POST` | `/api/sync/run` | Trigger a manual sync over the latest listings |
 | `POST` | `/api/backfill/run` | Trigger a filtered historical backfill |
-| `GET` | `/api/recordings` | List recent mirrored recordings |
+| `GET` | `/api/recordings` | List recent mirrored recordings. Accepts `?limit=<n>` (max 200, default 50) and `?includeDismissed=true` to include locally dismissed rows (hidden by default). |
+| `GET` | `/api/recordings/:id/audio` | Stream the locally mirrored audio file for a single recording. Returns 404 if the recording is not tracked or has no local file. Response body is the raw audio bytes with the stored `Content-Type`. |
+| `DELETE` | `/api/recordings/:id` | Local-only dismiss. Removes the audio file from disk, clears `localPath`/`bytesWritten`, and marks the row `dismissed=true`. Plaud is not touched. Subsequent sync/backfill runs skip dismissed rows. |
+| `POST` | `/api/recordings/:id/restore` | Clear the dismissed flag so the next sync re-mirrors the audio. Returns 409 if the recording is not currently dismissed. |
 
 ## Request Shapes
 
@@ -60,6 +63,34 @@ This document describes the Phase 2 HTTP and webhook surface that now exists in-
 ```
 
 All backfill filters are optional.
+
+### `DELETE /api/recordings/:id`
+
+No request body. Response:
+
+```json
+{
+  "id": "plaud-recording-id",
+  "dismissed": true,
+  "dismissedAt": "2026-04-22T10:10:00.000Z",
+  "localFileRemoved": true
+}
+```
+
+`localFileRemoved` is `false` if there was no local file on disk (e.g. download never happened or the file was already removed manually). The SQLite row is still marked as dismissed.
+
+### `POST /api/recordings/:id/restore`
+
+No request body. Response:
+
+```json
+{
+  "id": "plaud-recording-id",
+  "dismissed": false
+}
+```
+
+Returns 409 when called on a recording whose `dismissed` is already `false`.
 
 ## Webhook Contract
 

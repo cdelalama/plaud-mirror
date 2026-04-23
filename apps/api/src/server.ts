@@ -1,3 +1,4 @@
+import { createReadStream } from "node:fs";
 import { access } from "node:fs/promises";
 import { join } from "node:path";
 
@@ -62,9 +63,27 @@ export async function createApp(options: CreateAppOptions = {}) {
   app.post("/api/backfill/run", async (request) => service.runBackfill(request.body));
 
   app.get("/api/recordings", async (request) => {
-    const query = request.query as { limit?: string | number };
+    const query = request.query as { limit?: string | number; includeDismissed?: string | boolean };
     const limit = parseLimit(query.limit);
-    return service.listRecordings(limit);
+    const includeDismissed = parseBoolean(query.includeDismissed);
+    return service.listRecordings(limit, { includeDismissed });
+  });
+
+  app.get("/api/recordings/:id/audio", async (request, reply) => {
+    const id = (request.params as { id: string }).id;
+    const { path, contentType } = await service.getRecordingAudio(id);
+    reply.type(contentType);
+    return reply.send(createReadStream(path));
+  });
+
+  app.delete("/api/recordings/:id", async (request) => {
+    const id = (request.params as { id: string }).id;
+    return service.deleteRecording(id);
+  });
+
+  app.post("/api/recordings/:id/restore", async (request) => {
+    const id = (request.params as { id: string }).id;
+    return service.restoreRecording(id);
   });
 
   if (await pathExists(environment.webDistDir)) {
@@ -129,4 +148,15 @@ function parseLimit(input: string | number | undefined): number {
   }
 
   return Math.min(value, 200);
+}
+
+function parseBoolean(input: string | boolean | undefined): boolean {
+  if (input === undefined) {
+    return false;
+  }
+  if (typeof input === "boolean") {
+    return input;
+  }
+  const normalized = input.trim().toLowerCase();
+  return normalized === "true" || normalized === "1" || normalized === "yes";
 }

@@ -1,11 +1,13 @@
 import { createHmac } from "node:crypto";
-import { access, mkdir } from "node:fs/promises";
-import { join, resolve } from "node:path";
+import { access, mkdir, unlink } from "node:fs/promises";
+import { isAbsolute, join, relative, resolve } from "node:path";
 
 import {
   AuthStatusSchema,
+  RecordingDeleteResultSchema,
   RecordingListResponseSchema,
   RecordingMirrorSchema,
+  RecordingRestoreResultSchema,
   SaveAccessTokenRequestSchema,
   ServiceHealthSchema,
   SyncFiltersSchema,
@@ -13,7 +15,9 @@ import {
   UpdateRuntimeConfigRequestSchema,
   WebhookPayloadSchema,
   type AuthStatus,
+  type RecordingDeleteResult,
   type RecordingMirror,
+  type RecordingRestoreResult,
   type RuntimeConfig,
   type SyncFilters,
   type SyncRunMode,
@@ -208,10 +212,118 @@ export class PlaudMirrorService {
     return this.runMirror("backfill", parsed);
   }
 
-  async listRecordings(limit = 50): Promise<ReturnType<typeof RecordingListResponseSchema.parse>> {
+  async listRecordings(
+    limit = 50,
+    options: { includeDismissed?: boolean } = {},
+  ): Promise<ReturnType<typeof RecordingListResponseSchema.parse>> {
     return RecordingListResponseSchema.parse({
-      recordings: this.store.listRecordings(limit),
+      recordings: this.store.listRecordings(limit, options),
     });
+  }
+
+  async getRecordingAudio(recordingId: string): Promise<{ path: string; contentType: string }> {
+    this.assertSafeRecordingId(recordingId);
+
+    const recording = this.store.getRecording(recordingId);
+    if (!recording) {
+      throw createHttpError(404, `Recording ${recordingId} is not mirrored locally`);
+    }
+    if (!recording.localPath) {
+      throw createHttpError(404, `Recording ${recordingId} has no local audio file`);
+    }
+
+    const absolutePath = isAbsolute(recording.localPath)
+      ? recording.localPath
+      : resolve(process.cwd(), recording.localPath);
+
+    const recordingsRoot = resolve(this.environment.recordingsDir);
+    const relativeFromRoot = relative(recordingsRoot, absolutePath);
+    if (relativeFromRoot.startsWith("..") || isAbsolute(relativeFromRoot)) {
+      throw createHttpError(400, "Recording audio path is outside the configured recordings directory");
+    }
+
+    try {
+      await access(absolutePath);
+    } catch {
+      throw createHttpError(404, `Recording ${recordingId} audio file is missing on disk`);
+    }
+
+    return {
+      path: absolutePath,
+      contentType: recording.contentType ?? "application/octet-stream",
+    };
+  }
+
+  async deleteRecording(recordingId: string): Promise<RecordingDeleteResult> {
+    this.assertSafeRecordingId(recordingId);
+
+    const recording = this.store.getRecording(recordingId);
+    if (!recording) {
+      throw createHttpError(404, `Recording ${recordingId} is not mirrored locally`);
+    }
+
+    let localFileRemoved = false;
+    if (recording.localPath) {
+      const absolutePath = isAbsolute(recording.localPath)
+        ? recording.localPath
+        : resolve(process.cwd(), recording.localPath);
+
+      const recordingsRoot = resolve(this.environment.recordingsDir);
+      const relativeFromRoot = relative(recordingsRoot, absolutePath);
+      if (!relativeFromRoot.startsWith("..") && !isAbsolute(relativeFromRoot)) {
+        try {
+          await unlink(absolutePath);
+          localFileRemoved = true;
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
+            throw error;
+          }
+          // File already absent — treat as removed for the purpose of the result.
+          localFileRemoved = false;
+        }
+      }
+    }
+
+    const dismissedAt = new Date().toISOString();
+    this.store.upsertRecording(RecordingMirrorSchema.parse({
+      ...recording,
+      localPath: null,
+      bytesWritten: 0,
+      dismissed: true,
+      dismissedAt,
+    }));
+
+    return RecordingDeleteResultSchema.parse({
+      id: recordingId,
+      dismissed: true,
+      dismissedAt,
+      localFileRemoved,
+    });
+  }
+
+  async restoreRecording(recordingId: string): Promise<RecordingRestoreResult> {
+    this.assertSafeRecordingId(recordingId);
+
+    const recording = this.store.getRecording(recordingId);
+    if (!recording) {
+      throw createHttpError(404, `Recording ${recordingId} is not tracked locally`);
+    }
+    if (!recording.dismissed) {
+      throw createHttpError(409, `Recording ${recordingId} is not dismissed`);
+    }
+
+    this.store.setRecordingDismissed(recordingId, false);
+
+    return RecordingRestoreResultSchema.parse({
+      id: recordingId,
+      dismissed: false,
+    });
+  }
+
+  private assertSafeRecordingId(recordingId: string): void {
+    if (!/^[A-Za-z0-9_.-]+$/.test(recordingId)) {
+      throw createHttpError(400, "Recording id contains unsupported characters");
+    }
   }
 
   private async runMirror(mode: SyncRunMode, filters: SyncFilters): Promise<SyncRunSummary> {
@@ -301,6 +413,14 @@ export class PlaudMirrorService {
     forceDownload: boolean,
   ): Promise<ProcessRecordingResult> {
     const existing = this.store.getRecording(recording.id);
+
+    if (existing?.dismissed) {
+      return {
+        downloaded: false,
+        delivered: false,
+        skipped: true,
+      };
+    }
 
     if (existing?.localPath && !forceDownload && await hasLocalArtifact(existing.localPath)) {
       if (existing.lastWebhookStatus === "success") {
@@ -591,4 +711,10 @@ function toErrorMessage(error: unknown): string {
   }
 
   return String(error);
+}
+
+function createHttpError(statusCode: number, message: string): Error & { statusCode: number } {
+  const error = new Error(message) as Error & { statusCode: number };
+  error.statusCode = statusCode;
+  return error;
 }

@@ -186,3 +186,119 @@ test("PlaudMirrorService backfill downloads audio and signs webhook delivery", a
 
   service.close();
 });
+
+test("PlaudMirrorService deleteRecording removes the audio file and marks the row dismissed", async () => {
+  const root = await mkdtemp(join(tmpdir(), "plaud-mirror-service-delete-"));
+  const environment = createEnvironment(root);
+  const store = new RuntimeStore({
+    dbPath: join(environment.dataDir, "app.db"),
+    dataDir: environment.dataDir,
+    recordingsDir: environment.recordingsDir,
+    defaultSyncLimit: environment.defaultSyncLimit,
+  });
+  const secrets = new SecretStore(join(environment.dataDir, "secrets.enc"), environment.masterKey);
+  const service = new PlaudMirrorService(environment, store, secrets);
+  await service.initialize();
+
+  const { mkdir, writeFile, access } = await import("node:fs/promises");
+  const recordingDir = join(environment.recordingsDir, "rec-delete");
+  await mkdir(recordingDir, { recursive: true });
+  const audioPath = join(recordingDir, "audio.mp3");
+  await writeFile(audioPath, "fake-audio-bytes");
+
+  store.upsertRecording({
+    id: "rec-delete",
+    title: "Weekend memo",
+    createdAt: "2026-04-22T10:00:00.000Z",
+    durationSeconds: 12,
+    serialNumber: "PLAUD-1",
+    scene: null,
+    localPath: audioPath,
+    contentType: "audio/mpeg",
+    bytesWritten: 16,
+    mirroredAt: "2026-04-22T10:05:00.000Z",
+    lastWebhookStatus: "success",
+    lastWebhookAttemptAt: "2026-04-22T10:05:02.000Z",
+    dismissed: false,
+    dismissedAt: null,
+  });
+
+  const result = await service.deleteRecording("rec-delete");
+  assert.equal(result.dismissed, true);
+  assert.equal(result.localFileRemoved, true);
+
+  await assert.rejects(access(audioPath), /ENOENT/);
+  const stored = store.getRecording("rec-delete");
+  assert.equal(stored?.dismissed, true);
+  assert.equal(stored?.localPath, null);
+  assert.equal(stored?.bytesWritten, 0);
+
+  const visible = await service.listRecordings(10);
+  assert.equal(visible.recordings.length, 0);
+  const all = await service.listRecordings(10, { includeDismissed: true });
+  assert.equal(all.recordings.length, 1);
+  assert.equal(all.recordings[0]?.dismissed, true);
+
+  service.close();
+});
+
+test("PlaudMirrorService restoreRecording clears the dismissed flag so sync can re-mirror", async () => {
+  const root = await mkdtemp(join(tmpdir(), "plaud-mirror-service-restore-"));
+  const environment = createEnvironment(root);
+  const store = new RuntimeStore({
+    dbPath: join(environment.dataDir, "app.db"),
+    dataDir: environment.dataDir,
+    recordingsDir: environment.recordingsDir,
+    defaultSyncLimit: environment.defaultSyncLimit,
+  });
+  const secrets = new SecretStore(join(environment.dataDir, "secrets.enc"), environment.masterKey);
+  const service = new PlaudMirrorService(environment, store, secrets);
+  await service.initialize();
+
+  store.upsertRecording({
+    id: "rec-restore",
+    title: "Previously dismissed",
+    createdAt: "2026-04-22T10:00:00.000Z",
+    durationSeconds: 12,
+    serialNumber: "PLAUD-1",
+    scene: null,
+    localPath: null,
+    contentType: null,
+    bytesWritten: 0,
+    mirroredAt: null,
+    lastWebhookStatus: null,
+    lastWebhookAttemptAt: null,
+    dismissed: true,
+    dismissedAt: "2026-04-22T10:06:00.000Z",
+  });
+
+  const result = await service.restoreRecording("rec-restore");
+  assert.equal(result.dismissed, false);
+
+  const stored = store.getRecording("rec-restore");
+  assert.equal(stored?.dismissed, false);
+  assert.equal(stored?.dismissedAt, null);
+
+  await assert.rejects(service.restoreRecording("rec-restore"), /not dismissed/);
+
+  service.close();
+});
+
+test("PlaudMirrorService rejects audio requests for unsafe recording ids", async () => {
+  const root = await mkdtemp(join(tmpdir(), "plaud-mirror-service-unsafe-"));
+  const environment = createEnvironment(root);
+  const store = new RuntimeStore({
+    dbPath: join(environment.dataDir, "app.db"),
+    dataDir: environment.dataDir,
+    recordingsDir: environment.recordingsDir,
+    defaultSyncLimit: environment.defaultSyncLimit,
+  });
+  const secrets = new SecretStore(join(environment.dataDir, "secrets.enc"), environment.masterKey);
+  const service = new PlaudMirrorService(environment, store, secrets);
+  await service.initialize();
+
+  await assert.rejects(service.getRecordingAudio("../etc/passwd"), /unsupported characters/);
+  await assert.rejects(service.deleteRecording("../etc/passwd"), /unsupported characters/);
+
+  service.close();
+});

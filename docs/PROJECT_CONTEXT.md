@@ -1,4 +1,4 @@
-<!-- doc-version: 0.3.1 -->
+<!-- doc-version: 0.4.1 -->
 # Project Context - Plaud Mirror
 
 ## Vision
@@ -22,17 +22,18 @@ Plaud Mirror is a server-first product with two runtime surfaces:
 
 Persistence is split between SQLite for state/indexes and the filesystem for mirrored audio artifacts. Secrets are encrypted at rest with a master key supplied by the surrounding deployment.
 
-## Current Status (2026-04-22)
+## Current Status (2026-04-23)
 
-Plaud Mirror `v0.3.0` is the first usable internal slice. The repository now has:
+Plaud Mirror `v0.4.1` is the extended Phase 2 slice: the original manual vertical slice plus local-only curation. The repository now has:
 
 - a live Fastify API
 - a web panel for token setup, webhook configuration, sync/backfill controls, and recordings visibility
 - encrypted persisted manual bearer-token auth
 - manual sync and filtered historical backfill
-- SQLite-backed recording and delivery state
+- SQLite-backed recording and delivery state (including `dismissed`/`dismissed_at` columns for local curation)
 - immediate HMAC-signed webhook delivery with persisted attempt logging
-- Docker packaging for `dev-vm`
+- inline audio playback per recording, with a confirmed local-only dismiss/restore flow that never touches Plaud
+- Docker packaging for `dev-vm`, running as non-root `USER 1000:1000`
 - the original Phase 1 spike CLI for direct Plaud probing
 
 What it still does not have:

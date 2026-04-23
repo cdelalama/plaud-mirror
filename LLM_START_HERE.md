@@ -1,4 +1,4 @@
-<!-- doc-version: 0.3.1 -->
+<!-- doc-version: 0.4.1 -->
 # LLM Start Guide - Plaud Mirror
 
 ## Read This First (Mandatory)
@@ -85,9 +85,9 @@ Recommended reading order:
 ## Current Focus (Snapshot)
 
 Source of truth: docs/llm/HANDOFF.md.
-- Last Updated: 2026-04-22 - Codex GPT-5
-- Working on: validate the live UI flow with a real Plaud token now that the Phase 2 Docker slice is up on `dev-vm`, and confirm the backfill/webhook path
-- Status: `v0.3.1` keeps the Phase 2 usable slice intact and adds a Docker deployment fallback for this `dev-vm`: the build can override its base images, reuse the local cached `vxcontrol/kali-linux:latest` image when Docker Hub times out pulling `node:20-bookworm-slim`, complete the fallback build without `apt` because it uses `corepack npm` directly, and has now been verified locally with `docker compose up --build -d` plus a healthy `/api/health` response. The missing pieces are still the later-phase ones: live validation with a real token, scheduler-driven sync, retry/outbox resilience, automatic re-login, and NAS rollout.
+- Last Updated: 2026-04-23 - Claude Opus 4.7
+- Working on: close the six governance drift items flagged by GPT-5's review of v0.4.0, cut `v0.4.1` as a mostly-docs patch with one cosmetic code fix (hero metric), rebuild the container, and push the bundle to `origin/main` so the public repo finally reflects the real state (0.1.0 → 0.4.1 catch-up).
+- Status: `v0.4.1` ships a clean governance pass on top of v0.4.0. Roadmap now reflects that Phase 2 extends through `0.4.x` and Phase 3 starts at `0.5.x`; README no longer recommends Kali as a Docker fallback; CHANGELOG entries for `0.3.2` and `0.4.0` were backfilled; the stale "Drift Status" block in the handoff was replaced with a shorter "Roadmap Boundary"; PROJECT_CONTEXT and ARCHITECTURE prose refreshed from `v0.3.0` narrative to current; the hero "Recordings" metric now reads `health?.recordingsCount` instead of `recordings.length`. 35/35 tests still pass. Phase 2 feature surface is unchanged from v0.4.0.
 
 Keep this section synchronized with the "Current Status" block in docs/llm/HANDOFF.md.
 

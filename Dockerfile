@@ -47,7 +47,15 @@ COPY --from=build /app/packages/shared/dist ./packages/shared/dist
 COPY --from=build /app/VERSION ./VERSION
 
 RUN command -v node >/dev/null 2>&1 \
-  && mkdir -p /var/lib/plaud-mirror/data /var/lib/plaud-mirror/recordings
+  && mkdir -p /var/lib/plaud-mirror/data /var/lib/plaud-mirror/recordings \
+  && chown -R 1000:1000 /app /var/lib/plaud-mirror
+
+# Run as non-root. UID:GID 1000:1000 matches the `node` user on the official
+# node:*-bookworm-slim images and the typical dev-vm host user, so bind-mounted
+# volumes under ./runtime/ end up owned by the host user rather than root.
+# Custom base images that do not ship a UID 1000 user still work because
+# USER accepts numeric IDs.
+USER 1000:1000
 
 EXPOSE 3040
 

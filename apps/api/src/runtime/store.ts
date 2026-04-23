@@ -46,6 +46,8 @@ interface RecordingRow {
   mirrored_at: string | null;
   last_webhook_status: "skipped" | "success" | "failed" | null;
   last_webhook_attempt_at: string | null;
+  dismissed: number;
+  dismissed_at: string | null;
 }
 
 export interface DeliveryAttemptRecord {
@@ -147,11 +149,12 @@ export class RuntimeStore {
   }
 
   countRecordings(): number {
-    const row = this.db.prepare("SELECT COUNT(*) AS count FROM recordings").get() as { count: number };
+    const row = this.db.prepare("SELECT COUNT(*) AS count FROM recordings WHERE dismissed = 0").get() as { count: number };
     return row.count;
   }
 
-  listRecordings(limit: number): RecordingMirror[] {
+  listRecordings(limit: number, options: { includeDismissed?: boolean } = {}): RecordingMirror[] {
+    const whereClause = options.includeDismissed ? "" : "WHERE dismissed = 0";
     const rows = this.db.prepare(`
       SELECT
         id,
@@ -165,8 +168,11 @@ export class RuntimeStore {
         bytes_written,
         mirrored_at,
         last_webhook_status,
-        last_webhook_attempt_at
+        last_webhook_attempt_at,
+        dismissed,
+        dismissed_at
       FROM recordings
+      ${whereClause}
       ORDER BY COALESCE(mirrored_at, created_at) DESC, id DESC
       LIMIT ?
     `).all(limit) as RecordingRow[];
@@ -188,12 +194,25 @@ export class RuntimeStore {
         bytes_written,
         mirrored_at,
         last_webhook_status,
-        last_webhook_attempt_at
+        last_webhook_attempt_at,
+        dismissed,
+        dismissed_at
       FROM recordings
       WHERE id = ?
     `).get(recordingId) as RecordingRow | undefined;
 
     return row ? mapRecordingRow(row) : null;
+  }
+
+  setRecordingDismissed(recordingId: string, dismissed: boolean): RecordingMirror | null {
+    const timestamp = dismissed ? new Date().toISOString() : null;
+    this.db.prepare(`
+      UPDATE recordings
+      SET dismissed = ?, dismissed_at = ?
+      WHERE id = ?
+    `).run(dismissed ? 1 : 0, timestamp, recordingId);
+
+    return this.getRecording(recordingId);
   }
 
   upsertRecording(recording: RecordingMirror): RecordingMirror {
@@ -211,7 +230,9 @@ export class RuntimeStore {
         bytes_written,
         mirrored_at,
         last_webhook_status,
-        last_webhook_attempt_at
+        last_webhook_attempt_at,
+        dismissed,
+        dismissed_at
       ) VALUES (
         @id,
         @title,
@@ -224,7 +245,9 @@ export class RuntimeStore {
         @bytesWritten,
         @mirroredAt,
         @lastWebhookStatus,
-        @lastWebhookAttemptAt
+        @lastWebhookAttemptAt,
+        @dismissed,
+        @dismissedAt
       )
       ON CONFLICT(id) DO UPDATE SET
         title = excluded.title,
@@ -237,7 +260,9 @@ export class RuntimeStore {
         bytes_written = excluded.bytes_written,
         mirrored_at = excluded.mirrored_at,
         last_webhook_status = excluded.last_webhook_status,
-        last_webhook_attempt_at = excluded.last_webhook_attempt_at
+        last_webhook_attempt_at = excluded.last_webhook_attempt_at,
+        dismissed = excluded.dismissed,
+        dismissed_at = excluded.dismissed_at
     `).run({
       id: normalized.id,
       title: normalized.title,
@@ -251,6 +276,8 @@ export class RuntimeStore {
       mirroredAt: normalized.mirroredAt,
       lastWebhookStatus: normalized.lastWebhookStatus,
       lastWebhookAttemptAt: normalized.lastWebhookAttemptAt,
+      dismissed: normalized.dismissed ? 1 : 0,
+      dismissedAt: normalized.dismissedAt,
     });
 
     return normalized;
@@ -392,7 +419,9 @@ export class RuntimeStore {
         bytes_written INTEGER NOT NULL DEFAULT 0,
         mirrored_at TEXT,
         last_webhook_status TEXT,
-        last_webhook_attempt_at TEXT
+        last_webhook_attempt_at TEXT,
+        dismissed INTEGER NOT NULL DEFAULT 0,
+        dismissed_at TEXT
       );
 
       CREATE TABLE IF NOT EXISTS sync_runs (
@@ -421,6 +450,16 @@ export class RuntimeStore {
         attempted_at TEXT NOT NULL
       );
     `);
+
+    // Additive migration for pre-0.4.0 databases that predate the dismissed columns.
+    const columns = this.db.prepare("PRAGMA table_info(recordings)").all() as Array<{ name: string }>;
+    const columnNames = new Set(columns.map((column) => column.name));
+    if (!columnNames.has("dismissed")) {
+      this.db.exec("ALTER TABLE recordings ADD COLUMN dismissed INTEGER NOT NULL DEFAULT 0");
+    }
+    if (!columnNames.has("dismissed_at")) {
+      this.db.exec("ALTER TABLE recordings ADD COLUMN dismissed_at TEXT");
+    }
   }
 
   private getSetting<T = string>(key: string): T | null {
@@ -464,6 +503,8 @@ function mapRecordingRow(row: RecordingRow): RecordingMirror {
     mirroredAt: row.mirrored_at,
     lastWebhookStatus: row.last_webhook_status,
     lastWebhookAttemptAt: row.last_webhook_attempt_at,
+    dismissed: Boolean(row.dismissed),
+    dismissedAt: row.dismissed_at,
   });
 }
 

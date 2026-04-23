@@ -58,10 +58,24 @@ export const RecordingMirrorSchema = z.object({
   mirroredAt: z.string().nullable(),
   lastWebhookStatus: z.enum(["skipped", "success", "failed"]).nullable(),
   lastWebhookAttemptAt: z.string().nullable(),
+  dismissed: z.boolean().default(false),
+  dismissedAt: z.string().nullable().default(null),
 }).strict();
 
 export const RecordingListResponseSchema = z.object({
   recordings: z.array(RecordingMirrorSchema),
+}).strict();
+
+export const RecordingDeleteResultSchema = z.object({
+  id: z.string(),
+  dismissed: z.literal(true),
+  dismissedAt: z.string(),
+  localFileRemoved: z.boolean(),
+}).strict();
+
+export const RecordingRestoreResultSchema = z.object({
+  id: z.string(),
+  dismissed: z.literal(false),
 }).strict();
 
 export const SyncRunModeSchema = z.enum(["sync", "backfill"]);
@@ -119,6 +133,8 @@ export type SaveAccessTokenRequest = z.infer<typeof SaveAccessTokenRequestSchema
 export type SyncFilters = z.infer<typeof SyncFiltersSchema>;
 export type RecordingMirror = z.infer<typeof RecordingMirrorSchema>;
 export type RecordingListResponse = z.infer<typeof RecordingListResponseSchema>;
+export type RecordingDeleteResult = z.infer<typeof RecordingDeleteResultSchema>;
+export type RecordingRestoreResult = z.infer<typeof RecordingRestoreResultSchema>;
 export type SyncRunMode = z.infer<typeof SyncRunModeSchema>;
 export type SyncRunStatus = z.infer<typeof SyncRunStatusSchema>;
 export type SyncRunSummary = z.infer<typeof SyncRunSummarySchema>;
