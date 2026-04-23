@@ -1,4 +1,4 @@
-<!-- doc-version: 0.4.4 -->
+<!-- doc-version: 0.4.5 -->
 # LLM Work Handoff
 
 This file is the live operational snapshot. Durable rationale lives in `docs/llm/DECISIONS.md`. Phase boundaries live in `docs/ROADMAP.md`.
@@ -6,8 +6,8 @@ This file is the live operational snapshot. Durable rationale lives in `docs/llm
 ## Current Status
 
 - Last Updated: 2026-04-23 - Claude Opus 4.7
-- Session Focus: Make Restore do what the operator expects — re-download the audio immediately on click instead of leaving the row in a confusing half-state waiting for the next sync. Ship `v0.4.4`, rebuild, push. Prose sweep applied per the `feedback_prose_version_drift.md` memory.
-- Status: `v0.4.4` extends `POST /api/recordings/:id/restore` to also pull fresh `/file/detail` and `/file/temp-url` from Plaud and write the artifact back to disk in the same call. If the download fails (auth expired or network issue), the dismissed flag is still cleared so the operator's intent is respected and a later sync can retry; the error is surfaced to the UI banner. UI copy updated to match ("Restore (re-download now)"). Tests: service-level happy path with mocked Plaud + error path without token, both added; server-level combined test now exercises DELETE → restore → GET audio returning the freshly-mirrored bytes. 38/38 tests pass.
+- Session Focus: Address the operator's UX complaints after clicking "Run sync now" with the default limit of 100 and no visible feedback: default is now 1, there is a persistent "Working…" banner during operations, and the hero metric shows `local / remote total` so the operator knows how many recordings Plaud has vs how many are mirrored. Ship `v0.4.5`, rebuild with rolling pattern, push.
+- Status: `v0.4.5` ships three UI safety/feedback tweaks plus a CSS fix. Default sync limit reduced from 100 to 1. A "Working…" info banner is visible while any operation is in flight so the operator sees immediate feedback, not just a disabled button. The hero "Recordings" metric now renders as `localCount / remoteTotal` when a sync has run (using `lastSync.examined` from `/api/health`). The "Manual sync" card also inlines `Last run`, `Remote total`, and `Mirrored locally` details. Disabled buttons show `not-allowed` instead of `wait` unless the shell is actively in the working state. 38/38 tests pass; no backend contract changes, no new tests needed.
 
 ## What Landed
 

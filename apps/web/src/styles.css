@@ -52,6 +52,15 @@ button:hover:not(:disabled) {
 
 button:disabled {
   opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* When the whole UI is working on something, disabled buttons show a wait
+   cursor to reinforce "please wait". For buttons that are disabled because of
+   state (no localPath, invalid config, etc.) the CSS default of not-allowed
+   stays. The toggle is controlled by adding `.working` on the shell while
+   `busy=true`. */
+.shell.working button:disabled {
   cursor: wait;
 }
 
@@ -259,8 +268,19 @@ input {
   color: var(--bad);
 }
 
+.banner-info {
+  background: rgba(69, 50, 30, 0.08);
+  color: var(--ink);
+  border: 1px solid var(--card-border);
+}
+
 .muted {
   color: var(--muted);
+}
+
+.muted.small {
+  font-size: 0.82rem;
+  margin: 0;
 }
 
 .recordings-list {

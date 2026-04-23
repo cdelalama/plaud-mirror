@@ -1,4 +1,4 @@
-<!-- doc-version: 0.4.4 -->
+<!-- doc-version: 0.4.5 -->
 # Project Context - Plaud Mirror
 
 ## Vision
@@ -24,7 +24,7 @@ Persistence is split between SQLite for state/indexes and the filesystem for mir
 
 ## Current Status (2026-04-23)
 
-Plaud Mirror `v0.4.4` is the extended Phase 2 slice: the original manual vertical slice plus local-only curation, with audio scrubbing and duration formatting polished, the dismiss/restore flow functional from the web UI, and restore now re-downloading the audio immediately instead of deferring to the next sync. The repository now has:
+Plaud Mirror `v0.4.5` is the extended Phase 2 slice: the original manual vertical slice plus local-only curation, with audio scrubbing and duration formatting polished, the dismiss/restore flow functional from the web UI with immediate re-download on restore, a safer default sync limit of 1, and a "Working…" progress banner so operations give visible feedback. The repository now has:
 
 - a live Fastify API
 - a web panel for token setup, webhook configuration, sync/backfill controls, and recordings visibility

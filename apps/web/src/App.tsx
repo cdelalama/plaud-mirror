@@ -26,7 +26,10 @@ const DEFAULT_BACKFILL_DRAFT: BackfillDraft = {
   to: "",
   serialNumber: "",
   scene: "",
-  limit: "100",
+  // Conservative default: a single recording. Operator can raise this before
+  // clicking sync/backfill. An accidental click with limit=100 would bulk-download
+  // 100 recordings with no abort path.
+  limit: "1",
   forceDownload: false,
 };
 
@@ -203,7 +206,7 @@ export function App() {
   }
 
   return (
-    <div className="shell">
+    <div className={`shell${busy ? " working" : ""}`}>
       <div className="hero">
         <div>
           <p className="eyebrow">Plaud Mirror</p>
@@ -216,10 +219,14 @@ export function App() {
         <div className="hero-status">
           <Metric label="Version" value={health?.version ?? "loading"} />
           <Metric label="Auth" value={auth?.state ?? "unknown"} />
-          <Metric label="Recordings" value={String(health?.recordingsCount ?? recordings.length)} />
+          <Metric
+            label="Recordings"
+            value={formatRecordingsMetric(health?.recordingsCount ?? recordings.length, health?.lastSync?.examined ?? null)}
+          />
         </div>
       </div>
 
+      {busy ? <Banner tone="info" message="Working… sync and backfill can take a few minutes depending on the number of recordings. The panel will refresh when the run completes." /> : null}
       {operationError ? <Banner tone="error" message={operationError} /> : null}
       {operationResult ? <Banner tone="success" message={operationResult} /> : null}
 
@@ -310,6 +317,20 @@ export function App() {
             Run a sync against the latest Plaud listings. Existing mirrored
             recordings are skipped unless you force a new download.
           </p>
+          <dl className="details">
+            <Detail
+              label="Last run"
+              value={lastRun ? summarizeRun("", lastRun).trim().replace(/^:\s*/, "") : "none yet"}
+            />
+            <Detail
+              label="Remote total (at last sync)"
+              value={lastRun ? String(lastRun.examined) : "unknown until first sync"}
+            />
+            <Detail
+              label="Mirrored locally"
+              value={String(health?.recordingsCount ?? recordings.length)}
+            />
+          </dl>
           <div className="stack">
             <label className="field">
               <span>Sync limit</span>
@@ -323,6 +344,10 @@ export function App() {
                 }
               />
             </label>
+            <p className="muted small">
+              Default is 1 recording per click to avoid accidental bulk downloads. Raise this
+              value deliberately before running a larger sync.
+            </p>
             <label className="checkbox">
               <input
                 type="checkbox"
@@ -334,7 +359,7 @@ export function App() {
               <span>Force a fresh download even if the file already exists</span>
             </label>
             <button type="button" disabled={busy} onClick={() => void handleRunSync()}>
-              Run sync now
+              {busy ? "Running…" : "Run sync now"}
             </button>
           </div>
         </section>
@@ -503,7 +528,7 @@ function Metric({ label, value }: { label: string; value: string }) {
   );
 }
 
-function Banner({ tone, message }: { tone: "success" | "error"; message: string }) {
+function Banner({ tone, message }: { tone: "success" | "error" | "info"; message: string }) {
   return <div className={`banner banner-${tone}`}>{message}</div>;
 }
 
@@ -559,6 +584,13 @@ function summarizeRun(label: string, summary: SyncRunSummary): string {
 function coercePositiveInteger(value: string, fallback: number): number {
   const parsed = Number(value);
   return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function formatRecordingsMetric(localCount: number, remoteTotal: number | null): string {
+  if (remoteTotal === null) {
+    return String(localCount);
+  }
+  return `${localCount} / ${remoteTotal}`;
 }
 
 function formatDuration(totalSeconds: number): string {
