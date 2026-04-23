@@ -96,8 +96,12 @@ export class PlaudClient {
     return this.fetchJson(`/file/simple/web?${query.toString()}`, PlaudListResponseSchema);
   }
 
-  async listAllRecordings(pageSize = 100, totalLimit = 200): Promise<PlaudListResponse["data_file_list"]> {
+  async listAllRecordings(
+    pageSize = 100,
+    totalLimit = 200,
+  ): Promise<{ recordings: PlaudListResponse["data_file_list"]; totalAvailable: number }> {
     const recordings: PlaudListResponse["data_file_list"] = [];
+    let totalAvailable = 0;
     let skip = 0;
 
     while (recordings.length < totalLimit) {
@@ -106,6 +110,13 @@ export class PlaudClient {
         skip,
         limit: Math.min(pageSize, remaining),
       });
+
+      // The first page reports how many recordings exist in the Plaud account
+      // (irrespective of the page size or totalLimit we're using). Capture it
+      // so callers can distinguish "how many we pulled" from "how many exist".
+      if (skip === 0) {
+        totalAvailable = Number(page.data_file_total) || 0;
+      }
 
       if (page.data_file_list.length === 0) {
         break;
@@ -120,7 +131,7 @@ export class PlaudClient {
       skip += page.data_file_list.length;
     }
 
-    return recordings;
+    return { recordings, totalAvailable };
   }
 
   async getFileDetail(recordingId: string): Promise<PlaudFileDetailData> {

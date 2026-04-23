@@ -92,6 +92,11 @@ export const SyncRunSummarySchema = z.object({
   downloaded: z.number().int().nonnegative(),
   delivered: z.number().int().nonnegative(),
   skipped: z.number().int().nonnegative(),
+  // Total recordings reported by Plaud's `data_file_total` on the first page of
+  // the listing. Independent of `examined` (which is capped by the caller's
+  // `limit`) and `matched` (which is after local filters). Present only on
+  // runs captured at or after v0.4.6; older rows read this as null.
+  plaudTotal: z.number().int().nonnegative().nullable().default(null),
   filters: SyncFiltersSchema,
   error: z.string().nullable(),
 }).strict();

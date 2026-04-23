@@ -1,4 +1,4 @@
-<!-- doc-version: 0.4.5 -->
+<!-- doc-version: 0.4.6 -->
 # LLM Work Handoff
 
 This file is the live operational snapshot. Durable rationale lives in `docs/llm/DECISIONS.md`. Phase boundaries live in `docs/ROADMAP.md`.
@@ -6,8 +6,8 @@ This file is the live operational snapshot. Durable rationale lives in `docs/llm
 ## Current Status
 
 - Last Updated: 2026-04-23 - Claude Opus 4.7
-- Session Focus: Address the operator's UX complaints after clicking "Run sync now" with the default limit of 100 and no visible feedback: default is now 1, there is a persistent "Working…" banner during operations, and the hero metric shows `local / remote total` so the operator knows how many recordings Plaud has vs how many are mirrored. Ship `v0.4.5`, rebuild with rolling pattern, push.
-- Status: `v0.4.5` ships three UI safety/feedback tweaks plus a CSS fix. Default sync limit reduced from 100 to 1. A "Working…" info banner is visible while any operation is in flight so the operator sees immediate feedback, not just a disabled button. The hero "Recordings" metric now renders as `localCount / remoteTotal` when a sync has run (using `lastSync.examined` from `/api/health`). The "Manual sync" card also inlines `Last run`, `Remote total`, and `Mirrored locally` details. Disabled buttons show `not-allowed` instead of `wait` unless the shell is actively in the working state. 38/38 tests pass; no backend contract changes, no new tests needed.
+- Session Focus: Two operator-reported issues — the "remote total" in the hero was really the limit-capped `examined` (so it looked suspiciously round at 100), and library rows had no easy positional identifier when scrolling. Ship `v0.4.6` with (a) Plaud's real `data_file_total` threaded from the list endpoint through to the UI, and (b) numbered library rows.
+- Status: `v0.4.6` wires Plaud's authoritative count (`data_file_total`) through the stack: `client.listAllRecordings` now returns `{ recordings, totalAvailable }`; the service records it on the SyncRunSummary; SQLite gains a nullable `plaud_total` column via additive migration; the shared Zod schema gains `plaudTotal`. The hero "Recordings" metric now renders `local / plaudTotal` instead of `local / examined`. Manual-sync card splits into `Remote total (Plaud)` and `Examined last run (capped by the limit you chose)` for honesty. Library rows prefixed with `#N` index badge. 38/38 tests pass; store and service tests updated to assert the new field round-trips.
 
 ## What Landed
 

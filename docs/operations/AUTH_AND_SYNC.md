@@ -1,4 +1,4 @@
-<!-- doc-version: 0.4.5 -->
+<!-- doc-version: 0.4.6 -->
 # Authentication and Sync Operations
 
 This runbook defines the live Phase 2 behavior for Plaud Mirror.

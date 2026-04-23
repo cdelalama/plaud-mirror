@@ -63,6 +63,7 @@ test("RuntimeStore persists config, recordings, and sync summaries", async () =>
     downloaded: 1,
     delivered: 1,
     skipped: 0,
+    plaudTotal: 42,
     filters: {
       from: "2026-04-01",
       to: "2026-04-22",
@@ -77,7 +78,9 @@ test("RuntimeStore persists config, recordings, and sync summaries", async () =>
   assert.equal(store.countRecordings(), 1);
   assert.equal(store.listRecordings(10)[0]?.id, "rec-1");
   assert.equal(store.listRecordings(10)[0]?.dismissed, false);
-  assert.equal(store.getLastSyncRun()?.mode, "backfill");
+  const lastRun = store.getLastSyncRun();
+  assert.equal(lastRun?.mode, "backfill");
+  assert.equal(lastRun?.plaudTotal, 42, "plaudTotal must round-trip through SQLite");
 
   store.close();
 });

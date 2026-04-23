@@ -88,7 +88,7 @@ export async function runProbe(environment: SpikeEnvironment, options: ProbeOpti
   const client = createPlaudClient(environment);
 
   const user = await client.getCurrentUser();
-  const recordings = await client.listAllRecordings(100, options.limit);
+  const { recordings } = await client.listAllRecordings(100, options.limit);
   const filteredRecordings = applyLocalFilters(recordings, options);
 
   const selectedRecordingId =
@@ -147,7 +147,7 @@ export async function runValidate(environment: SpikeEnvironment) {
 export async function runList(environment: SpikeEnvironment, options: ProbeOptions) {
   const client = createPlaudClient(environment);
 
-  const recordings = await client.listAllRecordings(100, options.limit);
+  const { recordings } = await client.listAllRecordings(100, options.limit);
   return {
     resolvedApiBase: client.getResolvedApiBase(),
     recordings: applyLocalFilters(recordings, options),

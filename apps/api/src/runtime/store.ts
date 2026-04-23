@@ -30,6 +30,7 @@ interface SyncRunRow {
   downloaded: number;
   delivered: number;
   skipped: number;
+  plaud_total: number | null;
   error_message: string | null;
 }
 
@@ -320,6 +321,7 @@ export class RuntimeStore {
         downloaded = ?,
         delivered = ?,
         skipped = ?,
+        plaud_total = ?,
         error_message = ?
       WHERE id = ?
     `).run(
@@ -331,6 +333,7 @@ export class RuntimeStore {
       normalized.downloaded,
       normalized.delivered,
       normalized.skipped,
+      normalized.plaudTotal,
       normalized.error,
       normalized.id,
     );
@@ -352,6 +355,7 @@ export class RuntimeStore {
         downloaded,
         delivered,
         skipped,
+        plaud_total,
         error_message
       FROM sync_runs
       WHERE finished_at IS NOT NULL
@@ -436,6 +440,7 @@ export class RuntimeStore {
         downloaded INTEGER NOT NULL DEFAULT 0,
         delivered INTEGER NOT NULL DEFAULT 0,
         skipped INTEGER NOT NULL DEFAULT 0,
+        plaud_total INTEGER,
         error_message TEXT
       );
 
@@ -459,6 +464,13 @@ export class RuntimeStore {
     }
     if (!columnNames.has("dismissed_at")) {
       this.db.exec("ALTER TABLE recordings ADD COLUMN dismissed_at TEXT");
+    }
+
+    // Additive migration for pre-0.4.6 databases that predate the plaud_total column.
+    const syncRunColumns = this.db.prepare("PRAGMA table_info(sync_runs)").all() as Array<{ name: string }>;
+    const syncRunColumnNames = new Set(syncRunColumns.map((column) => column.name));
+    if (!syncRunColumnNames.has("plaud_total")) {
+      this.db.exec("ALTER TABLE sync_runs ADD COLUMN plaud_total INTEGER");
     }
   }
 
@@ -520,6 +532,7 @@ function mapSyncRunRow(row: SyncRunRow): SyncRunSummary {
     downloaded: row.downloaded,
     delivered: row.delivered,
     skipped: row.skipped,
+    plaudTotal: row.plaud_total,
     filters: SyncFiltersSchema.parse(JSON.parse(row.filters_json)),
     error: row.error_message,
   });

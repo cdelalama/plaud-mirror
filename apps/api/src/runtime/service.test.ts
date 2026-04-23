@@ -171,6 +171,7 @@ test("PlaudMirrorService backfill downloads audio and signs webhook delivery", a
   assert.equal(summary.status, "completed");
   assert.equal(summary.downloaded, 1);
   assert.equal(summary.delivered, 1);
+  assert.equal(summary.plaudTotal, 1, "sync summary should carry Plaud's data_file_total");
 
   const recordings = await service.listRecordings(10);
   assert.equal(recordings.recordings.length, 1);

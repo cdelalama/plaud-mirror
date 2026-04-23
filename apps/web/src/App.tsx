@@ -221,7 +221,10 @@ export function App() {
           <Metric label="Auth" value={auth?.state ?? "unknown"} />
           <Metric
             label="Recordings"
-            value={formatRecordingsMetric(health?.recordingsCount ?? recordings.length, health?.lastSync?.examined ?? null)}
+            value={formatRecordingsMetric(
+              health?.recordingsCount ?? recordings.length,
+              health?.lastSync?.plaudTotal ?? null,
+            )}
           />
         </div>
       </div>
@@ -323,8 +326,12 @@ export function App() {
               value={lastRun ? summarizeRun("", lastRun).trim().replace(/^:\s*/, "") : "none yet"}
             />
             <Detail
-              label="Remote total (at last sync)"
-              value={lastRun ? String(lastRun.examined) : "unknown until first sync"}
+              label="Remote total (Plaud)"
+              value={lastRun?.plaudTotal != null ? String(lastRun.plaudTotal) : "unknown until first sync"}
+            />
+            <Detail
+              label="Examined last run"
+              value={lastRun ? `${lastRun.examined} (capped by the limit you chose)` : "none yet"}
             />
             <Detail
               label="Mirrored locally"
@@ -456,13 +463,16 @@ export function App() {
 
         {recordings.length > 0 ? (
           <div className="recordings-list">
-            {recordings.map((recording) => (
+            {recordings.map((recording, index) => (
               <article
                 className={`recording-row${recording.dismissed ? " recording-row-dismissed" : ""}`}
                 key={recording.id}
               >
                 <div className="recording-main">
-                  <p className="recording-title">{recording.title}</p>
+                  <p className="recording-title">
+                    <span className="recording-index">#{index + 1}</span>
+                    {recording.title}
+                  </p>
                   <p className="recording-meta">
                     {formatDateTime(recording.createdAt)} · {formatDuration(recording.durationSeconds)}
                   </p>

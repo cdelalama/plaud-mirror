@@ -4,6 +4,19 @@ All notable changes to Plaud Mirror are documented in this file.
 
 This project follows Semantic Versioning (SemVer): MAJOR.MINOR.PATCH.
 
+## [0.4.6] - 2026-04-23
+
+### Added
+- Each row in the library is prefixed with a `#N` index badge so the operator can keep visual track of position while scrolling the list.
+- Sync run summaries now carry Plaud's real `data_file_total` (called `plaudTotal` in the schema and DB). `client.listAllRecordings` returns `{ recordings, totalAvailable }` and the service records the total in the SyncRunSummary. SQLite gains a nullable `plaud_total` column via additive migration.
+
+### Changed
+- The hero "Recordings" metric now reads from `lastSync.plaudTotal` instead of `lastSync.examined`. Earlier versions showed the number of recordings the last sync had looked at (which is capped by the caller's `limit` and therefore misleadingly round — if you synced with `limit=100`, the hero showed `X / 100` regardless of the real Plaud total).
+- "Manual sync" card now surfaces `Remote total (Plaud)` and a separate `Examined last run (capped by the limit you chose)` line so the operator can tell the two numbers apart.
+
+### Fixed
+- Misleading `X / 100` hero metric after a sync with `limit=100`: the UI now shows the real Plaud total, not the limit-capped `examined` count.
+
 ## [0.4.5] - 2026-04-23
 
 ### Added

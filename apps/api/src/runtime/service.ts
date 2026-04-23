@@ -364,7 +364,8 @@ export class PlaudMirrorService {
 
     try {
       const { client } = await this.loadValidatedClient();
-      const remoteRecordings = await client.listAllRecordings(100, normalizedFilters.limit);
+      const { recordings: remoteRecordings, totalAvailable: plaudTotal } =
+        await client.listAllRecordings(100, normalizedFilters.limit);
       const probeFilters: Parameters<typeof applyLocalFilters>[1] = {
         limit: normalizedFilters.limit,
         recordingsDir: this.environment.recordingsDir,
@@ -415,6 +416,7 @@ export class PlaudMirrorService {
         downloaded,
         delivered,
         skipped,
+        plaudTotal,
         filters: normalizedFilters,
         error: null,
       }));
