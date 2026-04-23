@@ -1,9 +1,9 @@
-<!-- doc-version: 0.4.7 -->
+<!-- doc-version: 0.4.8 -->
 # Plaud Mirror Architecture
 
-> Version: 0.4.7
+> Version: 0.4.8
 > Last Updated: 2026-04-23
-> Status: Phase 2 vertical slice (extended through 0.4.x with local curation, audio UX polish, empty-body DELETE fix, immediate re-download on restore, safer-by-default UI feedback, honest remote-total metric, and Mode B "download missing" sync semantics)
+> Status: Phase 2 vertical slice (extended through 0.4.x with local curation, audio UX polish, empty-body DELETE fix, immediate re-download on restore, safer-by-default UI feedback, honest remote-total metric, Mode B sync, classic pagination, and stable sequence numbers)
 
 ## Overview
 

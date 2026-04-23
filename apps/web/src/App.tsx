@@ -48,30 +48,40 @@ export function App() {
   const [operationError, setOperationError] = useState<string | null>(null);
   const [lastRun, setLastRun] = useState<SyncRunSummary | null>(null);
   const [showDismissed, setShowDismissed] = useState(false);
+  const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState(50);
+  const [totalRecordings, setTotalRecordings] = useState(0);
 
   useEffect(() => {
     void refreshSnapshot();
-  }, [showDismissed]);
+  }, [showDismissed, page, pageSize]);
 
   async function refreshSnapshot(): Promise<void> {
     setLoading(true);
     setOperationError(null);
 
     try {
-      const recordingsQuery = showDismissed
-        ? "/api/recordings?limit=50&includeDismissed=true"
-        : "/api/recordings?limit=50";
+      const params = new URLSearchParams({
+        limit: String(pageSize),
+        skip: String(page * pageSize),
+      });
+      if (showDismissed) {
+        params.set("includeDismissed", "true");
+      }
       const [healthResponse, configResponse, authResponse, recordingsResponse] = await Promise.all([
         requestJson<ServiceHealth>("/api/health"),
         requestJson<RuntimeConfig>("/api/config"),
         requestJson<AuthStatus>("/api/auth/status"),
-        requestJson<{ recordings: RecordingMirror[] }>(recordingsQuery),
+        requestJson<{ recordings: RecordingMirror[]; total: number; skip: number; limit: number }>(
+          `/api/recordings?${params.toString()}`,
+        ),
       ]);
 
       setHealth(healthResponse);
       setConfig(configResponse);
       setAuth(authResponse);
       setRecordings(recordingsResponse.recordings);
+      setTotalRecordings(recordingsResponse.total);
       setWebhookUrlInput(configResponse.webhookUrl ?? "");
       setLastRun(healthResponse.lastSync);
     } catch (error) {
@@ -454,15 +464,43 @@ export function App() {
               <input
                 type="checkbox"
                 checked={showDismissed}
-                onChange={(event) => setShowDismissed(event.target.checked)}
+                onChange={(event) => {
+                  setShowDismissed(event.target.checked);
+                  setPage(0);
+                }}
               />
               <span>Show dismissed</span>
+            </label>
+            <label className="checkbox">
+              <span>Per page</span>
+              <select
+                value={pageSize}
+                onChange={(event) => {
+                  setPageSize(Number(event.target.value));
+                  setPage(0);
+                }}
+              >
+                <option value={25}>25</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+                <option value={200}>200</option>
+              </select>
             </label>
             <button type="button" className="secondary" disabled={busy || loading} onClick={() => void refreshSnapshot()}>
               Refresh
             </button>
           </div>
         </header>
+
+        <PageBar
+          page={page}
+          pageSize={pageSize}
+          total={totalRecordings}
+          shown={recordings.length}
+          onPrev={() => setPage((current) => Math.max(0, current - 1))}
+          onNext={() => setPage((current) => current + 1)}
+          disabled={loading || busy}
+        />
 
         {loading ? <p className="muted">Loading current state…</p> : null}
         {!loading && recordings.length === 0 ? (
@@ -480,7 +518,9 @@ export function App() {
               >
                 <div className="recording-main">
                   <p className="recording-title">
-                    <span className="recording-index">#{index + 1}</span>
+                    <span className="recording-index">
+                      #{recording.sequenceNumber ?? "?"}
+                    </span>
                     {recording.title}
                   </p>
                   <p className="recording-meta">
@@ -550,6 +590,47 @@ function Metric({ label, value }: { label: string; value: string }) {
 
 function Banner({ tone, message }: { tone: "success" | "error" | "info"; message: string }) {
   return <div className={`banner banner-${tone}`}>{message}</div>;
+}
+
+function PageBar({
+  page,
+  pageSize,
+  total,
+  shown,
+  onPrev,
+  onNext,
+  disabled,
+}: {
+  page: number;
+  pageSize: number;
+  total: number;
+  shown: number;
+  onPrev: () => void;
+  onNext: () => void;
+  disabled: boolean;
+}) {
+  if (total === 0 && shown === 0) {
+    return null;
+  }
+  const start = total === 0 ? 0 : page * pageSize + 1;
+  const end = page * pageSize + shown;
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const currentPage = page + 1;
+  return (
+    <div className="page-bar">
+      <span className="muted small">
+        Showing {start}–{end} of {total} (page {currentPage} of {totalPages})
+      </span>
+      <div className="page-bar-controls">
+        <button type="button" className="secondary" disabled={disabled || page === 0} onClick={onPrev}>
+          ← Prev
+        </button>
+        <button type="button" className="secondary" disabled={disabled || end >= total} onClick={onNext}>
+          Next →
+        </button>
+      </div>
+    </div>
+  );
 }
 
 function Detail({ label, value }: { label: string; value: string }) {

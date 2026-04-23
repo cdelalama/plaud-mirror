@@ -1,4 +1,4 @@
-<!-- doc-version: 0.4.7 -->
+<!-- doc-version: 0.4.8 -->
 # LLM Work Handoff
 
 This file is the live operational snapshot. Durable rationale lives in `docs/llm/DECISIONS.md`. Phase boundaries live in `docs/ROADMAP.md`.
@@ -6,8 +6,8 @@ This file is the live operational snapshot. Durable rationale lives in `docs/llm
 ## Current Status
 
 - Last Updated: 2026-04-23 - Claude Opus 4.7
-- Session Focus: Three operator-reported issues at once — library was sorted by `mirrored_at` (apparently random because everything batched today), the "100/1" hero metric was absurd because Plaud's `data_file_total` field is NOT the grand total (it mirrors current page length), and "Run sync limit=5" downloaded only the 5 newest if missing (which is rarely the operator's intent). Ship `v0.4.7` with (a) sort by `created_at`, (b) `listEverything` pagination for real total, (c) Mode B semantics ("download up to N missing, newest first").
-- Status: `v0.4.7` rewrites the sync engine to Mode B. `client.listEverything(500)` paginates until a page is shorter than the page size — the only reliable way to learn Plaud's account total. `runMirror` uses it, then filters out dismissed + already-mirrored-success, takes the first N candidates newest-first, and downloads them. Summary records the real `plaudTotal` plus the full `examined` count. `/api/health` gains `dismissedCount` so the panel shows `Missing = plaudTotal − mirrored − dismissed`. Library now sorts by `created_at DESC`. Two new tests: pagination boundary in `listEverything`, and Mode B candidate selection that skips a seeded already-mirrored-success row and a dismissed row. 40/40 tests pass. The first sync after deploying this release will update `plaudTotal` to the real account size (was 1 in DB, expected ~308).
+- Session Focus: Two operator-reported issues — library only showed the first 50 of 100 mirrored (no pagination), and the `#N` badge was the visual page index (so a new recording would push every existing `#1` `#2`... down). Ship `v0.4.8` with classic Prev/Next pagination + stable `#N` ranks anchored to each recording's position in Plaud's full timeline.
+- Status: `v0.4.8` adds (a) full pagination: backend `?skip=N` query param, response `{recordings, total, skip, limit}`, frontend Prev/Next + "Showing X-Y of Z (page A of B)" + per-page selector (25/50/100/200, default 50). Toggling Show dismissed or changing page size resets to page 0. (b) Stable sequence numbers: SQLite `sequence_number` column (additive migration), `store.updateSequenceNumbers(map)` bulk method, `runMirror` computes `plaudTotal − index` for each recording from the full `listEverything` listing and bulk-updates after the candidate loop so freshly-inserted rows also get their rank. UI badge `#N` reads from `recording.sequenceNumber` with `?` fallback for rows that predate v0.4.8 (clears after first sync). Pre-0.4.8 DBs migrate transparently. 40/40 tests pass — store fixtures and server fixtures updated to include the new field.
 
 ## What Landed
 

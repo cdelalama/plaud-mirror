@@ -49,6 +49,7 @@ interface RecordingRow {
   last_webhook_attempt_at: string | null;
   dismissed: number;
   dismissed_at: string | null;
+  sequence_number: number | null;
 }
 
 export interface DeliveryAttemptRecord {
@@ -159,8 +160,17 @@ export class RuntimeStore {
     return row.count;
   }
 
-  listRecordings(limit: number, options: { includeDismissed?: boolean } = {}): RecordingMirror[] {
+  listRecordings(
+    limit: number,
+    options: { includeDismissed?: boolean; skip?: number } = {},
+  ): { recordings: RecordingMirror[]; total: number } {
     const whereClause = options.includeDismissed ? "" : "WHERE dismissed = 0";
+    const skip = Math.max(0, options.skip ?? 0);
+
+    const totalRow = this.db.prepare(`
+      SELECT COUNT(*) AS count FROM recordings ${whereClause}
+    `).get() as { count: number };
+
     const rows = this.db.prepare(`
       SELECT
         id,
@@ -176,14 +186,15 @@ export class RuntimeStore {
         last_webhook_status,
         last_webhook_attempt_at,
         dismissed,
-        dismissed_at
+        dismissed_at,
+        sequence_number
       FROM recordings
       ${whereClause}
       ORDER BY created_at DESC, id DESC
-      LIMIT ?
-    `).all(limit) as RecordingRow[];
+      LIMIT ? OFFSET ?
+    `).all(limit, skip) as RecordingRow[];
 
-    return rows.map(mapRecordingRow);
+    return { recordings: rows.map(mapRecordingRow), total: totalRow.count };
   }
 
   getRecording(recordingId: string): RecordingMirror | null {
@@ -202,12 +213,28 @@ export class RuntimeStore {
         last_webhook_status,
         last_webhook_attempt_at,
         dismissed,
-        dismissed_at
+        dismissed_at,
+        sequence_number
       FROM recordings
       WHERE id = ?
     `).get(recordingId) as RecordingRow | undefined;
 
     return row ? mapRecordingRow(row) : null;
+  }
+
+  updateSequenceNumbers(ranks: Map<string, number>): void {
+    if (ranks.size === 0) {
+      return;
+    }
+    const update = this.db.prepare(`
+      UPDATE recordings SET sequence_number = ? WHERE id = ?
+    `);
+    const transaction = this.db.transaction((entries: Array<[string, number]>) => {
+      for (const [id, rank] of entries) {
+        update.run(rank, id);
+      }
+    });
+    transaction(Array.from(ranks.entries()));
   }
 
   setRecordingDismissed(recordingId: string, dismissed: boolean): RecordingMirror | null {
@@ -238,7 +265,8 @@ export class RuntimeStore {
         last_webhook_status,
         last_webhook_attempt_at,
         dismissed,
-        dismissed_at
+        dismissed_at,
+        sequence_number
       ) VALUES (
         @id,
         @title,
@@ -253,7 +281,8 @@ export class RuntimeStore {
         @lastWebhookStatus,
         @lastWebhookAttemptAt,
         @dismissed,
-        @dismissedAt
+        @dismissedAt,
+        @sequenceNumber
       )
       ON CONFLICT(id) DO UPDATE SET
         title = excluded.title,
@@ -268,7 +297,8 @@ export class RuntimeStore {
         last_webhook_status = excluded.last_webhook_status,
         last_webhook_attempt_at = excluded.last_webhook_attempt_at,
         dismissed = excluded.dismissed,
-        dismissed_at = excluded.dismissed_at
+        dismissed_at = excluded.dismissed_at,
+        sequence_number = COALESCE(excluded.sequence_number, recordings.sequence_number)
     `).run({
       id: normalized.id,
       title: normalized.title,
@@ -284,6 +314,7 @@ export class RuntimeStore {
       lastWebhookAttemptAt: normalized.lastWebhookAttemptAt,
       dismissed: normalized.dismissed ? 1 : 0,
       dismissedAt: normalized.dismissedAt,
+      sequenceNumber: normalized.sequenceNumber,
     });
 
     return normalized;
@@ -430,7 +461,8 @@ export class RuntimeStore {
         last_webhook_status TEXT,
         last_webhook_attempt_at TEXT,
         dismissed INTEGER NOT NULL DEFAULT 0,
-        dismissed_at TEXT
+        dismissed_at TEXT,
+        sequence_number INTEGER
       );
 
       CREATE TABLE IF NOT EXISTS sync_runs (
@@ -469,6 +501,9 @@ export class RuntimeStore {
     }
     if (!columnNames.has("dismissed_at")) {
       this.db.exec("ALTER TABLE recordings ADD COLUMN dismissed_at TEXT");
+    }
+    if (!columnNames.has("sequence_number")) {
+      this.db.exec("ALTER TABLE recordings ADD COLUMN sequence_number INTEGER");
     }
 
     // Additive migration for pre-0.4.6 databases that predate the plaud_total column.
@@ -522,6 +557,7 @@ function mapRecordingRow(row: RecordingRow): RecordingMirror {
     lastWebhookAttemptAt: row.last_webhook_attempt_at,
     dismissed: Boolean(row.dismissed),
     dismissedAt: row.dismissed_at,
+    sequenceNumber: row.sequence_number,
   });
 }
 

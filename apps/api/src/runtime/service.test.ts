@@ -299,6 +299,7 @@ test("PlaudMirrorService runSync skips already-mirrored rows and pulls the first
     lastWebhookAttemptAt: new Date().toISOString(),
     dismissed: false,
     dismissedAt: null,
+    sequenceNumber: null,
   });
   // And make sure the file exists so hasLocalArtifact() is true.
   const { mkdir, writeFile } = await import("node:fs/promises");
@@ -320,6 +321,7 @@ test("PlaudMirrorService runSync skips already-mirrored rows and pulls the first
     lastWebhookAttemptAt: null,
     dismissed: true,
     dismissedAt: new Date().toISOString(),
+    sequenceNumber: null,
   });
 
   // Ask for 1 recording: Mode B must pick `rec-new-1` (the only genuinely
@@ -372,6 +374,7 @@ test("PlaudMirrorService deleteRecording removes the audio file and marks the ro
     lastWebhookAttemptAt: "2026-04-22T10:05:02.000Z",
     dismissed: false,
     dismissedAt: null,
+    sequenceNumber: null,
   });
 
   const result = await service.deleteRecording("rec-delete");
@@ -452,6 +455,7 @@ test("PlaudMirrorService restoreRecording re-downloads the audio and clears the 
     lastWebhookAttemptAt: null,
     dismissed: true,
     dismissedAt: "2026-04-22T10:06:00.000Z",
+    sequenceNumber: null,
   });
 
   const result = await service.restoreRecording("rec-restore");
@@ -498,6 +502,7 @@ test("PlaudMirrorService restoreRecording without a token clears the flag but su
     lastWebhookAttemptAt: null,
     dismissed: true,
     dismissedAt: "2026-04-22T10:06:00.000Z",
+    sequenceNumber: null,
   });
 
   await assert.rejects(service.restoreRecording("rec-no-token"), /bearer token/i);

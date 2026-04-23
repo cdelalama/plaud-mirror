@@ -158,6 +158,7 @@ test("createApp exposes audio streaming, delete, and restore routes for mirrored
     lastWebhookAttemptAt: "2026-04-22T10:05:02.000Z",
     dismissed: false,
     dismissedAt: null,
+    sequenceNumber: null,
   });
   sideStore.close();
 
@@ -265,6 +266,7 @@ test("audio endpoint supports HTTP Range requests with 206 Partial Content", asy
     lastWebhookAttemptAt: "2026-04-23T10:05:02.000Z",
     dismissed: false,
     dismissedAt: null,
+    sequenceNumber: null,
   });
   sideStore.close();
 

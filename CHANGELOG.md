@@ -4,6 +4,18 @@ All notable changes to Plaud Mirror are documented in this file.
 
 This project follows Semantic Versioning (SemVer): MAJOR.MINOR.PATCH.
 
+## [0.4.8] - 2026-04-23
+
+### Added
+- Library now has classic pagination: Prev / Next buttons, "Showing X–Y of Z (page A of B)" status, and a per-page selector (25/50/100/200 default 50). Backend gains `?skip=N` on `GET /api/recordings`, response now carries `{ recordings, total, skip, limit }`. Toggling "Show dismissed" or changing page size resets to page 0 to avoid landing on an empty page.
+- Each library row's `#N` badge is now a **stable sequence number** based on the recording's position in the operator's full Plaud timeline (sorted oldest-first). `#1` is the oldest recording on the device; `#N` is the newest. Numbers do not shift when new recordings arrive — a brand-new recording becomes `#N+1`. Stored as `sequence_number` on the `recordings` table (additive migration, nullable) and updated in bulk after every sync from `client.listEverything`'s authoritative ordering.
+
+### Changed
+- The hero metric no longer renders a misleading "100 / 1" — once the v0.4.8 sync runs, all 100 of the operator's mirrored recordings get their stable rank from Plaud's full timeline (e.g. ranks 209..308 for the 100 newest of an account with 308 total), and the `Plaud total` reflects the real account size from `listEverything`.
+
+### Fixed
+- The `#N` badge no longer reshuffles when a new recording arrives. Previously it was the visual position in the current page, so a new recording at the top would push every existing `#1`, `#2`, ... down by one. Now ranks are anchored to creation date and are stable.
+
 ## [0.4.7] - 2026-04-23
 
 ### Added

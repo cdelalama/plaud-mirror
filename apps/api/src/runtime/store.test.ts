@@ -41,6 +41,7 @@ test("RuntimeStore persists config, recordings, and sync summaries", async () =>
     lastWebhookAttemptAt: "2026-04-22T10:05:02.000Z",
     dismissed: false,
     dismissedAt: null,
+    sequenceNumber: null,
   });
 
   const run = store.startSyncRun("backfill", {
@@ -76,8 +77,10 @@ test("RuntimeStore persists config, recordings, and sync summaries", async () =>
   });
 
   assert.equal(store.countRecordings(), 1);
-  assert.equal(store.listRecordings(10)[0]?.id, "rec-1");
-  assert.equal(store.listRecordings(10)[0]?.dismissed, false);
+  const listResult = store.listRecordings(10);
+  assert.equal(listResult.total, 1);
+  assert.equal(listResult.recordings[0]?.id, "rec-1");
+  assert.equal(listResult.recordings[0]?.dismissed, false);
   const lastRun = store.getLastSyncRun();
   assert.equal(lastRun?.mode, "backfill");
   assert.equal(lastRun?.plaudTotal, 42, "plaudTotal must round-trip through SQLite");
@@ -109,6 +112,7 @@ test("RuntimeStore can mark recordings dismissed and filter them from the defaul
     lastWebhookAttemptAt: "2026-04-22T10:05:02.000Z",
     dismissed: false,
     dismissedAt: null,
+    sequenceNumber: null,
   });
 
   store.upsertRecording({
@@ -126,6 +130,7 @@ test("RuntimeStore can mark recordings dismissed and filter them from the defaul
     lastWebhookAttemptAt: "2026-04-22T11:05:02.000Z",
     dismissed: false,
     dismissedAt: null,
+    sequenceNumber: null,
   });
 
   const dismissed = store.setRecordingDismissed("rec-beta", true);
@@ -134,14 +139,16 @@ test("RuntimeStore can mark recordings dismissed and filter them from the defaul
 
   // Default listing hides dismissed rows.
   const visible = store.listRecordings(10);
-  assert.equal(visible.length, 1);
-  assert.equal(visible[0]?.id, "rec-alpha");
+  assert.equal(visible.recordings.length, 1);
+  assert.equal(visible.recordings[0]?.id, "rec-alpha");
+  assert.equal(visible.total, 1);
   assert.equal(store.countRecordings(), 1);
 
   // includeDismissed=true brings them back.
   const all = store.listRecordings(10, { includeDismissed: true });
-  assert.equal(all.length, 2);
-  const dismissedRow = all.find((row) => row.id === "rec-beta");
+  assert.equal(all.recordings.length, 2);
+  assert.equal(all.total, 2);
+  const dismissedRow = all.recordings.find((row) => row.id === "rec-beta");
   assert.equal(dismissedRow?.dismissed, true);
 
   // Restore clears dismissed and timestamp.
@@ -207,10 +214,11 @@ test("RuntimeStore migrates pre-0.4.0 databases by adding the dismissed columns"
   });
 
   const rows = store.listRecordings(10);
-  assert.equal(rows.length, 1);
-  assert.equal(rows[0]?.id, "rec-legacy");
-  assert.equal(rows[0]?.dismissed, false);
-  assert.equal(rows[0]?.dismissedAt, null);
+  assert.equal(rows.recordings.length, 1);
+  assert.equal(rows.total, 1);
+  assert.equal(rows.recordings[0]?.id, "rec-legacy");
+  assert.equal(rows.recordings[0]?.dismissed, false);
+  assert.equal(rows.recordings[0]?.dismissedAt, null);
 
   store.close();
 });

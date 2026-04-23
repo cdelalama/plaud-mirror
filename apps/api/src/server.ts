@@ -63,10 +63,15 @@ export async function createApp(options: CreateAppOptions = {}) {
   app.post("/api/backfill/run", async (request) => service.runBackfill(request.body));
 
   app.get("/api/recordings", async (request) => {
-    const query = request.query as { limit?: string | number; includeDismissed?: string | boolean };
+    const query = request.query as {
+      limit?: string | number;
+      skip?: string | number;
+      includeDismissed?: string | boolean;
+    };
     const limit = parseLimit(query.limit);
+    const skip = parseSkip(query.skip);
     const includeDismissed = parseBoolean(query.includeDismissed);
-    return service.listRecordings(limit, { includeDismissed });
+    return service.listRecordings(limit, { includeDismissed, skip });
   });
 
   app.get("/api/recordings/:id/audio", async (request, reply) => {
@@ -169,6 +174,17 @@ function parseLimit(input: string | number | undefined): number {
   }
 
   return Math.min(value, 200);
+}
+
+function parseSkip(input: string | number | undefined): number {
+  if (input === undefined) {
+    return 0;
+  }
+  const value = Number(input);
+  if (!Number.isInteger(value) || value < 0) {
+    throw new Error(`Invalid skip value: ${input}`);
+  }
+  return value;
 }
 
 function parseBoolean(input: string | boolean | undefined): boolean {

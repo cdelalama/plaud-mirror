@@ -60,10 +60,18 @@ export const RecordingMirrorSchema = z.object({
   lastWebhookAttemptAt: z.string().nullable(),
   dismissed: z.boolean().default(false),
   dismissedAt: z.string().nullable().default(null),
+  // Stable 1-based rank of the recording in the operator's full Plaud timeline,
+  // sorted oldest-first. `#1` is the oldest recording ever made on the device,
+  // `#N` is the newest. Updated at every sync; null on rows that predate v0.4.8
+  // or that have never been seen in a post-0.4.8 listing.
+  sequenceNumber: z.number().int().positive().nullable().default(null),
 }).strict();
 
 export const RecordingListResponseSchema = z.object({
   recordings: z.array(RecordingMirrorSchema),
+  total: z.number().int().nonnegative(),
+  skip: z.number().int().nonnegative(),
+  limit: z.number().int().positive(),
 }).strict();
 
 export const RecordingDeleteResultSchema = z.object({

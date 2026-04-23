@@ -215,10 +215,14 @@ export class PlaudMirrorService {
 
   async listRecordings(
     limit = 50,
-    options: { includeDismissed?: boolean } = {},
+    options: { includeDismissed?: boolean; skip?: number } = {},
   ): Promise<ReturnType<typeof RecordingListResponseSchema.parse>> {
+    const { recordings, total } = this.store.listRecordings(limit, options);
     return RecordingListResponseSchema.parse({
-      recordings: this.store.listRecordings(limit, options),
+      recordings,
+      total,
+      skip: options.skip ?? 0,
+      limit,
     });
   }
 
@@ -373,6 +377,17 @@ export class PlaudMirrorService {
       // Plaud and skip whatever is already local — silently did nothing if
       // the `limit` newest were all already mirrored, which was confusing.
       const { recordings: remoteRecordings, total: plaudTotal } = await client.listEverything(500);
+
+      // Rank every recording in Plaud's full timeline (sorted newest-first by
+      // start_time desc). `#1` is the oldest recording, `#N` is the newest —
+      // stable across future syncs unless a recording is deleted from Plaud.
+      // The bulk update runs AFTER processRecording so newly-inserted rows
+      // also receive their rank.
+      const ranks = new Map<string, number>();
+      for (let index = 0; index < remoteRecordings.length; index += 1) {
+        ranks.set(remoteRecordings[index]!.id, plaudTotal - index);
+      }
+
       const probeFilters: Parameters<typeof applyLocalFilters>[1] = {
         limit: normalizedFilters.limit,
         recordingsDir: this.environment.recordingsDir,
@@ -430,6 +445,10 @@ export class PlaudMirrorService {
           skipped += 1;
         }
       }
+
+      // Apply ranks last so freshly-inserted rows (from processRecording above)
+      // also pick up their stable sequence number.
+      this.store.updateSequenceNumbers(ranks);
 
       return this.store.finishSyncRun(SyncRunSummarySchema.parse({
         id,
