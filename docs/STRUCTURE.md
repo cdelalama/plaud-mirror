@@ -1,4 +1,4 @@
-<!-- doc-version: 0.4.6 -->
+<!-- doc-version: 0.4.7 -->
 # Repository Structure Guide
 
 This document describes the actual Plaud Mirror repository layout as of the first usable Phase 2 slice.

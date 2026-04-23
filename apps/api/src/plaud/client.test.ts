@@ -58,6 +58,50 @@ test("buildPlaudApiUrl keeps slash handling stable", () => {
   );
 });
 
+test("listEverything paginates until the final page arrives partial and reports the real total", async () => {
+  const makePage = (count: number, offset: number): unknown => ({
+    status: 0,
+    data_file_total: count,
+    data_file_list: Array.from({ length: count }, (_, index) => ({
+      id: `rec-${offset + index + 1}`,
+      filename: "audio",
+      filesize: 100,
+      start_time: 1713780000000,
+      end_time: 1713780300000,
+      duration: 100,
+      edit_time: 1713780310000,
+      is_trash: false,
+      is_trans: true,
+      is_summary: false,
+      serial_number: "PLAUD-1",
+    })),
+  });
+
+  const calls: string[] = [];
+  const responses = [
+    createJsonResponse(makePage(500, 0)),
+    createJsonResponse(makePage(53, 500)),
+  ];
+  const client = new PlaudClient({
+    accessToken: "token",
+    fetchImpl: async (input) => {
+      calls.push(String(input));
+      const next = responses.shift();
+      if (!next) {
+        throw new Error("unexpected extra fetch");
+      }
+      return next;
+    },
+  });
+
+  const { recordings, total } = await client.listEverything(500);
+  assert.equal(recordings.length, 553);
+  assert.equal(total, 553);
+  assert.equal(calls.length, 2, "should stop as soon as a page arrives shorter than pageSize");
+  assert.ok(calls[0]?.includes("skip=0"));
+  assert.ok(calls[1]?.includes("skip=500"));
+});
+
 test("PlaudClient retries with a regional host when Plaud requests it", async () => {
   const calls: string[] = [];
   const responses = [

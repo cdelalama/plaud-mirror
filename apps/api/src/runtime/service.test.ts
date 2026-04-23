@@ -188,6 +188,156 @@ test("PlaudMirrorService backfill downloads audio and signs webhook delivery", a
   service.close();
 });
 
+test("PlaudMirrorService runSync skips already-mirrored rows and pulls the first missing one (Mode B)", async () => {
+  const root = await mkdtemp(join(tmpdir(), "plaud-mirror-service-modeb-"));
+  const environment = createEnvironment(root);
+  const store = new RuntimeStore({
+    dbPath: join(environment.dataDir, "app.db"),
+    dataDir: environment.dataDir,
+    recordingsDir: environment.recordingsDir,
+    defaultSyncLimit: environment.defaultSyncLimit,
+  });
+  const secrets = new SecretStore(join(environment.dataDir, "secrets.enc"), environment.masterKey);
+
+  const plaudCalls: string[] = [];
+  const artifactCalls: string[] = [];
+  const service = new PlaudMirrorService(environment, store, secrets, {
+    plaudFetchImpl: async (input) => {
+      const url = String(input);
+      plaudCalls.push(url);
+      if (url.endsWith("/user/me")) {
+        return createJsonResponse({ status: 0, data: { uid: "user-1" } });
+      }
+      if (url.includes("/file/simple/web")) {
+        // Three recordings in Plaud. The listing fits in one page so
+        // listEverything returns them all and reports total=3.
+        return createJsonResponse({
+          status: 0,
+          data_file_total: 3,
+          data_file_list: [
+            {
+              id: "rec-new-1",
+              filename: "brand new recording",
+              filesize: 5,
+              start_time: 1713780200000,
+              end_time: 1713780500000,
+              duration: 300,
+              edit_time: 1713780510000,
+              is_trash: false,
+              is_trans: true,
+              is_summary: false,
+              serial_number: "PLAUD-1",
+            },
+            {
+              id: "rec-already-mirrored",
+              filename: "already local",
+              filesize: 5,
+              start_time: 1713780100000,
+              end_time: 1713780400000,
+              duration: 300,
+              edit_time: 1713780410000,
+              is_trash: false,
+              is_trans: true,
+              is_summary: false,
+              serial_number: "PLAUD-1",
+            },
+            {
+              id: "rec-dismissed",
+              filename: "operator rejected",
+              filesize: 5,
+              start_time: 1713780000000,
+              end_time: 1713780300000,
+              duration: 300,
+              edit_time: 1713780310000,
+              is_trash: false,
+              is_trans: true,
+              is_summary: false,
+              serial_number: "PLAUD-1",
+            },
+          ],
+        });
+      }
+      if (url.endsWith("/file/detail/rec-new-1")) {
+        return createJsonResponse({
+          status: 0,
+          data: { file_id: "rec-new-1", file_name: "brand new recording", duration: 300, serial_number: "PLAUD-1" },
+        });
+      }
+      if (url.endsWith("/file/temp-url/rec-new-1")) {
+        return createJsonResponse({
+          status: 0,
+          temp_url: "https://storage.example.com/audio/rec-new-1.mp3",
+        });
+      }
+      throw new Error(`Unexpected Plaud fetch: ${url}`);
+    },
+    artifactFetchImpl: async (input) => {
+      artifactCalls.push(String(input));
+      return new Response("bytes", {
+        status: 200,
+        headers: { "content-type": "audio/mpeg" },
+      });
+    },
+  });
+
+  await service.initialize();
+  await service.saveAccessToken({ accessToken: "token-value" });
+
+  // Seed: one already-mirrored-successfully recording, one dismissed recording.
+  store.upsertRecording({
+    id: "rec-already-mirrored",
+    title: "already local",
+    createdAt: new Date(1713780100000).toISOString(),
+    durationSeconds: 300,
+    serialNumber: "PLAUD-1",
+    scene: null,
+    localPath: join(environment.recordingsDir, "rec-already-mirrored", "audio.mp3"),
+    contentType: "audio/mpeg",
+    bytesWritten: 5,
+    mirroredAt: new Date().toISOString(),
+    lastWebhookStatus: "success",
+    lastWebhookAttemptAt: new Date().toISOString(),
+    dismissed: false,
+    dismissedAt: null,
+  });
+  // And make sure the file exists so hasLocalArtifact() is true.
+  const { mkdir, writeFile } = await import("node:fs/promises");
+  await mkdir(join(environment.recordingsDir, "rec-already-mirrored"), { recursive: true });
+  await writeFile(join(environment.recordingsDir, "rec-already-mirrored", "audio.mp3"), "bytes");
+
+  store.upsertRecording({
+    id: "rec-dismissed",
+    title: "operator rejected",
+    createdAt: new Date(1713780000000).toISOString(),
+    durationSeconds: 300,
+    serialNumber: "PLAUD-1",
+    scene: null,
+    localPath: null,
+    contentType: null,
+    bytesWritten: 0,
+    mirroredAt: null,
+    lastWebhookStatus: null,
+    lastWebhookAttemptAt: null,
+    dismissed: true,
+    dismissedAt: new Date().toISOString(),
+  });
+
+  // Ask for 1 recording: Mode B must pick `rec-new-1` (the only genuinely
+  // missing one), skip `rec-already-mirrored` (has success webhook), and
+  // skip `rec-dismissed` (operator rejected).
+  const summary = await service.runSync({ limit: 1 });
+
+  assert.equal(summary.status, "completed");
+  assert.equal(summary.examined, 3, "examined = every recording Plaud returned");
+  assert.equal(summary.matched, 1, "matched = 1 candidate after skipping mirrored + dismissed");
+  assert.equal(summary.downloaded, 1);
+  assert.equal(summary.plaudTotal, 3, "plaudTotal = Plaud's real total (from listEverything)");
+  assert.equal(artifactCalls.length, 1, "only the missing recording should be downloaded");
+  assert.match(artifactCalls[0] ?? "", /rec-new-1/);
+
+  service.close();
+});
+
 test("PlaudMirrorService deleteRecording removes the audio file and marks the row dismissed", async () => {
   const root = await mkdtemp(join(tmpdir(), "plaud-mirror-service-delete-"));
   const environment = createEnvironment(root);

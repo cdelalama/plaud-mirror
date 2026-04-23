@@ -317,8 +317,10 @@ export function App() {
             </div>
           </header>
           <p className="muted">
-            Run a sync against the latest Plaud listings. Existing mirrored
-            recordings are skipped unless you force a new download.
+            Download up to N recordings that are missing from your local mirror,
+            newest first. Skips recordings that are already mirrored or that
+            you&apos;ve dismissed. Force download overrides the "already
+            mirrored" check.
           </p>
           <dl className="details">
             <Detail
@@ -326,16 +328,20 @@ export function App() {
               value={lastRun ? summarizeRun("", lastRun).trim().replace(/^:\s*/, "") : "none yet"}
             />
             <Detail
-              label="Remote total (Plaud)"
+              label="Plaud total"
               value={lastRun?.plaudTotal != null ? String(lastRun.plaudTotal) : "unknown until first sync"}
-            />
-            <Detail
-              label="Examined last run"
-              value={lastRun ? `${lastRun.examined} (capped by the limit you chose)` : "none yet"}
             />
             <Detail
               label="Mirrored locally"
               value={String(health?.recordingsCount ?? recordings.length)}
+            />
+            <Detail
+              label="Dismissed"
+              value={String(health?.dismissedCount ?? 0)}
+            />
+            <Detail
+              label="Missing"
+              value={computeMissing(health)}
             />
           </dl>
           <div className="stack">
@@ -378,6 +384,10 @@ export function App() {
               <h2>Historical backfill</h2>
             </div>
           </header>
+          <p className="muted">
+            Same behavior as Manual sync (download up to N missing, newest
+            first), but only from recordings that match the filters below.
+          </p>
 
           <form className="stack" onSubmit={(event) => void handleRunBackfill(event)}>
             <div className="grid compact-grid">
@@ -601,6 +611,23 @@ function formatRecordingsMetric(localCount: number, remoteTotal: number | null):
     return String(localCount);
   }
   return `${localCount} / ${remoteTotal}`;
+}
+
+function computeMissing(health: ServiceHealth | null): string {
+  const plaudTotal = health?.lastSync?.plaudTotal ?? null;
+  if (plaudTotal === null) {
+    return "unknown until first sync";
+  }
+  const mirrored = health?.recordingsCount ?? 0;
+  const dismissed = health?.dismissedCount ?? 0;
+  const missing = plaudTotal - mirrored - dismissed;
+  if (missing < 0) {
+    // plaudTotal was captured at the last sync, mirrored/dismissed are live counts.
+    // If plaudTotal is stale (e.g. a recording was deleted in Plaud after the last sync),
+    // the subtraction can go negative. Show 0 rather than confuse the operator.
+    return "0 (last sync may be stale)";
+  }
+  return String(missing);
 }
 
 function formatDuration(totalSeconds: number): string {

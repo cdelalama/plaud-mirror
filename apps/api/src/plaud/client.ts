@@ -96,6 +96,25 @@ export class PlaudClient {
     return this.fetchJson(`/file/simple/web?${query.toString()}`, PlaudListResponseSchema);
   }
 
+  // Paginate the full Plaud listing until a page comes back shorter than
+  // `pageSize` (signal of the last page). Returns every recording plus the
+  // authoritative total. Note that Plaud's `data_file_total` field is NOT the
+  // account's grand total — it just mirrors the length of the current page —
+  // so pagination-until-partial is the only way to learn the real count.
+  async listEverything(pageSize = 500): Promise<{ recordings: PlaudListResponse["data_file_list"]; total: number }> {
+    const all: PlaudListResponse["data_file_list"] = [];
+    let skip = 0;
+    while (true) {
+      const page = await this.listRecordings({ skip, limit: pageSize });
+      all.push(...page.data_file_list);
+      if (page.data_file_list.length < pageSize) {
+        break;
+      }
+      skip += page.data_file_list.length;
+    }
+    return { recordings: all, total: all.length };
+  }
+
   async listAllRecordings(
     pageSize = 100,
     totalLimit = 200,

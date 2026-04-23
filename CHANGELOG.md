@@ -4,6 +4,22 @@ All notable changes to Plaud Mirror are documented in this file.
 
 This project follows Semantic Versioning (SemVer): MAJOR.MINOR.PATCH.
 
+## [0.4.7] - 2026-04-23
+
+### Added
+- `client.listEverything(pageSize)` paginates the full Plaud listing until a page arrives shorter than `pageSize`, returning every recording plus the authoritative total. This is the only reliable way to learn the account's true size — Plaud's `data_file_total` field just mirrors the current page's length, it is not the grand total.
+- `/api/health` now includes `dismissedCount` alongside `recordingsCount` so the panel can compute a "Missing" figure without a second round-trip.
+- Manual-sync card now shows `Plaud total`, `Mirrored locally`, `Dismissed`, and `Missing` (`plaudTotal − mirrored − dismissed`) inline.
+- Two new unit tests: `listEverything` pagination boundary + Mode B candidate selection (skip already-mirrored-success + skip dismissed).
+
+### Changed
+- **Sync and backfill now use "Mode B" semantics.** Instead of "look at the latest N Plaud recordings and skip those already local" (which silently did nothing when your N newest were all mirrored), the service now fetches every Plaud listing, filters out dismissed and already-mirrored-success recordings, and downloads up to N of the remaining missing ones (newest first). If you ask `limit=5` and the 5 newest are all mirrored, it walks deeper into the past until it finds 5 missing recordings — or stops when Plaud is exhausted. Matches the operator's mental model of "download N that I don't have".
+- Library recordings are now ordered by `created_at DESC` (real Plaud recording date) instead of the old `mirrored_at DESC` (when we downloaded them). Previously, everything mirrored in one batch landed at the same `mirrored_at` and the tie-break was by id, producing apparent randomness.
+- Backfill card copy clarifies the new semantics: "Same behavior as Manual sync (download up to N missing, newest first), but only from recordings that match the filters below."
+
+### Fixed
+- Hero "Recordings" metric no longer shows misleading round numbers like `100 / 1`. After any sync run, `plaudTotal` reflects Plaud's actual account size from pagination, not the capped `examined` count from the page size we requested.
+
 ## [0.4.6] - 2026-04-23
 
 ### Added

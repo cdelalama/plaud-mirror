@@ -120,6 +120,7 @@ export class PlaudMirrorService {
       auth,
       lastSync: this.store.getLastSyncRun(),
       recordingsCount: this.store.countRecordings(),
+      dismissedCount: this.store.countDismissed(),
       webhookConfigured: Boolean(config.webhookUrl),
       warnings,
     });
@@ -364,8 +365,14 @@ export class PlaudMirrorService {
 
     try {
       const { client } = await this.loadValidatedClient();
-      const { recordings: remoteRecordings, totalAvailable: plaudTotal } =
-        await client.listAllRecordings(100, normalizedFilters.limit);
+      // Mode B semantics: paginate the full Plaud listing so we can tell the
+      // operator the authoritative total, then pick up to `limit` recordings
+      // that are genuinely missing locally (i.e. not dismissed and not already
+      // mirrored with a successful webhook delivery, unless forceDownload is
+      // on). The previous behavior — fetch the first `limit` recordings from
+      // Plaud and skip whatever is already local — silently did nothing if
+      // the `limit` newest were all already mirrored, which was confusing.
+      const { recordings: remoteRecordings, total: plaudTotal } = await client.listEverything(500);
       const probeFilters: Parameters<typeof applyLocalFilters>[1] = {
         limit: normalizedFilters.limit,
         recordingsDir: this.environment.recordingsDir,
@@ -386,13 +393,32 @@ export class PlaudMirrorService {
         probeFilters.scene = normalizedFilters.scene;
       }
 
-      const filtered = applyLocalFilters(remoteRecordings, probeFilters);
+      const filteredByQuery = applyLocalFilters(remoteRecordings, probeFilters);
+
+      const candidates: typeof filteredByQuery = [];
+      for (const recording of filteredByQuery) {
+        const existing = this.store.getRecording(recording.id);
+        if (existing?.dismissed) {
+          continue;
+        }
+        if (
+          !normalizedFilters.forceDownload &&
+          existing?.localPath &&
+          existing.lastWebhookStatus === "success"
+        ) {
+          continue;
+        }
+        candidates.push(recording);
+        if (candidates.length >= normalizedFilters.limit) {
+          break;
+        }
+      }
 
       let downloaded = 0;
       let delivered = 0;
       let skipped = 0;
 
-      for (const recording of filtered) {
+      for (const recording of candidates) {
         const result = await this.processRecording(client, recording, mode, normalizedFilters.forceDownload);
         if (result.downloaded) {
           downloaded += 1;
@@ -412,7 +438,7 @@ export class PlaudMirrorService {
         startedAt,
         finishedAt: new Date().toISOString(),
         examined: remoteRecordings.length,
-        matched: filtered.length,
+        matched: candidates.length,
         downloaded,
         delivered,
         skipped,

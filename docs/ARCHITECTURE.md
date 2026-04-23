@@ -1,9 +1,9 @@
-<!-- doc-version: 0.4.6 -->
+<!-- doc-version: 0.4.7 -->
 # Plaud Mirror Architecture
 
-> Version: 0.4.6
+> Version: 0.4.7
 > Last Updated: 2026-04-23
-> Status: Phase 2 vertical slice (extended through 0.4.x with local curation, audio UX polish, empty-body DELETE fix, immediate re-download on restore, safer-by-default UI feedback, and honest remote-total metric)
+> Status: Phase 2 vertical slice (extended through 0.4.x with local curation, audio UX polish, empty-body DELETE fix, immediate re-download on restore, safer-by-default UI feedback, honest remote-total metric, and Mode B "download missing" sync semantics)
 
 ## Overview
 
@@ -56,16 +56,19 @@ Those belong to [Phase 3 and Phase 4](ROADMAP.md).
 3. Token is encrypted with `PLAUD_MIRROR_MASTER_KEY` and stored at rest.
 4. Auth status is exposed through `/api/auth/status` and `/api/health`.
 
-### Sync / Backfill
+### Sync / Backfill (Mode B — download up to N missing)
 
-1. Operator triggers `/api/sync/run` or `/api/backfill/run`.
+1. Operator triggers `/api/sync/run` or `/api/backfill/run` with a `limit`.
 2. Service validates the stored token.
-3. Plaud listing data is fetched from `/file/simple/web`.
-4. Local filters are applied for date range, serial number, and scene.
-5. Each selected recording resolves detail and temp URL, downloads the artifact, and writes:
+3. `client.listEverything()` paginates Plaud's full listing (`/file/simple/web?skip=N&limit=500`) until a page arrives shorter than 500 — signal of the last page. Every recording in the account is captured in date-desc order, plus the authoritative `plaudTotal`.
+4. Local filters are applied (date range, serial number, scene) if any.
+5. Candidate selection walks the filtered list newest-first and keeps a recording when it is **not dismissed** AND (if `forceDownload=false`) **not already mirrored with `lastWebhookStatus = 'success'`**. Stops at `limit` candidates.
+6. Each candidate resolves detail and temp URL, downloads the artifact, writes:
    - `recordings/<recording-id>/audio.<ext>`
    - `recordings/<recording-id>/metadata.json`
-6. Recording state is upserted into SQLite.
+7. Recording state is upserted into SQLite. Sync summary records `examined` (every recording Plaud returned), `matched` (final candidate count), `downloaded`, `plaudTotal`.
+
+The pre-0.4.7 semantics ("look at the N newest recordings Plaud has and skip ones that are already mirrored") silently did nothing when the N newest were all already local. Mode B instead walks as deep as needed to find N genuine gaps.
 
 ### Webhook
 

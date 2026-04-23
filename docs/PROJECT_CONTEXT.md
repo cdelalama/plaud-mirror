@@ -1,4 +1,4 @@
-<!-- doc-version: 0.4.6 -->
+<!-- doc-version: 0.4.7 -->
 # Project Context - Plaud Mirror
 
 ## Vision
@@ -24,7 +24,7 @@ Persistence is split between SQLite for state/indexes and the filesystem for mir
 
 ## Current Status (2026-04-23)
 
-Plaud Mirror `v0.4.6` is the extended Phase 2 slice: the original manual vertical slice plus local-only curation, with audio scrubbing and duration formatting polished, the dismiss/restore flow functional from the web UI with immediate re-download on restore, a safer default sync limit of 1, a "Working…" progress banner, numbered library rows, and an honest "Remote total (Plaud)" metric that reads from `data_file_total` instead of the limit-capped `examined` count. The repository now has:
+Plaud Mirror `v0.4.7` is the extended Phase 2 slice: the original manual vertical slice plus local-only curation, UX polish, and Mode B sync semantics — manual sync and backfill now download up to N recordings that are genuinely missing from the local mirror (newest first), instead of merely looking at the N newest in Plaud. Plaud's real account total is learned via `listEverything` pagination (since Plaud's `data_file_total` is just the current page size, not the account total). The repository now has:
 
 - a live Fastify API
 - a web panel for token setup, webhook configuration, sync/backfill controls, and recordings visibility

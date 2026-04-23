@@ -107,6 +107,7 @@ export const ServiceHealthSchema = z.object({
   auth: AuthStatusSchema,
   lastSync: SyncRunSummarySchema.nullable(),
   recordingsCount: z.number().int().nonnegative(),
+  dismissedCount: z.number().int().nonnegative().default(0),
   webhookConfigured: z.boolean(),
   warnings: z.array(z.string()),
 }).strict();

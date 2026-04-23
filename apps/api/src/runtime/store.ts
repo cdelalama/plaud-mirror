@@ -154,6 +154,11 @@ export class RuntimeStore {
     return row.count;
   }
 
+  countDismissed(): number {
+    const row = this.db.prepare("SELECT COUNT(*) AS count FROM recordings WHERE dismissed = 1").get() as { count: number };
+    return row.count;
+  }
+
   listRecordings(limit: number, options: { includeDismissed?: boolean } = {}): RecordingMirror[] {
     const whereClause = options.includeDismissed ? "" : "WHERE dismissed = 0";
     const rows = this.db.prepare(`
@@ -174,7 +179,7 @@ export class RuntimeStore {
         dismissed_at
       FROM recordings
       ${whereClause}
-      ORDER BY COALESCE(mirrored_at, created_at) DESC, id DESC
+      ORDER BY created_at DESC, id DESC
       LIMIT ?
     `).all(limit) as RecordingRow[];
 
