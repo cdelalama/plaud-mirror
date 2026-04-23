@@ -1,4 +1,4 @@
-<!-- doc-version: 0.4.8 -->
+<!-- doc-version: 0.4.9 -->
 # LLM Start Guide - Plaud Mirror
 
 ## Read This First (Mandatory)
@@ -86,8 +86,8 @@ Recommended reading order:
 
 Source of truth: docs/llm/HANDOFF.md.
 - Last Updated: 2026-04-23 - Claude Opus 4.7
-- Working on: two operator-reported issues — library only showed the first 50 of 100 mirrored (no pagination), and the `#N` badge was the visual page index (so a new recording would push every existing `#1` `#2`... down). Ship `v0.4.8` with classic Prev/Next pagination + stable `#N` ranks anchored to each recording's position in Plaud's full timeline.
-- Status: `v0.4.8` adds (a) full pagination: backend `?skip=N` query param, response `{recordings, total, skip, limit}`, frontend Prev/Next + "Showing X-Y of Z (page A of B)" + per-page selector (25/50/100/200, default 50). Toggling Show dismissed or changing page size resets to page 0. (b) Stable sequence numbers: SQLite `sequence_number` column (additive migration), `store.updateSequenceNumbers(map)` bulk method, `runMirror` computes `plaudTotal − index` for each recording from the full `listEverything` listing and bulk-updates after the candidate loop so freshly-inserted rows also get their rank. UI badge `#N` reads from `recording.sequenceNumber` with `?` fallback for rows that predate v0.4.8 (clears after first sync). Pre-0.4.8 DBs migrate transparently. 40/40 tests pass — store fixtures and server fixtures updated to include the new field.
+- Working on: operator reported "Run sync limit=25 downloads nothing, limit=1 downloads nothing — no new ones come down" with v0.4.8. Diagnosis: my Mode B candidate filter required `lastWebhookStatus === "success"` to skip an already-mirrored row. Without a webhook configured every status is `"skipped"`, so already-mirrored rows passed the filter, became candidates, and `processRecording` then short-circuited without re-downloading. Net effect: `matched` went up but `downloaded` stayed at 0, exactly the symptom reported. Ship `v0.4.9` with the filter fixed.
+- Status: `v0.4.9` ships a one-line semantic fix in `service.runMirror`: candidates skip already-mirrored rows by checking only `existing?.localPath` (presence of a local file), not webhook delivery status. Webhook delivery is unrelated to "is this audio missing locally?". `forceDownload=true` still overrides and re-downloads everything. Test in `service.test.ts` updated to seed the already-mirrored fixture with `lastWebhookStatus: "skipped"` (matching the no-webhook reality) so it actually exercises the bug path. 40/40 tests still pass. The next sync should now actually walk past the 100 already-mirrored newest and find the next 25 missing recordings deeper in the timeline.
 
 Keep this section synchronized with the "Current Status" block in docs/llm/HANDOFF.md.
 

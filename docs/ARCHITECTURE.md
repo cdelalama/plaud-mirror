@@ -1,9 +1,9 @@
-<!-- doc-version: 0.4.8 -->
+<!-- doc-version: 0.4.9 -->
 # Plaud Mirror Architecture
 
-> Version: 0.4.8
+> Version: 0.4.9
 > Last Updated: 2026-04-23
-> Status: Phase 2 vertical slice (extended through 0.4.x with local curation, audio UX polish, empty-body DELETE fix, immediate re-download on restore, safer-by-default UI feedback, honest remote-total metric, Mode B sync, classic pagination, and stable sequence numbers)
+> Status: Phase 2 vertical slice (extended through 0.4.x with local curation, UX polish, Mode B sync correctly skipping mirrored rows, classic pagination, and stable sequence numbers)
 
 ## Overview
 
@@ -62,7 +62,7 @@ Those belong to [Phase 3 and Phase 4](ROADMAP.md).
 2. Service validates the stored token.
 3. `client.listEverything()` paginates Plaud's full listing (`/file/simple/web?skip=N&limit=500`) until a page arrives shorter than 500 — signal of the last page. Every recording in the account is captured in date-desc order, plus the authoritative `plaudTotal`.
 4. Local filters are applied (date range, serial number, scene) if any.
-5. Candidate selection walks the filtered list newest-first and keeps a recording when it is **not dismissed** AND (if `forceDownload=false`) **not already mirrored with `lastWebhookStatus = 'success'`**. Stops at `limit` candidates.
+5. Candidate selection walks the filtered list newest-first and keeps a recording when it is **not dismissed** AND (if `forceDownload=false`) **not already mirrored locally** (i.e. `localPath` is null). Webhook delivery status is intentionally NOT part of this filter — a recording on disk is "mirrored" regardless of whether its webhook was delivered or skipped. Stops at `limit` candidates.
 6. Each candidate resolves detail and temp URL, downloads the artifact, writes:
    - `recordings/<recording-id>/audio.<ext>`
    - `recordings/<recording-id>/metadata.json`

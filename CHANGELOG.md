@@ -4,6 +4,11 @@ All notable changes to Plaud Mirror are documented in this file.
 
 This project follows Semantic Versioning (SemVer): MAJOR.MINOR.PATCH.
 
+## [0.4.9] - 2026-04-23
+
+### Fixed
+- "Run sync now" with `limit=N` was reporting `matched=N, downloaded=0` and not actually pulling anything when the operator had no webhook configured. The Mode B candidate filter only skipped already-mirrored rows whose `lastWebhookStatus === "success"`. Without a webhook configured every row's status is `"skipped"`, so rows already on disk slipped past the filter, became candidates, and `processRecording` then short-circuited without re-downloading. The candidate filter now skips any row with a non-null `localPath` regardless of webhook status — webhook delivery is unrelated to "is this audio missing locally?". Setting `forceDownload=true` still overrides this. Test in `service.test.ts` updated to seed a row with `lastWebhookStatus: "skipped"` (matching the no-webhook reality) and assert it is skipped from candidates.
+
 ## [0.4.8] - 2026-04-23
 
 ### Added

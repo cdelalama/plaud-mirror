@@ -283,7 +283,10 @@ test("PlaudMirrorService runSync skips already-mirrored rows and pulls the first
   await service.initialize();
   await service.saveAccessToken({ accessToken: "token-value" });
 
-  // Seed: one already-mirrored-successfully recording, one dismissed recording.
+  // Seed: one already-mirrored row whose webhook was SKIPPED (no webhook
+  // configured). Earlier versions of Mode B incorrectly admitted this row as
+  // a candidate because the filter only skipped rows with status="success",
+  // which masked any genuinely-missing recording further down the list.
   store.upsertRecording({
     id: "rec-already-mirrored",
     title: "already local",
@@ -295,7 +298,7 @@ test("PlaudMirrorService runSync skips already-mirrored rows and pulls the first
     contentType: "audio/mpeg",
     bytesWritten: 5,
     mirroredAt: new Date().toISOString(),
-    lastWebhookStatus: "success",
+    lastWebhookStatus: "skipped",
     lastWebhookAttemptAt: new Date().toISOString(),
     dismissed: false,
     dismissedAt: null,

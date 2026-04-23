@@ -1,4 +1,4 @@
-<!-- doc-version: 0.4.8 -->
+<!-- doc-version: 0.4.9 -->
 # Plaud Mirror Roadmap
 
 This document is the canonical phase boundary for Plaud Mirror. If implementation scope starts to cross a phase boundary, update this document before claiming the work is part of the current phase.
@@ -12,7 +12,7 @@ This document is the canonical phase boundary for Plaud Mirror. If implementatio
 
 ## Current Target
 
-- Current delivery target: `v0.4.8`
+- Current delivery target: `v0.4.9`
 - Current phase: **Phase 2 - first usable internal slice (extended through 0.4.x)**
 - Deployment target: `dev-vm` first
 

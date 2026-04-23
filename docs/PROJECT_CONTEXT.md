@@ -1,4 +1,4 @@
-<!-- doc-version: 0.4.8 -->
+<!-- doc-version: 0.4.9 -->
 # Project Context - Plaud Mirror
 
 ## Vision
@@ -24,7 +24,7 @@ Persistence is split between SQLite for state/indexes and the filesystem for mir
 
 ## Current Status (2026-04-23)
 
-Plaud Mirror `v0.4.8` is the extended Phase 2 slice: the original manual vertical slice plus local-only curation, UX polish, Mode B sync semantics, classic pagination (Prev/Next + per-page selector + status), and stable `#N` sequence numbers anchored to each recording's position in the full Plaud timeline (oldest = `#1`, newest = `#N`). The repository now has:
+Plaud Mirror `v0.4.9` is the extended Phase 2 slice: the original manual vertical slice plus local-only curation, UX polish, Mode B sync semantics (now correctly skipping already-mirrored rows regardless of webhook delivery status), classic pagination, and stable `#N` sequence numbers anchored to each recording's position in the full Plaud timeline. The repository now has:
 
 - a live Fastify API
 - a web panel for token setup, webhook configuration, sync/backfill controls, and recordings visibility

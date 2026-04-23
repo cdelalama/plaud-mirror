@@ -416,11 +416,11 @@ export class PlaudMirrorService {
         if (existing?.dismissed) {
           continue;
         }
-        if (
-          !normalizedFilters.forceDownload &&
-          existing?.localPath &&
-          existing.lastWebhookStatus === "success"
-        ) {
+        // "Already mirrored" means the audio is on disk. Webhook delivery
+        // status is unrelated — a mirrored recording without a successful
+        // webhook delivery is still mirrored and should NOT be re-downloaded.
+        // Forcing a re-download is what `forceDownload` is for.
+        if (!normalizedFilters.forceDownload && existing?.localPath) {
           continue;
         }
         candidates.push(recording);
