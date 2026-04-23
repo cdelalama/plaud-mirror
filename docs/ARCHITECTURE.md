@@ -1,9 +1,9 @@
 <!-- doc-version: 0.4.2 -->
 # Plaud Mirror Architecture
 
-> Version: 0.4.1
+> Version: 0.4.2
 > Last Updated: 2026-04-23
-> Status: Phase 2 vertical slice (extended through 0.4.x with local curation)
+> Status: Phase 2 vertical slice (extended through 0.4.x with local curation + audio UX polish)
 
 ## Overview
 

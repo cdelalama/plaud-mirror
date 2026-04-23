@@ -12,7 +12,7 @@ This document is the canonical phase boundary for Plaud Mirror. If implementatio
 
 ## Current Target
 
-- Current delivery target: `v0.4.1`
+- Current delivery target: `v0.4.2`
 - Current phase: **Phase 2 - first usable internal slice (extended through 0.4.x)**
 - Deployment target: `dev-vm` first
 

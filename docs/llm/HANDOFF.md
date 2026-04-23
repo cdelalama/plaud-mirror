@@ -6,8 +6,8 @@ This file is the live operational snapshot. Durable rationale lives in `docs/llm
 ## Current Status
 
 - Last Updated: 2026-04-23 - Claude Opus 4.7
-- Session Focus: Fix two audio-player UX bugs reported by the operator — the library duration was shown as raw seconds (`186.0s`) and `<audio>` scrubbing was broken because the server streamed without Range support. Ship `v0.4.2`, rebuild the container, push.
-- Status: `v0.4.2` adds HTTP Range support to `GET /api/recordings/:id/audio` (Accept-Ranges, Content-Length, 206 Partial Content, 416 on unsatisfiable ranges) so the browser can seek correctly during playback, and replaces the raw-seconds duration with a human `formatDuration` helper (`42s` / `3:06` / `1:02:15`; no days bucket until one is actually needed). Two new tests for Range parser edge cases and end-to-end 206/200 behavior. 37/37 tests pass. GPT-5's advice to keep custom Range handling rather than register `@fastify/static` with a raw prefix was adopted — all four validation layers on the audio route (id allowlist, SQLite lookup, path-inside-recordingsDir, local file still present) are preserved.
+- Session Focus: Close the prose version drift GPT-5 flagged immediately after the v0.4.2 push — `bump-version.sh` had updated the HTML markers and package versions but left `v0.4.1` referenced in the body prose of `docs/ROADMAP.md`, `docs/PROJECT_CONTEXT.md`, and `docs/ARCHITECTURE.md`. No code change, no new release. Same pattern had already bit us at the v0.4.1 close (stale `v0.3.0` prose), so also save a memory note so future version bumps sweep these three spots by default.
+- Status: `v0.4.2` stands. The three prose spots are now consistent with the markers (`v0.4.2` everywhere that refers to current state; historical narrative mentions of `v0.4.1` in HO's "Governance Cleanup Landed in 0.4.1" section are intentionally preserved because they describe what that release did). Memory note `feedback_prose_version_drift.md` now lives alongside `feedback_handoff_sync.md` and `feedback_always_rebuild.md` to catch this at bump time in the future. 37/37 tests still pass.
 
 ## What Landed
 
