@@ -1,4 +1,4 @@
-<!-- doc-version: 0.4.2 -->
+<!-- doc-version: 0.4.3 -->
 # LLM Work Handoff
 
 This file is the live operational snapshot. Durable rationale lives in `docs/llm/DECISIONS.md`. Phase boundaries live in `docs/ROADMAP.md`.
@@ -6,8 +6,8 @@ This file is the live operational snapshot. Durable rationale lives in `docs/llm
 ## Current Status
 
 - Last Updated: 2026-04-23 - Claude Opus 4.7
-- Session Focus: Close the prose version drift GPT-5 flagged immediately after the v0.4.2 push — `bump-version.sh` had updated the HTML markers and package versions but left `v0.4.1` referenced in the body prose of `docs/ROADMAP.md`, `docs/PROJECT_CONTEXT.md`, and `docs/ARCHITECTURE.md`. No code change, no new release. Same pattern had already bit us at the v0.4.1 close (stale `v0.3.0` prose), so also save a memory note so future version bumps sweep these three spots by default.
-- Status: `v0.4.2` stands. The three prose spots are now consistent with the markers (`v0.4.2` everywhere that refers to current state; historical narrative mentions of `v0.4.1` in HO's "Governance Cleanup Landed in 0.4.1" section are intentionally preserved because they describe what that release did). Memory note `feedback_prose_version_drift.md` now lives alongside `feedback_handoff_sync.md` and `feedback_always_rebuild.md` to catch this at bump time in the future. 37/37 tests still pass.
+- Session Focus: Fix the "Delete local mirror" button returning 400 from the web UI while the same DELETE worked from `curl` / direct `fetch()`. Root cause was `requestJson` in `apps/web/src/App.tsx` always attaching `Content-Type: application/json`, including on body-less DELETE / POST calls, which made Fastify's default body parser reject the empty body. Ship `v0.4.3`, rebuild, push. Prose sweep applied to ROADMAP/PROJECT_CONTEXT/ARCHITECTURE per the new `feedback_prose_version_drift.md` memory.
+- Status: `v0.4.3` ships a 5-line fix in `requestJson` — the JSON content-type header is only attached when `init.body` is actually present. This unblocks the operator's dismiss/restore flow from the UI (the backend routes had always worked, as confirmed by hitting `DELETE /api/recordings/<id>` directly from the browser console during the same-day diagnostic). 37/37 tests still pass (the bug was in how the browser constructed the request, not in a covered backend path). Prose version drift from the 0.4.2 bump is also cleaned up in the same release.
 
 ## What Landed
 

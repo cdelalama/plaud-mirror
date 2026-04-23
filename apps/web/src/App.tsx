@@ -521,12 +521,19 @@ function StatusPill({ state }: { state: string }) {
 }
 
 async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
+  const hasBody = init?.body !== undefined && init.body !== null;
+  const callerHeaders = (init?.headers as Record<string, string> | undefined) ?? {};
+  // Only send `content-type: application/json` when we actually have a JSON
+  // body. Otherwise Fastify's default body parser rejects the request with 400
+  // ("Body cannot be empty when content-type is set to 'application/json'"),
+  // which is what was breaking DELETE / POST-without-body routes from the UI.
+  const headers: Record<string, string> = hasBody
+    ? { "content-type": "application/json", ...callerHeaders }
+    : { ...callerHeaders };
+
   const response = await fetch(path, {
-    headers: {
-      "content-type": "application/json",
-      ...(init?.headers ?? {}),
-    },
     ...init,
+    headers,
   });
 
   if (!response.ok) {

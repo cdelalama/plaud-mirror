@@ -1,4 +1,4 @@
-<!-- doc-version: 0.4.2 -->
+<!-- doc-version: 0.4.3 -->
 # API Contract
 
 This document describes the Phase 2 HTTP and webhook surface that now exists in-repo.
