@@ -1,4 +1,4 @@
-<!-- doc-version: 0.4.3 -->
+<!-- doc-version: 0.4.4 -->
 # LLM Work Handoff
 
 This file is the live operational snapshot. Durable rationale lives in `docs/llm/DECISIONS.md`. Phase boundaries live in `docs/ROADMAP.md`.
@@ -6,8 +6,8 @@ This file is the live operational snapshot. Durable rationale lives in `docs/llm
 ## Current Status
 
 - Last Updated: 2026-04-23 - Claude Opus 4.7
-- Session Focus: Fix the "Delete local mirror" button returning 400 from the web UI while the same DELETE worked from `curl` / direct `fetch()`. Root cause was `requestJson` in `apps/web/src/App.tsx` always attaching `Content-Type: application/json`, including on body-less DELETE / POST calls, which made Fastify's default body parser reject the empty body. Ship `v0.4.3`, rebuild, push. Prose sweep applied to ROADMAP/PROJECT_CONTEXT/ARCHITECTURE per the new `feedback_prose_version_drift.md` memory.
-- Status: `v0.4.3` ships a 5-line fix in `requestJson` — the JSON content-type header is only attached when `init.body` is actually present. This unblocks the operator's dismiss/restore flow from the UI (the backend routes had always worked, as confirmed by hitting `DELETE /api/recordings/<id>` directly from the browser console during the same-day diagnostic). 37/37 tests still pass (the bug was in how the browser constructed the request, not in a covered backend path). Prose version drift from the 0.4.2 bump is also cleaned up in the same release.
+- Session Focus: Make Restore do what the operator expects — re-download the audio immediately on click instead of leaving the row in a confusing half-state waiting for the next sync. Ship `v0.4.4`, rebuild, push. Prose sweep applied per the `feedback_prose_version_drift.md` memory.
+- Status: `v0.4.4` extends `POST /api/recordings/:id/restore` to also pull fresh `/file/detail` and `/file/temp-url` from Plaud and write the artifact back to disk in the same call. If the download fails (auth expired or network issue), the dismissed flag is still cleared so the operator's intent is respected and a later sync can retry; the error is surfaced to the UI banner. UI copy updated to match ("Restore (re-download now)"). Tests: service-level happy path with mocked Plaud + error path without token, both added; server-level combined test now exercises DELETE → restore → GET audio returning the freshly-mirrored bytes. 38/38 tests pass.
 
 ## What Landed
 

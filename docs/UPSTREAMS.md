@@ -1,4 +1,4 @@
-<!-- doc-version: 0.4.3 -->
+<!-- doc-version: 0.4.4 -->
 # Upstream Strategy
 
 Last verified against GitHub: 2026-04-22

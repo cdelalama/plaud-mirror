@@ -1,9 +1,9 @@
-<!-- doc-version: 0.4.3 -->
+<!-- doc-version: 0.4.4 -->
 # Plaud Mirror Architecture
 
-> Version: 0.4.3
+> Version: 0.4.4
 > Last Updated: 2026-04-23
-> Status: Phase 2 vertical slice (extended through 0.4.x with local curation, audio UX polish, and a frontend fix for empty-body DELETE)
+> Status: Phase 2 vertical slice (extended through 0.4.x with local curation, audio UX polish, empty-body DELETE fix, and immediate re-download on restore)
 
 ## Overview
 
@@ -78,7 +78,7 @@ Those belong to [Phase 3 and Phase 4](ROADMAP.md).
 1. The operator auditions an audio file inline in the web panel via `GET /api/recordings/<id>/audio`, which streams the local file with its original content-type. Recording ids are validated against a strict character allowlist before any filesystem access, and the resolved path is confirmed to stay inside the configured recordings directory.
 2. The operator may issue `DELETE /api/recordings/<id>`. The service unlinks the local audio file, clears `localPath` and `bytesWritten` on the SQLite row, and sets `dismissed=true` with a `dismissedAt` timestamp. Plaud itself is not touched.
 3. Subsequent sync/backfill runs detect `dismissed=true` and skip the recording without attempting to re-download it.
-4. The operator can restore a dismissed recording via `POST /api/recordings/<id>/restore`, which clears `dismissed` and allows the next sync to mirror the audio again.
+4. The operator can restore a dismissed recording via `POST /api/recordings/<id>/restore`. The service clears the `dismissed` flag **and immediately re-downloads the audio** (fetching fresh `/file/detail` and `/file/temp-url` from Plaud, then writing the artifact back to `recordings/<id>/audio.<ext>`). If the immediate download fails (e.g. missing or invalid token), the flag is still cleared so the next scheduled sync can retry, and the API surfaces the error so the operator can recover.
 
 ## Storage Layout
 

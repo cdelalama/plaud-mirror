@@ -1,4 +1,4 @@
-<!-- doc-version: 0.4.3 -->
+<!-- doc-version: 0.4.4 -->
 # API Contract
 
 This document describes the Phase 2 HTTP and webhook surface that now exists in-repo.
@@ -17,7 +17,7 @@ This document describes the Phase 2 HTTP and webhook surface that now exists in-
 | `GET` | `/api/recordings` | List recent mirrored recordings. Accepts `?limit=<n>` (max 200, default 50) and `?includeDismissed=true` to include locally dismissed rows (hidden by default). |
 | `GET` | `/api/recordings/:id/audio` | Stream the locally mirrored audio file for a single recording. Returns 404 if the recording is not tracked or has no local file. Response body is the raw audio bytes with the stored `Content-Type`. Supports HTTP Range (RFC 7233 single-range): advertises `Accept-Ranges: bytes`, includes `Content-Length`, and honors `Range: bytes=start-end` (plus suffix `bytes=-N` and open-ended `bytes=start-`) with `206 Partial Content`. Unsatisfiable ranges return `416` with `Content-Range: bytes */size`. Multipart byteranges are intentionally unsupported. |
 | `DELETE` | `/api/recordings/:id` | Local-only dismiss. Removes the audio file from disk, clears `localPath`/`bytesWritten`, and marks the row `dismissed=true`. Plaud is not touched. Subsequent sync/backfill runs skip dismissed rows. |
-| `POST` | `/api/recordings/:id/restore` | Clear the dismissed flag so the next sync re-mirrors the audio. Returns 409 if the recording is not currently dismissed. |
+| `POST` | `/api/recordings/:id/restore` | Clear the dismissed flag **and immediately re-download the audio** (fresh `/file/detail` + `/file/temp-url` against Plaud, artifact written to `recordings/<id>/audio.<ext>`). Returns 409 if the recording is not currently dismissed. If the immediate download fails (missing/invalid token, network error), the flag is still cleared and the error is surfaced so the caller can recover. |
 
 ## Request Shapes
 

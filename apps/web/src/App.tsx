@@ -105,7 +105,7 @@ export function App() {
         method: "POST",
       });
       await refreshSnapshot();
-      return `Restored "${recording.title}". The next sync will mirror it again.`;
+      return `Restored and re-downloaded "${recording.title}".`;
     });
   }
 
@@ -471,7 +471,7 @@ export function App() {
                         disabled={busy}
                         onClick={() => void handleRestoreRecording(recording)}
                       >
-                        Restore (re-mirror on next sync)
+                        Restore (re-download now)
                       </button>
                     ) : (
                       <button

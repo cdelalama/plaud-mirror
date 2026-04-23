@@ -315,7 +315,36 @@ export class PlaudMirrorService {
       throw createHttpError(409, `Recording ${recordingId} is not dismissed`);
     }
 
+    // Clear the dismissed flag first. Even if the immediate re-download below
+    // fails, the operator's intent ("I want this back") is respected and the
+    // next scheduled sync (Phase 3) or a manual sync will retry the download.
     this.store.setRecordingDismissed(recordingId, false);
+
+    // Attempt immediate re-download so the operator sees the audio come back
+    // in the same click, not on next sync.
+    const { client } = await this.loadValidatedClient();
+    const detail = await client.getFileDetail(recordingId);
+    const artifact = await downloadAudioArtifact(
+      client,
+      recordingId,
+      this.environment.recordingsDir,
+      detail,
+      false,
+      this.artifactFetchImpl,
+    );
+
+    if (artifact) {
+      const current = this.store.getRecording(recordingId);
+      if (current) {
+        this.store.upsertRecording(RecordingMirrorSchema.parse({
+          ...current,
+          localPath: artifact.localPath,
+          contentType: artifact.contentType,
+          bytesWritten: artifact.bytesWritten,
+          mirroredAt: new Date().toISOString(),
+        }));
+      }
+    }
 
     return RecordingRestoreResultSchema.parse({
       id: recordingId,

@@ -100,7 +100,37 @@ test("createApp exposes audio streaming, delete, and restore routes for mirrored
   const audioPath = join(recordingDir, "audio.mp3");
   await writeFile(audioPath, "AUDIO_BYTES");
 
-  const app = await createApp({ environment });
+  const app = await createApp({
+    environment,
+    plaudFetchImpl: async (input) => {
+      const url = String(input);
+      if (url.endsWith("/user/me")) {
+        return createJsonResponse({ status: 0, data: { uid: "user-1" } });
+      }
+      if (url.endsWith("/file/detail/rec-http")) {
+        return createJsonResponse({
+          status: 0,
+          data: {
+            file_id: "rec-http",
+            file_name: "HTTP probe",
+            duration: 12000,
+            serial_number: "PLAUD-1",
+          },
+        });
+      }
+      if (url.endsWith("/file/temp-url/rec-http")) {
+        return createJsonResponse({
+          status: 0,
+          temp_url: "https://storage.example.com/audio/rec-http.mp3",
+        });
+      }
+      throw new Error(`Unexpected Plaud fetch: ${url}`);
+    },
+    artifactFetchImpl: async () => new Response("RESTORED_BYTES", {
+      status: 200,
+      headers: { "content-type": "audio/mpeg" },
+    }),
+  });
 
   // Seed a recording directly through the exposed service by posting token + running nothing.
   // Since the service doesn't expose a public seed, we reach in through the store instance it created
@@ -130,6 +160,14 @@ test("createApp exposes audio streaming, delete, and restore routes for mirrored
     dismissedAt: null,
   });
   sideStore.close();
+
+  // Save a token so restore's immediate re-download path can call the mocked Plaud client.
+  const tokenSave = await app.inject({
+    method: "POST",
+    url: "/api/auth/token",
+    payload: { accessToken: "token-value" },
+  });
+  assert.equal(tokenSave.statusCode, 200);
 
   const listResponse = await app.inject({ method: "GET", url: "/api/recordings?limit=10" });
   assert.equal(listResponse.statusCode, 200);
@@ -162,11 +200,14 @@ test("createApp exposes audio streaming, delete, and restore routes for mirrored
   assert.equal(restoreResponse.statusCode, 200);
   assert.equal(restoreResponse.json().dismissed, false);
 
-  const audioMissingAfterDelete = await app.inject({
+  // Restore now triggers an immediate re-download, so the audio route should
+  // serve the freshly-mirrored bytes instead of 404.
+  const audioAfterRestore = await app.inject({
     method: "GET",
     url: "/api/recordings/rec-http/audio",
   });
-  assert.equal(audioMissingAfterDelete.statusCode, 404);
+  assert.equal(audioAfterRestore.statusCode, 200);
+  assert.equal(audioAfterRestore.body, "RESTORED_BYTES");
 
   await app.close();
 });

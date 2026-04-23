@@ -242,7 +242,7 @@ test("PlaudMirrorService deleteRecording removes the audio file and marks the ro
   service.close();
 });
 
-test("PlaudMirrorService restoreRecording clears the dismissed flag so sync can re-mirror", async () => {
+test("PlaudMirrorService restoreRecording re-downloads the audio and clears the dismissed flag", async () => {
   const root = await mkdtemp(join(tmpdir(), "plaud-mirror-service-restore-"));
   const environment = createEnvironment(root);
   const store = new RuntimeStore({
@@ -252,8 +252,39 @@ test("PlaudMirrorService restoreRecording clears the dismissed flag so sync can 
     defaultSyncLimit: environment.defaultSyncLimit,
   });
   const secrets = new SecretStore(join(environment.dataDir, "secrets.enc"), environment.masterKey);
-  const service = new PlaudMirrorService(environment, store, secrets);
+  const service = new PlaudMirrorService(environment, store, secrets, {
+    plaudFetchImpl: async (input) => {
+      const url = String(input);
+      if (url.endsWith("/user/me")) {
+        return createJsonResponse({ status: 0, data: { uid: "user-1" } });
+      }
+      if (url.endsWith("/file/detail/rec-restore")) {
+        return createJsonResponse({
+          status: 0,
+          data: {
+            file_id: "rec-restore",
+            file_name: "Previously dismissed",
+            duration: 12000,
+            serial_number: "PLAUD-1",
+            scene: 3,
+          },
+        });
+      }
+      if (url.endsWith("/file/temp-url/rec-restore")) {
+        return createJsonResponse({
+          status: 0,
+          temp_url: "https://storage.example.com/audio/rec-restore.mp3",
+        });
+      }
+      throw new Error(`Unexpected Plaud fetch: ${url}`);
+    },
+    artifactFetchImpl: async () => new Response("restored-bytes", {
+      status: 200,
+      headers: { "content-type": "audio/mpeg" },
+    }),
+  });
   await service.initialize();
+  await service.saveAccessToken({ accessToken: "token-value" });
 
   store.upsertRecording({
     id: "rec-restore",
@@ -261,7 +292,7 @@ test("PlaudMirrorService restoreRecording clears the dismissed flag so sync can 
     createdAt: "2026-04-22T10:00:00.000Z",
     durationSeconds: 12,
     serialNumber: "PLAUD-1",
-    scene: null,
+    scene: 3,
     localPath: null,
     contentType: null,
     bytesWritten: 0,
@@ -278,8 +309,53 @@ test("PlaudMirrorService restoreRecording clears the dismissed flag so sync can 
   const stored = store.getRecording("rec-restore");
   assert.equal(stored?.dismissed, false);
   assert.equal(stored?.dismissedAt, null);
+  assert.ok(stored?.localPath, "restore should repopulate localPath");
+  assert.equal(stored?.contentType, "audio/mpeg");
+  assert.ok(stored?.bytesWritten && stored.bytesWritten > 0, "restore should record actual bytes written");
+  assert.ok(stored?.mirroredAt, "restore should refresh mirroredAt");
 
   await assert.rejects(service.restoreRecording("rec-restore"), /not dismissed/);
+
+  service.close();
+});
+
+test("PlaudMirrorService restoreRecording without a token clears the flag but surfaces the auth error", async () => {
+  const root = await mkdtemp(join(tmpdir(), "plaud-mirror-service-restore-notoken-"));
+  const environment = createEnvironment(root);
+  const store = new RuntimeStore({
+    dbPath: join(environment.dataDir, "app.db"),
+    dataDir: environment.dataDir,
+    recordingsDir: environment.recordingsDir,
+    defaultSyncLimit: environment.defaultSyncLimit,
+  });
+  const secrets = new SecretStore(join(environment.dataDir, "secrets.enc"), environment.masterKey);
+  const service = new PlaudMirrorService(environment, store, secrets);
+  await service.initialize();
+
+  store.upsertRecording({
+    id: "rec-no-token",
+    title: "Previously dismissed",
+    createdAt: "2026-04-22T10:00:00.000Z",
+    durationSeconds: 12,
+    serialNumber: "PLAUD-1",
+    scene: null,
+    localPath: null,
+    contentType: null,
+    bytesWritten: 0,
+    mirroredAt: null,
+    lastWebhookStatus: null,
+    lastWebhookAttemptAt: null,
+    dismissed: true,
+    dismissedAt: "2026-04-22T10:06:00.000Z",
+  });
+
+  await assert.rejects(service.restoreRecording("rec-no-token"), /bearer token/i);
+
+  // The dismissed flag is cleared regardless — operator's intent is respected and
+  // a later sync can retry the download once the token is back.
+  const stored = store.getRecording("rec-no-token");
+  assert.equal(stored?.dismissed, false);
+  assert.equal(stored?.localPath, null);
 
   service.close();
 });
