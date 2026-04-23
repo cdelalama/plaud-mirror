@@ -1,4 +1,4 @@
-<!-- doc-version: 0.4.1 -->
+<!-- doc-version: 0.4.2 -->
 # LLM Start Guide - Plaud Mirror
 
 ## Read This First (Mandatory)
@@ -86,8 +86,8 @@ Recommended reading order:
 
 Source of truth: docs/llm/HANDOFF.md.
 - Last Updated: 2026-04-23 - Claude Opus 4.7
-- Working on: close the six governance drift items flagged by GPT-5's review of v0.4.0, cut `v0.4.1` as a mostly-docs patch with one cosmetic code fix (hero metric), rebuild the container, and push the bundle to `origin/main` so the public repo finally reflects the real state (0.1.0 → 0.4.1 catch-up).
-- Status: `v0.4.1` ships a clean governance pass on top of v0.4.0. Roadmap now reflects that Phase 2 extends through `0.4.x` and Phase 3 starts at `0.5.x`; README no longer recommends Kali as a Docker fallback; CHANGELOG entries for `0.3.2` and `0.4.0` were backfilled; the stale "Drift Status" block in the handoff was replaced with a shorter "Roadmap Boundary"; PROJECT_CONTEXT and ARCHITECTURE prose refreshed from `v0.3.0` narrative to current; the hero "Recordings" metric now reads `health?.recordingsCount` instead of `recordings.length`. 35/35 tests still pass. Phase 2 feature surface is unchanged from v0.4.0.
+- Working on: fix two audio-player UX bugs reported by the operator — the library duration was shown as raw seconds (`186.0s`) and `<audio>` scrubbing was broken because the server streamed without Range support. Ship `v0.4.2`, rebuild the container, push.
+- Status: `v0.4.2` adds HTTP Range support to `GET /api/recordings/:id/audio` (Accept-Ranges, Content-Length, 206 Partial Content, 416 on unsatisfiable ranges) so the browser can seek correctly during playback, and replaces the raw-seconds duration with a human `formatDuration` helper (`42s` / `3:06` / `1:02:15`; no days bucket until one is actually needed). Two new tests for Range parser edge cases and end-to-end 206/200 behavior. 37/37 tests pass. GPT-5's advice to keep custom Range handling rather than register `@fastify/static` with a raw prefix was adopted — all four validation layers on the audio route (id allowlist, SQLite lookup, path-inside-recordingsDir, local file still present) are preserved.
 
 Keep this section synchronized with the "Current Status" block in docs/llm/HANDOFF.md.
 

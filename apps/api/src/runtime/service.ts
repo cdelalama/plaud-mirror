@@ -1,5 +1,5 @@
 import { createHmac } from "node:crypto";
-import { access, mkdir, unlink } from "node:fs/promises";
+import { access, mkdir, stat, unlink } from "node:fs/promises";
 import { isAbsolute, join, relative, resolve } from "node:path";
 
 import {
@@ -221,7 +221,7 @@ export class PlaudMirrorService {
     });
   }
 
-  async getRecordingAudio(recordingId: string): Promise<{ path: string; contentType: string }> {
+  async getRecordingAudio(recordingId: string): Promise<{ path: string; contentType: string; size: number }> {
     this.assertSafeRecordingId(recordingId);
 
     const recording = this.store.getRecording(recordingId);
@@ -242,8 +242,10 @@ export class PlaudMirrorService {
       throw createHttpError(400, "Recording audio path is outside the configured recordings directory");
     }
 
+    let size: number;
     try {
-      await access(absolutePath);
+      const stats = await stat(absolutePath);
+      size = stats.size;
     } catch {
       throw createHttpError(404, `Recording ${recordingId} audio file is missing on disk`);
     }
@@ -251,6 +253,7 @@ export class PlaudMirrorService {
     return {
       path: absolutePath,
       contentType: recording.contentType ?? "application/octet-stream",
+      size,
     };
   }
 

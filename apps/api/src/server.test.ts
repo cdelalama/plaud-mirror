@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
-import { createApp } from "./server.js";
+import { createApp, parseByteRange } from "./server.js";
 import type { ServerEnvironment } from "./runtime/environment.js";
 
 function createJsonResponse(payload: unknown, status = 200): Response {
@@ -167,6 +167,98 @@ test("createApp exposes audio streaming, delete, and restore routes for mirrored
     url: "/api/recordings/rec-http/audio",
   });
   assert.equal(audioMissingAfterDelete.statusCode, 404);
+
+  await app.close();
+});
+
+test("parseByteRange handles the four RFC 7233 single-range shapes and rejects garbage", () => {
+  assert.deepEqual(parseByteRange("bytes=0-999", 5000), { start: 0, end: 999 });
+  assert.deepEqual(parseByteRange("bytes=500-", 5000), { start: 500, end: 4999 });
+  assert.deepEqual(parseByteRange("bytes=-100", 5000), { start: 4900, end: 4999 });
+  assert.deepEqual(parseByteRange("bytes=4000-999999", 5000), { start: 4000, end: 4999 });
+
+  assert.equal(parseByteRange("bytes=5000-6000", 5000), null);
+  assert.equal(parseByteRange("bytes=abc-100", 5000), null);
+  assert.equal(parseByteRange("items=0-100", 5000), null);
+  assert.equal(parseByteRange("bytes=100-50", 5000), null);
+  assert.equal(parseByteRange("bytes=-", 5000), null);
+  assert.equal(parseByteRange("bytes=-0", 5000), null);
+  assert.equal(parseByteRange("bytes=0-999", 0), null);
+});
+
+test("audio endpoint supports HTTP Range requests with 206 Partial Content", async () => {
+  const { mkdir, writeFile } = await import("node:fs/promises");
+
+  const root = await mkdtemp(join(tmpdir(), "plaud-mirror-server-range-"));
+  const environment = createEnvironment(root);
+  await mkdir(environment.dataDir, { recursive: true });
+  await mkdir(environment.recordingsDir, { recursive: true });
+
+  const recordingDir = join(environment.recordingsDir, "rec-range");
+  await mkdir(recordingDir, { recursive: true });
+  const audioPath = join(recordingDir, "audio.mp3");
+  const fileBody = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"; // 36 bytes
+  await writeFile(audioPath, fileBody);
+
+  const app = await createApp({ environment });
+
+  const { RuntimeStore } = await import("./runtime/store.js");
+  const sideStore = new RuntimeStore({
+    dbPath: join(environment.dataDir, "app.db"),
+    dataDir: environment.dataDir,
+    recordingsDir: environment.recordingsDir,
+    defaultSyncLimit: environment.defaultSyncLimit,
+  });
+  sideStore.upsertRecording({
+    id: "rec-range",
+    title: "Range probe",
+    createdAt: "2026-04-23T10:00:00.000Z",
+    durationSeconds: 5,
+    serialNumber: "PLAUD-1",
+    scene: null,
+    localPath: audioPath,
+    contentType: "audio/mpeg",
+    bytesWritten: fileBody.length,
+    mirroredAt: "2026-04-23T10:05:00.000Z",
+    lastWebhookStatus: "success",
+    lastWebhookAttemptAt: "2026-04-23T10:05:02.000Z",
+    dismissed: false,
+    dismissedAt: null,
+  });
+  sideStore.close();
+
+  const fullResponse = await app.inject({ method: "GET", url: "/api/recordings/rec-range/audio" });
+  assert.equal(fullResponse.statusCode, 200);
+  assert.equal(fullResponse.headers["accept-ranges"], "bytes");
+  assert.equal(fullResponse.headers["content-length"], String(fileBody.length));
+  assert.equal(fullResponse.headers["content-type"], "audio/mpeg");
+  assert.equal(fullResponse.body, fileBody);
+
+  const rangedResponse = await app.inject({
+    method: "GET",
+    url: "/api/recordings/rec-range/audio",
+    headers: { range: "bytes=10-19" },
+  });
+  assert.equal(rangedResponse.statusCode, 206);
+  assert.equal(rangedResponse.headers["content-range"], `bytes 10-19/${fileBody.length}`);
+  assert.equal(rangedResponse.headers["content-length"], "10");
+  assert.equal(rangedResponse.body, fileBody.slice(10, 20));
+
+  const suffixResponse = await app.inject({
+    method: "GET",
+    url: "/api/recordings/rec-range/audio",
+    headers: { range: "bytes=-6" },
+  });
+  assert.equal(suffixResponse.statusCode, 206);
+  assert.equal(suffixResponse.body, fileBody.slice(-6));
+
+  const unsatisfiable = await app.inject({
+    method: "GET",
+    url: "/api/recordings/rec-range/audio",
+    headers: { range: "bytes=9999-" },
+  });
+  assert.equal(unsatisfiable.statusCode, 416);
+  assert.equal(unsatisfiable.headers["content-range"], `bytes */${fileBody.length}`);
 
   await app.close();
 });

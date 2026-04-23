@@ -71,9 +71,30 @@ export async function createApp(options: CreateAppOptions = {}) {
 
   app.get("/api/recordings/:id/audio", async (request, reply) => {
     const id = (request.params as { id: string }).id;
-    const { path, contentType } = await service.getRecordingAudio(id);
+    const { path, contentType, size } = await service.getRecordingAudio(id);
+
+    reply.header("accept-ranges", "bytes");
+    reply.header("cache-control", "private, max-age=0, must-revalidate");
     reply.type(contentType);
-    return reply.send(createReadStream(path));
+
+    const rangeHeader = request.headers.range;
+    if (!rangeHeader) {
+      reply.header("content-length", String(size));
+      return reply.send(createReadStream(path));
+    }
+
+    const parsed = parseByteRange(rangeHeader, size);
+    if (!parsed) {
+      reply.code(416);
+      reply.header("content-range", `bytes */${size}`);
+      return reply.send();
+    }
+
+    const { start, end } = parsed;
+    reply.code(206);
+    reply.header("content-range", `bytes ${start}-${end}/${size}`);
+    reply.header("content-length", String(end - start + 1));
+    return reply.send(createReadStream(path, { start, end }));
   });
 
   app.delete("/api/recordings/:id", async (request) => {
@@ -159,4 +180,58 @@ function parseBoolean(input: string | boolean | undefined): boolean {
   }
   const normalized = input.trim().toLowerCase();
   return normalized === "true" || normalized === "1" || normalized === "yes";
+}
+
+// Parses a single-range RFC 7233 `Range: bytes=start-end` header against a
+// resource of the given total size. Returns inclusive [start, end] within
+// [0, size - 1], or null if the header is malformed or unsatisfiable.
+// Multipart/byterange (comma-separated ranges) is intentionally not supported —
+// audio elements only ever ask for a single range.
+export function parseByteRange(headerValue: string, size: number): { start: number; end: number } | null {
+  if (size <= 0) {
+    return null;
+  }
+
+  const match = /^bytes=(\d*)-(\d*)$/.exec(headerValue.trim());
+  if (!match) {
+    return null;
+  }
+
+  const rawStart = match[1];
+  const rawEnd = match[2];
+
+  let start: number;
+  let end: number;
+
+  if (rawStart === "" && rawEnd !== "") {
+    // Suffix form: last N bytes.
+    const suffix = Number(rawEnd);
+    if (!Number.isInteger(suffix) || suffix <= 0) {
+      return null;
+    }
+    start = Math.max(0, size - suffix);
+    end = size - 1;
+  } else if (rawStart !== "" && rawEnd === "") {
+    start = Number(rawStart);
+    end = size - 1;
+  } else if (rawStart !== "" && rawEnd !== "") {
+    start = Number(rawStart);
+    end = Number(rawEnd);
+  } else {
+    return null;
+  }
+
+  if (!Number.isInteger(start) || !Number.isInteger(end) || start < 0 || end < start) {
+    return null;
+  }
+
+  if (start >= size) {
+    return null;
+  }
+
+  if (end >= size) {
+    end = size - 1;
+  }
+
+  return { start, end };
 }

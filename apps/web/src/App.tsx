@@ -439,7 +439,7 @@ export function App() {
                 <div className="recording-main">
                   <p className="recording-title">{recording.title}</p>
                   <p className="recording-meta">
-                    {formatDateTime(recording.createdAt)} · {recording.durationSeconds.toFixed(1)}s
+                    {formatDateTime(recording.createdAt)} · {formatDuration(recording.durationSeconds)}
                   </p>
                   {recording.dismissed ? (
                     <p className="recording-meta">
@@ -552,6 +552,32 @@ function summarizeRun(label: string, summary: SyncRunSummary): string {
 function coercePositiveInteger(value: string, fallback: number): number {
   const parsed = Number(value);
   return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function formatDuration(totalSeconds: number): string {
+  if (!Number.isFinite(totalSeconds) || totalSeconds <= 0) {
+    return "0s";
+  }
+
+  const seconds = Math.round(totalSeconds);
+
+  if (seconds < 60) {
+    return `${seconds}s`;
+  }
+
+  const minutes = Math.floor(seconds / 60);
+  const remainderSeconds = seconds % 60;
+  const paddedSeconds = String(remainderSeconds).padStart(2, "0");
+
+  if (seconds < 3600) {
+    return `${minutes}:${paddedSeconds}`;
+  }
+
+  const hours = Math.floor(seconds / 3600);
+  const remainderMinutes = minutes % 60;
+  const paddedMinutes = String(remainderMinutes).padStart(2, "0");
+
+  return `${hours}:${paddedMinutes}:${paddedSeconds}`;
 }
 
 function formatBytes(value: number): string {
