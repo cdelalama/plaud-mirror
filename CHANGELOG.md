@@ -4,6 +4,17 @@ All notable changes to Plaud Mirror are documented in this file.
 
 This project follows Semantic Versioning (SemVer): MAJOR.MINOR.PATCH.
 
+## [0.4.15] - 2026-04-24
+
+### Changed
+- `docs/operations/DEPLOY_PLAYBOOK.md` fallback block rewritten. The previous runbook carried a bash block that exported `PLAUD_MIRROR_DOCKER_BUILD_IMAGE="vxcontrol/kali-linux:latest"` as a Docker-Hub-timeout workaround — directly contradicting the policy documented in README and HANDOFF. Replaced with the list of acceptable substitutes (Node slim/alpine locally cached, `docker save`/`docker load`, or a pull-through registry mirror), an example using `node:20-alpine`, and an explicit rejection paragraph for pentesting or general-purpose distro bases.
+- `HOW_TO_USE.md` rewritten end to end. The previous body claimed "v0.1.0 is a design-and-governance baseline" and that the repository "does not yet give you the runnable Plaud sync service"; both statements were false at v0.4.14. The new file describes v0.4.15 reality (Docker + local Node run instructions, backfill preview, device catalog, tabs, phase boundary), and references the DOWNSTREAM_FEEDBACK flow for protocol observations.
+- `docs/version-sync-manifest.yml` now tracks `HOW_TO_USE.md` (20 targets, up from 19). This closes a real orphan-marker gap — the file previously had a `<!-- doc-version -->` marker but sat outside the manifest, so nothing enforced its freshness.
+- `docs/llm/HANDOFF.md` "Verified Runtime State" updated from v0.4.13 to v0.4.15. Current Status no longer carries "Next: rebuild + push" boilerplate now that the rebuild+push actually happened. `LLM_START_HERE.md` Current Focus re-synced.
+
+### Fixed
+- Three concrete drifts flagged by a second GPT-5 review on 2026-04-24 are closed in this release rather than merely logged. This is the fix that accompanies DF-001 (DEPLOY_PLAYBOOK), DF-002 (HOW_TO_USE orphan) and DF-003 (HANDOFF stale "Next:") in `~/src/LLM-DocKit/docs/DOWNSTREAM_FEEDBACK.md`; previously those entries described the failure modes without actually repairing the specific instances.
+
 ## [0.4.14] - 2026-04-24
 
 ### Added

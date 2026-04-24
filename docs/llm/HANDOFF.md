@@ -1,4 +1,4 @@
-<!-- doc-version: 0.4.14 -->
+<!-- doc-version: 0.4.15 -->
 # LLM Work Handoff
 
 This file is the live operational snapshot. Durable rationale lives in `docs/llm/DECISIONS.md`. Phase boundaries live in `docs/ROADMAP.md`.
@@ -6,8 +6,8 @@ This file is the live operational snapshot. Durable rationale lives in `docs/llm
 ## Current Status
 
 - Last Updated: 2026-04-24 - Claude Opus 4.7
-- Session Focus: Operator UX request on v0.4.13 — "la tarjeta AuthPlotToken y DeliveryWebHook, donde se configuran tanto el token como el webhook, debería estar en una pestaña que fuera configuración. Y luego tienes otra pestaña, que es la principal, donde tienes el ManualSync y el HistoricalBackfill. Ese último, el ControlHistoricalBackfill, debería poder colapsar". Two UX changes: (1) tab split setup vs day-to-day; (2) collapsible Historical backfill.
-- Status: `v0.4.14` lands the tab bar + collapsible Historical backfill card. New state: `activeTab: "main" | "config"` with `localStorage` persistence under `plaud-mirror:active-tab`, default `"main"`; `backfillExpanded: boolean` with persistence under `plaud-mirror:backfill-expanded`, default **false** (collapsed) so a fresh page load does NOT trigger `/api/backfill/candidates` against Plaud. Tab bar sits below the hero and above the banners (banners stay visible across tabs). Auth + Webhook cards rendered only when `activeTab === "config"`; Manual sync + Historical backfill + Library rendered only when `activeTab === "main"`. Historical backfill card header is now `role="button"` with Enter/Space keyboard support + caret indicator; body (including `<BackfillPreview>`) is conditionally rendered so the preview's `useEffect` tears down while collapsed → zero Plaud calls when closed. New CSS: `.tab-bar`, `.tab`, `.tab-active` (overrides the global `button` pill styling with a minimal underline-active-tab look), `.card-header-collapsible`, `.collapse-caret`, `.card-collapsed`. No backend / schema changes; 53/53 tests still pass. Docs: CHANGELOG 0.4.14, ARCHITECTURE header bumped, ROADMAP current target, PROJECT_CONTEXT current-status paragraph. Next: rebuild image, verify VERSION, commit + push.
+- Session Focus: Close three concrete drifts a second GPT-5 review flagged on 2026-04-24 — drifts that the LLM had already catalogued in `LLM-DocKit/docs/DOWNSTREAM_FEEDBACK.md` (DF-001, DF-002, DF-003) but left unrepaired in plaud-mirror itself. Writing the feedback entry is not the same as fixing the instance; this release closes that gap.
+- Status: `v0.4.15` is a governance cleanup release. `docs/operations/DEPLOY_PLAYBOOK.md` fallback block rewritten to match the policy in README / HANDOFF — Kali explicitly rejected, acceptable substitutes enumerated, `node:20-alpine` shown as example. `HOW_TO_USE.md` fully rewritten from its v0.1.0 "design baseline" body to a v0.4.15 reality body (Docker + local Node, tabs, backfill preview, device catalog, phase boundary, DOWNSTREAM_FEEDBACK pointer). `HOW_TO_USE.md` added to `docs/version-sync-manifest.yml` so the orphan-marker gap that kept it drifting for months is closed structurally — the validator now enforces its version marker, 20 targets up from 19. HANDOFF Current Status dropped its trailing "Next: rebuild + push" line because that forward-looking text was stale the moment the rebuild+push landed. "Verified Runtime State" version string bumped 0.4.13 → 0.4.15. `LLM_START_HERE.md` Current Focus re-synced. No code, no schema, no service change — 53/53 tests still pass.
 
 ## What Landed
 
@@ -47,7 +47,7 @@ This is now verified on the actual `dev-vm`, not assumed.
 ## Verified Runtime State
 
 - Container `plaud-mirror-plaud-mirror-1` is up on `dev-vm`, port `3040` bound, running as `USER 1000:1000`.
-- `GET /api/health` returns `200` with `{ version: "0.4.13", auth.state: "healthy" }` against the operator's real Plaud account.
+- `GET /api/health` returns `200` with `{ version: "0.4.15", auth.state: "healthy" }` against the operator's real Plaud account.
 - Bearer token saved via the web UI, auth validated with `/user/me`, encrypted at rest, survives restarts.
 - Manual sync and filtered backfill exercised against live Plaud. Latest confirmed state: 308 recordings in the account total, 215+ mirrored locally, `plaudTotal` + stable `#N` ranks populating correctly.
 - Device catalog populates after sync via `/device/list`; the backfill selector renders operator nicknames.
@@ -59,7 +59,7 @@ This is now verified on the actual `dev-vm`, not assumed.
 ## What Is Still Not Verified
 
 - **Real webhook delivery against a live downstream receiver.** No webhook URL has been configured in this environment yet; all recordings carry `lastWebhookStatus: "skipped"` because the service short-circuits when no URL is set. Once a receiver exists, confirm HMAC signature verification and persisted delivery attempts end-to-end.
-- **Unattended behavior from Phase 3 onward.** No scheduler loop, no retry/outbox, no automatic re-login. These are explicitly deferred by the roadmap and are not expected to work at `v0.4.13`.
+- **Unattended behavior from Phase 3 onward.** No scheduler loop, no retry/outbox, no automatic re-login. These are explicitly deferred by the roadmap and are not expected to work at `v0.4.15`.
 - **Multi-day stability.** The service has been restarted many times across sessions; no long uninterrupted run has been measured.
 
 ## Roadmap Boundary
