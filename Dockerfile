@@ -3,7 +3,11 @@ ARG RUNTIME_BASE_IMAGE=node:20-bookworm-slim
 
 FROM ${BUILD_BASE_IMAGE} AS build
 
-SHELL ["/bin/bash", "-lc"]
+# Use Docker's default /bin/sh for RUN. All the commands below are POSIX
+# (no arrays, no [[, no process substitution), so bash is unnecessary and
+# forcing it would break Alpine-based base images (which ship ash via
+# busybox, not bash). See docs/operations/DEPLOY_PLAYBOOK.md — alpine is
+# listed as an acceptable fallback.
 
 WORKDIR /app
 
@@ -27,7 +31,8 @@ RUN corepack npm run build:runtime \
 
 FROM ${RUNTIME_BASE_IMAGE} AS runtime
 
-SHELL ["/bin/bash", "-lc"]
+# Same reason as the build stage: POSIX /bin/sh suffices and keeps the
+# Alpine fallback documented in DEPLOY_PLAYBOOK actually executable.
 
 WORKDIR /app
 

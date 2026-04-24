@@ -1,4 +1,4 @@
-<!-- doc-version: 0.4.15 -->
+<!-- doc-version: 0.4.16 -->
 # LLM Start Guide - Plaud Mirror
 
 ## Read This First (Mandatory)
@@ -86,8 +86,8 @@ Recommended reading order:
 
 Source of truth: docs/llm/HANDOFF.md.
 - Last Updated: 2026-04-24 - Claude Opus 4.7
-- Working on: close three concrete drifts a second GPT-5 review flagged on 2026-04-24 — drifts that the LLM had already catalogued in `LLM-DocKit/docs/DOWNSTREAM_FEEDBACK.md` (DF-001, DF-002, DF-003) but left unrepaired in plaud-mirror itself. Writing the feedback entry is not the same as fixing the instance; this release closes that gap.
-- Status: `v0.4.15` is a governance cleanup release. `docs/operations/DEPLOY_PLAYBOOK.md` fallback block rewritten to match the policy in README / HANDOFF — Kali explicitly rejected, acceptable substitutes enumerated, `node:20-alpine` shown as example. `HOW_TO_USE.md` fully rewritten from its v0.1.0 "design baseline" body to a v0.4.15 reality body (Docker + local Node, tabs, backfill preview, device catalog, phase boundary, DOWNSTREAM_FEEDBACK pointer). `HOW_TO_USE.md` added to `docs/version-sync-manifest.yml` so the orphan-marker gap that kept it drifting for months is closed structurally — the validator now enforces its version marker, 20 targets up from 19. HANDOFF Current Status dropped its trailing "Next: rebuild + push" line because that forward-looking text was stale the moment the rebuild+push landed. "Verified Runtime State" version string bumped 0.4.13 → 0.4.15. `LLM_START_HERE.md` Current Focus re-synced. No code, no schema, no service change — 53/53 tests still pass.
+- Working on: close a residual code↔docs contradiction a third GPT-5 review found in v0.4.15: `docs/operations/DEPLOY_PLAYBOOK.md`, README, and HANDOFF all listed `node:20-alpine` as a valid Docker fallback, but the `Dockerfile` forced `SHELL ["/bin/bash", "-lc"]` in both build and runtime stages — and Alpine doesn't ship bash. An operator following the runbook would have hit a build error. Writing the runbook promise without verifying the codebase supports it is yet another instance of the DF-024 failure mode (documenting without verifying).
+- Status: `v0.4.16` removes both `SHELL ["/bin/bash", "-lc"]` directives from the Dockerfile. None of the existing `RUN` commands used bash-specific syntax (no arrays, no `[[`, no process substitution, just `&&` + `command -v` + `mkdir -p` + `chown` + `corepack npm`), so POSIX `/bin/sh -c` — Docker's default — is strictly more portable and also works on Alpine (busybox `ash`), Debian (`dash`), and any sane Linux base. Verified end-to-end locally: `docker build --build-arg BUILD_BASE_IMAGE=node:20-alpine --build-arg RUNTIME_BASE_IMAGE=node:20-alpine` succeeds, the resulting container starts, `GET /api/health` returns `200` with the expected body. Default `node:20-bookworm-slim` build also re-verified green. The documented Alpine fallback is now actually executable, not just aspirational. No code changes beyond the Dockerfile; 53/53 tests still pass.
 
 Keep this section synchronized with the "Current Status" block in docs/llm/HANDOFF.md.
 

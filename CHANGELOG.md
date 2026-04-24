@@ -4,6 +4,14 @@ All notable changes to Plaud Mirror are documented in this file.
 
 This project follows Semantic Versioning (SemVer): MAJOR.MINOR.PATCH.
 
+## [0.4.16] - 2026-04-24
+
+### Changed
+- `Dockerfile` drops the `SHELL ["/bin/bash", "-lc"]` directive from both the build and runtime stages. Docker's default `/bin/sh -c` is now used, which is POSIX-portable and works on Alpine (busybox `ash`), Debian/Ubuntu (`dash`), and any sane Linux base. The directive was unnecessary — none of the existing `RUN` commands use bash-specific syntax (no arrays, no `[[`, no process substitution, no `set -o pipefail` inside pipes; just `&&`, `command -v`, `mkdir -p`, `chown`, `corepack npm`).
+
+### Fixed
+- Documented Docker fallback `node:20-alpine` was not actually executable at v0.4.15 because the Dockerfile forced `SHELL ["/bin/bash", "-lc"]` and Alpine doesn't ship bash — an operator following `docs/operations/DEPLOY_PLAYBOOK.md` would have hit a build error, contradicting README and HANDOFF claims that alpine is a valid substitute. Removing the SHELL directive closes the contradiction: verified end-to-end locally by building with `--build-arg BUILD_BASE_IMAGE=node:20-alpine --build-arg RUNTIME_BASE_IMAGE=node:20-alpine`, running the resulting container, and confirming `GET /api/health` returns `200` with `version: "0.4.15"`. Default `node:20-bookworm-slim` build also re-verified green. GPT-5 flagged this on 2026-04-24 as the residual Docker contradiction after the v0.4.15 playbook rewrite.
+
 ## [0.4.15] - 2026-04-24
 
 ### Changed
