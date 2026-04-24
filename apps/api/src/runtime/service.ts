@@ -16,6 +16,7 @@ import {
   SyncRunSummarySchema,
   UpdateRuntimeConfigRequestSchema,
   WebhookPayloadSchema,
+  buildDownloadFilename,
   type AuthStatus,
   type BackfillCandidateState,
   type BackfillPreviewFilters,
@@ -342,7 +343,7 @@ export class PlaudMirrorService {
     });
   }
 
-  async getRecordingAudio(recordingId: string): Promise<{ path: string; contentType: string; size: number }> {
+  async getRecordingAudio(recordingId: string): Promise<{ path: string; contentType: string; size: number; filename: string }> {
     this.assertSafeRecordingId(recordingId);
 
     const recording = this.store.getRecording(recordingId);
@@ -375,6 +376,7 @@ export class PlaudMirrorService {
       path: absolutePath,
       contentType: recording.contentType ?? "application/octet-stream",
       size,
+      filename: buildDownloadFilename(recording.title, recording.localPath, recording.id),
     };
   }
 

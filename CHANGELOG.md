@@ -4,13 +4,31 @@ All notable changes to Plaud Mirror are documented in this file.
 
 This project follows Semantic Versioning (SemVer): MAJOR.MINOR.PATCH.
 
+## [0.4.17] - 2026-04-24
+
+### Added
+- `packages/shared/src/formatting.ts`: pure formatting helpers shared between the web panel and the API (`formatDuration`, `formatBytes`, `formatRecordingsMetric`, `computeMissing`, `formatDeviceLabel`, `formatDeviceShortName`, `coerceNonNegativeInteger`, `summarizeRun`, `describeBusy`, `buildDownloadFilename`). All deterministic, no side effects, no DOM, no fetch — exercisable by `node --test` alongside the rest of the backend suite.
+- `packages/shared/src/formatting.test.ts`: 12 new tests covering every helper, including the duration buckets, byte unit shifts, missing-recordings clamp on stale `plaudTotal`, device label fallbacks, and 11 cases for `buildDownloadFilename` (extension extraction, sanitisation, length cap, fallback to recording id, every extension Plaud ships).
+- `apps/api/src/server.ts` `buildContentDisposition()` helper: builds an RFC 5987 `Content-Disposition` header with both ASCII-fallback `filename=` and UTF-8 `filename*=` for non-ASCII titles. Tested with quotation/backslash escaping and accented characters.
+- `apps/api/src/server.test.ts`: extended audio-route test asserts the new `Content-Disposition: inline; filename="..."; filename*=UTF-8''...` header is emitted; new unit test for `buildContentDisposition` covers ASCII fallback, UTF-8 encoding, and quote/backslash escaping.
+
+### Changed
+- `apps/web/src/App.tsx` no longer carries local copies of `formatDuration`, `formatBytes`, `formatRecordingsMetric`, `computeMissing`, `formatDeviceLabel`, `formatDeviceShortName`, `coerceNonNegativeInteger`, `summarizeRun`, `describeBusy`. They now import from `@plaud-mirror/shared`. Behavior is preserved except where the test caught a latent edge case (see Fixed below). `readTab`, `readBackfillExpanded`, and `toErrorMessage` stay local because they touch `localStorage` / `Error` instanceof checks that are web-runtime-specific.
+- `apps/api/src/runtime/service.ts` `getRecordingAudio()` return shape now includes `filename: string`, derived from `buildDownloadFilename(title, localPath, id)`. Server route uses it.
+- `HOW_TO_USE.md` body referenced `v0.4.15` and `53/53 tests at v0.4.15` — both stale at v0.4.16. Now reflects the current `v0.4.17` reality and `66/66 tests` (12 new helper tests + 1 new server-header test added on top of the 53). Same prose-drift class GPT-5 caught for the third time; tracked in DOWNSTREAM_FEEDBACK as DF-006.
+- CHANGELOG `[0.4.16]` Fixed paragraph clarified: the verification phrase "`GET /api/health` returns `200` with `version: "0.4.15"`" was technically correct (verification ran against the in-progress working tree BEFORE the bump) but read as an inconsistency for a reader of the v0.4.16 entry. The clarified text now spells out the timeline.
+
+### Fixed
+- Browser native `<audio>` "More options → Download" menu now saves a sensible filename. Previously the download landed as a file literally named `audio` with no extension, because our `/api/recordings/:id/audio` endpoint emitted no `Content-Disposition` and the browser fell back to the URL's last segment. Now the response carries `Content-Disposition: inline; filename="<safe-title>.<ext>"; filename*=UTF-8''<encoded>` with extension derived from the on-disk `localPath` (mp3, ogg, m4a, wav). Title sanitisation: replace anything outside `[A-Za-z0-9_.-]` with `_`, collapse repeats, trim edges, cap at 80 chars; empty/whitespace title falls back to the recording id. Reported by the operator on 2026-04-24.
+- `coerceNonNegativeInteger("", fallback)` returned `0` because `Number("")` is `0` (a JS quirk), so clearing the sync-limit input silently downgraded the next run to refresh-only. Now returns the fallback when the input is empty or whitespace-only. Operator can still type `0` explicitly when they want a refresh-only run; clearing the field reverts to `defaultSyncLimit`. Caught by the new helper test.
+
 ## [0.4.16] - 2026-04-24
 
 ### Changed
 - `Dockerfile` drops the `SHELL ["/bin/bash", "-lc"]` directive from both the build and runtime stages. Docker's default `/bin/sh -c` is now used, which is POSIX-portable and works on Alpine (busybox `ash`), Debian/Ubuntu (`dash`), and any sane Linux base. The directive was unnecessary — none of the existing `RUN` commands use bash-specific syntax (no arrays, no `[[`, no process substitution, no `set -o pipefail` inside pipes; just `&&`, `command -v`, `mkdir -p`, `chown`, `corepack npm`).
 
 ### Fixed
-- Documented Docker fallback `node:20-alpine` was not actually executable at v0.4.15 because the Dockerfile forced `SHELL ["/bin/bash", "-lc"]` and Alpine doesn't ship bash — an operator following `docs/operations/DEPLOY_PLAYBOOK.md` would have hit a build error, contradicting README and HANDOFF claims that alpine is a valid substitute. Removing the SHELL directive closes the contradiction: verified end-to-end locally by building with `--build-arg BUILD_BASE_IMAGE=node:20-alpine --build-arg RUNTIME_BASE_IMAGE=node:20-alpine`, running the resulting container, and confirming `GET /api/health` returns `200` with `version: "0.4.15"`. Default `node:20-bookworm-slim` build also re-verified green. GPT-5 flagged this on 2026-04-24 as the residual Docker contradiction after the v0.4.15 playbook rewrite.
+- Documented Docker fallback `node:20-alpine` was not actually executable at v0.4.15 because the Dockerfile forced `SHELL ["/bin/bash", "-lc"]` and Alpine doesn't ship bash — an operator following `docs/operations/DEPLOY_PLAYBOOK.md` would have hit a build error, contradicting README and HANDOFF claims that alpine is a valid substitute. Removing the SHELL directive closes the contradiction: verified end-to-end locally by building with `--build-arg BUILD_BASE_IMAGE=node:20-alpine --build-arg RUNTIME_BASE_IMAGE=node:20-alpine`, running the resulting container, and confirming `GET /api/health` returns `200` (the verification was performed against the in-progress v0.4.15 working tree before the bump to v0.4.16; the same container path was re-built at v0.4.16 after the bump and container `cat /app/VERSION` returns `0.4.16` on `dev-vm`). Default `node:20-bookworm-slim` build also re-verified green. GPT-5 flagged this on 2026-04-24 as the residual Docker contradiction after the v0.4.15 playbook rewrite.
 
 ## [0.4.15] - 2026-04-24
 

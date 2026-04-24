@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
-import { createApp, parseByteRange } from "./server.js";
+import { buildContentDisposition, createApp, parseByteRange } from "./server.js";
 import type { ServerEnvironment } from "./runtime/environment.js";
 
 function createJsonResponse(payload: unknown, status = 200): Response {
@@ -213,6 +213,22 @@ test("createApp exposes audio streaming, delete, and restore routes for mirrored
   await app.close();
 });
 
+test("buildContentDisposition emits ASCII + UTF-8 filenames and escapes unsafe chars", () => {
+  assert.equal(
+    buildContentDisposition("Weekly_meeting.mp3"),
+    `inline; filename="Weekly_meeting.mp3"; filename*=UTF-8''Weekly_meeting.mp3`,
+  );
+  // Non-ASCII source: ASCII fallback replaces each outside-printable char
+  // with `_`; the UTF-8 form carries the full encoded value.
+  const disp = buildContentDisposition("Reunión.mp3");
+  assert.match(disp, /filename="Reuni_n\.mp3"/);
+  assert.match(disp, /filename\*=UTF-8''Reuni%C3%B3n\.mp3/);
+  // Quote and backslash are collapsed in the ASCII fallback so they can't
+  // break out of the quoted string.
+  const danger = buildContentDisposition('a"b\\c.mp3');
+  assert.match(danger, /filename="a_b_c\.mp3"/);
+});
+
 test("parseByteRange handles the four RFC 7233 single-range shapes and rejects garbage", () => {
   assert.deepEqual(parseByteRange("bytes=0-999", 5000), { start: 0, end: 999 });
   assert.deepEqual(parseByteRange("bytes=500-", 5000), { start: 500, end: 4999 });
@@ -275,6 +291,12 @@ test("audio endpoint supports HTTP Range requests with 206 Partial Content", asy
   assert.equal(fullResponse.headers["accept-ranges"], "bytes");
   assert.equal(fullResponse.headers["content-length"], String(fileBody.length));
   assert.equal(fullResponse.headers["content-type"], "audio/mpeg");
+  const disposition = fullResponse.headers["content-disposition"];
+  assert.ok(typeof disposition === "string", "content-disposition must be present");
+  assert.match(disposition as string, /^inline;/);
+  // Title is "Range probe" → sanitised to "Range_probe.mp3".
+  assert.match(disposition as string, /filename="Range_probe\.mp3"/);
+  assert.match(disposition as string, /filename\*=UTF-8''Range_probe\.mp3/);
   assert.equal(fullResponse.body, fileBody);
 
   const rangedResponse = await app.inject({

@@ -114,10 +114,20 @@ export async function createApp(options: CreateAppOptions = {}) {
 
   app.get("/api/recordings/:id/audio", async (request, reply) => {
     const id = (request.params as { id: string }).id;
-    const { path, contentType, size } = await service.getRecordingAudio(id);
+    const { path, contentType, size, filename } = await service.getRecordingAudio(id);
 
     reply.header("accept-ranges", "bytes");
     reply.header("cache-control", "private, max-age=0, must-revalidate");
+    // Content-Disposition controls the default filename when the operator
+    // uses the browser's native `<audio>` → "Download" menu. Without it the
+    // browser derives the name from the URL's last segment ("audio") and
+    // saves a file with no extension. We emit both `filename=` (quoted,
+    // ASCII-safe) and `filename*=UTF-8''<encoded>` per RFC 5987 so non-ASCII
+    // titles still resolve correctly on browsers that honour the encoded
+    // form. `inline` — not `attachment` — so the browser still renders the
+    // audio element by default; the filename only applies to the explicit
+    // download action.
+    reply.header("content-disposition", buildContentDisposition(filename));
     reply.type(contentType);
 
     const rangeHeader = request.headers.range;
@@ -212,6 +222,27 @@ function parseLimit(input: string | number | undefined): number {
   }
 
   return Math.min(value, 200);
+}
+
+export function buildContentDisposition(filename: string): string {
+  // RFC 5987: the unquoted `filename=` is limited to ASCII, so we build a
+  // fallback by stripping anything outside printable ASCII and guarding
+  // against quote injection. The `filename*=` form carries the full UTF-8
+  // name percent-encoded, which modern browsers prefer when present.
+  const asciiFallback = filename
+    .replace(/[^\x20-\x7E]/g, "_")
+    .replace(/["\\]/g, "_");
+  const encoded = encodeRFC5987(filename);
+  return `inline; filename="${asciiFallback}"; filename*=UTF-8''${encoded}`;
+}
+
+function encodeRFC5987(value: string): string {
+  // Per RFC 5987, encode everything that isn't in the `attr-char` set.
+  return encodeURIComponent(value)
+    .replace(/['()]/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`)
+    .replace(/\*/g, "%2A")
+    // `encodeURIComponent` leaves `!` unescaped but it's fine under RFC 5987.
+    .replace(/%(?:7C|60|5E)/g, (pct) => pct.toLowerCase());
 }
 
 function parseSkip(input: string | number | undefined): number {

@@ -1,13 +1,22 @@
 import { FormEvent, useEffect, useState } from "react";
 
-import type {
-  AuthStatus,
-  BackfillPreviewResponse,
-  Device,
-  RecordingMirror,
-  RuntimeConfig,
-  ServiceHealth,
-  SyncRunSummary,
+import {
+  coerceNonNegativeInteger,
+  computeMissing,
+  describeBusy,
+  formatBytes,
+  formatDeviceLabel,
+  formatDeviceShortName,
+  formatDuration,
+  formatRecordingsMetric,
+  summarizeRun,
+  type AuthStatus,
+  type BackfillPreviewResponse,
+  type Device,
+  type RecordingMirror,
+  type RuntimeConfig,
+  type ServiceHealth,
+  type SyncRunSummary,
 } from "@plaud-mirror/shared";
 
 interface ApiErrorResponse {
@@ -1007,27 +1016,6 @@ function formatDateTime(value: string | null | undefined): string {
   return new Date(value).toLocaleString();
 }
 
-function summarizeRun(label: string, summary: SyncRunSummary): string {
-  return `${label}: ${summary.status}, matched ${summary.matched}, downloaded ${summary.downloaded}, delivered ${summary.delivered}`;
-}
-
-function describeBusy(activeRunId: string | null, activeRun: SyncRunSummary | null): string {
-  if (activeRunId && activeRun?.id === activeRunId && activeRun.status === "running") {
-    const matched = activeRun.matched;
-    const downloaded = activeRun.downloaded;
-    const examined = activeRun.examined;
-    const plaudTotal = activeRun.plaudTotal;
-    if (matched > 0) {
-      return `Sync running: downloaded ${downloaded} of ${matched} candidates so far (examined ${examined}${plaudTotal ? ` / ${plaudTotal} in Plaud` : ""}).`;
-    }
-    if (examined > 0) {
-      return `Sync running: examined ${examined}${plaudTotal ? ` / ${plaudTotal} in Plaud` : ""}, picking candidates…`;
-    }
-    return "Sync running: fetching Plaud listing…";
-  }
-  return "Working… the panel will refresh when the operation completes.";
-}
-
 function readTab(): "main" | "config" {
   try {
     const saved = window.localStorage?.getItem("plaud-mirror:active-tab");
@@ -1045,124 +1033,6 @@ function readBackfillExpanded(): boolean {
   } catch {
     return false;
   }
-}
-
-function coerceNonNegativeInteger(value: string, fallback: number): number {
-  const parsed = Number(value);
-  return Number.isInteger(parsed) && parsed >= 0 ? parsed : fallback;
-}
-
-// Short display for a device inside dense UI (e.g. a table row). Prefers the
-// operator-set nickname since that is usually short and immediately
-// recognizable ("Office", "Travel"). Falls back to model + serial tail when
-// no nickname is set, and to a compact serial slug when the device isn't in
-// the catalog at all (retired device, or preview fired before the first
-// sync populated /api/devices).
-function formatDeviceShortName(
-  serialNumber: string | null,
-  catalog: Map<string, Device>,
-): string {
-  if (!serialNumber) {
-    return "—";
-  }
-  const tail = serialNumber.length > 6 ? serialNumber.slice(-6) : serialNumber;
-  const device = catalog.get(serialNumber);
-  if (device?.displayName) {
-    return device.displayName;
-  }
-  if (device?.model) {
-    return `PLAUD ${device.model}`;
-  }
-  return `PLAUD-${tail}`;
-}
-
-// Build the dropdown label for one device. We never render the raw serial as
-// the primary identifier — it is long, opaque, and the operator's own name is
-// more useful. Fallbacks: displayName → "<model>" → "PLAUD-<serial>". Always
-// tail with the last 6 chars of the serial so the operator can disambiguate
-// two devices that share a name ("Office" / "Office").
-function formatDeviceLabel(device: Device): string {
-  const tail = device.serialNumber.length > 6
-    ? device.serialNumber.slice(-6)
-    : device.serialNumber;
-  const tailSuffix = ` (#${tail})`;
-  if (device.displayName) {
-    return device.model
-      ? `${device.displayName} — ${device.model}${tailSuffix}`
-      : `${device.displayName}${tailSuffix}`;
-  }
-  if (device.model) {
-    return `PLAUD ${device.model}${tailSuffix}`;
-  }
-  return `PLAUD-${tail}`;
-}
-
-function formatRecordingsMetric(localCount: number, remoteTotal: number | null): string {
-  if (remoteTotal === null) {
-    return String(localCount);
-  }
-  return `${localCount} / ${remoteTotal}`;
-}
-
-function computeMissing(health: ServiceHealth | null): string {
-  const plaudTotal = health?.lastSync?.plaudTotal ?? null;
-  if (plaudTotal === null) {
-    return "unknown until first sync";
-  }
-  const mirrored = health?.recordingsCount ?? 0;
-  const dismissed = health?.dismissedCount ?? 0;
-  const missing = plaudTotal - mirrored - dismissed;
-  if (missing < 0) {
-    // plaudTotal was captured at the last sync, mirrored/dismissed are live counts.
-    // If plaudTotal is stale (e.g. a recording was deleted in Plaud after the last sync),
-    // the subtraction can go negative. Show 0 rather than confuse the operator.
-    return "0 (last sync may be stale)";
-  }
-  return String(missing);
-}
-
-function formatDuration(totalSeconds: number): string {
-  if (!Number.isFinite(totalSeconds) || totalSeconds <= 0) {
-    return "0s";
-  }
-
-  const seconds = Math.round(totalSeconds);
-
-  if (seconds < 60) {
-    return `${seconds}s`;
-  }
-
-  const minutes = Math.floor(seconds / 60);
-  const remainderSeconds = seconds % 60;
-  const paddedSeconds = String(remainderSeconds).padStart(2, "0");
-
-  if (seconds < 3600) {
-    return `${minutes}:${paddedSeconds}`;
-  }
-
-  const hours = Math.floor(seconds / 3600);
-  const remainderMinutes = minutes % 60;
-  const paddedMinutes = String(remainderMinutes).padStart(2, "0");
-
-  return `${hours}:${paddedMinutes}:${paddedSeconds}`;
-}
-
-function formatBytes(value: number): string {
-  if (value <= 0) {
-    return "0 B";
-  }
-  if (value < 1024) {
-    return `${value} B`;
-  }
-  const kb = value / 1024;
-  if (kb < 1024) {
-    return `${kb.toFixed(1)} KB`;
-  }
-  const mb = kb / 1024;
-  if (mb < 1024) {
-    return `${mb.toFixed(1)} MB`;
-  }
-  return `${(mb / 1024).toFixed(2)} GB`;
 }
 
 function toErrorMessage(error: unknown): string {
