@@ -410,7 +410,7 @@ export function App() {
         </section>
       </div>
 
-      <div className="grid two-up">
+      <div className="stack-sections">
         <section className="card">
           <header className="card-header">
             <div>
@@ -552,6 +552,7 @@ export function App() {
                 to: backfill.to,
                 serialNumber: backfill.serialNumber,
               }}
+              devices={devices}
             />
 
             <button type="submit" disabled={busy}>
@@ -699,8 +700,18 @@ interface BackfillPreviewFilters {
 // Shows the operator what a backfill with the current filters would touch,
 // BEFORE they click "Run filtered backfill". Calls the dry-run endpoint
 // debounced by 500 ms so rapid filter edits don't spam Plaud. The component
-// owns its own state — the parent only hands it the current filter draft.
-function BackfillPreview({ filters }: { filters: BackfillPreviewFilters }) {
+// owns its own state — the parent only hands it the current filter draft
+// and the device catalog so each row can render the device's friendly name
+// instead of the raw serial.
+function BackfillPreview({
+  filters,
+  devices,
+}: {
+  filters: BackfillPreviewFilters;
+  devices: Device[];
+}) {
+  // Map once per render. Cheap and the catalog rarely exceeds a handful.
+  const deviceBySerial = new Map(devices.map((device) => [device.serialNumber, device]));
   const [preview, setPreview] = useState<BackfillPreviewResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -778,6 +789,14 @@ function BackfillPreview({ filters }: { filters: BackfillPreviewFilters }) {
         <>
           <div className="preview-table-wrap">
             <table className="preview-table">
+              <colgroup>
+                <col className="col-rank" />
+                <col />
+                <col className="col-date" />
+                <col className="col-duration" />
+                <col className="col-device" />
+                <col className="col-state" />
+              </colgroup>
               <thead>
                 <tr>
                   <th>#</th>
@@ -795,7 +814,9 @@ function BackfillPreview({ filters }: { filters: BackfillPreviewFilters }) {
                     <td className="preview-title">{row.title}</td>
                     <td>{formatDateTime(row.createdAt)}</td>
                     <td>{formatDuration(row.durationSeconds)}</td>
-                    <td className="preview-serial">{row.serialNumber ?? "—"}</td>
+                    <td className="preview-device">
+                      {formatDeviceShortName(row.serialNumber, deviceBySerial)}
+                    </td>
                     <td><StateBadge state={row.state} /></td>
                   </tr>
                 ))}
@@ -941,6 +962,30 @@ function describeBusy(activeRunId: string | null, activeRun: SyncRunSummary | nu
 function coerceNonNegativeInteger(value: string, fallback: number): number {
   const parsed = Number(value);
   return Number.isInteger(parsed) && parsed >= 0 ? parsed : fallback;
+}
+
+// Short display for a device inside dense UI (e.g. a table row). Prefers the
+// operator-set nickname since that is usually short and immediately
+// recognizable ("Office", "Travel"). Falls back to model + serial tail when
+// no nickname is set, and to a compact serial slug when the device isn't in
+// the catalog at all (retired device, or preview fired before the first
+// sync populated /api/devices).
+function formatDeviceShortName(
+  serialNumber: string | null,
+  catalog: Map<string, Device>,
+): string {
+  if (!serialNumber) {
+    return "—";
+  }
+  const tail = serialNumber.length > 6 ? serialNumber.slice(-6) : serialNumber;
+  const device = catalog.get(serialNumber);
+  if (device?.displayName) {
+    return device.displayName;
+  }
+  if (device?.model) {
+    return `PLAUD ${device.model}`;
+  }
+  return `PLAUD-${tail}`;
 }
 
 // Build the dropdown label for one device. We never render the raw serial as

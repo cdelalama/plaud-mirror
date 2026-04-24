@@ -4,6 +4,13 @@ All notable changes to Plaud Mirror are documented in this file.
 
 This project follows Semantic Versioning (SemVer): MAJOR.MINOR.PATCH.
 
+## [0.4.13] - 2026-04-24
+
+### Changed
+- Controls section layout. Manual sync and Historical backfill were sharing a two-column grid (`.two-up`), but the backfill preview table couldn't fit in half the viewport and overflowed horizontally. Both cards now stack full-width in the new `.stack-sections` container, giving the preview enough room to render without horizontal scroll.
+- Device column in the backfill preview now shows the operator's nickname ("Office", "Travel") pulled from the device catalog instead of the raw serial number. Falls back to `PLAUD <model>` when a device has no nickname and to `PLAUD-<tail6>` when the serial isn't in the catalog (retired device, or preview fired before the first sync). New helper `formatDeviceShortName(serialNumber, catalog)` on the web side; `BackfillPreview` now receives `devices` as a prop.
+- Preview table uses `<colgroup>` with fixed widths (`#`, Date, Duration, Device, State) so Title is the only flex column. Combined with `table-layout: fixed` and per-cell `overflow: hidden; text-overflow: ellipsis`, the table fits inside the card without horizontal scroll. Vertical scroll (`max-height: 360px`) is unchanged.
+
 ## [0.4.12] - 2026-04-24
 
 ### Added

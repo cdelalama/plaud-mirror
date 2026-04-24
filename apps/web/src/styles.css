@@ -452,6 +452,16 @@ input {
   }
 }
 
+/* Vertical stack for Manual sync + Historical backfill. Previously these
+   lived in a `.two-up` grid; the backfill preview table doesn't fit in a
+   half-width card, and keeping them stacked full-width also lets wide
+   recording titles breathe. */
+.stack-sections {
+  display: grid;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
 .preview-panel {
   border: 1px solid var(--card-border);
   border-radius: 14px;
@@ -465,15 +475,20 @@ input {
   font-size: 0.9rem;
 }
 
+/* Vertical scroll is fine (long lists), horizontal is NOT — the layout
+   change moved Historical backfill to a full-width card precisely to
+   eliminate the overflow. If an extra-long title appears it ellipsises via
+   `.preview-title`; other columns are nowrap and sized to fit. */
 .preview-table-wrap {
-  overflow-x: auto;
-  max-height: 320px;
+  max-height: 360px;
   overflow-y: auto;
+  overflow-x: hidden;
   border-radius: 10px;
 }
 
 .preview-table {
   width: 100%;
+  table-layout: fixed;
   border-collapse: collapse;
   font-size: 0.85rem;
 }
@@ -484,6 +499,8 @@ input {
   text-align: left;
   border-bottom: 1px solid var(--card-border);
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .preview-table thead th {
@@ -497,22 +514,28 @@ input {
   letter-spacing: 0.03em;
 }
 
+/* Fixed-width columns keep the table inside the card even on narrower
+   viewports. Title flexes to consume what's left. */
+.preview-table col.col-rank { width: 3.5rem; }
+.preview-table col.col-date { width: 10rem; }
+.preview-table col.col-duration { width: 5rem; }
+.preview-table col.col-device { width: 10rem; }
+.preview-table col.col-state { width: 7.5rem; }
+
 .preview-rank {
   font-variant-numeric: tabular-nums;
   color: var(--muted);
-  width: 3.5rem;
 }
 
 .preview-title {
-  max-width: 22rem;
+  /* Title column is the one that takes remaining space and ellipsises. */
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.preview-serial {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 0.78rem;
-  color: var(--muted);
+.preview-device {
+  color: var(--ink);
+  font-size: 0.82rem;
 }
 
 .state-badge {
