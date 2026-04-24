@@ -4,6 +4,16 @@ All notable changes to Plaud Mirror are documented in this file.
 
 This project follows Semantic Versioning (SemVer): MAJOR.MINOR.PATCH.
 
+## [0.4.14] - 2026-04-24
+
+### Added
+- Tab bar above the card grid with two tabs: **Main** (Manual sync + Historical backfill + Library) and **Configuration** (Plaud token + Webhook delivery). Active tab persists in `localStorage` (`plaud-mirror:active-tab`) so a refresh keeps the operator where they were. Default is **Main**.
+- Historical backfill card is now **collapsible**. Header is clickable (plus Enter/Space keyboard support) and shows a caret. Default state is **collapsed** — expanding the card triggers the `/api/backfill/candidates` preview, so keeping it closed on first load avoids hitting Plaud with a preview query nobody asked for. Expanded/collapsed state persists in `localStorage` (`plaud-mirror:backfill-expanded`).
+
+### Changed
+- Panel information architecture split into setup (Configuration tab) and day-to-day use (Main tab). Previously everything was on one scroll; the Configuration surface is rarely revisited after first setup and was adding vertical noise.
+- `BackfillPreview` component is only mounted when the Historical backfill card is expanded. Its `useEffect` (debounced fetch on filter change) therefore does not fire while the card is collapsed — no wasted Plaud call.
+
 ## [0.4.13] - 2026-04-24
 
 ### Changed

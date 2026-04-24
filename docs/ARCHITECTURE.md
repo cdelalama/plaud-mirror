@@ -1,9 +1,9 @@
-<!-- doc-version: 0.4.13 -->
+<!-- doc-version: 0.4.14 -->
 # Plaud Mirror Architecture
 
-> Version: 0.4.13
+> Version: 0.4.14
 > Last Updated: 2026-04-24
-> Status: Phase 2 vertical slice (extended through 0.4.x with local curation, UX polish, Mode B sync, classic pagination, stable sequence numbers, async sync with live-progress polling, cached device catalog backing the backfill selector, backfill dry-run preview, and full-width Controls stack)
+> Status: Phase 2 vertical slice (extended through 0.4.x with local curation, UX polish, Mode B sync, classic pagination, stable sequence numbers, async sync with live-progress polling, cached device catalog backing the backfill selector, backfill dry-run preview, full-width Controls stack, and a Main/Configuration tab split with a collapsible Historical backfill card)
 
 ## Overview
 

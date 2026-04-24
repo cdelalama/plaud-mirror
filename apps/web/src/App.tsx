@@ -53,6 +53,29 @@ export function App() {
   const [totalRecordings, setTotalRecordings] = useState(0);
   const [activeRunId, setActiveRunId] = useState<string | null>(null);
   const [devices, setDevices] = useState<Device[]>([]);
+  // Tab state persists so a page refresh keeps the operator in whichever
+  // surface they were using. Default "main" on first load.
+  const [activeTab, setActiveTab] = useState<"main" | "config">(() => readTab());
+  // Historical backfill defaults COLLAPSED because expanding triggers a
+  // /api/backfill/candidates call against Plaud; a fresh page load should
+  // not hit the wire until the operator asks for the backfill surface.
+  const [backfillExpanded, setBackfillExpanded] = useState<boolean>(() => readBackfillExpanded());
+
+  useEffect(() => {
+    try {
+      window.localStorage?.setItem("plaud-mirror:active-tab", activeTab);
+    } catch {
+      // localStorage may be unavailable (private browsing, sandbox). Non-fatal.
+    }
+  }, [activeTab]);
+
+  useEffect(() => {
+    try {
+      window.localStorage?.setItem("plaud-mirror:backfill-expanded", String(backfillExpanded));
+    } catch {
+      // same
+    }
+  }, [backfillExpanded]);
 
   useEffect(() => {
     void refreshSnapshot();
@@ -331,10 +354,32 @@ export function App() {
         </div>
       </div>
 
+      <div className="tab-bar" role="tablist">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === "main"}
+          className={activeTab === "main" ? "tab tab-active" : "tab"}
+          onClick={() => setActiveTab("main")}
+        >
+          Main
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === "config"}
+          className={activeTab === "config" ? "tab tab-active" : "tab"}
+          onClick={() => setActiveTab("config")}
+        >
+          Configuration
+        </button>
+      </div>
+
       {busy ? <Banner tone="info" message={describeBusy(activeRunId, health?.activeRun ?? null)} /> : null}
       {operationError ? <Banner tone="error" message={operationError} /> : null}
       {operationResult ? <Banner tone="success" message={operationResult} /> : null}
 
+      {activeTab === "config" ? (
       <div className="grid two-up">
         <section className="card">
           <header className="card-header">
@@ -409,7 +454,10 @@ export function App() {
           </form>
         </section>
       </div>
+      ) : null}
 
+      {activeTab === "main" ? (
+      <>
       <div className="stack-sections">
         <section className="card">
           <header className="card-header">
@@ -488,13 +536,30 @@ export function App() {
           </div>
         </section>
 
-        <section className="card">
-          <header className="card-header">
+        <section className={`card${backfillExpanded ? "" : " card-collapsed"}`}>
+          <header
+            className="card-header card-header-collapsible"
+            role="button"
+            tabIndex={0}
+            aria-expanded={backfillExpanded}
+            onClick={() => setBackfillExpanded((v) => !v)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                setBackfillExpanded((v) => !v);
+              }
+            }}
+          >
             <div>
               <p className="kicker">Controls</p>
               <h2>Historical backfill</h2>
             </div>
+            <span className="collapse-caret" aria-hidden="true">
+              {backfillExpanded ? "▼" : "▶"}
+            </span>
           </header>
+          {backfillExpanded ? (
+          <>
           <p className="muted">
             Same behavior as Manual sync (download up to N missing, newest
             first), but only from recordings that match the filters below.
@@ -562,6 +627,8 @@ export function App() {
               <p className="inline-status">{describeBusy(activeRunId, health.activeRun)}</p>
             ) : null}
           </form>
+          </>
+          ) : null}
         </section>
       </div>
 
@@ -687,6 +754,8 @@ export function App() {
           </div>
         ) : null}
       </section>
+      </>
+      ) : null}
     </div>
   );
 }
@@ -957,6 +1026,25 @@ function describeBusy(activeRunId: string | null, activeRun: SyncRunSummary | nu
     return "Sync running: fetching Plaud listing…";
   }
   return "Working… the panel will refresh when the operation completes.";
+}
+
+function readTab(): "main" | "config" {
+  try {
+    const saved = window.localStorage?.getItem("plaud-mirror:active-tab");
+    return saved === "config" ? "config" : "main";
+  } catch {
+    return "main";
+  }
+}
+
+function readBackfillExpanded(): boolean {
+  try {
+    const saved = window.localStorage?.getItem("plaud-mirror:backfill-expanded");
+    // Default is false (collapsed). Only "true" opts in.
+    return saved === "true";
+  } catch {
+    return false;
+  }
 }
 
 function coerceNonNegativeInteger(value: string, fallback: number): number {

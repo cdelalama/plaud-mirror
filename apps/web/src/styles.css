@@ -560,3 +560,66 @@ input {
   background: rgba(141, 91, 24, 0.15);
   color: var(--warn);
 }
+
+/* Tab bar: minimal, underlined active tab. Tabs are <button>s so we need
+   to reset the gradient/pill styling inherited from the global `button`
+   rule. */
+.tab-bar {
+  display: flex;
+  gap: 0.25rem;
+  margin-bottom: 1rem;
+  border-bottom: 1px solid var(--card-border);
+}
+
+.tab {
+  background: transparent;
+  color: var(--muted);
+  border: none;
+  border-radius: 0;
+  border-bottom: 2px solid transparent;
+  padding: 0.65rem 1.1rem;
+  box-shadow: none;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.95rem;
+  margin-bottom: -1px;
+  transition: color 120ms ease, border-color 120ms ease;
+}
+
+.tab:hover:not(:disabled) {
+  transform: none;
+  color: var(--ink);
+}
+
+.tab-active,
+.tab-active:hover:not(:disabled) {
+  color: var(--accent-strong);
+  border-bottom-color: var(--accent);
+}
+
+.card-header-collapsible {
+  cursor: pointer;
+  user-select: none;
+  align-items: center;
+}
+
+.card-header-collapsible:hover {
+  opacity: 0.9;
+}
+
+.card-header-collapsible:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 10px;
+}
+
+.collapse-caret {
+  font-size: 0.75rem;
+  color: var(--muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  margin-left: 0.5rem;
+}
+
+.card-collapsed .card-header {
+  margin-bottom: 0;
+}

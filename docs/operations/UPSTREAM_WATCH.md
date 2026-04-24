@@ -1,4 +1,4 @@
-<!-- doc-version: 0.4.13 -->
+<!-- doc-version: 0.4.14 -->
 # Upstream Watch Playbook
 
 This runbook defines how Plaud Mirror detects and reviews changes in tracked upstream repositories.
