@@ -46,26 +46,21 @@ This is now verified on the actual `dev-vm`, not assumed.
 
 ## Verified Runtime State
 
-- `docker compose up --build -d`: verified locally on `dev-vm`
-- Container: `plaud-mirror-plaud-mirror-1` is up
-- Port binding: `0.0.0.0:3040->3040`
-- Health check: `GET /api/health` returns `200`
-- Current health payload is expected:
-  - service healthy
-  - no Plaud token configured yet
-  - no recordings mirrored yet
-- Persistent paths:
-  - `runtime/data`
-  - `runtime/recordings`
+- Container `plaud-mirror-plaud-mirror-1` is up on `dev-vm`, port `3040` bound, running as `USER 1000:1000`.
+- `GET /api/health` returns `200` with `{ version: "0.4.13", auth.state: "healthy" }` against the operator's real Plaud account.
+- Bearer token saved via the web UI, auth validated with `/user/me`, encrypted at rest, survives restarts.
+- Manual sync and filtered backfill exercised against live Plaud. Latest confirmed state: 308 recordings in the account total, 215+ mirrored locally, `plaudTotal` + stable `#N` ranks populating correctly.
+- Device catalog populates after sync via `/device/list`; the backfill selector renders operator nicknames.
+- `GET /api/backfill/candidates` returns annotated dry-run results against the live account (`state: "missing" | "mirrored" | "dismissed"`).
+- Inline audio playback via `<audio>` + HTTP Range works from the library.
+- Async sync (`POST /api/sync/run` → `202 → GET /api/sync/runs/:id` polling) verified: the panel surfaces `downloaded X of Y` live while a run is in flight.
+- Persistent paths: `runtime/data` (SQLite + encrypted secrets) and `runtime/recordings` (audio artifacts).
 
 ## What Is Still Not Verified
 
-- Real Plaud bearer token validation through the web UI
-- Real filtered backfill against live Plaud metadata
-- Real webhook delivery into the downstream receiver
-- Any unattended behavior from Phase 3 onward
-
-Do not speak as if Plaud audio has already been mirrored in this environment. The stack is up, but live Plaud validation is still pending.
+- **Real webhook delivery against a live downstream receiver.** No webhook URL has been configured in this environment yet; all recordings carry `lastWebhookStatus: "skipped"` because the service short-circuits when no URL is set. Once a receiver exists, confirm HMAC signature verification and persisted delivery attempts end-to-end.
+- **Unattended behavior from Phase 3 onward.** No scheduler loop, no retry/outbox, no automatic re-login. These are explicitly deferred by the roadmap and are not expected to work at `v0.4.13`.
+- **Multi-day stability.** The service has been restarted many times across sessions; no long uninterrupted run has been measured.
 
 ## Roadmap Boundary
 
@@ -86,17 +81,17 @@ The six items GPT-5 flagged in the 2026-04-23 review are closed:
 
 ## Top Priorities
 
-1. Run the Phase 2 stack on `dev-vm` with a real Plaud token and validate the full UI flow.
-2. Confirm that filtered backfill works against real Plaud metadata, especially `serialNumber` and `scene`.
+1. Run the Phase 2 stack on `dev-vm` with a real Plaud token and validate the full UI flow. Backend schema still accepts `scene` for programmatic callers; the UI now hides it.
+2. Confirm that filtered backfill works against real Plaud metadata, especially `serialNumber` and date-range filters (these are the filters the UI surfaces).
 3. Confirm webhook delivery against the real downstream target.
 4. Create the Doppler project `plaud-mirror` before moving past `dev-vm`.
 5. Start Phase 3 only after the live Phase 2 validation is documented.
 
 ## Open Questions
 
-- Which non-date backfill filters remain worth exposing after real Plaud validation?
 - What retry and scheduler defaults are safe enough for Phase 3?
 - Can automatic re-login be implemented without browser automation?
+- If `scene` filtering turns out to be useful with real operator experience, how would we surface it? A smart dropdown of scene values observed in the account (via `SELECT DISTINCT scene FROM recordings`) is one option; another is discovering a Plaud-provided mapping of scene numbers to human labels.
 
 ## Confirmed Product Direction
 

@@ -42,6 +42,8 @@ plaud-mirror/
 |  +- llm/
 |  +- operations/
 +- scripts/
++- config/
+|  +- upstreams.tsv
 +- tests/
 |  +- integration/
 ```
@@ -69,16 +71,20 @@ These paths are expected at runtime and should remain uncommitted:
 
 ## Key Runtime Modules
 
+- `packages/shared/src/plaud.ts`
+  Wire-level Zod schemas for Plaud's server responses (`sn`, `data_file_list`, `data_devices`, etc.). Only imported by the Plaud client.
+- `packages/shared/src/runtime.ts`
+  Domain-level Zod schemas (`RecordingMirror`, `Device`, `SyncRunSummary`, `BackfillCandidate`, `ServiceHealth`, ...) shared by API, store, and web panel.
 - `apps/api/src/plaud/`
-  Plaud API client and region-retry logic.
+  Plaud API client: auth headers, region-retry on `-302`, `listEverything` pagination, `listDevices`, `getFileDetail`, `getAudioTempUrl`. Wire→domain translation lives here.
 - `apps/api/src/phase1/`
-  The original spike utilities. Still useful for live probing and regression checks.
+  The original spike utilities (probe CLI). `applyLocalFilters` is reused by both the real sync path and the backfill preview.
 - `apps/api/src/runtime/`
-  SQLite store, encrypted secret storage, sync/backfill service, and runtime tests.
+  SQLite store (recordings, devices, sync_runs, webhook_deliveries), encrypted secret storage, sync/backfill service with pluggable scheduler, and runtime tests.
 - `apps/api/src/server.ts`
-  Fastify app factory and static web serving.
+  Fastify app factory: auth, config, sync (`POST /api/sync/run` returns 202), backfill, `GET /api/sync/runs/:id`, `GET /api/devices`, `GET /api/backfill/candidates`, recordings listing + audio streaming with HTTP Range, delete/restore.
 - `apps/web/src/App.tsx`
-  Product panel for token setup, webhook config, manual sync, backfill, and recordings list.
+  Product panel. Token setup, webhook config, Manual sync card (incl. "Refresh server stats" button and live progress polling), Historical backfill card (device selector + date range + dry-run preview table), library with pagination, inline audio playback, dismiss/restore.
 
 ## Onboarding Notes
 

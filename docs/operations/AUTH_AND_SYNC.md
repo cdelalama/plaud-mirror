@@ -32,10 +32,10 @@ The service exposes:
 
 - Sync is operator-triggered only.
 - Backfill is operator-triggered only.
-- Supported filters:
-  - date range
-  - `serialNumber`
-  - `scene`
+- Supported filters (backend schema `SyncFiltersSchema`):
+  - date range (`from`, `to`) — surfaced in the web UI.
+  - `serialNumber` — surfaced in the web UI as a device selector fed by `/api/devices`.
+  - `scene` — accepted for programmatic callers only; the web UI no longer exposes it because the raw integer values are opaque to operators (see CHANGELOG 0.4.12).
 - Existing mirrored recordings are skipped unless `forceDownload` is requested.
 - Webhook delivery is attempted immediately after mirroring.
 - Delivery attempts are persisted even when the webhook call fails.

@@ -9,15 +9,18 @@ Self-hosted Plaud audio mirror with a local web panel, manual sync/backfill cont
 
 Plaud Mirror is an operator-run service for mirroring Plaud recordings into local storage and notifying downstream systems through a generic webhook. It is intentionally audio-first: it validates auth, lists recordings, downloads the original artifact, stores it in a predictable layout, and hands off the result.
 
-The repository now contains the first usable internal slice plus local curation:
+The repository now contains the extended Phase 2 slice:
 
 - Fastify admin API
 - React/Vite web panel
 - encrypted persisted bearer-token auth
-- manual sync and filtered historical backfill
-- local recording index in SQLite
+- **async** manual sync and filtered historical backfill (returns `202` with a run id, UI polls for live progress)
+- backfill dry-run preview: see exactly which recordings would be downloaded before clicking "Run backfill"
+- cached device catalog populated from Plaud's `/device/list`, feeding a real device selector in the backfill form
+- local recording index in SQLite with stable `#N` ranks anchored to Plaud's full timeline
+- classic pagination and inline audio player with HTTP Range support
+- local-only dismiss and restore (Plaud itself is never mutated)
 - immediate HMAC-signed webhook delivery with persisted delivery attempts
-- inline audio player in the library with local-only dismiss and restore (Plaud itself is never mutated)
 - Docker packaging for `dev-vm`, running as non-root `USER 1000:1000`
 
 Continuous sync, resumable backfill, retry outbox, and automatic re-login are explicitly later phases.
@@ -98,6 +101,8 @@ scripts/dockit-validate-session.sh --human
 | [docs/operations/API_CONTRACT.md](docs/operations/API_CONTRACT.md) | Actual HTTP and webhook surface |
 | [docs/operations/AUTH_AND_SYNC.md](docs/operations/AUTH_AND_SYNC.md) | Auth model and sync behavior |
 | [docs/operations/DEPLOY_PLAYBOOK.md](docs/operations/DEPLOY_PLAYBOOK.md) | Docker deployment and rollback |
+| [docs/UPSTREAMS.md](docs/UPSTREAMS.md) | Which upstreams are tracked, what is adopted, what is rejected |
+| [docs/llm/DECISIONS.md](docs/llm/DECISIONS.md) | Long-form rationale for non-obvious choices (D-001..D-011) |
 | [docs/llm/HANDOFF.md](docs/llm/HANDOFF.md) | Current implementation snapshot |
 
 ## Contributing
