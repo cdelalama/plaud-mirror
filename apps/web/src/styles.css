@@ -451,3 +451,89 @@ input {
     justify-content: start;
   }
 }
+
+.preview-panel {
+  border: 1px solid var(--card-border);
+  border-radius: 14px;
+  padding: 0.85rem 1rem;
+  background: rgba(0, 0, 0, 0.015);
+  margin-top: 0.25rem;
+}
+
+.preview-summary {
+  margin: 0 0 0.6rem 0;
+  font-size: 0.9rem;
+}
+
+.preview-table-wrap {
+  overflow-x: auto;
+  max-height: 320px;
+  overflow-y: auto;
+  border-radius: 10px;
+}
+
+.preview-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.preview-table th,
+.preview-table td {
+  padding: 0.4rem 0.6rem;
+  text-align: left;
+  border-bottom: 1px solid var(--card-border);
+  white-space: nowrap;
+}
+
+.preview-table thead th {
+  position: sticky;
+  top: 0;
+  background: var(--card);
+  font-weight: 600;
+  color: var(--muted);
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.preview-rank {
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+  width: 3.5rem;
+}
+
+.preview-title {
+  max-width: 22rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.preview-serial {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.state-badge {
+  display: inline-block;
+  padding: 0.12rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.74rem;
+  font-weight: 600;
+}
+
+.state-missing {
+  background: rgba(30, 106, 77, 0.15);
+  color: var(--good);
+}
+
+.state-mirrored {
+  background: rgba(100, 100, 100, 0.12);
+  color: var(--muted);
+}
+
+.state-dismissed {
+  background: rgba(141, 91, 24, 0.15);
+  color: var(--warn);
+}

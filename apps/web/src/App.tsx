@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useState } from "react";
 
 import type {
   AuthStatus,
+  BackfillPreviewResponse,
   Device,
   RecordingMirror,
   RuntimeConfig,
@@ -17,7 +18,6 @@ interface BackfillDraft {
   from: string;
   to: string;
   serialNumber: string;
-  scene: string;
   limit: string;
   forceDownload: boolean;
 }
@@ -26,7 +26,6 @@ const DEFAULT_BACKFILL_DRAFT: BackfillDraft = {
   from: "",
   to: "",
   serialNumber: "",
-  scene: "",
   // Conservative default: a single recording. Operator can raise this before
   // clicking sync/backfill. An accidental click with limit=100 would bulk-download
   // 100 recordings with no abort path.
@@ -285,7 +284,10 @@ export function App() {
       from: backfill.from || null,
       to: backfill.to || null,
       serialNumber: backfill.serialNumber.trim() || null,
-      scene: backfill.scene ? Number(backfill.scene) : null,
+      // scene is intentionally omitted — the UI no longer exposes it. The
+      // backend schema still accepts it (optional/nullable) for programmatic
+      // callers. Not sending it means "no scene filter", which is the
+      // default behavior.
       limit: coerceNonNegativeInteger(backfill.limit, config?.defaultSyncLimit ?? 100),
       forceDownload: backfill.forceDownload,
     });
@@ -522,39 +524,35 @@ export function App() {
               </label>
             </div>
 
-            <div className="grid compact-grid">
-              <label className="field">
-                <span>Device</span>
-                <select
-                  value={backfill.serialNumber}
-                  onChange={(event) =>
-                    setBackfill((current) => ({ ...current, serialNumber: event.target.value }))
-                  }
-                >
-                  <option value="">Any device</option>
-                  {devices.map((device) => (
-                    <option key={device.serialNumber} value={device.serialNumber}>
-                      {formatDeviceLabel(device)}
-                    </option>
-                  ))}
-                </select>
-                {devices.length === 0 ? (
-                  <span className="muted small">
-                    No devices detected yet — run a sync to populate this list.
-                  </span>
-                ) : null}
-              </label>
-              <label className="field">
-                <span>Scene</span>
-                <input
-                  type="number"
-                  value={backfill.scene}
-                  onChange={(event) =>
-                    setBackfill((current) => ({ ...current, scene: event.target.value }))
-                  }
-                />
-              </label>
-            </div>
+            <label className="field">
+              <span>Device</span>
+              <select
+                value={backfill.serialNumber}
+                onChange={(event) =>
+                  setBackfill((current) => ({ ...current, serialNumber: event.target.value }))
+                }
+              >
+                <option value="">Any device</option>
+                {devices.map((device) => (
+                  <option key={device.serialNumber} value={device.serialNumber}>
+                    {formatDeviceLabel(device)}
+                  </option>
+                ))}
+              </select>
+              {devices.length === 0 ? (
+                <span className="muted small">
+                  No devices detected yet — run a sync to populate this list.
+                </span>
+              ) : null}
+            </label>
+
+            <BackfillPreview
+              filters={{
+                from: backfill.from,
+                to: backfill.to,
+                serialNumber: backfill.serialNumber,
+              }}
+            />
 
             <button type="submit" disabled={busy}>
               Run filtered backfill
@@ -690,6 +688,134 @@ export function App() {
       </section>
     </div>
   );
+}
+
+interface BackfillPreviewFilters {
+  from: string;
+  to: string;
+  serialNumber: string;
+}
+
+// Shows the operator what a backfill with the current filters would touch,
+// BEFORE they click "Run filtered backfill". Calls the dry-run endpoint
+// debounced by 500 ms so rapid filter edits don't spam Plaud. The component
+// owns its own state — the parent only hands it the current filter draft.
+function BackfillPreview({ filters }: { filters: BackfillPreviewFilters }) {
+  const [preview, setPreview] = useState<BackfillPreviewResponse | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      void (async () => {
+        setLoading(true);
+        setError(null);
+        try {
+          const params = new URLSearchParams({ previewLimit: "200" });
+          if (filters.from) params.set("from", filters.from);
+          if (filters.to) params.set("to", filters.to);
+          if (filters.serialNumber) params.set("serialNumber", filters.serialNumber);
+          const data = await requestJson<BackfillPreviewResponse>(
+            `/api/backfill/candidates?${params.toString()}`,
+          );
+          if (!cancelled) {
+            setPreview(data);
+          }
+        } catch (caught) {
+          if (!cancelled) {
+            setError(toErrorMessage(caught));
+            setPreview(null);
+          }
+        } finally {
+          if (!cancelled) {
+            setLoading(false);
+          }
+        }
+      })();
+    }, 500);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [filters.from, filters.to, filters.serialNumber]);
+
+  if (error) {
+    return (
+      <div className="preview-panel">
+        <p className="muted small">Preview unavailable: {error}</p>
+      </div>
+    );
+  }
+
+  if (loading && !preview) {
+    return (
+      <div className="preview-panel">
+        <p className="muted small">Loading preview…</p>
+      </div>
+    );
+  }
+
+  if (!preview) {
+    return null;
+  }
+
+  const shown = preview.recordings.length;
+  const truncated = preview.matched > shown;
+
+  return (
+    <div className="preview-panel">
+      <p className="preview-summary">
+        <strong>{preview.matched}</strong> recording{preview.matched === 1 ? "" : "s"} match —{" "}
+        <strong>{preview.missing}</strong> would be downloaded{" "}
+        <span className="muted">(of {preview.plaudTotal} total in Plaud)</span>
+        {loading ? <span className="muted small"> · refreshing…</span> : null}
+      </p>
+      {preview.recordings.length === 0 ? (
+        <p className="muted small">No recordings match these filters.</p>
+      ) : (
+        <>
+          <div className="preview-table-wrap">
+            <table className="preview-table">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Title</th>
+                  <th>Date</th>
+                  <th>Duration</th>
+                  <th>Device</th>
+                  <th>State</th>
+                </tr>
+              </thead>
+              <tbody>
+                {preview.recordings.map((row) => (
+                  <tr key={row.id}>
+                    <td className="preview-rank">#{row.sequenceNumber ?? "?"}</td>
+                    <td className="preview-title">{row.title}</td>
+                    <td>{formatDateTime(row.createdAt)}</td>
+                    <td>{formatDuration(row.durationSeconds)}</td>
+                    <td className="preview-serial">{row.serialNumber ?? "—"}</td>
+                    <td><StateBadge state={row.state} /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {truncated ? (
+            <p className="muted small">
+              Showing first {shown} of {preview.matched}. Narrow the filters to see more detail.
+            </p>
+          ) : null}
+        </>
+      )}
+    </div>
+  );
+}
+
+function StateBadge({ state }: { state: "missing" | "mirrored" | "dismissed" }) {
+  const label = state === "missing" ? "missing" : state === "mirrored" ? "already local" : "dismissed";
+  return <span className={`state-badge state-${state}`}>{label}</span>;
 }
 
 function Metric({ label, value }: { label: string; value: string }) {

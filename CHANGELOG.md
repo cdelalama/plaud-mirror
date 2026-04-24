@@ -4,6 +4,18 @@ All notable changes to Plaud Mirror are documented in this file.
 
 This project follows Semantic Versioning (SemVer): MAJOR.MINOR.PATCH.
 
+## [0.4.12] - 2026-04-24
+
+### Added
+- Backfill preview. New `GET /api/backfill/candidates?from&to&serialNumber&scene&previewLimit` runs the same filter pipeline as a real backfill (`client.listEverything` + `applyLocalFilters`) and returns the matching recordings annotated with their current local state (`"missing"`, `"mirrored"`, `"dismissed"`) WITHOUT downloading anything. Response shape: `{ plaudTotal, matched, missing, previewLimit, recordings: BackfillCandidate[] }`.
+- Web panel renders a preview table inside the Historical backfill card, fed by the new endpoint, debounced 500 ms on filter changes. Columns: `#N`, Title, Date, Duration, Device, State (with colored badges). Header shows "X match — Y would be downloaded (of Z total in Plaud)". Truncates to 200 rows with a "Showing first 200 of M" footer when the filter matches more.
+- Shared schemas: `BackfillCandidateStateSchema`, `BackfillCandidateSchema`, `BackfillPreviewFiltersSchema`, `BackfillPreviewResponseSchema`.
+- Two new tests: service `previewBackfillCandidates` annotates state and respects filters + `previewLimit` cap; server `GET /api/backfill/candidates` returns the right shape and narrows by `serialNumber`.
+
+### Changed
+- Scene filter removed from the backfill form. The input was opaque (raw integer like `7` with no in-app mapping to meaning) and operators could not know what to enter. The backend schema still accepts `scene` for programmatic callers (optional, nullable) — only the UI widget is gone. If scene filtering proves useful later, it will be reintroduced with a real dropdown of values present in the account.
+- Historical backfill card is now just "Device" (select) + date range, with the live preview below and "Run filtered backfill" at the bottom. The operator sees exactly what a click would do before clicking.
+
 ## [0.4.11] - 2026-04-24
 
 ### Added

@@ -454,6 +454,149 @@ test("PlaudMirrorService runSync with limit=0 only refreshes ranks and downloads
   service.close();
 });
 
+test("PlaudMirrorService previewBackfillCandidates annotates each recording with its local state and respects filters", async () => {
+  const root = await mkdtemp(join(tmpdir(), "plaud-mirror-service-preview-"));
+  const environment = createEnvironment(root);
+  const store = new RuntimeStore({
+    dbPath: join(environment.dataDir, "app.db"),
+    dataDir: environment.dataDir,
+    recordingsDir: environment.recordingsDir,
+    defaultSyncLimit: environment.defaultSyncLimit,
+  });
+  const secrets = new SecretStore(join(environment.dataDir, "secrets.enc"), environment.masterKey);
+  const service = new PlaudMirrorService(environment, store, secrets, {
+    plaudFetchImpl: async (input) => {
+      const url = String(input);
+      if (url.endsWith("/user/me")) {
+        return createJsonResponse({ status: 0, data: { uid: "user-1" } });
+      }
+      if (url.includes("/file/simple/web")) {
+        return createJsonResponse({
+          status: 0,
+          data_file_total: 3,
+          data_file_list: [
+            {
+              id: "rec-newest",
+              filename: "newest.mp3",
+              fullname: "Newest meeting",
+              filesize: 1000,
+              start_time: 1713780300000, // 2024-04-22
+              end_time: 1713780600000,
+              duration: 300,
+              edit_time: 1713780610000,
+              is_trash: false,
+              is_trans: true,
+              is_summary: false,
+              serial_number: "PLAUD-A",
+              scene: 1,
+            },
+            {
+              id: "rec-middle",
+              filename: "middle.mp3",
+              fullname: "Middle talk",
+              filesize: 500,
+              start_time: 1713693900000, // 2024-04-21
+              end_time: 1713694200000,
+              duration: 300,
+              edit_time: 1713694210000,
+              is_trash: false,
+              is_trans: true,
+              is_summary: false,
+              serial_number: "PLAUD-B",
+              scene: 2,
+            },
+            {
+              id: "rec-oldest",
+              filename: "oldest.mp3",
+              fullname: "Oldest recording",
+              filesize: 500,
+              start_time: 1713607500000, // 2024-04-20
+              end_time: 1713607800000,
+              duration: 300,
+              edit_time: 1713607810000,
+              is_trash: false,
+              is_trans: true,
+              is_summary: false,
+              serial_number: "PLAUD-A",
+              scene: 1,
+            },
+          ],
+        });
+      }
+      throw new Error(`Unexpected Plaud fetch: ${url}`);
+    },
+  });
+
+  await service.initialize();
+  await service.saveAccessToken({ accessToken: "token-value" });
+
+  // Seed: rec-middle already mirrored, rec-oldest dismissed.
+  store.upsertRecording({
+    id: "rec-middle",
+    title: "Middle talk",
+    createdAt: "2024-04-21T00:05:00.000Z",
+    durationSeconds: 300,
+    serialNumber: "PLAUD-B",
+    scene: 2,
+    localPath: "recordings/rec-middle/audio.mp3",
+    contentType: "audio/mpeg",
+    bytesWritten: 500,
+    mirroredAt: "2024-04-21T00:10:00.000Z",
+    lastWebhookStatus: "skipped",
+    lastWebhookAttemptAt: "2024-04-21T00:10:02.000Z",
+    dismissed: false,
+    dismissedAt: null,
+    sequenceNumber: 2,
+  });
+  store.upsertRecording({
+    id: "rec-oldest",
+    title: "Oldest recording",
+    createdAt: "2024-04-20T00:05:00.000Z",
+    durationSeconds: 300,
+    serialNumber: "PLAUD-A",
+    scene: 1,
+    localPath: null,
+    contentType: null,
+    bytesWritten: 0,
+    mirroredAt: null,
+    lastWebhookStatus: null,
+    lastWebhookAttemptAt: null,
+    dismissed: true,
+    dismissedAt: "2024-04-20T00:06:00.000Z",
+    sequenceNumber: 1,
+  });
+
+  // No filters: all three recordings come back, state annotated.
+  const allPreview = await service.previewBackfillCandidates({ previewLimit: 200 });
+  assert.equal(allPreview.plaudTotal, 3);
+  assert.equal(allPreview.matched, 3);
+  assert.equal(allPreview.missing, 1, "only rec-newest is missing");
+  assert.equal(allPreview.recordings.length, 3);
+  const newest = allPreview.recordings.find((r) => r.id === "rec-newest");
+  assert.equal(newest?.state, "missing");
+  assert.equal(newest?.sequenceNumber, 3, "stable rank anchored to full timeline");
+  assert.equal(newest?.title, "Newest meeting");
+  assert.equal(allPreview.recordings.find((r) => r.id === "rec-middle")?.state, "mirrored");
+  assert.equal(allPreview.recordings.find((r) => r.id === "rec-oldest")?.state, "dismissed");
+
+  // Serial filter narrows to 2 of 3 (rec-newest + rec-oldest, both PLAUD-A).
+  const serialPreview = await service.previewBackfillCandidates({
+    serialNumber: "PLAUD-A",
+    previewLimit: 200,
+  });
+  assert.equal(serialPreview.matched, 2);
+  assert.equal(serialPreview.missing, 1, "rec-oldest is dismissed, only rec-newest is missing");
+  assert.ok(serialPreview.recordings.every((r) => r.serialNumber === "PLAUD-A"));
+
+  // previewLimit caps the response array but `matched` stays truthful.
+  const capped = await service.previewBackfillCandidates({ previewLimit: 1 });
+  assert.equal(capped.matched, 3, "matched is the pre-truncation count");
+  assert.equal(capped.recordings.length, 1);
+  assert.equal(capped.previewLimit, 1);
+
+  service.close();
+});
+
 test("PlaudMirrorService refreshes the device catalog during a sync and exposes it read-only", async () => {
   const root = await mkdtemp(join(tmpdir(), "plaud-mirror-service-devices-"));
   const environment = createEnvironment(root);

@@ -119,6 +119,52 @@ export const DeviceListResponseSchema = z.object({
   devices: z.array(DeviceSchema),
 }).strict();
 
+// A single row in the backfill-preview response. `state` tells the UI how the
+// recording would be treated if the operator hit "Run backfill" right now:
+// - "missing": not on disk; will be downloaded.
+// - "mirrored": already local; would be skipped (unless forceDownload is on).
+// - "dismissed": operator dismissed it locally; would be skipped.
+export const BackfillCandidateStateSchema = z.enum(["missing", "mirrored", "dismissed"]);
+
+export const BackfillCandidateSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  createdAt: z.string().nullable(),
+  durationSeconds: z.number().nonnegative(),
+  serialNumber: z.string().nullable(),
+  scene: z.number().nullable(),
+  sequenceNumber: z.number().int().positive().nullable().default(null),
+  state: BackfillCandidateStateSchema,
+}).strict();
+
+// Filters accepted by `GET /api/backfill/candidates`. Same shape as
+// `SyncFiltersSchema` minus `limit` (which in the sync context is "how many
+// to download" — preview has its own response cap instead) and minus
+// `forceDownload` (previews never download anything).
+export const BackfillPreviewFiltersSchema = z.object({
+  from: isoDateSchema.nullable().optional(),
+  to: isoDateSchema.nullable().optional(),
+  serialNumber: z.string().trim().min(1).nullable().optional(),
+  scene: z.number().int().nullable().optional(),
+  // Response-size cap only: how many candidates to include in `recordings`.
+  // `matched` always reflects the true total before truncation so the UI can
+  // render "Showing first N of M".
+  previewLimit: z.number().int().positive().max(500).default(200),
+}).strict();
+
+export const BackfillPreviewResponseSchema = z.object({
+  // Total recordings in Plaud (from listEverything's authoritative count).
+  plaudTotal: z.number().int().nonnegative(),
+  // Recordings that match the filters (before response truncation).
+  matched: z.number().int().nonnegative(),
+  // How many of `matched` would actually be downloaded (state === "missing").
+  missing: z.number().int().nonnegative(),
+  // Response cap that was applied to `recordings`.
+  previewLimit: z.number().int().positive(),
+  // Candidate rows, newest-first, truncated to `previewLimit`.
+  recordings: z.array(BackfillCandidateSchema),
+}).strict();
+
 export const SyncRunModeSchema = z.enum(["sync", "backfill"]);
 export const SyncRunStatusSchema = z.enum(["running", "completed", "failed"]);
 
@@ -197,6 +243,10 @@ export type RecordingDeleteResult = z.infer<typeof RecordingDeleteResultSchema>;
 export type RecordingRestoreResult = z.infer<typeof RecordingRestoreResultSchema>;
 export type Device = z.infer<typeof DeviceSchema>;
 export type DeviceListResponse = z.infer<typeof DeviceListResponseSchema>;
+export type BackfillCandidateState = z.infer<typeof BackfillCandidateStateSchema>;
+export type BackfillCandidate = z.infer<typeof BackfillCandidateSchema>;
+export type BackfillPreviewFilters = z.infer<typeof BackfillPreviewFiltersSchema>;
+export type BackfillPreviewResponse = z.infer<typeof BackfillPreviewResponseSchema>;
 export type SyncRunMode = z.infer<typeof SyncRunModeSchema>;
 export type SyncRunStatus = z.infer<typeof SyncRunStatusSchema>;
 export type SyncRunSummary = z.infer<typeof SyncRunSummarySchema>;

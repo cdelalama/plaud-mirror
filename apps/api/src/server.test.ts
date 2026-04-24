@@ -446,3 +446,104 @@ test("createApp exposes GET /api/devices populated by a sync refresh", async () 
 
   await app.close();
 });
+
+test("createApp GET /api/backfill/candidates previews recordings with state annotations", async () => {
+  const root = await mkdtemp(join(tmpdir(), "plaud-mirror-server-preview-"));
+  const environment = createEnvironment(root);
+  const app = await createApp({
+    environment,
+    plaudFetchImpl: async (input) => {
+      const url = String(input);
+      if (url.endsWith("/user/me")) {
+        return createJsonResponse({ status: 0, data: { uid: "user-1" } });
+      }
+      if (url.includes("/file/simple/web")) {
+        return createJsonResponse({
+          status: 0,
+          data_file_total: 2,
+          data_file_list: [
+            {
+              id: "rec-new",
+              filename: "new.mp3",
+              fullname: "New recording",
+              filesize: 500,
+              start_time: 1713780000000,
+              end_time: 1713780300000,
+              duration: 300,
+              edit_time: 1713780310000,
+              is_trash: false,
+              is_trans: true,
+              is_summary: false,
+              serial_number: "PLAUD-X",
+              scene: 1,
+            },
+            {
+              id: "rec-old",
+              filename: "old.mp3",
+              fullname: "Old recording",
+              filesize: 500,
+              start_time: 1713693600000,
+              end_time: 1713693900000,
+              duration: 300,
+              edit_time: 1713693910000,
+              is_trash: false,
+              is_trans: true,
+              is_summary: false,
+              serial_number: "PLAUD-Y",
+              scene: 2,
+            },
+          ],
+        });
+      }
+      throw new Error(`Unexpected Plaud fetch: ${url}`);
+    },
+  });
+
+  // Seed a token so preview can validate.
+  const tokenResponse = await app.inject({
+    method: "POST",
+    url: "/api/auth/token",
+    payload: { accessToken: "token-value" },
+  });
+  assert.equal(tokenResponse.statusCode, 200);
+
+  // No filters.
+  const fullResponse = await app.inject({
+    method: "GET",
+    url: "/api/backfill/candidates",
+  });
+  assert.equal(fullResponse.statusCode, 200);
+  const full = fullResponse.json() as {
+    plaudTotal: number;
+    matched: number;
+    missing: number;
+    previewLimit: number;
+    recordings: Array<{ id: string; state: string; serialNumber: string | null; sequenceNumber: number | null }>;
+  };
+  assert.equal(full.plaudTotal, 2);
+  assert.equal(full.matched, 2);
+  assert.equal(full.missing, 2, "nothing mirrored yet — both are missing");
+  assert.equal(full.previewLimit, 200);
+  assert.equal(full.recordings.length, 2);
+  assert.ok(full.recordings.every((r) => r.state === "missing"));
+
+  // Device filter narrows to one.
+  const filteredResponse = await app.inject({
+    method: "GET",
+    url: "/api/backfill/candidates?serialNumber=PLAUD-X&previewLimit=10",
+  });
+  assert.equal(filteredResponse.statusCode, 200);
+  const filtered = filteredResponse.json() as {
+    matched: number;
+    missing: number;
+    previewLimit: number;
+    recordings: Array<{ id: string; serialNumber: string | null }>;
+  };
+  assert.equal(filtered.matched, 1);
+  assert.equal(filtered.missing, 1);
+  assert.equal(filtered.previewLimit, 10);
+  assert.equal(filtered.recordings[0]?.id, "rec-new");
+  assert.equal(filtered.recordings[0]?.serialNumber, "PLAUD-X");
+
+  await app.close();
+});

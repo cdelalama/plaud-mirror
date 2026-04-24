@@ -4,6 +4,8 @@ import { isAbsolute, join, relative, resolve } from "node:path";
 
 import {
   AuthStatusSchema,
+  BackfillPreviewFiltersSchema,
+  BackfillPreviewResponseSchema,
   RecordingDeleteResultSchema,
   RecordingListResponseSchema,
   RecordingMirrorSchema,
@@ -15,6 +17,9 @@ import {
   UpdateRuntimeConfigRequestSchema,
   WebhookPayloadSchema,
   type AuthStatus,
+  type BackfillCandidateState,
+  type BackfillPreviewFilters,
+  type BackfillPreviewResponse,
   type Device,
   type RecordingDeleteResult,
   type RecordingMirror,
@@ -239,6 +244,89 @@ export class PlaudMirrorService {
   // refreshed as a side-effect of `executeMirror`.
   listDevices(): Device[] {
     return this.store.listDevices();
+  }
+
+  // Dry-run version of backfill: walk the full Plaud listing, apply the
+  // operator's filters, and return the matching recordings annotated with
+  // their current local state (missing / mirrored / dismissed) WITHOUT
+  // downloading anything. The web panel uses this to let the operator see
+  // exactly what a backfill would do before committing to the download.
+  //
+  // This reuses the same primitives as `executeMirror` (listEverything +
+  // applyLocalFilters + store lookups) so the preview cannot drift from the
+  // real filter behavior.
+  async previewBackfillCandidates(filters: BackfillPreviewFilters): Promise<BackfillPreviewResponse> {
+    const normalized = BackfillPreviewFiltersSchema.parse(filters);
+
+    const { client } = await this.loadValidatedClient();
+    const { recordings: remoteRecordings, total: plaudTotal } = await client.listEverything(500);
+
+    const filterOptions: Parameters<typeof applyLocalFilters>[1] = {
+      // `limit` is required by ProbeOptions but not used by applyLocalFilters
+      // itself (it only filters, does not truncate). Pass previewLimit so
+      // the type is satisfied; the real cap is applied below.
+      limit: normalized.previewLimit,
+      recordingsDir: this.environment.recordingsDir,
+      reportPath: join(this.environment.dataDir, "preview.json"),
+    };
+    const from = toStartTimestamp(normalized.from);
+    const to = toEndTimestamp(normalized.to);
+    if (from !== undefined) {
+      filterOptions.from = from;
+    }
+    if (to !== undefined) {
+      filterOptions.to = to;
+    }
+    if (normalized.serialNumber) {
+      filterOptions.serialNumber = normalized.serialNumber;
+    }
+    if (normalized.scene !== null && normalized.scene !== undefined) {
+      filterOptions.scene = normalized.scene;
+    }
+
+    const filtered = applyLocalFilters(remoteRecordings, filterOptions);
+
+    // Ranks mirror the sync path: the full Plaud listing is sorted newest-
+    // first, so rank = plaudTotal - indexInFullList. We compute it once
+    // against `remoteRecordings` so a filtered row keeps the stable #N the
+    // operator sees elsewhere in the UI.
+    const ranks = new Map<string, number>();
+    for (let index = 0; index < remoteRecordings.length; index += 1) {
+      ranks.set(remoteRecordings[index]!.id, plaudTotal - index);
+    }
+
+    let missing = 0;
+    const annotated = filtered.map((raw) => {
+      const existing = this.store.getRecording(raw.id);
+      const state: BackfillCandidateState = existing?.dismissed
+        ? "dismissed"
+        : existing?.localPath
+          ? "mirrored"
+          : "missing";
+      if (state === "missing") {
+        missing += 1;
+      }
+      return {
+        id: raw.id,
+        title: selectRecordingTitle(raw.filename, raw.fullname, undefined),
+        createdAt: toIsoOrNull(Number(raw.start_time)),
+        durationSeconds: Number(raw.duration ?? 0),
+        serialNumber: raw.serial_number || null,
+        scene: raw.scene === null || raw.scene === undefined ? null : Number(raw.scene),
+        sequenceNumber: ranks.get(raw.id) ?? null,
+        state,
+      };
+    });
+
+    const truncated = annotated.slice(0, normalized.previewLimit);
+
+    return BackfillPreviewResponseSchema.parse({
+      plaudTotal,
+      matched: filtered.length,
+      missing,
+      previewLimit: normalized.previewLimit,
+      recordings: truncated,
+    });
   }
 
   async listRecordings(

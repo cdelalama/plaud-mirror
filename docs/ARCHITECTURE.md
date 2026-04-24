@@ -1,9 +1,9 @@
-<!-- doc-version: 0.4.11 -->
+<!-- doc-version: 0.4.12 -->
 # Plaud Mirror Architecture
 
-> Version: 0.4.11
+> Version: 0.4.12
 > Last Updated: 2026-04-24
-> Status: Phase 2 vertical slice (extended through 0.4.x with local curation, UX polish, Mode B sync, classic pagination, stable sequence numbers, async sync with live-progress polling, and a cached device catalog backing the backfill selector)
+> Status: Phase 2 vertical slice (extended through 0.4.x with local curation, UX polish, Mode B sync, classic pagination, stable sequence numbers, async sync with live-progress polling, cached device catalog backing the backfill selector, and a backfill dry-run preview)
 
 ## Overview
 
@@ -84,6 +84,17 @@ The web panel polls `GET /api/health` every 2 s while a run is active. The healt
 2. The operator may issue `DELETE /api/recordings/<id>`. The service unlinks the local audio file, clears `localPath` and `bytesWritten` on the SQLite row, and sets `dismissed=true` with a `dismissedAt` timestamp. Plaud itself is not touched.
 3. Subsequent sync/backfill runs detect `dismissed=true` and skip the recording without attempting to re-download it.
 4. The operator can restore a dismissed recording via `POST /api/recordings/<id>/restore`. The service clears the `dismissed` flag **and immediately re-downloads the audio** (fetching fresh `/file/detail` and `/file/temp-url` from Plaud, then writing the artifact back to `recordings/<id>/audio.<ext>`). If the immediate download fails (e.g. missing or invalid token), the flag is still cleared so the next scheduled sync can retry, and the API surfaces the error so the operator can recover.
+
+### Backfill preview (dry-run)
+
+1. Operator edits the device / date filters in the Historical backfill form. After a 500 ms debounce the panel calls `GET /api/backfill/candidates?from=...&to=...&serialNumber=...&previewLimit=200`.
+2. The server runs the same first half of the sync pipeline as `executeMirror`: validate token → `client.listEverything()` → `applyLocalFilters`. No download happens; no `sync_runs` row is created.
+3. Each matching recording is annotated with its local state by looking up the current SQLite row:
+   - `"missing"` — not on disk, would be downloaded
+   - `"mirrored"` — already local, would be skipped (unless `forceDownload`)
+   - `"dismissed"` — operator dismissed locally, would be skipped
+4. The response includes `plaudTotal`, `matched` (pre-truncation count), `missing` (how many would actually download), `previewLimit`, and the recordings array (newest-first, capped at `previewLimit`, default 200, max 500). The panel renders this as a table with colored state badges and a header summary ("X match — Y would be downloaded").
+5. Because the preview reuses the exact same primitives (`listEverything`, `applyLocalFilters`, same date normalization via `toStartTimestamp`/`toEndTimestamp`), it cannot drift from real backfill behavior.
 
 ### Device catalog
 

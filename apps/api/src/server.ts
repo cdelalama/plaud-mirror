@@ -70,6 +70,27 @@ export async function createApp(options: CreateAppOptions = {}) {
     return handle;
   });
 
+  // Dry-run preview: same filter pipeline as a real backfill, but returns
+  // the matching recordings annotated with their current local state instead
+  // of downloading anything. Query params: from, to, serialNumber, scene,
+  // previewLimit.
+  app.get("/api/backfill/candidates", async (request) => {
+    const query = request.query as {
+      from?: string;
+      to?: string;
+      serialNumber?: string;
+      scene?: string | number;
+      previewLimit?: string | number;
+    };
+    return service.previewBackfillCandidates({
+      from: query.from ? query.from : null,
+      to: query.to ? query.to : null,
+      serialNumber: query.serialNumber ? query.serialNumber : null,
+      scene: parseOptionalInt(query.scene),
+      previewLimit: parsePreviewLimit(query.previewLimit),
+    });
+  });
+
   app.get("/api/sync/runs/:id", async (request) => {
     const id = (request.params as { id: string }).id;
     return service.getSyncRunStatus(id);
@@ -202,6 +223,28 @@ function parseSkip(input: string | number | undefined): number {
     throw new Error(`Invalid skip value: ${input}`);
   }
   return value;
+}
+
+function parseOptionalInt(input: string | number | undefined): number | null {
+  if (input === undefined || input === "") {
+    return null;
+  }
+  const value = Number(input);
+  if (!Number.isInteger(value)) {
+    throw new Error(`Invalid integer value: ${input}`);
+  }
+  return value;
+}
+
+function parsePreviewLimit(input: string | number | undefined): number {
+  if (input === undefined || input === "") {
+    return 200;
+  }
+  const value = Number(input);
+  if (!Number.isInteger(value) || value <= 0) {
+    throw new Error(`Invalid previewLimit value: ${input}`);
+  }
+  return Math.min(value, 500);
 }
 
 function parseBoolean(input: string | boolean | undefined): boolean {
