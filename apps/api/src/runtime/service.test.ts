@@ -18,6 +18,19 @@ function createJsonResponse(payload: unknown, status = 200): Response {
   });
 }
 
+// Tracks every promise the scheduler has spawned. After kicking off a sync
+// the test calls `await sched.settled()` to wait for all background work to
+// finish, then queries the store for the final sync_runs row.
+function createDeterministicScheduler() {
+  const inflight: Promise<unknown>[] = [];
+  return {
+    scheduler: (work: () => Promise<unknown>) => {
+      inflight.push(work().catch((error) => error));
+    },
+    settled: () => Promise.all(inflight),
+  };
+}
+
 function createEnvironment(root: string): ServerEnvironment {
   return {
     port: 3040,
@@ -79,8 +92,10 @@ test("PlaudMirrorService backfill downloads audio and signs webhook delivery", a
   });
   const secrets = new SecretStore(join(environment.dataDir, "secrets.enc"), environment.masterKey);
   const webhookCalls: Array<{ headers: Headers; body: string }> = [];
+  const sched = createDeterministicScheduler();
 
   const service = new PlaudMirrorService(environment, store, secrets, {
+    scheduler: sched.scheduler,
     plaudFetchImpl: async (input) => {
       const url = String(input);
       if (url.endsWith("/user/me")) {
@@ -162,11 +177,14 @@ test("PlaudMirrorService backfill downloads audio and signs webhook delivery", a
     accessToken: "token-value",
   });
 
-  const summary = await service.runBackfill({
+  const handle = await service.runBackfill({
     limit: 100,
     from: "2024-04-01",
     to: "2024-04-30",
   });
+  assert.equal(handle.status, "running", "POST returns immediately with status=running");
+  await sched.settled();
+  const summary = store.getSyncRun(handle.id)!;
 
   assert.equal(summary.status, "completed");
   assert.equal(summary.downloaded, 1);
@@ -201,7 +219,9 @@ test("PlaudMirrorService runSync skips already-mirrored rows and pulls the first
 
   const plaudCalls: string[] = [];
   const artifactCalls: string[] = [];
+  const sched = createDeterministicScheduler();
   const service = new PlaudMirrorService(environment, store, secrets, {
+    scheduler: sched.scheduler,
     plaudFetchImpl: async (input) => {
       const url = String(input);
       plaudCalls.push(url);
@@ -330,7 +350,10 @@ test("PlaudMirrorService runSync skips already-mirrored rows and pulls the first
   // Ask for 1 recording: Mode B must pick `rec-new-1` (the only genuinely
   // missing one), skip `rec-already-mirrored` (has success webhook), and
   // skip `rec-dismissed` (operator rejected).
-  const summary = await service.runSync({ limit: 1 });
+  const handle = await service.runSync({ limit: 1 });
+  assert.equal(handle.status, "running");
+  await sched.settled();
+  const summary = store.getSyncRun(handle.id)!;
 
   assert.equal(summary.status, "completed");
   assert.equal(summary.examined, 3, "examined = every recording Plaud returned");
@@ -339,6 +362,259 @@ test("PlaudMirrorService runSync skips already-mirrored rows and pulls the first
   assert.equal(summary.plaudTotal, 3, "plaudTotal = Plaud's real total (from listEverything)");
   assert.equal(artifactCalls.length, 1, "only the missing recording should be downloaded");
   assert.match(artifactCalls[0] ?? "", /rec-new-1/);
+
+  service.close();
+});
+
+test("PlaudMirrorService runSync with limit=0 only refreshes ranks and downloads nothing", async () => {
+  const root = await mkdtemp(join(tmpdir(), "plaud-mirror-service-refresh-"));
+  const environment = createEnvironment(root);
+  const store = new RuntimeStore({
+    dbPath: join(environment.dataDir, "app.db"),
+    dataDir: environment.dataDir,
+    recordingsDir: environment.recordingsDir,
+    defaultSyncLimit: environment.defaultSyncLimit,
+  });
+  const secrets = new SecretStore(join(environment.dataDir, "secrets.enc"), environment.masterKey);
+
+  const artifactCalls: string[] = [];
+  const sched = createDeterministicScheduler();
+  const service = new PlaudMirrorService(environment, store, secrets, {
+    scheduler: sched.scheduler,
+    plaudFetchImpl: async (input) => {
+      const url = String(input);
+      if (url.endsWith("/user/me")) {
+        return createJsonResponse({ status: 0, data: { uid: "user-1" } });
+      }
+      if (url.includes("/file/simple/web")) {
+        return createJsonResponse({
+          status: 0,
+          data_file_total: 2,
+          data_file_list: [
+            {
+              id: "rec-newest",
+              filename: "newest",
+              filesize: 5,
+              start_time: 1713780200000,
+              end_time: 1713780500000,
+              duration: 300,
+              edit_time: 1713780510000,
+              is_trash: false,
+              is_trans: true,
+              is_summary: false,
+              serial_number: "PLAUD-1",
+            },
+            {
+              id: "rec-oldest",
+              filename: "oldest",
+              filesize: 5,
+              start_time: 1713780000000,
+              end_time: 1713780300000,
+              duration: 300,
+              edit_time: 1713780310000,
+              is_trash: false,
+              is_trans: true,
+              is_summary: false,
+              serial_number: "PLAUD-1",
+            },
+          ],
+        });
+      }
+      throw new Error(`Unexpected Plaud fetch: ${url}`);
+    },
+    artifactFetchImpl: async (input) => {
+      artifactCalls.push(String(input));
+      return new Response("bytes", { status: 200, headers: { "content-type": "audio/mpeg" } });
+    },
+  });
+
+  await service.initialize();
+  await service.saveAccessToken({ accessToken: "token-value" });
+
+  const handle = await service.runSync({ limit: 0 });
+  assert.equal(handle.status, "running");
+  await sched.settled();
+  const summary = store.getSyncRun(handle.id)!;
+
+  assert.equal(summary.status, "completed");
+  assert.equal(summary.examined, 2, "examined still reflects the full Plaud listing");
+  assert.equal(summary.matched, 0, "matched=0 because limit=0 short-circuits the candidate loop");
+  assert.equal(summary.downloaded, 0, "no audio is downloaded");
+  assert.equal(summary.plaudTotal, 2, "plaudTotal is still captured");
+  assert.equal(artifactCalls.length, 0, "no artifact fetch happened");
+
+  // Sequence numbers should still be applied even though no audio downloaded —
+  // the row exists in SQLite (created by upsertRecording), and the bulk update
+  // should have set the rank. Recording the rows requires a candidate path, so
+  // for refresh-only we instead trust that the next non-zero sync will rank
+  // them. Validate by querying the store: rows are absent until something
+  // creates them.
+  assert.equal(store.countRecordings(), 0, "limit=0 does not insert new rows; download path is what creates them");
+
+  service.close();
+});
+
+test("PlaudMirrorService refreshes the device catalog during a sync and exposes it read-only", async () => {
+  const root = await mkdtemp(join(tmpdir(), "plaud-mirror-service-devices-"));
+  const environment = createEnvironment(root);
+  const store = new RuntimeStore({
+    dbPath: join(environment.dataDir, "app.db"),
+    dataDir: environment.dataDir,
+    recordingsDir: environment.recordingsDir,
+    defaultSyncLimit: environment.defaultSyncLimit,
+  });
+  const secrets = new SecretStore(join(environment.dataDir, "secrets.enc"), environment.masterKey);
+  const sched = createDeterministicScheduler();
+
+  const deviceListCalls: string[] = [];
+  const service = new PlaudMirrorService(environment, store, secrets, {
+    scheduler: sched.scheduler,
+    plaudFetchImpl: async (input) => {
+      const url = String(input);
+      if (url.endsWith("/user/me")) {
+        return createJsonResponse({ status: 0, data: { uid: "user-1" } });
+      }
+      if (url.endsWith("/device/list")) {
+        deviceListCalls.push(url);
+        return createJsonResponse({
+          status: 0,
+          data_devices: [
+            { sn: "PLAUD-ABC", name: "Office", model: "888", version_number: 131400 },
+            { sn: "PLAUD-XYZ", name: "", model: "888", version_number: 131339 },
+          ],
+        });
+      }
+      if (url.includes("/file/simple/web")) {
+        return createJsonResponse({ status: 0, data_file_total: 0, data_file_list: [] });
+      }
+      throw new Error(`Unexpected Plaud fetch: ${url}`);
+    },
+  });
+
+  await service.initialize();
+  await service.saveAccessToken({ accessToken: "token-value" });
+
+  // Empty list pre-sync so we can prove the refresh writes into the store.
+  assert.equal(service.listDevices().length, 0);
+
+  const handle = await service.runSync({ limit: 0 });
+  await sched.settled();
+  const summary = store.getSyncRun(handle.id);
+  assert.equal(summary?.status, "completed");
+  assert.equal(deviceListCalls.length, 1, "sync triggers exactly one /device/list refresh");
+
+  const devices = service.listDevices();
+  assert.equal(devices.length, 2);
+  // Both rows written with a lastSeenAt in the same refresh, so secondary sort
+  // (serial asc) wins: PLAUD-ABC before PLAUD-XYZ.
+  assert.equal(devices[0]?.serialNumber, "PLAUD-ABC");
+  assert.equal(devices[0]?.displayName, "Office");
+  assert.equal(devices[0]?.firmwareVersion, 131400);
+  assert.equal(devices[1]?.serialNumber, "PLAUD-XYZ");
+  assert.equal(devices[1]?.displayName, "");
+
+  service.close();
+});
+
+test("PlaudMirrorService sync completes even when /device/list fails", async () => {
+  const root = await mkdtemp(join(tmpdir(), "plaud-mirror-service-devices-fail-"));
+  const environment = createEnvironment(root);
+  const store = new RuntimeStore({
+    dbPath: join(environment.dataDir, "app.db"),
+    dataDir: environment.dataDir,
+    recordingsDir: environment.recordingsDir,
+    defaultSyncLimit: environment.defaultSyncLimit,
+  });
+  const secrets = new SecretStore(join(environment.dataDir, "secrets.enc"), environment.masterKey);
+  const sched = createDeterministicScheduler();
+
+  const service = new PlaudMirrorService(environment, store, secrets, {
+    scheduler: sched.scheduler,
+    plaudFetchImpl: async (input) => {
+      const url = String(input);
+      if (url.endsWith("/user/me")) {
+        return createJsonResponse({ status: 0, data: { uid: "user-1" } });
+      }
+      if (url.endsWith("/device/list")) {
+        // Simulate a 500 from Plaud for the device endpoint. Sync must keep
+        // going because device metadata is a UX convenience, not a hard gate.
+        return new Response("plaud exploded", { status: 500 });
+      }
+      if (url.includes("/file/simple/web")) {
+        return createJsonResponse({ status: 0, data_file_total: 0, data_file_list: [] });
+      }
+      throw new Error(`Unexpected Plaud fetch: ${url}`);
+    },
+  });
+
+  await service.initialize();
+  await service.saveAccessToken({ accessToken: "token-value" });
+
+  const handle = await service.runSync({ limit: 0 });
+  await sched.settled();
+  const summary = store.getSyncRun(handle.id);
+  assert.equal(summary?.status, "completed", "device listing failure does not fail the sync");
+
+  // Device table stays empty; no partial write from a broken response.
+  assert.equal(service.listDevices().length, 0);
+
+  service.close();
+});
+
+test("PlaudMirrorService getHealth pins lastSync to the last completed run while a new run is active", async () => {
+  const root = await mkdtemp(join(tmpdir(), "plaud-mirror-service-health-split-"));
+  const environment = createEnvironment(root);
+  const store = new RuntimeStore({
+    dbPath: join(environment.dataDir, "app.db"),
+    dataDir: environment.dataDir,
+    recordingsDir: environment.recordingsDir,
+    defaultSyncLimit: environment.defaultSyncLimit,
+  });
+  const secrets = new SecretStore(join(environment.dataDir, "secrets.enc"), environment.masterKey);
+  const service = new PlaudMirrorService(environment, store, secrets, {
+    plaudFetchImpl: async () => createJsonResponse({ status: 0, data: { uid: "user-1" } }),
+  });
+
+  await service.initialize();
+  await service.saveAccessToken({ accessToken: "token-value" });
+
+  // Seed a completed run so lastSync has something to pin.
+  const completed = store.startSyncRun("sync", { limit: 5, forceDownload: false });
+  store.finishSyncRun({
+    id: completed.id,
+    mode: "sync",
+    status: "completed",
+    startedAt: completed.startedAt,
+    finishedAt: "2026-04-24T10:00:00.000Z",
+    examined: 308,
+    matched: 5,
+    downloaded: 5,
+    delivered: 0,
+    skipped: 0,
+    plaudTotal: 308,
+    filters: { limit: 5, forceDownload: false },
+    error: null,
+  });
+
+  // Simulate an in-flight run without actually executing it: just register the
+  // row. This mirrors what startMirror does before the scheduler runs.
+  const running = store.startSyncRun("sync", { limit: 25, forceDownload: false });
+
+  const health = await service.getHealth();
+
+  assert.equal(
+    health.lastSync?.id,
+    completed.id,
+    "lastSync must stay pinned to the last COMPLETED run so stats do not flicker to zeros mid-run",
+  );
+  assert.equal(health.lastSync?.plaudTotal, 308);
+  assert.equal(
+    health.activeRun?.id,
+    running.id,
+    "activeRun must expose the in-flight run so the UI can drive its progress banner",
+  );
+  assert.equal(health.activeRun?.status, "running");
+  assert.equal(health.activeRun?.finishedAt, null);
 
   service.close();
 });

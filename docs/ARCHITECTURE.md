@@ -1,9 +1,9 @@
-<!-- doc-version: 0.4.9 -->
+<!-- doc-version: 0.4.11 -->
 # Plaud Mirror Architecture
 
-> Version: 0.4.9
-> Last Updated: 2026-04-23
-> Status: Phase 2 vertical slice (extended through 0.4.x with local curation, UX polish, Mode B sync correctly skipping mirrored rows, classic pagination, and stable sequence numbers)
+> Version: 0.4.11
+> Last Updated: 2026-04-24
+> Status: Phase 2 vertical slice (extended through 0.4.x with local curation, UX polish, Mode B sync, classic pagination, stable sequence numbers, async sync with live-progress polling, and a cached device catalog backing the backfill selector)
 
 ## Overview
 
@@ -56,19 +56,21 @@ Those belong to [Phase 3 and Phase 4](ROADMAP.md).
 3. Token is encrypted with `PLAUD_MIRROR_MASTER_KEY` and stored at rest.
 4. Auth status is exposed through `/api/auth/status` and `/api/health`.
 
-### Sync / Backfill (Mode B — download up to N missing)
+### Sync / Backfill (Mode B — download up to N missing, async)
 
-1. Operator triggers `/api/sync/run` or `/api/backfill/run` with a `limit`.
-2. Service validates the stored token.
-3. `client.listEverything()` paginates Plaud's full listing (`/file/simple/web?skip=N&limit=500`) until a page arrives shorter than 500 — signal of the last page. Every recording in the account is captured in date-desc order, plus the authoritative `plaudTotal`.
-4. Local filters are applied (date range, serial number, scene) if any.
-5. Candidate selection walks the filtered list newest-first and keeps a recording when it is **not dismissed** AND (if `forceDownload=false`) **not already mirrored locally** (i.e. `localPath` is null). Webhook delivery status is intentionally NOT part of this filter — a recording on disk is "mirrored" regardless of whether its webhook was delivered or skipped. Stops at `limit` candidates.
-6. Each candidate resolves detail and temp URL, downloads the artifact, writes:
+1. Operator triggers `POST /api/sync/run` or `POST /api/backfill/run` with a `limit` (0–1000). The API returns `202 Accepted` with `{ id, status: "running" }` immediately — it does **not** wait for the download work.
+2. The service registers a `sync_runs` row (`status = "running"`, no `finished_at`) and hands the actual work to a pluggable scheduler. The default scheduler is `setImmediate`; tests inject a deterministic scheduler that settles on demand.
+3. Background work validates the stored token.
+4. `client.listEverything()` paginates Plaud's full listing (`/file/simple/web?skip=N&limit=500`) until a page arrives shorter than 500 — signal of the last page. Every recording in the account is captured in date-desc order, plus the authoritative `plaudTotal`. Stable sequence numbers are recomputed from the oldest-first order.
+5. Local filters are applied (date range, serial number, scene) if any.
+6. Candidate selection walks the filtered list newest-first and keeps a recording when it is **not dismissed** AND (if `forceDownload=false`) **not already mirrored locally** (i.e. `localPath` is null). Webhook delivery status is intentionally NOT part of this filter — a recording on disk is "mirrored" regardless of whether its webhook was delivered or skipped. Stops at `limit` candidates. `limit=0` is legal and means "refresh the listing and ranks, download nothing" (used by the panel's "Refresh server stats" button).
+7. Each candidate resolves detail and temp URL, downloads the artifact, writes:
    - `recordings/<recording-id>/audio.<ext>`
    - `recordings/<recording-id>/metadata.json`
-7. Recording state is upserted into SQLite. Sync summary records `examined` (every recording Plaud returned), `matched` (final candidate count), `downloaded`, `plaudTotal`.
+   - After each candidate the run row is updated via `store.updateSyncRunProgress` so the panel's poll sees `downloaded` climb in real time.
+8. Recording state is upserted into SQLite. Sync summary records `examined` (every recording Plaud returned), `matched` (final candidate count), `downloaded`, `plaudTotal`, and is finalized with `status = "completed"` or `"failed"` and a `finishedAt` timestamp.
 
-The pre-0.4.7 semantics ("look at the N newest recordings Plaud has and skip ones that are already mirrored") silently did nothing when the N newest were all already local. Mode B instead walks as deep as needed to find N genuine gaps.
+The web panel polls `GET /api/health` every 2 s while a run is active. The health payload splits state into two fields: `lastSync` holds the last COMPLETED run (drives "Last run" stats, "Plaud total", and the hero metric) and stays pinned while a new run is in flight; `activeRun` holds the running run (drives the progress banner). Polling stops once `activeRun` becomes `null` — at that point `lastSync.id` matches the run's id and the final summary is surfaced. The pre-0.4.7 semantics ("look at the N newest recordings Plaud has and skip ones that are already mirrored") silently did nothing when the N newest were all already local. Mode B instead walks as deep as needed to find N genuine gaps.
 
 ### Webhook
 
@@ -83,10 +85,17 @@ The pre-0.4.7 semantics ("look at the N newest recordings Plaud has and skip one
 3. Subsequent sync/backfill runs detect `dismissed=true` and skip the recording without attempting to re-download it.
 4. The operator can restore a dismissed recording via `POST /api/recordings/<id>/restore`. The service clears the `dismissed` flag **and immediately re-downloads the audio** (fetching fresh `/file/detail` and `/file/temp-url` from Plaud, then writing the artifact back to `recordings/<id>/audio.<ext>`). If the immediate download fails (e.g. missing or invalid token), the flag is still cleared so the next scheduled sync can retry, and the API surfaces the error so the operator can recover.
 
+### Device catalog
+
+1. During the background portion of a sync run, the service calls `client.listDevices()` which hits `GET /device/list`. The response is translated from Plaud's wire shape (`sn`, `name`, `model`, `version_number`) into the domain `Device` type (`serialNumber`, `displayName`, `model`, `firmwareVersion`, `lastSeenAt`). The wire format is isolated to `packages/shared/src/plaud.ts`; the rest of the codebase only imports `Device`.
+2. Results are bulk-upserted into the `devices` SQLite table inside a single transaction. Rows are never deleted: when a device is unbound from the account, its row stays so historical recordings (which reference `serialNumber` directly) can still resolve a name. `lastSeenAt` is bumped only for devices present in the current response, so the UI can distinguish "active" from "retired".
+3. Failures on `/device/list` are caught and logged; they do NOT fail the containing sync. Device metadata is a UX convenience, not a correctness property.
+4. `GET /api/devices` returns `{ devices: Device[] }` (read-only, no network call — just reads the cached SQLite table). The web panel's backfill form uses this to render a `<select>` instead of requiring the operator to paste a raw serial number.
+
 ## Storage Layout
 
 - `data/app.db`
-  SQLite state for config, auth metadata, recordings (including `dismissed` / `dismissed_at` columns for local-only curation), sync runs, and webhook delivery attempts
+  SQLite state for config, auth metadata, recordings (including `dismissed` / `dismissed_at` columns for local-only curation), devices (cached from `/device/list`), sync runs, and webhook delivery attempts
 - `data/secrets.enc`
   Encrypted secret blob containing the Plaud token and optional webhook secret
 - `recordings/<recording-id>/audio.<ext>`

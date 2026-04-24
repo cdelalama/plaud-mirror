@@ -189,3 +189,32 @@ The project already hit a failure mode where the implementation drifted toward a
 - New work must be checked against `docs/ROADMAP.md` before claiming it belongs to the current phase.
 - If scope moves across a phase boundary, update the roadmap and handoff before calling the work aligned.
 - Phase 2 should not quietly absorb scheduler/outbox work unless the roadmap is deliberately re-cut.
+
+## D-011 - API facts discovered in AGPL upstreams may be adopted; AGPL code may not
+
+**Status:** accepted
+
+### Decision
+When a Plaud API endpoint is documented only in an AGPL-3.0 upstream (currently `openplaud/openplaud`), Plaud Mirror may adopt:
+
+- the endpoint URL, HTTP method, and auth shape,
+- the wire field names and types (e.g. `sn`, `name`, `model`, `version_number` on `/device/list`),
+- factual response semantics (e.g. "status 0 means success").
+
+Plaud Mirror must NOT adopt:
+
+- copied code (TypeScript types, Zod schemas, client classes, DB schemas, React components) from the AGPL upstream verbatim or with superficial edits,
+- project conventions, identifier names, or file structure that only make sense inside that upstream.
+
+The MIT client, store, API, and UI for any such feature must be implemented from scratch in this codebase, traceable to an independent description of the endpoint (usually the research note from the session that discovered it).
+
+### Rationale
+An API endpoint URL and its JSON field names describe an external service's behavior — they are facts about Plaud's server, not copyrightable expression. Multiple clients can and do target the same API surface with independently-written code, which is the ordinary case for reverse-engineered private APIs. The AGPL copyleft obligation attaches to the upstream's **code**, not to the shape of the API they happen to have documented first.
+
+The `/device/list` endpoint in `v0.4.11` is the first real exercise of this distinction: openplaud is the only upstream that calls it, and its TypeScript definitions match exactly what Plaud returns — but reusing their `PlaudClient.listDevices()` verbatim would be an AGPL code copy and is forbidden by D-005. Reimplementing against the same facts is fine and is what landed.
+
+### Implications
+
+- Every AGPL-sourced endpoint adoption must leave a trail in `docs/UPSTREAMS.md` (Phase 2 adoption bullet) pointing back to this decision.
+- Reviews must check that the implementation is genuinely independent (different Zod schema names, different client method signatures, different storage layout) rather than an import-and-rename of the upstream.
+- If an upstream under a restrictive license is the **only** source of *both* the endpoint facts and the meaningful product behavior (e.g. a whole auth dance), stop and ask before proceeding — that may be a case where the "facts, not expression" line is too thin to rely on.

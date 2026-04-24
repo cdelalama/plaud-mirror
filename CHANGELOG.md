@@ -4,6 +4,33 @@ All notable changes to Plaud Mirror are documented in this file.
 
 This project follows Semantic Versioning (SemVer): MAJOR.MINOR.PATCH.
 
+## [0.4.11] - 2026-04-24
+
+### Added
+- Device catalog. The Plaud `/device/list` endpoint is now consumed by `client.listDevices()`, translated from wire shape (`sn`, `version_number`) to the domain `Device` type (`serialNumber`, `displayName`, `model`, `firmwareVersion`, `lastSeenAt`), persisted in a new `devices` SQLite table (additive migration), and exposed read-only through `GET /api/devices`. Populated as a side effect of every sync: a failure on the device endpoint is caught and logged without failing the sync itself (`refreshDevices` is best-effort, the run still completes).
+- Web panel replaces the "Serial number" text input in the backfill form with a real device selector (`<select>`) populated from `/api/devices`. Labels render as `displayName — model (#abc123)` with fallbacks for devices that never got a nickname, and the dropdown surfaces a hint when no devices have been seen yet so the operator knows a sync will populate it.
+- Shared schemas: `PlaudRawDeviceSchema` / `PlaudDeviceListResponseSchema` (wire) and `DeviceSchema` / `DeviceListResponseSchema` (domain) in `packages/shared`. Wire types stay in `plaud.ts`, domain types in `runtime.ts`, and only the Plaud client knows the wire fields — the store, service, server, and UI only see the domain shape.
+- Store: `upsertDevice`, `upsertDevices` (single transaction for bulk writes), `listDevices`, `getDevice`. `listDevices` orders by `last_seen_at DESC, serial_number ASC` so the currently-connected device surfaces first but retired devices still appear (useful for historical recordings).
+- Seven new tests: two on the client (wire→domain translation; empty-serial guard), two on the store (upsert-rewrites + retired-device retention; empty-array no-op), two on the service (refresh populates catalog; `/device/list` failure does not fail the sync), one end-to-end on the server (`GET /api/devices` returns the refreshed catalog after a `limit=0` sync).
+
+### Changed
+- `DEFAULT_BACKFILL_DRAFT.serialNumber` semantics unchanged, but the input it maps to is no longer free-form — it is bound to the `<select>` value, so `""` means "any device" and any other value comes from the device catalog. This avoids typos (previously, a mistyped serial silently returned zero backfill matches).
+
+## [0.4.10] - 2026-04-24
+
+### Added
+- Async sync architecture (Option C). `POST /api/sync/run` and `POST /api/backfill/run` now return `202 Accepted` with `{ id, status: "running" }` immediately and schedule the download work in the background via a pluggable scheduler (`defaultScheduler` uses `setImmediate`). New `GET /api/sync/runs/:id` returns the live `SyncRunSummary` for polling. Sync progress (`examined`, `matched`, `downloaded`, `plaudTotal`) is persisted incrementally through `store.updateSyncRunProgress` so the panel sees the numbers climb mid-run instead of waiting for the final result.
+- Web panel polls `/api/health` every 2 s while a run is active and shows a dynamic banner ("Sync running: downloaded X of Y candidates so far (examined N / M in Plaud)") instead of the old static "Working…" text. When the run finishes it surfaces a per-mode banner and stops polling.
+- "Refresh server stats" button in the Manual sync card. It posts a `limit=0` sync, which walks the full Plaud listing, updates `plaudTotal` + stable ranks, and downloads nothing. This is the non-destructive way to reconcile the hero metric and `#N` badges after external changes without touching the wire.
+- `ServiceHealthSchema` gained `activeRun: SyncRunSummary | null` alongside the existing `lastSync`. `lastSync` now holds the last COMPLETED run (used for "Last run" stats, "Plaud total", and the hero metric); `activeRun` holds the in-flight run (used for the progress banner and to decide when to stop polling). This prevents stats from flickering to zeroes while a new sync is in flight — previously the panel showed "running, matched 0, downloaded 0" and "Plaud total: unknown until first sync" as soon as sync started, because `getLastSyncRun` returned the in-progress row.
+- Four new tests covering the separation: `store.test.ts` `getLastSyncRun` vs `getActiveSyncRun`, `service.test.ts` limit=0 + `getHealth` payload split, `server.test.ts` 202/polling round-trip.
+
+### Changed
+- `SyncFiltersSchema.limit` now accepts `0` (previously required positive). `limit=0` is the refresh-only path: paginate, update ranks and `plaudTotal`, do not download.
+- `SyncRunStatusSchema` gained `"running"`; `SyncRunSummarySchema.finishedAt` is now nullable so the status endpoint can surface a run that has not finished yet.
+- `runSync` / `runBackfill` return type changed from `Promise<SyncRunSummary>` to `Promise<StartSyncRunResponse>`; callers poll `GET /api/sync/runs/:id` (or `/api/health.lastSync`) for the final summary.
+- `store.getLastSyncRun()` now filters `WHERE finished_at IS NOT NULL` and orders by `finished_at DESC`, so only completed runs surface; new `store.getActiveSyncRun()` returns the running row if any.
+
 ## [0.4.9] - 2026-04-23
 
 ### Fixed

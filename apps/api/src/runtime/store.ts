@@ -6,11 +6,13 @@ import Database from "better-sqlite3";
 
 import {
   AuthStatusSchema,
+  DeviceSchema,
   RecordingMirrorSchema,
   RuntimeConfigSchema,
   SyncFiltersSchema,
   SyncRunSummarySchema,
   type AuthStatus,
+  type Device,
   type RecordingMirror,
   type RuntimeConfig,
   type SyncFilters,
@@ -32,6 +34,14 @@ interface SyncRunRow {
   skipped: number;
   plaud_total: number | null;
   error_message: string | null;
+}
+
+interface DeviceRow {
+  serial_number: string;
+  display_name: string;
+  model: string;
+  firmware_version: number | null;
+  last_seen_at: string;
 }
 
 interface RecordingRow {
@@ -158,6 +168,95 @@ export class RuntimeStore {
   countDismissed(): number {
     const row = this.db.prepare("SELECT COUNT(*) AS count FROM recordings WHERE dismissed = 1").get() as { count: number };
     return row.count;
+  }
+
+  upsertDevice(device: Device): Device {
+    const normalized = DeviceSchema.parse(device);
+    this.db.prepare(`
+      INSERT INTO devices (
+        serial_number,
+        display_name,
+        model,
+        firmware_version,
+        last_seen_at
+      ) VALUES (@serialNumber, @displayName, @model, @firmwareVersion, @lastSeenAt)
+      ON CONFLICT(serial_number) DO UPDATE SET
+        display_name = excluded.display_name,
+        model = excluded.model,
+        firmware_version = excluded.firmware_version,
+        last_seen_at = excluded.last_seen_at
+    `).run({
+      serialNumber: normalized.serialNumber,
+      displayName: normalized.displayName,
+      model: normalized.model,
+      firmwareVersion: normalized.firmwareVersion,
+      lastSeenAt: normalized.lastSeenAt,
+    });
+    return normalized;
+  }
+
+  // Bulk upsert inside a single transaction so a multi-device refresh is
+  // atomic. Returns the count of rows written so the caller can log it.
+  upsertDevices(devices: Device[]): number {
+    if (devices.length === 0) {
+      return 0;
+    }
+    const insert = this.db.prepare(`
+      INSERT INTO devices (
+        serial_number,
+        display_name,
+        model,
+        firmware_version,
+        last_seen_at
+      ) VALUES (?, ?, ?, ?, ?)
+      ON CONFLICT(serial_number) DO UPDATE SET
+        display_name = excluded.display_name,
+        model = excluded.model,
+        firmware_version = excluded.firmware_version,
+        last_seen_at = excluded.last_seen_at
+    `);
+    const transaction = this.db.transaction((items: Device[]) => {
+      for (const item of items) {
+        const normalized = DeviceSchema.parse(item);
+        insert.run(
+          normalized.serialNumber,
+          normalized.displayName,
+          normalized.model,
+          normalized.firmwareVersion,
+          normalized.lastSeenAt,
+        );
+      }
+    });
+    transaction(devices);
+    return devices.length;
+  }
+
+  listDevices(): Device[] {
+    const rows = this.db.prepare(`
+      SELECT
+        serial_number,
+        display_name,
+        model,
+        firmware_version,
+        last_seen_at
+      FROM devices
+      ORDER BY last_seen_at DESC, serial_number ASC
+    `).all() as DeviceRow[];
+    return rows.map(mapDeviceRow);
+  }
+
+  getDevice(serialNumber: string): Device | null {
+    const row = this.db.prepare(`
+      SELECT
+        serial_number,
+        display_name,
+        model,
+        firmware_version,
+        last_seen_at
+      FROM devices
+      WHERE serial_number = ?
+    `).get(serialNumber) as DeviceRow | undefined;
+    return row ? mapDeviceRow(row) : null;
   }
 
   listRecordings(
@@ -378,6 +477,10 @@ export class RuntimeStore {
   }
 
   getLastSyncRun(): SyncRunSummary | null {
+    // Return the most recent FINISHED run. Stats shown in the UI ("Plaud
+    // total", "Last run", hero metric) read from this so they stay stable
+    // while a new async run is in flight. Running rows are exposed separately
+    // via getActiveSyncRun().
     const row = this.db.prepare(`
       SELECT
         id,
@@ -404,6 +507,80 @@ export class RuntimeStore {
     }
 
     return mapSyncRunRow(row);
+  }
+
+  getActiveSyncRun(): SyncRunSummary | null {
+    // Return the most recent run that is still `status='running'`. Used by
+    // the health endpoint to expose in-flight progress to the UI poller.
+    const row = this.db.prepare(`
+      SELECT
+        id,
+        mode,
+        status,
+        filters_json,
+        started_at,
+        finished_at,
+        examined,
+        matched,
+        downloaded,
+        delivered,
+        skipped,
+        plaud_total,
+        error_message
+      FROM sync_runs
+      WHERE status = 'running'
+      ORDER BY started_at DESC
+      LIMIT 1
+    `).get() as SyncRunRow | undefined;
+
+    if (!row) {
+      return null;
+    }
+
+    return mapSyncRunRow(row);
+  }
+
+  getSyncRun(id: string): SyncRunSummary | null {
+    const row = this.db.prepare(`
+      SELECT
+        id,
+        mode,
+        status,
+        filters_json,
+        started_at,
+        finished_at,
+        examined,
+        matched,
+        downloaded,
+        delivered,
+        skipped,
+        plaud_total,
+        error_message
+      FROM sync_runs
+      WHERE id = ?
+    `).get(id) as SyncRunRow | undefined;
+
+    return row ? mapSyncRunRow(row) : null;
+  }
+
+  // Incremental in-progress update from the async worker. Does NOT touch
+  // status, finished_at, or error_message — those are owned by finishSyncRun.
+  updateSyncRunProgress(
+    id: string,
+    progress: { examined?: number; matched?: number; downloaded?: number; delivered?: number; skipped?: number; plaudTotal?: number },
+  ): void {
+    const sets: string[] = [];
+    const values: Array<number> = [];
+    if (progress.examined !== undefined) { sets.push("examined = ?"); values.push(progress.examined); }
+    if (progress.matched !== undefined) { sets.push("matched = ?"); values.push(progress.matched); }
+    if (progress.downloaded !== undefined) { sets.push("downloaded = ?"); values.push(progress.downloaded); }
+    if (progress.delivered !== undefined) { sets.push("delivered = ?"); values.push(progress.delivered); }
+    if (progress.skipped !== undefined) { sets.push("skipped = ?"); values.push(progress.skipped); }
+    if (progress.plaudTotal !== undefined) { sets.push("plaud_total = ?"); values.push(progress.plaudTotal); }
+    if (sets.length === 0) {
+      return;
+    }
+    this.db.prepare(`UPDATE sync_runs SET ${sets.join(", ")} WHERE id = ?`).run(...values, id);
   }
 
   recordDeliveryAttempt(attempt: DeliveryAttemptRecord): void {
@@ -481,6 +658,14 @@ export class RuntimeStore {
         error_message TEXT
       );
 
+      CREATE TABLE IF NOT EXISTS devices (
+        serial_number TEXT PRIMARY KEY,
+        display_name TEXT NOT NULL DEFAULT '',
+        model TEXT NOT NULL DEFAULT '',
+        firmware_version INTEGER,
+        last_seen_at TEXT NOT NULL
+      );
+
       CREATE TABLE IF NOT EXISTS webhook_deliveries (
         id TEXT PRIMARY KEY,
         recording_id TEXT NOT NULL,
@@ -539,6 +724,16 @@ export class RuntimeStore {
   private setJsonSetting(key: string, value: unknown): void {
     this.setSetting(key, JSON.stringify(value));
   }
+}
+
+function mapDeviceRow(row: DeviceRow): Device {
+  return DeviceSchema.parse({
+    serialNumber: row.serial_number,
+    displayName: row.display_name,
+    model: row.model,
+    firmwareVersion: row.firmware_version,
+    lastSeenAt: row.last_seen_at,
+  });
 }
 
 function mapRecordingRow(row: RecordingRow): RecordingMirror {

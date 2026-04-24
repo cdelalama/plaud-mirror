@@ -1,4 +1,4 @@
-<!-- doc-version: 0.4.9 -->
+<!-- doc-version: 0.4.11 -->
 # API Contract
 
 This document describes the Phase 2 HTTP and webhook surface that now exists in-repo.
@@ -12,8 +12,10 @@ This document describes the Phase 2 HTTP and webhook surface that now exists in-
 | `PUT` | `/api/config` | Update webhook URL and optional webhook secret |
 | `GET` | `/api/auth/status` | Return current auth state |
 | `POST` | `/api/auth/token` | Validate and persist a Plaud bearer token |
-| `POST` | `/api/sync/run` | Trigger a manual sync over the latest listings |
-| `POST` | `/api/backfill/run` | Trigger a filtered historical backfill |
+| `POST` | `/api/sync/run` | Schedule a manual sync. Returns `202 Accepted` with `{ id, status: "running" }` immediately; the work runs in the background. Poll `GET /api/sync/runs/:id` or `GET /api/health` (`activeRun` carries progress while running, `lastSync` updates on completion). |
+| `POST` | `/api/backfill/run` | Schedule a filtered historical backfill. Same async semantics as `/api/sync/run`: returns `202` with `{ id, status: "running" }`. |
+| `GET` | `/api/sync/runs/:id` | Return the live `SyncRunSummary` for a specific run id. `status` is `"running"` until the background work finishes (`"completed"` or `"failed"`). Returns 404 for unknown ids. |
+| `GET` | `/api/devices` | Return the cached device catalog (`{ devices: Device[] }`). Populated from Plaud's `/device/list` as a side effect of every sync. No network call on this route — reads from SQLite. Empty array is a valid response when no sync has run yet. |
 | `GET` | `/api/recordings` | List recent mirrored recordings. Accepts `?limit=<n>` (max 200, default 50) and `?includeDismissed=true` to include locally dismissed rows (hidden by default). |
 | `GET` | `/api/recordings/:id/audio` | Stream the locally mirrored audio file for a single recording. Returns 404 if the recording is not tracked or has no local file. Response body is the raw audio bytes with the stored `Content-Type`. Supports HTTP Range (RFC 7233 single-range): advertises `Accept-Ranges: bytes`, includes `Content-Length`, and honors `Range: bytes=start-end` (plus suffix `bytes=-N` and open-ended `bytes=start-`) with `206 Partial Content`. Unsatisfiable ranges return `416` with `Content-Range: bytes */size`. Multipart byteranges are intentionally unsupported. |
 | `DELETE` | `/api/recordings/:id` | Local-only dismiss. Removes the audio file from disk, clears `localPath`/`bytesWritten`, and marks the row `dismissed=true`. Plaud is not touched. Subsequent sync/backfill runs skip dismissed rows. |
@@ -49,6 +51,17 @@ This document describes the Phase 2 HTTP and webhook surface that now exists in-
 }
 ```
 
+`limit` accepts `0` (refresh-only: paginate the full Plaud listing, update `plaudTotal` and stable ranks, download nothing). Maximum `1000`.
+
+Response is `202 Accepted`:
+
+```json
+{
+  "id": "sync-run-id",
+  "status": "running"
+}
+```
+
 ### `POST /api/backfill/run`
 
 ```json
@@ -62,7 +75,30 @@ This document describes the Phase 2 HTTP and webhook surface that now exists in-
 }
 ```
 
-All backfill filters are optional.
+All backfill filters are optional. Response is `202 Accepted` with the same `{ id, status: "running" }` shape as `/api/sync/run`.
+
+### `GET /api/sync/runs/:id`
+
+No request body. Returns the live `SyncRunSummary` for the run:
+
+```json
+{
+  "id": "sync-run-id",
+  "mode": "sync",
+  "status": "running",
+  "startedAt": "2026-04-24T10:25:00.000Z",
+  "finishedAt": null,
+  "examined": 308,
+  "matched": 25,
+  "downloaded": 7,
+  "delivered": 0,
+  "skipped": 0,
+  "plaudTotal": 308,
+  "error": null
+}
+```
+
+`finishedAt` is `null` while the run is in flight and stamped once the background work resolves. `status` transitions from `"running"` to `"completed"` (or `"failed"` with `error` populated). Returns 404 for unknown ids.
 
 ### `DELETE /api/recordings/:id`
 

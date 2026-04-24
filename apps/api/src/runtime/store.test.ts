@@ -88,6 +88,70 @@ test("RuntimeStore persists config, recordings, and sync summaries", async () =>
   store.close();
 });
 
+test("RuntimeStore splits last completed run from active running run", async () => {
+  const root = await mkdtemp(join(tmpdir(), "plaud-mirror-store-active-"));
+  const store = new RuntimeStore({
+    dbPath: join(root, "data", "app.db"),
+    dataDir: join(root, "data"),
+    recordingsDir: join(root, "recordings"),
+    defaultSyncLimit: 100,
+  });
+
+  const firstRun = store.startSyncRun("sync", { limit: 5, forceDownload: false });
+  store.finishSyncRun({
+    id: firstRun.id,
+    mode: "sync",
+    status: "completed",
+    startedAt: firstRun.startedAt,
+    finishedAt: "2026-04-24T10:00:00.000Z",
+    examined: 308,
+    matched: 5,
+    downloaded: 5,
+    delivered: 0,
+    skipped: 0,
+    plaudTotal: 308,
+    filters: { limit: 5, forceDownload: false },
+    error: null,
+  });
+
+  // Second run starts but never finishes: still status='running', no finished_at.
+  const secondRun = store.startSyncRun("sync", { limit: 25, forceDownload: false });
+
+  // getLastSyncRun must return the FINISHED first run, not the in-flight second.
+  const lastRun = store.getLastSyncRun();
+  assert.equal(lastRun?.id, firstRun.id);
+  assert.equal(lastRun?.status, "completed");
+  assert.equal(lastRun?.plaudTotal, 308);
+
+  // getActiveSyncRun must return the in-flight second run with status='running'.
+  const activeRun = store.getActiveSyncRun();
+  assert.equal(activeRun?.id, secondRun.id);
+  assert.equal(activeRun?.status, "running");
+  assert.equal(activeRun?.finishedAt, null);
+
+  // Once the second run completes, getActiveSyncRun must return null and
+  // getLastSyncRun must surface the newer completed row.
+  store.finishSyncRun({
+    id: secondRun.id,
+    mode: "sync",
+    status: "completed",
+    startedAt: secondRun.startedAt,
+    finishedAt: "2026-04-24T10:05:00.000Z",
+    examined: 308,
+    matched: 25,
+    downloaded: 25,
+    delivered: 0,
+    skipped: 0,
+    plaudTotal: 308,
+    filters: { limit: 25, forceDownload: false },
+    error: null,
+  });
+  assert.equal(store.getActiveSyncRun(), null);
+  assert.equal(store.getLastSyncRun()?.id, secondRun.id);
+
+  store.close();
+});
+
 test("RuntimeStore can mark recordings dismissed and filter them from the default listing", async () => {
   const root = await mkdtemp(join(tmpdir(), "plaud-mirror-store-dismiss-"));
   const store = new RuntimeStore({
@@ -220,5 +284,76 @@ test("RuntimeStore migrates pre-0.4.0 databases by adding the dismissed columns"
   assert.equal(rows.recordings[0]?.dismissed, false);
   assert.equal(rows.recordings[0]?.dismissedAt, null);
 
+  store.close();
+});
+
+test("RuntimeStore upsertDevices rewrites existing rows and listDevices orders by last seen", async () => {
+  const root = await mkdtemp(join(tmpdir(), "plaud-mirror-store-devices-"));
+  const store = new RuntimeStore({
+    dbPath: join(root, "data", "app.db"),
+    dataDir: join(root, "data"),
+    recordingsDir: join(root, "recordings"),
+    defaultSyncLimit: 100,
+  });
+
+  // First refresh: seed two devices.
+  store.upsertDevices([
+    {
+      serialNumber: "PLAUD-ABC",
+      displayName: "Office",
+      model: "888",
+      firmwareVersion: 131339,
+      lastSeenAt: "2026-04-24T10:00:00.000Z",
+    },
+    {
+      serialNumber: "PLAUD-XYZ",
+      displayName: "Travel",
+      model: "888",
+      firmwareVersion: 131339,
+      lastSeenAt: "2026-04-24T10:00:00.000Z",
+    },
+  ]);
+
+  assert.equal(store.listDevices().length, 2);
+
+  // Second refresh: rename one device, bump its firmware, and sweep a newer
+  // lastSeenAt for the one still connected. The retired device keeps its old
+  // row so historical recordings can still resolve their name.
+  store.upsertDevices([
+    {
+      serialNumber: "PLAUD-ABC",
+      displayName: "Office (renamed)",
+      model: "888",
+      firmwareVersion: 131400,
+      lastSeenAt: "2026-04-24T11:00:00.000Z",
+    },
+  ]);
+
+  const devices = store.listDevices();
+  assert.equal(devices.length, 2, "retired device stays in table for historical lookup");
+  // Ordering: most recently seen first, then by serial ascending for ties.
+  assert.equal(devices[0]?.serialNumber, "PLAUD-ABC");
+  assert.equal(devices[0]?.displayName, "Office (renamed)");
+  assert.equal(devices[0]?.firmwareVersion, 131400);
+  assert.equal(devices[1]?.serialNumber, "PLAUD-XYZ");
+  assert.equal(devices[1]?.lastSeenAt, "2026-04-24T10:00:00.000Z");
+
+  const direct = store.getDevice("PLAUD-ABC");
+  assert.equal(direct?.displayName, "Office (renamed)");
+  assert.equal(store.getDevice("PLAUD-UNKNOWN"), null);
+
+  store.close();
+});
+
+test("RuntimeStore upsertDevices is a no-op for an empty array", async () => {
+  const root = await mkdtemp(join(tmpdir(), "plaud-mirror-store-devices-empty-"));
+  const store = new RuntimeStore({
+    dbPath: join(root, "data", "app.db"),
+    dataDir: join(root, "data"),
+    recordingsDir: join(root, "recordings"),
+    defaultSyncLimit: 100,
+  });
+  assert.equal(store.upsertDevices([]), 0);
+  assert.equal(store.listDevices().length, 0);
   store.close();
 });

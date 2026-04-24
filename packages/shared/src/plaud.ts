@@ -86,6 +86,24 @@ export const PlaudUserResponseSchema = z.object({
   data: z.record(z.string(), z.unknown()).optional().catch({}),
 }).passthrough();
 
+// Wire schema for a single entry returned by `GET /device/list`. Field names
+// follow Plaud's server response exactly; the Zod transform in the client maps
+// them to the repo's domain type (`Device`) so downstream code only sees
+// camelCase identifiers and never imports snake_case wire concerns.
+export const PlaudRawDeviceSchema = z.object({
+  sn: z.string(),
+  name: z.string().optional().catch(""),
+  model: z.string().optional().catch(""),
+  version_number: numericValueSchema.optional().nullable(),
+}).passthrough();
+
+export const PlaudDeviceListResponseSchema = z.object({
+  status: numericValueSchema,
+  msg: z.string().optional().catch(""),
+  request_id: z.string().optional(),
+  data_devices: z.array(PlaudRawDeviceSchema).catch([]),
+}).passthrough();
+
 export const PlaudTempUrlResponseSchema = z.object({
   status: numericValueSchema,
   msg: z.string().optional().catch(""),
@@ -105,3 +123,5 @@ export type PlaudFileDetailData = z.infer<typeof PlaudFileDetailDataSchema>;
 export type PlaudFileDetailResponse = z.infer<typeof PlaudFileDetailResponseSchema>;
 export type PlaudUserResponse = z.infer<typeof PlaudUserResponseSchema>;
 export type PlaudTempUrlResponse = z.infer<typeof PlaudTempUrlResponseSchema>;
+export type PlaudRawDevice = z.infer<typeof PlaudRawDeviceSchema>;
+export type PlaudDeviceListResponse = z.infer<typeof PlaudDeviceListResponseSchema>;

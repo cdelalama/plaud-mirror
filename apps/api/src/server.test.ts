@@ -306,6 +306,61 @@ test("audio endpoint supports HTTP Range requests with 206 Partial Content", asy
   await app.close();
 });
 
+test("createApp returns 202 from POST /api/sync/run and exposes status via GET /api/sync/runs/:id", async () => {
+  const root = await mkdtemp(join(tmpdir(), "plaud-mirror-server-async-"));
+  const environment = createEnvironment(root);
+  const app = await createApp({
+    environment,
+    plaudFetchImpl: async (input) => {
+      const url = String(input);
+      if (url.endsWith("/user/me")) {
+        return createJsonResponse({ status: 0, data: { uid: "user-1" } });
+      }
+      if (url.includes("/file/simple/web")) {
+        // Empty Plaud account so the sync completes immediately with no work.
+        return createJsonResponse({ status: 0, data_file_total: 0, data_file_list: [] });
+      }
+      throw new Error(`Unexpected Plaud fetch: ${url}`);
+    },
+  });
+
+  const tokenResponse = await app.inject({
+    method: "POST",
+    url: "/api/auth/token",
+    payload: { accessToken: "token-value" },
+  });
+  assert.equal(tokenResponse.statusCode, 200);
+
+  const startResponse = await app.inject({
+    method: "POST",
+    url: "/api/sync/run",
+    payload: { limit: 0 },
+  });
+  assert.equal(startResponse.statusCode, 202, "POST /api/sync/run returns 202 for accepted-but-async");
+  const { id, status } = startResponse.json();
+  assert.equal(status, "running");
+  assert.match(id, /^[0-9a-f-]+$/);
+
+  // Poll the dedicated status endpoint until the worker (kicked off via
+  // setImmediate) marks the row as completed.
+  let runJson: { status: string } | null = null;
+  for (let attempt = 0; attempt < 50; attempt += 1) {
+    const statusResponse = await app.inject({ method: "GET", url: `/api/sync/runs/${id}` });
+    assert.equal(statusResponse.statusCode, 200);
+    runJson = statusResponse.json() as { status: string };
+    if (runJson?.status !== "running") {
+      break;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
+  assert.equal(runJson?.status, "completed");
+
+  const unknownResponse = await app.inject({ method: "GET", url: "/api/sync/runs/does-not-exist" });
+  assert.equal(unknownResponse.statusCode, 404);
+
+  await app.close();
+});
+
 test("createApp rejects audio requests for unsafe ids", async () => {
   const root = await mkdtemp(join(tmpdir(), "plaud-mirror-server-unsafe-"));
   const environment = createEnvironment(root);
@@ -316,6 +371,78 @@ test("createApp rejects audio requests for unsafe ids", async () => {
     url: "/api/recordings/..%2Fsecrets/audio",
   });
   assert.equal(response.statusCode, 400);
+
+  await app.close();
+});
+
+test("createApp exposes GET /api/devices populated by a sync refresh", async () => {
+  const root = await mkdtemp(join(tmpdir(), "plaud-mirror-server-devices-"));
+  const environment = createEnvironment(root);
+  const app = await createApp({
+    environment,
+    plaudFetchImpl: async (input) => {
+      const url = String(input);
+      if (url.endsWith("/user/me")) {
+        return createJsonResponse({ status: 0, data: { uid: "user-1" } });
+      }
+      if (url.endsWith("/device/list")) {
+        return createJsonResponse({
+          status: 0,
+          data_devices: [
+            { sn: "PLAUD-OFFICE", name: "Office", model: "888", version_number: 131400 },
+            { sn: "PLAUD-FIELD", name: "Field rig", model: "888", version_number: 131400 },
+          ],
+        });
+      }
+      if (url.includes("/file/simple/web")) {
+        return createJsonResponse({ status: 0, data_file_total: 0, data_file_list: [] });
+      }
+      throw new Error(`Unexpected Plaud fetch: ${url}`);
+    },
+  });
+
+  // Pre-sync: catalog empty, endpoint returns an empty array (not 404 or 500).
+  const beforeResponse = await app.inject({ method: "GET", url: "/api/devices" });
+  assert.equal(beforeResponse.statusCode, 200);
+  assert.deepEqual(beforeResponse.json(), { devices: [] });
+
+  // Seed a token so sync can run.
+  const tokenResponse = await app.inject({
+    method: "POST",
+    url: "/api/auth/token",
+    payload: { accessToken: "token-value" },
+  });
+  assert.equal(tokenResponse.statusCode, 200);
+
+  // Fire a limit=0 sync (refresh-only path) and poll until it lands.
+  const syncResponse = await app.inject({
+    method: "POST",
+    url: "/api/sync/run",
+    payload: { limit: 0 },
+  });
+  assert.equal(syncResponse.statusCode, 202);
+  const { id } = syncResponse.json() as { id: string };
+
+  let runStatus = "running";
+  for (let attempt = 0; attempt < 50; attempt += 1) {
+    const statusResponse = await app.inject({ method: "GET", url: `/api/sync/runs/${id}` });
+    runStatus = (statusResponse.json() as { status: string }).status;
+    if (runStatus !== "running") {
+      break;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
+  assert.equal(runStatus, "completed");
+
+  const afterResponse = await app.inject({ method: "GET", url: "/api/devices" });
+  assert.equal(afterResponse.statusCode, 200);
+  const afterJson = afterResponse.json() as { devices: Array<{ serialNumber: string; displayName: string; model: string; firmwareVersion: number | null; lastSeenAt: string }> };
+  assert.equal(afterJson.devices.length, 2);
+  const office = afterJson.devices.find((d) => d.serialNumber === "PLAUD-OFFICE");
+  assert.equal(office?.displayName, "Office");
+  assert.equal(office?.model, "888");
+  assert.equal(office?.firmwareVersion, 131400);
+  assert.equal(typeof office?.lastSeenAt, "string");
 
   await app.close();
 });

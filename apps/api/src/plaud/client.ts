@@ -1,10 +1,13 @@
 import { randomUUID } from "node:crypto";
 
 import {
+  DeviceSchema,
+  PlaudDeviceListResponseSchema,
   PlaudFileDetailResponseSchema,
   PlaudListResponseSchema,
   PlaudTempUrlResponseSchema,
   PlaudUserResponseSchema,
+  type Device,
   type PlaudFileDetailData,
   type PlaudListResponse,
   type PlaudTempUrlResponse,
@@ -151,6 +154,28 @@ export class PlaudClient {
     }
 
     return { recordings, totalAvailable };
+  }
+
+  // Returns every hardware device bound to the account. The Plaud wire response
+  // uses `sn`, `name`, `model`, `version_number`; we translate to the project's
+  // domain type here so the service/store/UI only deal with `Device`. Devices
+  // never seen before carry a fresh `lastSeenAt`; this is bumped on every
+  // successful call so the store can distinguish "currently connected" from
+  // "historical / retired".
+  async listDevices(): Promise<Device[]> {
+    const response = await this.fetchJson("/device/list", PlaudDeviceListResponseSchema);
+    const now = new Date().toISOString();
+    return response.data_devices
+      .filter((raw) => typeof raw.sn === "string" && raw.sn.trim().length > 0)
+      .map((raw) =>
+        DeviceSchema.parse({
+          serialNumber: raw.sn.trim(),
+          displayName: (raw.name ?? "").trim(),
+          model: (raw.model ?? "").trim(),
+          firmwareVersion: typeof raw.version_number === "number" ? raw.version_number : null,
+          lastSeenAt: now,
+        }),
+      );
   }
 
   async getFileDetail(recordingId: string): Promise<PlaudFileDetailData> {

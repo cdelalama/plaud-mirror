@@ -272,6 +272,19 @@ input {
   background: rgba(69, 50, 30, 0.08);
   color: var(--ink);
   border: 1px solid var(--card-border);
+  position: sticky;
+  top: 0.5rem;
+  z-index: 20;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.inline-status {
+  margin-top: 0.5rem;
+  padding: 0.6rem 0.8rem;
+  border-radius: 12px;
+  background: rgba(69, 50, 30, 0.06);
+  color: var(--ink);
+  font-size: 0.88rem;
 }
 
 .muted {
@@ -399,6 +412,12 @@ input {
 .page-bar-controls {
   display: flex;
   gap: 0.5rem;
+}
+
+.button-row {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
 }
 
 .page-bar-controls button {

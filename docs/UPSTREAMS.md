@@ -1,4 +1,4 @@
-<!-- doc-version: 0.4.9 -->
+<!-- doc-version: 0.4.11 -->
 # Upstream Strategy
 
 Last verified against GitHub: 2026-04-22
@@ -40,6 +40,7 @@ Phase 2 adoption now landed in-repo:
 - the product panel and server-first operator flow continue to follow the `Applaud` shape rather than a browser-extension shape
 - manual-token persistence with explicit degraded-auth handling keeps Plaud Mirror aligned with its own phased-auth decision instead of inheriting a browser-session-only model
 - Docker-first packaging now exists, but scheduler/outbox behavior is still intentionally deferred to the next phase rather than copied prematurely from upstreams
+- the `/device/list` endpoint (wire shape: `{ status, data_devices: [{ sn, name, model, version_number }] }`) was discovered only in `openplaud/openplaud` (AGPL-3.0); the endpoint existence and field names are unprotectable facts about Plaud's server, so Plaud Mirror reuses the API shape but reimplements the client, store, and UI from scratch in this MIT codebase. No openplaud code is copied. See D-011.
 
 ## Primary Inspiration
 

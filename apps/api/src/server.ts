@@ -58,9 +58,26 @@ export async function createApp(options: CreateAppOptions = {}) {
 
   app.post("/api/auth/token", async (request) => service.saveAccessToken(request.body));
 
-  app.post("/api/sync/run", async (request) => service.runSync(request.body));
+  app.post("/api/sync/run", async (request, reply) => {
+    const handle = await service.runSync(request.body);
+    reply.code(202);
+    return handle;
+  });
 
-  app.post("/api/backfill/run", async (request) => service.runBackfill(request.body));
+  app.post("/api/backfill/run", async (request, reply) => {
+    const handle = await service.runBackfill(request.body);
+    reply.code(202);
+    return handle;
+  });
+
+  app.get("/api/sync/runs/:id", async (request) => {
+    const id = (request.params as { id: string }).id;
+    return service.getSyncRunStatus(id);
+  });
+
+  app.get("/api/devices", async () => {
+    return { devices: service.listDevices() };
+  });
 
   app.get("/api/recordings", async (request) => {
     const query = request.query as {

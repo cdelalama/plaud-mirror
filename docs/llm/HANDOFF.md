@@ -1,13 +1,13 @@
-<!-- doc-version: 0.4.9 -->
+<!-- doc-version: 0.4.11 -->
 # LLM Work Handoff
 
 This file is the live operational snapshot. Durable rationale lives in `docs/llm/DECISIONS.md`. Phase boundaries live in `docs/ROADMAP.md`.
 
 ## Current Status
 
-- Last Updated: 2026-04-23 - Claude Opus 4.7
-- Session Focus: Operator reported "Run sync limit=25 downloads nothing, limit=1 downloads nothing — no new ones come down" with v0.4.8. Diagnosis: my Mode B candidate filter required `lastWebhookStatus === "success"` to skip an already-mirrored row. Without a webhook configured every status is `"skipped"`, so already-mirrored rows passed the filter, became candidates, and `processRecording` then short-circuited without re-downloading. Net effect: `matched` went up but `downloaded` stayed at 0, exactly the symptom reported. Ship `v0.4.9` with the filter fixed.
-- Status: `v0.4.9` ships a one-line semantic fix in `service.runMirror`: candidates skip already-mirrored rows by checking only `existing?.localPath` (presence of a local file), not webhook delivery status. Webhook delivery is unrelated to "is this audio missing locally?". `forceDownload=true` still overrides and re-downloads everything. Test in `service.test.ts` updated to seed the already-mirrored fixture with `lastWebhookStatus: "skipped"` (matching the no-webhook reality) so it actually exercises the bug path. 40/40 tests still pass. The next sync should now actually walk past the 100 already-mirrored newest and find the next 25 missing recordings deeper in the timeline.
+- Last Updated: 2026-04-24 - Claude Opus 4.7
+- Session Focus: Operator feedback on v0.4.10's backfill form — "lo de serial number no tiene sentido. no puede sacar los dispositivos y ponerles el nombre o modelo?". The free-form text input forced the operator to remember opaque `PLAUD-XXXXXX` strings. Investigation across the 8 tracked upstreams found the endpoint only in `openplaud/openplaud` (AGPL-3.0) — per the new decision D-011, the endpoint URL and wire shape are unprotectable facts (no code copied), so Plaud Mirror adopts the API surface and reimplements client/store/UI from scratch in MIT.
+- Status: `v0.4.11` ships the device catalog. New `PlaudRawDeviceSchema`/`PlaudDeviceListResponseSchema` (wire) and `DeviceSchema`/`DeviceListResponseSchema` (domain) in shared; `client.listDevices()` translates wire→domain inside the Plaud client boundary so the rest of the codebase only sees `Device`. New `devices` SQLite table (additive migration) with `upsertDevice`, `upsertDevices` (single-transaction bulk), `listDevices`, `getDevice`. Service: `refreshDevices` piggybacks on `executeMirror` right after the listing fetch; failures on `/device/list` are caught and logged so sync still completes (device metadata is a UX convenience, not correctness). New `GET /api/devices` returns `{ devices: Device[] }` read-only. Web panel replaces the "Serial number" text input with a `<select>` populated from `/api/devices`, labels as `displayName — model (#tail6)` with graceful fallbacks, and refreshes the list after each sync. Seven new tests: 2 client (wire→domain, empty-serial guard), 2 store (retired-device retention, empty-array no-op), 2 service (refresh populates + `/device/list` failure doesn't fail sync), 1 server end-to-end (`GET /api/devices` after `limit=0` sync). Docs: D-011 added, UPSTREAMS Phase 2 bullet, ARCHITECTURE Device Catalog section, API_CONTRACT row, CHANGELOG. 51/51 tests pass. Next: rebuild image, verify VERSION inside the container, commit v0.4.10 then v0.4.11, push to origin.
 
 ## What Landed
 
@@ -152,6 +152,7 @@ Do not collapse those phases casually.
 - D-008: critical auth/download path stays auditable in-repo
 - D-009: operator-only TOS posture
 - D-010: roadmap phases are normative
+- D-011: API facts discovered in AGPL upstreams may be adopted; AGPL code may not
 
 ## Do Not Touch
 

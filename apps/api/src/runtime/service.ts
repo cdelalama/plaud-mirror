@@ -15,10 +15,12 @@ import {
   UpdateRuntimeConfigRequestSchema,
   WebhookPayloadSchema,
   type AuthStatus,
+  type Device,
   type RecordingDeleteResult,
   type RecordingMirror,
   type RecordingRestoreResult,
   type RuntimeConfig,
+  type StartSyncRunResponse,
   type SyncFilters,
   type SyncRunMode,
   type SyncRunSummary,
@@ -35,6 +37,10 @@ export interface RuntimeServiceDependencies {
   plaudFetchImpl?: typeof fetch;
   artifactFetchImpl?: typeof fetch;
   webhookFetchImpl?: typeof fetch;
+  // Schedules background work. Default: setImmediate (fire-and-forget). Tests
+  // can swap in `(fn) => { inflight.push(fn().catch(...)); }` and then await
+  // `Promise.all(inflight)` to wait for the async sync to finish deterministically.
+  scheduler?: (work: () => Promise<unknown>) => void;
 }
 
 interface DeliveryResult {
@@ -65,6 +71,7 @@ export class PlaudMirrorService {
   private readonly plaudFetchImpl: typeof fetch;
   private readonly artifactFetchImpl: typeof fetch;
   private readonly webhookFetchImpl: typeof fetch;
+  private readonly scheduler: (work: () => Promise<unknown>) => void;
 
   constructor(
     environment: ServerEnvironment,
@@ -78,6 +85,7 @@ export class PlaudMirrorService {
     this.plaudFetchImpl = dependencies.plaudFetchImpl ?? fetch;
     this.artifactFetchImpl = dependencies.artifactFetchImpl ?? fetch;
     this.webhookFetchImpl = dependencies.webhookFetchImpl ?? fetch;
+    this.scheduler = dependencies.scheduler ?? defaultScheduler;
   }
 
   async initialize(): Promise<void> {
@@ -119,6 +127,7 @@ export class PlaudMirrorService {
       phase: "Phase 2 - first usable slice",
       auth,
       lastSync: this.store.getLastSyncRun(),
+      activeRun: this.store.getActiveSyncRun(),
       recordingsCount: this.store.countRecordings(),
       dismissedCount: this.store.countDismissed(),
       webhookConfigured: Boolean(config.webhookUrl),
@@ -189,13 +198,13 @@ export class PlaudMirrorService {
     }
   }
 
-  async runSync(input: unknown = {}): Promise<SyncRunSummary> {
+  async runSync(input: unknown = {}): Promise<StartSyncRunResponse> {
     const parsed = SyncFiltersSchema.parse({
       limit: this.environment.defaultSyncLimit,
       ...normalizeObject(input),
     });
 
-    return this.runMirror("sync", {
+    return this.startMirror("sync", {
       ...parsed,
       from: null,
       to: null,
@@ -204,13 +213,32 @@ export class PlaudMirrorService {
     });
   }
 
-  async runBackfill(input: unknown = {}): Promise<SyncRunSummary> {
+  async runBackfill(input: unknown = {}): Promise<StartSyncRunResponse> {
     const parsed = SyncFiltersSchema.parse({
       limit: this.environment.defaultSyncLimit,
       ...normalizeObject(input),
     });
 
-    return this.runMirror("backfill", parsed);
+    return this.startMirror("backfill", parsed);
+  }
+
+  getSyncRunStatus(id: string): SyncRunSummary {
+    if (!/^[A-Za-z0-9_-]+$/.test(id)) {
+      throw createHttpError(400, "Sync run id contains unsupported characters");
+    }
+    const row = this.store.getSyncRun(id);
+    if (!row) {
+      throw createHttpError(404, `Sync run ${id} not found`);
+    }
+    return row;
+  }
+
+  // Read-only view of the device catalog populated by the last sync. The web
+  // panel uses this to render a "Filter by device" selector instead of making
+  // the operator paste a raw serial number. No network call: the table is
+  // refreshed as a side-effect of `executeMirror`.
+  listDevices(): Device[] {
+    return this.store.listDevices();
   }
 
   async listRecordings(
@@ -363,9 +391,23 @@ export class PlaudMirrorService {
     }
   }
 
-  private async runMirror(mode: SyncRunMode, filters: SyncFilters): Promise<SyncRunSummary> {
+  private startMirror(mode: SyncRunMode, filters: SyncFilters): StartSyncRunResponse {
     const normalizedFilters = SyncFiltersSchema.parse(filters);
-    const { id, startedAt } = this.store.startSyncRun(mode, normalizedFilters);
+    const { id } = this.store.startSyncRun(mode, normalizedFilters);
+    this.scheduler(() => this.executeMirror(id, mode, normalizedFilters));
+    return { id, status: "running" };
+  }
+
+  // Public for tests; production callers go through `runSync` / `runBackfill`
+  // which schedule this via `this.scheduler`. Tests can either inject a
+  // synchronous scheduler or call `executeMirror` directly after `startSyncRun`.
+  async executeMirror(id: string, mode: SyncRunMode, filters: SyncFilters): Promise<SyncRunSummary> {
+    const normalizedFilters = SyncFiltersSchema.parse(filters);
+    const existingRow = this.store.getSyncRun(id);
+    if (!existingRow) {
+      throw new Error(`sync_runs row ${id} not found`);
+    }
+    const startedAt = existingRow.startedAt;
 
     try {
       const { client } = await this.loadValidatedClient();
@@ -377,6 +419,28 @@ export class PlaudMirrorService {
       // Plaud and skip whatever is already local — silently did nothing if
       // the `limit` newest were all already mirrored, which was confusing.
       const { recordings: remoteRecordings, total: plaudTotal } = await client.listEverything(500);
+
+      // First incremental update: the operator's UI poll picks up `examined`
+      // and `plaudTotal` as soon as the listing is in (before any download).
+      this.store.updateSyncRunProgress(id, {
+        examined: remoteRecordings.length,
+        plaudTotal,
+      });
+
+      // Refresh the device catalog alongside the recordings listing. Failures
+      // here must not fail the sync — the device dropdown is a convenience,
+      // not a correctness property. We log and continue.
+      try {
+        const devices = await client.listDevices();
+        if (devices.length > 0) {
+          this.store.upsertDevices(devices);
+        }
+      } catch (error) {
+        console.warn(
+          `Device listing refresh failed during ${mode} ${id}:`,
+          error instanceof Error ? error.message : error,
+        );
+      }
 
       // Rank every recording in Plaud's full timeline (sorted newest-first by
       // start_time desc). `#1` is the oldest recording, `#N` is the newest —
@@ -412,6 +476,12 @@ export class PlaudMirrorService {
 
       const candidates: typeof filteredByQuery = [];
       for (const recording of filteredByQuery) {
+        // limit=0 means "do everything except download" (refresh path) — break
+        // immediately. The check is at the top so we never push a candidate
+        // we won't process.
+        if (candidates.length >= normalizedFilters.limit) {
+          break;
+        }
         const existing = this.store.getRecording(recording.id);
         if (existing?.dismissed) {
           continue;
@@ -424,10 +494,11 @@ export class PlaudMirrorService {
           continue;
         }
         candidates.push(recording);
-        if (candidates.length >= normalizedFilters.limit) {
-          break;
-        }
       }
+
+      // Publish `matched` before the loop so the UI shows "0 of 5 downloaded"
+      // immediately while it works through the candidates one by one.
+      this.store.updateSyncRunProgress(id, { matched: candidates.length });
 
       let downloaded = 0;
       let delivered = 0;
@@ -444,6 +515,8 @@ export class PlaudMirrorService {
         if (result.skipped) {
           skipped += 1;
         }
+        // After each candidate so the UI poll sees the counter tick up.
+        this.store.updateSyncRunProgress(id, { downloaded, delivered, skipped });
       }
 
       // Apply ranks last so freshly-inserted rows (from processRecording above)
@@ -466,17 +539,23 @@ export class PlaudMirrorService {
         error: null,
       }));
     } catch (error) {
+      // Preserve any partial progress already written to the row by
+      // updateSyncRunProgress (examined/matched/downloaded/etc may already be
+      // non-zero if the failure happened mid-loop). Resetting them to 0 here
+      // would discard real signal from the operator's polling UI.
+      const partial = this.store.getSyncRun(id);
       this.store.finishSyncRun(SyncRunSummarySchema.parse({
         id,
         mode,
         status: "failed",
         startedAt,
         finishedAt: new Date().toISOString(),
-        examined: 0,
-        matched: 0,
-        downloaded: 0,
-        delivered: 0,
-        skipped: 0,
+        examined: partial?.examined ?? 0,
+        matched: partial?.matched ?? 0,
+        downloaded: partial?.downloaded ?? 0,
+        delivered: partial?.delivered ?? 0,
+        skipped: partial?.skipped ?? 0,
+        plaudTotal: partial?.plaudTotal ?? null,
         filters: normalizedFilters,
         error: toErrorMessage(error),
       }));
@@ -796,4 +875,17 @@ function createHttpError(statusCode: number, message: string): Error & { statusC
   const error = new Error(message) as Error & { statusCode: number };
   error.statusCode = statusCode;
   return error;
+}
+
+// Default background scheduler: fire-and-forget via setImmediate. The work's
+// own `executeMirror` already records failures in the sync_runs row through
+// the catch + finishSyncRun path, so a swallowed promise rejection here just
+// avoids polluting the process with an unhandled rejection.
+function defaultScheduler(work: () => Promise<unknown>): void {
+  setImmediate(() => {
+    work().catch((error) => {
+      // eslint-disable-next-line no-console -- defensive log so a regression in finishSyncRun's catch is visible.
+      console.error("Background sync work failed:", error);
+    });
+  });
 }

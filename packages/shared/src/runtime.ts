@@ -41,7 +41,10 @@ export const SyncFiltersSchema = z.object({
   to: isoDateSchema.nullable().optional(),
   serialNumber: z.string().trim().min(1).nullable().optional(),
   scene: z.number().int().nullable().optional(),
-  limit: z.number().int().positive().max(1000).default(100),
+  // limit=0 is intentionally accepted: it means "do everything except download"
+  // (refresh listing, update plaudTotal, recompute sequence numbers). Operators
+  // also use the dedicated "Refresh server stats" UI button which posts limit=0.
+  limit: z.number().int().nonnegative().max(1000).default(100),
   forceDownload: z.boolean().default(false),
 }).strict();
 
@@ -86,15 +89,46 @@ export const RecordingRestoreResultSchema = z.object({
   dismissed: z.literal(false),
 }).strict();
 
+// Domain representation of a Plaud hardware device, decoupled from the wire
+// shape returned by `/device/list` (which uses `sn`, `version_number`, etc.).
+// Plaud Mirror code, the REST API, and the web panel all see this type; only
+// the Plaud client module is aware of the snake_case wire fields.
+export const DeviceSchema = z.object({
+  serialNumber: z.string().min(1),
+  // User-set nickname from the Plaud mobile app. May be empty string if the
+  // operator never renamed the device, in which case the UI falls back to the
+  // serial. Never null — normalized to "" at parse time so consumers can rely
+  // on string concatenation without optional chaining.
+  displayName: z.string().default(""),
+  // Short model code returned by Plaud (e.g. "888"). We keep it as the raw
+  // string because we have no authoritative mapping to marketing names
+  // ("PLAUD NOTE", "NotePin") and inventing one risks drifting from Plaud's
+  // own nomenclature.
+  model: z.string().default(""),
+  // Firmware version as an integer (matches Plaud's `version_number`). Kept
+  // so upstream drift is observable; not rendered in the UI yet.
+  firmwareVersion: z.number().int().nullable().default(null),
+  // When we last saw this device in a `/device/list` response. Used to surface
+  // devices that have been removed from the account without losing them from
+  // the UI dropdown (the operator may still want to filter historical
+  // recordings that belonged to a retired device).
+  lastSeenAt: z.string(),
+}).strict();
+
+export const DeviceListResponseSchema = z.object({
+  devices: z.array(DeviceSchema),
+}).strict();
+
 export const SyncRunModeSchema = z.enum(["sync", "backfill"]);
-export const SyncRunStatusSchema = z.enum(["completed", "failed"]);
+export const SyncRunStatusSchema = z.enum(["running", "completed", "failed"]);
 
 export const SyncRunSummarySchema = z.object({
   id: z.string(),
   mode: SyncRunModeSchema,
   status: SyncRunStatusSchema,
   startedAt: z.string(),
-  finishedAt: z.string(),
+  // null while status === "running"; populated once the worker calls finishSyncRun.
+  finishedAt: z.string().nullable(),
   examined: z.number().int().nonnegative(),
   matched: z.number().int().nonnegative(),
   downloaded: z.number().int().nonnegative(),
@@ -109,11 +143,23 @@ export const SyncRunSummarySchema = z.object({
   error: z.string().nullable(),
 }).strict();
 
+export const StartSyncRunResponseSchema = z.object({
+  id: z.string(),
+  status: z.literal("running"),
+}).strict();
+
 export const ServiceHealthSchema = z.object({
   version: z.string(),
   phase: z.string(),
   auth: AuthStatusSchema,
+  // Most recent COMPLETED run (status === "completed" | "failed"). Stats shown
+  // in the UI ("Plaud total", "Last run", hero metric) read from this field so
+  // they do not flicker to zeroes while a new run is in flight.
   lastSync: SyncRunSummarySchema.nullable(),
+  // The currently-running run, if any. Set only while status === "running";
+  // cleared once the background worker finalizes the row. The panel uses this
+  // for its progress banner and to decide when to stop polling.
+  activeRun: SyncRunSummarySchema.nullable().default(null),
   recordingsCount: z.number().int().nonnegative(),
   dismissedCount: z.number().int().nonnegative().default(0),
   webhookConfigured: z.boolean(),
@@ -149,8 +195,11 @@ export type RecordingMirror = z.infer<typeof RecordingMirrorSchema>;
 export type RecordingListResponse = z.infer<typeof RecordingListResponseSchema>;
 export type RecordingDeleteResult = z.infer<typeof RecordingDeleteResultSchema>;
 export type RecordingRestoreResult = z.infer<typeof RecordingRestoreResultSchema>;
+export type Device = z.infer<typeof DeviceSchema>;
+export type DeviceListResponse = z.infer<typeof DeviceListResponseSchema>;
 export type SyncRunMode = z.infer<typeof SyncRunModeSchema>;
 export type SyncRunStatus = z.infer<typeof SyncRunStatusSchema>;
 export type SyncRunSummary = z.infer<typeof SyncRunSummarySchema>;
+export type StartSyncRunResponse = z.infer<typeof StartSyncRunResponseSchema>;
 export type ServiceHealth = z.infer<typeof ServiceHealthSchema>;
 export type WebhookPayload = z.infer<typeof WebhookPayloadSchema>;

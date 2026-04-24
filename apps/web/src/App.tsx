@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useState } from "react";
 
 import type {
   AuthStatus,
+  Device,
   RecordingMirror,
   RuntimeConfig,
   ServiceHealth,
@@ -51,10 +52,89 @@ export function App() {
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(50);
   const [totalRecordings, setTotalRecordings] = useState(0);
+  const [activeRunId, setActiveRunId] = useState<string | null>(null);
+  const [devices, setDevices] = useState<Device[]>([]);
 
   useEffect(() => {
     void refreshSnapshot();
   }, [showDismissed, page, pageSize]);
+
+  // Polling loop while a sync is in flight. Polls /api/health every 2s and
+  // refreshes the library list so newly-mirrored recordings appear without an
+  // explicit Refresh click. `health.activeRun` carries the in-flight counters;
+  // `health.lastSync` stays pinned to the most recent COMPLETED run so the
+  // stats ("Plaud total", "Last run", hero metric) do not flicker to zeroes
+  // during a run. When `activeRun` becomes null and `lastSync.id` matches our
+  // `activeRunId`, the background work has finished — stop polling and post
+  // the success/error banner.
+  useEffect(() => {
+    if (!activeRunId) {
+      return;
+    }
+    let cancelled = false;
+    const tick = async () => {
+      if (cancelled) {
+        return;
+      }
+      try {
+        const h = await requestJson<ServiceHealth>("/api/health");
+        if (cancelled) {
+          return;
+        }
+        setHealth(h);
+        setLastRun(h.lastSync);
+
+        const params = new URLSearchParams({
+          limit: String(pageSize),
+          skip: String(page * pageSize),
+        });
+        if (showDismissed) {
+          params.set("includeDismissed", "true");
+        }
+        const recordingsResponse = await requestJson<{ recordings: RecordingMirror[]; total: number; skip: number; limit: number }>(
+          `/api/recordings?${params.toString()}`,
+        );
+        if (cancelled) {
+          return;
+        }
+        setRecordings(recordingsResponse.recordings);
+        setTotalRecordings(recordingsResponse.total);
+
+        const ourRunStillActive = h.activeRun && h.activeRun.id === activeRunId;
+        if (!ourRunStillActive) {
+          const finalSummary = h.lastSync && h.lastSync.id === activeRunId
+            ? h.lastSync
+            : await requestJson<SyncRunSummary>(`/api/sync/runs/${activeRunId}`).catch(() => null);
+          cancelled = true;
+          setActiveRunId(null);
+          setBusy(false);
+          // A successful sync refreshes the device catalog on the server, so
+          // pull the updated list before posting the completion banner.
+          try {
+            const devicesResponse = await requestJson<{ devices: Device[] }>("/api/devices");
+            setDevices(devicesResponse.devices);
+          } catch {
+            // Devices are a convenience; a transient failure here is fine.
+          }
+          if (finalSummary && finalSummary.status === "completed") {
+            setOperationResult(summarizeRun(finalSummary.mode === "backfill" ? "Backfill" : "Sync", finalSummary));
+          } else if (finalSummary && finalSummary.status === "failed") {
+            setOperationError(`Sync failed: ${finalSummary.error ?? "unknown error"}`);
+          }
+        }
+      } catch (error) {
+        // Swallow polling errors — the next tick will retry. A persistent
+        // failure surfaces eventually when the operator manually refreshes.
+        void error;
+      }
+    };
+    void tick();
+    const interval = setInterval(tick, 2000);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [activeRunId, page, pageSize, showDismissed]);
 
   async function refreshSnapshot(): Promise<void> {
     setLoading(true);
@@ -68,13 +148,14 @@ export function App() {
       if (showDismissed) {
         params.set("includeDismissed", "true");
       }
-      const [healthResponse, configResponse, authResponse, recordingsResponse] = await Promise.all([
+      const [healthResponse, configResponse, authResponse, recordingsResponse, devicesResponse] = await Promise.all([
         requestJson<ServiceHealth>("/api/health"),
         requestJson<RuntimeConfig>("/api/config"),
         requestJson<AuthStatus>("/api/auth/status"),
         requestJson<{ recordings: RecordingMirror[]; total: number; skip: number; limit: number }>(
           `/api/recordings?${params.toString()}`,
         ),
+        requestJson<{ devices: Device[] }>("/api/devices"),
       ]);
 
       setHealth(healthResponse);
@@ -84,6 +165,7 @@ export function App() {
       setTotalRecordings(recordingsResponse.total);
       setWebhookUrlInput(configResponse.webhookUrl ?? "");
       setLastRun(healthResponse.lastSync);
+      setDevices(devicesResponse.devices);
     } catch (error) {
       setOperationError(toErrorMessage(error));
     } finally {
@@ -163,41 +245,49 @@ export function App() {
     });
   }
 
-  async function handleRunSync(): Promise<void> {
-    await runOperation(async () => {
-      const summary = await requestJson<SyncRunSummary>("/api/sync/run", {
+  async function startBackgroundRun(path: "/api/sync/run" | "/api/backfill/run", body: unknown): Promise<void> {
+    setBusy(true);
+    setOperationError(null);
+    setOperationResult(null);
+    try {
+      const handle = await requestJson<{ id: string; status: "running" }>(path, {
         method: "POST",
-        body: JSON.stringify({
-          limit: coercePositiveInteger(backfill.limit, config?.defaultSyncLimit ?? 100),
-          forceDownload: backfill.forceDownload,
-        }),
+        body: JSON.stringify(body),
       });
+      setActiveRunId(handle.id);
+      // The polling effect (above) takes over from here. It clears
+      // activeRunId, busy, and posts the success/error banner when the row
+      // flips to completed/failed.
+    } catch (error) {
+      setBusy(false);
+      setOperationError(toErrorMessage(error));
+    }
+  }
 
-      setLastRun(summary);
-      await refreshSnapshot();
-      return summarizeRun("Sync", summary);
+  async function handleRunSync(): Promise<void> {
+    await startBackgroundRun("/api/sync/run", {
+      limit: coerceNonNegativeInteger(backfill.limit, config?.defaultSyncLimit ?? 100),
+      forceDownload: backfill.forceDownload,
     });
+  }
+
+  async function handleRefreshServerStats(): Promise<void> {
+    // Same code path as a sync, but with limit=0 so the worker only refreshes
+    // Plaud's listing (plaudTotal + sequence numbers) without downloading
+    // anything. Cheap way to bring the hero "Plaud total" / Missing counts
+    // up to date.
+    await startBackgroundRun("/api/sync/run", { limit: 0, forceDownload: false });
   }
 
   async function handleRunBackfill(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
-
-    await runOperation(async () => {
-      const summary = await requestJson<SyncRunSummary>("/api/backfill/run", {
-        method: "POST",
-        body: JSON.stringify({
-          from: backfill.from || null,
-          to: backfill.to || null,
-          serialNumber: backfill.serialNumber.trim() || null,
-          scene: backfill.scene ? Number(backfill.scene) : null,
-          limit: coercePositiveInteger(backfill.limit, config?.defaultSyncLimit ?? 100),
-          forceDownload: backfill.forceDownload,
-        }),
-      });
-
-      setLastRun(summary);
-      await refreshSnapshot();
-      return summarizeRun("Backfill", summary);
+    await startBackgroundRun("/api/backfill/run", {
+      from: backfill.from || null,
+      to: backfill.to || null,
+      serialNumber: backfill.serialNumber.trim() || null,
+      scene: backfill.scene ? Number(backfill.scene) : null,
+      limit: coerceNonNegativeInteger(backfill.limit, config?.defaultSyncLimit ?? 100),
+      forceDownload: backfill.forceDownload,
     });
   }
 
@@ -239,7 +329,7 @@ export function App() {
         </div>
       </div>
 
-      {busy ? <Banner tone="info" message="Working… sync and backfill can take a few minutes depending on the number of recordings. The panel will refresh when the run completes." /> : null}
+      {busy ? <Banner tone="info" message={describeBusy(activeRunId, health?.activeRun ?? null)} /> : null}
       {operationError ? <Banner tone="error" message={operationError} /> : null}
       {operationResult ? <Banner tone="success" message={operationResult} /> : null}
 
@@ -356,10 +446,10 @@ export function App() {
           </dl>
           <div className="stack">
             <label className="field">
-              <span>Sync limit</span>
+              <span>Sync limit (0 = refresh stats only, no download)</span>
               <input
                 type="number"
-                min="1"
+                min="0"
                 max="1000"
                 value={backfill.limit}
                 onChange={(event) =>
@@ -369,7 +459,8 @@ export function App() {
             </label>
             <p className="muted small">
               Default is 1 recording per click to avoid accidental bulk downloads. Raise this
-              value deliberately before running a larger sync.
+              value deliberately before running a larger sync. Set to 0 (or use the dedicated
+              button below) to refresh Plaud counts without downloading anything.
             </p>
             <label className="checkbox">
               <input
@@ -381,9 +472,17 @@ export function App() {
               />
               <span>Force a fresh download even if the file already exists</span>
             </label>
-            <button type="button" disabled={busy} onClick={() => void handleRunSync()}>
-              {busy ? "Running…" : "Run sync now"}
-            </button>
+            <div className="button-row">
+              <button type="button" disabled={busy} onClick={() => void handleRunSync()}>
+                {busy ? "Running…" : "Run sync now"}
+              </button>
+              <button type="button" className="secondary" disabled={busy} onClick={() => void handleRefreshServerStats()}>
+                Refresh server stats
+              </button>
+            </div>
+            {activeRunId && health?.activeRun?.id === activeRunId ? (
+              <p className="inline-status">{describeBusy(activeRunId, health.activeRun)}</p>
+            ) : null}
           </div>
         </section>
 
@@ -425,14 +524,25 @@ export function App() {
 
             <div className="grid compact-grid">
               <label className="field">
-                <span>Serial number</span>
-                <input
-                  type="text"
+                <span>Device</span>
+                <select
                   value={backfill.serialNumber}
                   onChange={(event) =>
                     setBackfill((current) => ({ ...current, serialNumber: event.target.value }))
                   }
-                />
+                >
+                  <option value="">Any device</option>
+                  {devices.map((device) => (
+                    <option key={device.serialNumber} value={device.serialNumber}>
+                      {formatDeviceLabel(device)}
+                    </option>
+                  ))}
+                </select>
+                {devices.length === 0 ? (
+                  <span className="muted small">
+                    No devices detected yet — run a sync to populate this list.
+                  </span>
+                ) : null}
               </label>
               <label className="field">
                 <span>Scene</span>
@@ -449,6 +559,9 @@ export function App() {
             <button type="submit" disabled={busy}>
               Run filtered backfill
             </button>
+            {activeRunId && health?.activeRun?.id === activeRunId ? (
+              <p className="inline-status">{describeBusy(activeRunId, health.activeRun)}</p>
+            ) : null}
           </form>
         </section>
       </div>
@@ -682,9 +795,47 @@ function summarizeRun(label: string, summary: SyncRunSummary): string {
   return `${label}: ${summary.status}, matched ${summary.matched}, downloaded ${summary.downloaded}, delivered ${summary.delivered}`;
 }
 
-function coercePositiveInteger(value: string, fallback: number): number {
+function describeBusy(activeRunId: string | null, activeRun: SyncRunSummary | null): string {
+  if (activeRunId && activeRun?.id === activeRunId && activeRun.status === "running") {
+    const matched = activeRun.matched;
+    const downloaded = activeRun.downloaded;
+    const examined = activeRun.examined;
+    const plaudTotal = activeRun.plaudTotal;
+    if (matched > 0) {
+      return `Sync running: downloaded ${downloaded} of ${matched} candidates so far (examined ${examined}${plaudTotal ? ` / ${plaudTotal} in Plaud` : ""}).`;
+    }
+    if (examined > 0) {
+      return `Sync running: examined ${examined}${plaudTotal ? ` / ${plaudTotal} in Plaud` : ""}, picking candidates…`;
+    }
+    return "Sync running: fetching Plaud listing…";
+  }
+  return "Working… the panel will refresh when the operation completes.";
+}
+
+function coerceNonNegativeInteger(value: string, fallback: number): number {
   const parsed = Number(value);
-  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
+  return Number.isInteger(parsed) && parsed >= 0 ? parsed : fallback;
+}
+
+// Build the dropdown label for one device. We never render the raw serial as
+// the primary identifier — it is long, opaque, and the operator's own name is
+// more useful. Fallbacks: displayName → "<model>" → "PLAUD-<serial>". Always
+// tail with the last 6 chars of the serial so the operator can disambiguate
+// two devices that share a name ("Office" / "Office").
+function formatDeviceLabel(device: Device): string {
+  const tail = device.serialNumber.length > 6
+    ? device.serialNumber.slice(-6)
+    : device.serialNumber;
+  const tailSuffix = ` (#${tail})`;
+  if (device.displayName) {
+    return device.model
+      ? `${device.displayName} — ${device.model}${tailSuffix}`
+      : `${device.displayName}${tailSuffix}`;
+  }
+  if (device.model) {
+    return `PLAUD ${device.model}${tailSuffix}`;
+  }
+  return `PLAUD-${tail}`;
 }
 
 function formatRecordingsMetric(localCount: number, remoteTotal: number | null): string {

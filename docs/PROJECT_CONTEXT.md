@@ -1,4 +1,4 @@
-<!-- doc-version: 0.4.9 -->
+<!-- doc-version: 0.4.11 -->
 # Project Context - Plaud Mirror
 
 ## Vision
@@ -22,14 +22,14 @@ Plaud Mirror is a server-first product with two runtime surfaces:
 
 Persistence is split between SQLite for state/indexes and the filesystem for mirrored audio artifacts. Secrets are encrypted at rest with a master key supplied by the surrounding deployment.
 
-## Current Status (2026-04-23)
+## Current Status (2026-04-24)
 
-Plaud Mirror `v0.4.9` is the extended Phase 2 slice: the original manual vertical slice plus local-only curation, UX polish, Mode B sync semantics (now correctly skipping already-mirrored rows regardless of webhook delivery status), classic pagination, and stable `#N` sequence numbers anchored to each recording's position in the full Plaud timeline. The repository now has:
+Plaud Mirror `v0.4.11` is the extended Phase 2 slice: the original manual vertical slice plus local-only curation, UX polish, Mode B sync semantics, classic pagination, stable `#N` sequence numbers, async sync with live-progress polling, and a cached device catalog that backs a real `<select>` in the backfill form instead of a free-form serial-number input. `POST /api/sync/run` returns 202 immediately and the panel polls `/api/health` every 2 s to surface `downloaded X of Y` as the run advances. The repository now has:
 
 - a live Fastify API
 - a web panel for token setup, webhook configuration, sync/backfill controls, and recordings visibility
 - encrypted persisted manual bearer-token auth
-- manual sync and filtered historical backfill
+- manual sync and filtered historical backfill (async: 202-then-poll, with a `limit=0` "refresh server stats" path)
 - SQLite-backed recording and delivery state (including `dismissed`/`dismissed_at` columns for local curation)
 - immediate HMAC-signed webhook delivery with persisted attempt logging
 - inline audio playback per recording, with a confirmed local-only dismiss/restore flow that never touches Plaud

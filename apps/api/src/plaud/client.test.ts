@@ -179,6 +179,78 @@ test("PlaudClient throws PlaudApiError on non-JSON success body", async () => {
   );
 });
 
+test("listDevices translates Plaud wire fields to the domain Device type", async () => {
+  const fetchImpl = (async () => {
+    return createJsonResponse({
+      status: 0,
+      msg: "success",
+      data_devices: [
+        {
+          sn: "PLAUD-ABC123",
+          name: "Office recorder",
+          model: "888",
+          version_number: 131339,
+        },
+        {
+          sn: "PLAUD-DEF456",
+          name: "",
+          model: "888",
+          version_number: 131339,
+        },
+        {
+          // Defensive: wire may omit name/model/version on new/edge devices.
+          sn: "PLAUD-GHI789",
+        },
+      ],
+    });
+  }) as unknown as typeof fetch;
+
+  const client = new PlaudClient({
+    accessToken: "token",
+    fetchImpl,
+  });
+
+  const devices = await client.listDevices();
+
+  assert.equal(devices.length, 3);
+  assert.equal(devices[0]?.serialNumber, "PLAUD-ABC123");
+  assert.equal(devices[0]?.displayName, "Office recorder");
+  assert.equal(devices[0]?.model, "888");
+  assert.equal(devices[0]?.firmwareVersion, 131339);
+  assert.equal(typeof devices[0]?.lastSeenAt, "string");
+
+  // Missing display name is normalized to "" (not null/undefined) so the UI
+  // can string-concat without optional chaining.
+  assert.equal(devices[1]?.displayName, "");
+
+  // Fully minimal device still parses with safe defaults.
+  assert.equal(devices[2]?.serialNumber, "PLAUD-GHI789");
+  assert.equal(devices[2]?.displayName, "");
+  assert.equal(devices[2]?.model, "");
+  assert.equal(devices[2]?.firmwareVersion, null);
+});
+
+test("listDevices skips entries with an empty serial number", async () => {
+  const fetchImpl = (async () => {
+    return createJsonResponse({
+      status: 0,
+      data_devices: [
+        { sn: "", name: "broken", model: "888" },
+        { sn: "PLAUD-VALID", name: "good", model: "888" },
+      ],
+    });
+  }) as unknown as typeof fetch;
+
+  const client = new PlaudClient({
+    accessToken: "token",
+    fetchImpl,
+  });
+
+  const devices = await client.listDevices();
+  assert.equal(devices.length, 1);
+  assert.equal(devices[0]?.serialNumber, "PLAUD-VALID");
+});
+
 test("extractTempUrl accepts nested data.temp_url and rejects missing temp urls", () => {
   assert.equal(
     extractTempUrl({
