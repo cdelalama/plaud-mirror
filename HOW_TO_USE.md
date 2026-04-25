@@ -1,11 +1,11 @@
-<!-- doc-version: 0.5.0 -->
+<!-- doc-version: 0.5.1 -->
 # How to Use This Repository
 
 This guide explains how Plaud Mirror is operated end-to-end and how it stays aligned with both `LLM-DocKit` (the governance scaffold it adopts) and the Plaud ecosystem upstreams it watches.
 
 ## Current Reality
 
-`v0.5.0` is the **first Phase 3 release**: it inherits the full Phase 2 manual slice and adds the in-process continuous sync scheduler (D-012) and the partial health observability surface (D-014, scheduler subset). Today the repository gives you:
+`v0.5.1` is the **stable Phase 3 entry point**: it inherits the full Phase 2 manual slice and adds the in-process continuous sync scheduler (D-012) plus the partial health observability surface (D-014, scheduler subset). It also corrects two regressions introduced in `v0.5.0` — the scheduler defaulted to 15 minutes when `PLAUD_MIRROR_SCHEDULER_INTERVAL_MS` was unset (now correctly disabled), and `service.runSync` / `runScheduledSync` now actually serialise via `getActiveSyncRun` instead of merely claiming to. **Operators upgrading from `v0.4.x` should skip `v0.5.0` and go directly to `v0.5.1`.** Today the repository gives you:
 
 - a Fastify API and React/Vite panel bundled in a single Docker container;
 - encrypted persisted bearer-token auth against Plaud, surviving restarts;
@@ -17,7 +17,7 @@ This guide explains how Plaud Mirror is operated end-to-end and how it stays ali
 - a `scheduler` block on `/api/health` reporting `enabled` / `intervalMs` / `nextTickAt` / `lastTickAt` / `lastTickStatus` / `lastTickError`;
 - upstream-watch tooling plus the full LLM-DocKit governance circuit (HANDOFF, HISTORY, DECISIONS, REVIEWS, version-sync manifest, validator, pre-commit hook).
 
-What it deliberately does **not** give you yet: durable retry outbox (next: `v0.5.1`), `lastErrors` ring buffer + outbox backlog in health (next: `v0.5.2`), resumable backfill, automatic re-login, NAS rollout. Those are remaining Phase 3 work and Phase 4+ per `docs/ROADMAP.md`.
+What it deliberately does **not** give you yet: durable retry outbox (next: `v0.5.2`), `lastErrors` ring buffer + outbox backlog in health (next: `v0.5.3`), resumable backfill, automatic re-login, NAS rollout. Those are remaining Phase 3 work and Phase 4+ per `docs/ROADMAP.md`.
 
 For the full feature inventory see [README.md](README.md); for the product intent see [docs/PROJECT_CONTEXT.md](docs/PROJECT_CONTEXT.md); for current work state see [docs/llm/HANDOFF.md](docs/llm/HANDOFF.md).
 
@@ -48,16 +48,23 @@ npm start
 
 The continuous sync scheduler is **disabled by default** to preserve Phase 2 manual-only behavior for existing operators. Enable it by setting `PLAUD_MIRROR_SCHEDULER_INTERVAL_MS` in the environment that boots the container or `npm start`:
 
-| Value                         | Result                                                                  |
-|-------------------------------|-------------------------------------------------------------------------|
-| (unset) / `0`                 | Scheduler disabled — operator triggers every sync manually.             |
-| `60000` … any positive number | Scheduler fires every `intervalMs`. Minimum is 60 000 ms (60 s).        |
-| Below `60000`                 | Rejected at startup — protects Plaud from over-polling.                 |
-| Empty string / non-numeric    | Falls back to default 900 000 ms (15 min).                              |
+| Value                          | Result                                                                              |
+|--------------------------------|-------------------------------------------------------------------------------------|
+| (unset) / empty / `0`          | Scheduler disabled — operator triggers every sync manually.                         |
+| `60000` … any positive integer | Scheduler fires every `intervalMs` ms (minimum 60 000 = 60 s).                      |
+| Below `60000` (positive)       | Rejected at startup — protects Plaud from over-polling.                             |
+| Negative / non-integer string  | Rejected at startup with an explicit error — fail loud, never default silently.     |
 
-Recommended starting point: `900000` (15 min). Each tick performs `runSync({ limit: defaultSyncLimit })` against Plaud. Two layers of anti-overlap protect against double work — if a manual run is in progress when a tick fires, the tick is recorded as `lastTickStatus = "skipped"` and does nothing. Verify the scheduler is live by checking `GET /api/health` and confirming the `scheduler` block reports `enabled: true` with a populated `nextTickAt`.
+Recommended starting point: `900000` (15 min). The recommendation lives in this doc deliberately, not in code; the runtime never picks a non-zero scheduler on your behalf.
 
-When the scheduler is enabled, `health.phase` reads `"Phase 3 - unattended operation"`; when disabled it falls back to `"Phase 2 - manual sync"`. Use this string for human eyes only — never for control flow.
+Each tick performs `runScheduledSync()` against Plaud. Two layers of anti-overlap protect against double work:
+
+1. **Service-layer.** If a manual `POST /api/sync/run` (or another scheduled tick) is already mid-flight, the tick reuses that run's id without inserting a second `sync_runs` row, and `lastTickStatus` is `"skipped"` with `lastTickError` carrying the reason (e.g. `"another sync run was already in flight"`).
+2. **Scheduler-level.** If the previous tick's promise has not resolved by the time the next timer fires, the new fire is also recorded as `"skipped"` and discarded.
+
+Verify the scheduler is live by checking `GET /api/health` and confirming the `scheduler` block reports `enabled: true` with a populated `nextTickAt`. After the first tick fires, watch `lastTickAt` / `lastTickStatus` to confirm cadence.
+
+When the scheduler is enabled, `health.phase` reads `"Phase 3 - unattended operation"`; when disabled it falls back to `"Phase 2 - first usable slice"`. Use this string for human eyes only — never for control flow.
 
 ### Phase 1 spike (still available)
 
@@ -101,7 +108,7 @@ Useful for live Plaud flow checks and metadata discovery without booting the pan
 npm test
 ```
 
-84 tests at `v0.5.0`: 73 backend (Plaud client, runtime service, store, server routes, shared schemas including the `formatting` helpers used by both web and api, built-api smoke, web-build smoke, **plus 7 new scheduler tests in `apps/api/dist/runtime/scheduler.test.js` covering fireOnce success/failure, anti-overlap skip semantics, deterministic timer harness via injected `setTimer`/`clearTimer`, start idempotency, constructor input validation, and live `status()` reporting**) + 11 web (`storage` localStorage helpers, `<StateBadge>` component rendering). The web side runs under Vitest+jsdom+@testing-library/react (D-015) and is hooked into the root `npm test` via `npm run test:web`.
+93 tests at `v0.5.1`: 82 backend (Plaud client, runtime service, store, server routes, shared schemas including the `formatting` helpers used by both web and api, built-api smoke, web-build smoke, scheduler tests, **plus 9 regression tests added in `v0.5.1`: 6 in `apps/api/dist/runtime/environment.test.js` proving the env var matrix above (unset → disabled, empty → disabled, explicit `0` → disabled, positive accepted, sub-floor rejected, non-numeric/negative rejected), 1 in `apps/api/dist/runtime/service.test.js` proving concurrent `runSync` / `runScheduledSync` reuse the active run instead of inserting a second `sync_runs` row, and 2 in `apps/api/dist/runtime/scheduler.test.js` proving `runTick` returning `{ skipped: true, reason }` flips `lastTickStatus` to `skipped` and that void / non-skip return values stay `completed`**) + 11 web (`storage` localStorage helpers, `<StateBadge>` component rendering). The web side runs under Vitest+jsdom+@testing-library/react (D-015) and is hooked into the root `npm test` via `npm run test:web`.
 
 ## Working With LLM-DocKit Upstream
 

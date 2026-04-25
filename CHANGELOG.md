@@ -4,6 +4,32 @@ All notable changes to Plaud Mirror are documented in this file.
 
 This project follows Semantic Versioning (SemVer): MAJOR.MINOR.PATCH.
 
+## [0.5.1] - 2026-04-25
+
+### Fixed
+- **`v0.5.0` shipped the scheduler default-on without an opt-in.** `parseSchedulerInterval` was called with a 15-minute fallback in `apps/api/src/runtime/environment.ts`, so any operator who upgraded from `0.4.x` to `0.5.0` without setting `PLAUD_MIRROR_SCHEDULER_INTERVAL_MS` got automatic sync ticks every 15 minutes silently. Both the SemVer minor-bump contract ("no behavior change without opt-in") and every doc in the `0.5.0` release (CHANGELOG, HOW_TO_USE, AUTH_AND_SYNC, ARCHITECTURE, HANDOFF, HISTORY) explicitly promised "0/unset = disabled, Phase 2 manual-only behavior preserved" — the code did the opposite. Verified live: the post-`0.5.0` rebuild on `dev-vm` reported `scheduler.enabled: true, intervalMs: 900000` even though `.env`, `compose.yml`, and the container's environment had no such variable. The fallback in `environment.ts:46` is now `0` (disabled) and the recommended starting value (15 min) lives in `HOW_TO_USE.md` and `AUTH_AND_SYNC.md`, never in code. Six new regression tests in `apps/api/src/runtime/environment.test.ts` cover the full env-var matrix.
+- **`v0.5.0` documented service-layer anti-overlap that did not exist in code.** CHANGELOG `[0.5.0]`, `AUTH_AND_SYNC.md`, `ARCHITECTURE.md`, and `HISTORY.md` all stated *"`service.runSync` serializes via `getActiveSyncRun` (rejects mid-flight, returns the existing run id)"*. `apps/api/src/runtime/service.ts:520` `startMirror` simply called `this.store.startSyncRun(...)` directly with no `getActiveSyncRun` consultation. A manual sync and a scheduled tick that fired concurrently both inserted into `sync_runs` and both dispatched `executeMirror`, racing on the recordings UPSERT path and leaving two `running` rows the panel poll could not interpret. The only real protection in `0.5.0` was the scheduler's own `inflight` flag, which only stops two ticks of the same scheduler from overlapping — not manual+scheduled. New private helper `startOrReuseMirror` now consults `getActiveSyncRun` before allocating a new row; when a run is active, it returns the existing run's id with `started: false`. `runSync` / `runBackfill` map this to the public `{ id, status: "running" }` shape (REST callers can't tell the difference because their contract is "poll until done"). New `runScheduledSync` returns `{ id, started: boolean }` for the scheduler tick. One new regression test in `apps/api/src/runtime/service.test.ts` proves concurrent calls reuse the active run id and dispatch only one `executeMirror`, plus dispatch a fresh run only after the active one finishes.
+- **Scheduler `lastTickStatus` now reports anti-overlap absorption honestly.** In `0.5.0`, when the (then-missing) service-level reuse would have absorbed a tick, the tick still labelled itself `completed` because `runSync` did not signal "no work happened." `0.5.1` extends `Scheduler.runTick`'s contract to accept a `{ skipped: true, reason?: string }` return value: when present, the scheduler records `lastTickStatus = "skipped"` and `lastTickError = reason` (the field is reused for operator-readable context, not just errors). `server.ts` maps `runScheduledSync()`'s `started: false` to this shape. Two new tests in `apps/api/src/runtime/scheduler.test.ts` cover the new path (skip via runTick result + reason surfaced, void / non-skip-shaped object stays `completed`).
+
+### Notes
+- `v0.5.0` is broken and superseded. **Operators upgrading from `0.4.x` should skip `0.5.0` and go directly to `0.5.1`.** No need to roll back if `0.5.0` was deployed: the only persistent state changes were extra `sync_runs` rows from the missing anti-overlap (each one harmless on its own — Plaud listings are idempotent and recordings UPSERT by id). On reboot with `0.5.1`, the active-run reuse takes over and no further duplicate rows are created.
+- This is a **patch** release (0.5.0 → 0.5.1) because the surface contract is unchanged; the pre-existing API shape (`/api/health`, `/api/sync/run` semantics, the `scheduler` block) all stay the same. What changed is the actual behavior matching the documentation.
+- Phase 3 sequencing is pushed back one slot to absorb this fix: `v0.5.2` is now the durable webhook outbox (D-013), `v0.5.3` is the full health observability surface (D-014, complete).
+- This release continues to be backend-only; web-side test count is unchanged at 11. Backend test count: 73 (`v0.5.0`) → 82 (`v0.5.1`); grand total: **93**.
+
+### Changed
+- `parseSchedulerInterval` fallback in `apps/api/src/runtime/environment.ts` is now `0` instead of `15 * 60 * 1000`. JSDoc on `ServerEnvironment.schedulerIntervalMs` rewritten to reflect the corrected contract.
+- `PlaudMirrorService` gains a private `startOrReuseMirror(mode, filters)` helper used by `runSync`, `runBackfill`, and the new `runScheduledSync`. Public REST routes are unchanged in shape.
+- `Scheduler.SchedulerOptions.runTick` return type widened from `Promise<unknown>` to `Promise<TickRunResult | void>` to support the external-skip path. New exported interface `TickRunResult { skipped: boolean; reason?: string }`. The `inflight`-flag anti-overlap path is unchanged.
+- `apps/api/src/server.ts` scheduler `runTick` now calls `service.runScheduledSync()` (instead of `service.runSync(...)`), inspects `started`, and returns `{ skipped: true, reason }` to the scheduler when an existing run absorbed the tick.
+- `package.json#scripts.test` chains the new `apps/api/dist/runtime/environment.test.js` ahead of `service.test.js`.
+
+### Added
+- `apps/api/src/runtime/environment.test.ts` (6 regression tests for the env-var matrix).
+- `apps/api/src/runtime/service.test.ts` regression test for concurrent-run reuse.
+- `apps/api/src/runtime/scheduler.test.ts` regression tests for the `runTick → { skipped: true }` path and for non-skip return values staying `completed`.
+- New public method `PlaudMirrorService.runScheduledSync()` and new exported scheduler type `TickRunResult` in `apps/api/src/runtime/scheduler.ts`. No HTTP route surface change.
+
 ## [0.5.0] - 2026-04-25
 
 ### Added

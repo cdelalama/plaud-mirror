@@ -82,6 +82,59 @@ test("PlaudMirrorService saves a validated token into encrypted storage", async 
   service.close();
 });
 
+test("PlaudMirrorService anti-overlap: concurrent runSync / runScheduledSync reuse the active run instead of creating a new one", async () => {
+  // Regression test for the v0.5.0 documentation/code mismatch: the
+  // CHANGELOG and AUTH_AND_SYNC promised that runSync serialises via
+  // getActiveSyncRun, but startMirror inserted a new sync_runs row on
+  // every call. v0.5.1 introduces startOrReuseMirror to honour the
+  // documented contract.
+  const root = await mkdtemp(join(tmpdir(), "plaud-mirror-service-"));
+  const environment = createEnvironment(root);
+  const store = new RuntimeStore({
+    dbPath: join(environment.dataDir, "app.db"),
+    dataDir: environment.dataDir,
+    recordingsDir: environment.recordingsDir,
+    defaultSyncLimit: environment.defaultSyncLimit,
+  });
+  const secrets = new SecretStore(join(environment.dataDir, "secrets.enc"), environment.masterKey);
+
+  // Scheduler that captures work but never awaits it: the first run stays
+  // `running` in SQLite for the duration of the test, simulating a
+  // long-running manual sync.
+  const queued: Array<() => Promise<unknown>> = [];
+  const service = new PlaudMirrorService(environment, store, secrets, {
+    scheduler: (work) => {
+      queued.push(work);
+    },
+  });
+
+  const first = await service.runSync({ limit: 5 });
+  const second = await service.runSync({ limit: 5 });
+  const tick = await service.runScheduledSync();
+
+  assert.equal(second.id, first.id, "second runSync must reuse the active run id");
+  assert.equal(tick.id, first.id, "scheduler tick must reuse the active run id");
+  assert.equal(tick.started, false, "scheduler tick must report started=false when a run is active");
+  // Only the first call dispatched background work.
+  assert.equal(queued.length, 1, "no second executeMirror should have been queued");
+
+  // Finishing the first run unblocks subsequent calls again.
+  const activeRow = store.getSyncRun(first.id);
+  assert.ok(activeRow, "active row should exist mid-test");
+  store.finishSyncRun({
+    ...activeRow,
+    status: "completed",
+    finishedAt: new Date().toISOString(),
+    error: null,
+  });
+
+  const afterFinish = await service.runSync({ limit: 5 });
+  assert.notEqual(afterFinish.id, first.id, "after finish, runSync must start a fresh run");
+  assert.equal(queued.length, 2, "the post-finish runSync must dispatch new background work");
+
+  service.close();
+});
+
 test("PlaudMirrorService backfill downloads audio and signs webhook delivery", async () => {
   const root = await mkdtemp(join(tmpdir(), "plaud-mirror-service-"));
   const environment = createEnvironment(root);

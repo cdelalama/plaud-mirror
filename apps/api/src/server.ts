@@ -34,16 +34,28 @@ export async function createApp(options: CreateAppOptions = {}) {
   await service.initialize();
 
   // Phase 3 scheduler (D-012). Activated only when the environment opts in
-  // (`schedulerIntervalMs > 0`). Tests construct environments with the
-  // value set to 0, so they keep Phase 2 manual-only behavior.
+  // (`schedulerIntervalMs > 0`). The fallback in environment.ts is 0
+  // (disabled), so an operator who upgrades from 0.4.x without setting
+  // PLAUD_MIRROR_SCHEDULER_INTERVAL_MS keeps Phase 2 manual-only behavior.
   const scheduler = environment.schedulerIntervalMs > 0
     ? new Scheduler({
         intervalMs: environment.schedulerIntervalMs,
         runTick: async () => {
-          // Tick = a manual sync at the operator-configured default limit.
-          // The service already serializes runs via `getActiveSyncRun`;
-          // the scheduler's own anti-overlap check is the second guardrail.
-          await service.runSync({ limit: environment.defaultSyncLimit });
+          // Two-layer anti-overlap (documented in 0.5.0 but only fully
+          // implemented in 0.5.1):
+          //   1. Service-layer: runScheduledSync consults
+          //      store.getActiveSyncRun() and returns `started: false`
+          //      when a manual or scheduled run is already mid-flight,
+          //      without inserting into sync_runs.
+          //   2. Scheduler-level: the inflight flag on Scheduler.executeTick
+          //      stops two ticks from this same scheduler from running
+          //      concurrently.
+          // When the service absorbs the tick, surface that as `skipped`
+          // in the health response — `completed` would mislead operators.
+          const { started } = await service.runScheduledSync();
+          if (!started) {
+            return { skipped: true, reason: "another sync run was already in flight" };
+          }
         },
       })
     : null;

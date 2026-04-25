@@ -15,10 +15,15 @@ export interface ServerEnvironment {
   requestTimeoutMs: number;
   /**
    * Continuous-sync scheduler interval in milliseconds (D-012). When > 0,
-   * the runtime ticks `service.runSync({ limit: defaultSyncLimit })` on
-   * this cadence with anti-overlap protection. When 0, the scheduler is
-   * disabled and Phase 2's manual-only behavior is preserved exactly.
-   * Default: 15 minutes.
+   * the runtime ticks `service.runScheduledSync()` on this cadence with
+   * anti-overlap protection. When 0, the scheduler is disabled and Phase
+   * 2's manual-only behavior is preserved exactly.
+   *
+   * Default when `PLAUD_MIRROR_SCHEDULER_INTERVAL_MS` is unset: 0
+   * (disabled). The minor bump from 0.4.x → 0.5.x must not change runtime
+   * behavior for operators who do not opt in; the recommended starting
+   * value when they do opt in is 900_000 (15 minutes), documented in
+   * HOW_TO_USE.md and AUTH_AND_SYNC.md but NOT applied automatically.
    */
   schedulerIntervalMs: number;
 }
@@ -42,8 +47,10 @@ export function loadServerEnvironment(env: NodeJS.ProcessEnv = process.env): Ser
   // Scheduler accepts 0 (= disabled) explicitly, so we cannot use
   // parsePositiveInteger here — that helper rejects 0. The cadence floor
   // for "enabled" is 60_000ms (1 minute) to prevent accidental
-  // configuration that would hammer Plaud once per second.
-  const schedulerIntervalMs = parseSchedulerInterval(env.PLAUD_MIRROR_SCHEDULER_INTERVAL_MS, 15 * 60 * 1000);
+  // configuration that would hammer Plaud once per second. Fallback is 0
+  // (disabled) so an operator upgrading from 0.4.x to 0.5.x without
+  // setting the variable keeps Phase 2's manual-only behavior.
+  const schedulerIntervalMs = parseSchedulerInterval(env.PLAUD_MIRROR_SCHEDULER_INTERVAL_MS, 0);
 
   const resolvedEnvironment: ServerEnvironment = {
     port,

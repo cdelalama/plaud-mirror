@@ -56,6 +56,51 @@ test("Scheduler.fireOnce runs the tick and reports completed", async () => {
   assert.equal(ticks[0]?.status, "completed");
 });
 
+test("Scheduler.fireOnce labels external skip when runTick returns { skipped: true } and surfaces the reason", async () => {
+  // External anti-overlap: the runTick callback (e.g. runScheduledSync)
+  // detected a manual run already in flight and refused to start a new
+  // one. We must not lie in lastTickStatus by saying "completed" — the
+  // tick fired, but no work happened.
+  let calls = 0;
+  const ticks: TickResult[] = [];
+  const scheduler = new Scheduler({
+    intervalMs: 1000,
+    runTick: async () => {
+      calls += 1;
+      return { skipped: true, reason: "another sync run was already in flight" };
+    },
+    onTick: (r) => ticks.push(r),
+  });
+
+  const result = await scheduler.fireOnce();
+  assert.equal(result.status, "skipped");
+  assert.equal(result.error, "another sync run was already in flight");
+  assert.equal(calls, 1);
+  assert.equal(ticks.length, 1);
+  assert.equal(ticks[0]?.status, "skipped");
+
+  const status = scheduler.status();
+  assert.equal(status.lastTickStatus, "skipped");
+  assert.equal(status.lastTickError, "another sync run was already in flight");
+});
+
+test("Scheduler.fireOnce treats runTick returning void / non-skip object as completed", async () => {
+  // Defensive: only `{ skipped: true }` should flip the label. Plain
+  // resolution must stay "completed" so existing callers that return
+  // unrelated work products are not silently mislabelled.
+  const completedScheduler = new Scheduler({
+    intervalMs: 1000,
+    runTick: async () => undefined,
+  });
+  assert.equal((await completedScheduler.fireOnce()).status, "completed");
+
+  const objectScheduler = new Scheduler({
+    intervalMs: 1000,
+    runTick: async () => ({ skipped: false }),
+  });
+  assert.equal((await objectScheduler.fireOnce()).status, "completed");
+});
+
 test("Scheduler.fireOnce captures runTick failures as 'failed' with error message", async () => {
   const scheduler = new Scheduler({
     intervalMs: 1000,

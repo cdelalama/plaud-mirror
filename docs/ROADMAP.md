@@ -1,4 +1,4 @@
-<!-- doc-version: 0.5.0 -->
+<!-- doc-version: 0.5.1 -->
 # Plaud Mirror Roadmap
 
 This document is the canonical phase boundary for Plaud Mirror. If implementation scope starts to cross a phase boundary, update this document before claiming the work is part of the current phase.
@@ -12,10 +12,10 @@ This document is the canonical phase boundary for Plaud Mirror. If implementatio
 
 ## Current Target
 
-- Current delivery target: `v0.5.0`
-- Current phase: **Phase 3 - unattended operation (begins at 0.5.0)**
+- Current delivery target: `v0.5.1`
+- Current phase: **Phase 3 - unattended operation (begins at 0.5.1)**
 - Deployment target: `dev-vm` first
-- Phase 3 entry: `v0.5.0` ships the in-process scheduler (D-012) and partial health observability (D-014, scheduler subset). Webhook outbox (D-013) and full health surfaces (lastErrors buffer, outbox backlog) land in `v0.5.1` / `v0.5.2`.
+- Phase 3 entry: `v0.5.0` introduced the in-process scheduler (D-012) and partial health observability (D-014, scheduler subset) but shipped two regressions — scheduler default-on without opt-in, and a service-layer anti-overlap claim that was missing in code. **`v0.5.1` is the first stable Phase 3 release;** operators upgrading from `0.4.x` should skip `v0.5.0`. Durable webhook outbox (D-013) and full health surfaces (lastErrors buffer, outbox backlog) now land in `v0.5.2` / `v0.5.3`.
 
 ## Phase Table
 

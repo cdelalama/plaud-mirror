@@ -1,4 +1,4 @@
-<!-- doc-version: 0.5.0 -->
+<!-- doc-version: 0.5.1 -->
 # Deploy Playbook
 
 This runbook describes the actual Phase 2 Docker deployment path for Plaud Mirror.
@@ -78,5 +78,5 @@ docker compose up --build -d
 
 ## Notes
 
-- The current container is a single-process Phase 2 slice: API plus static web panel.
-- Scheduler and resilient retry loops are not part of this deployment yet; they arrive in Phase 3.
+- The current container is a single-process Phase 3 slice: API + static web panel + opt-in continuous sync scheduler (D-012). The scheduler stays **disabled unless** `PLAUD_MIRROR_SCHEDULER_INTERVAL_MS` is set to a positive value of at least 60 000 ms — see [HOW_TO_USE.md](../../HOW_TO_USE.md) and [AUTH_AND_SYNC.md](AUTH_AND_SYNC.md) for the configuration matrix.
+- Durable webhook outbox (D-013) and full health observability — `lastErrors` ring buffer + outbox backlog (D-014, full) — are still later in `0.5.x`.

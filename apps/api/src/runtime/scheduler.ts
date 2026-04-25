@@ -25,8 +25,17 @@ export interface SchedulerOptions {
    * The work the scheduler performs each tick. Should be idempotent under
    * "skipped if previous tick still running" semantics — i.e. it is okay
    * for the scheduler to silently skip a tick rather than queue it.
+   *
+   * Return value:
+   * - `void` / `undefined` / any non-object → tick is labelled `completed`.
+   * - `{ skipped: true, reason?: string }` → tick is labelled `skipped`,
+   *   reason (if provided) is recorded as `lastTickError` for observability
+   *   (it is not actually an error, just operator-readable context like
+   *   "a manual sync was already in flight").
+   *
+   * Throwing makes the tick `failed` regardless of return shape.
    */
-  runTick: () => Promise<unknown>;
+  runTick: () => Promise<TickRunResult | void>;
   /**
    * Optional hook for visibility. Called after each tick attempt with the
    * outcome ("completed" | "failed" | "skipped"). Tests use this to
@@ -42,11 +51,26 @@ export interface SchedulerOptions {
   clearTimer?: (timer: unknown) => void;
 }
 
+/**
+ * Optional value `runTick` may return to mark a tick as `skipped` without
+ * throwing. Used when an external pre-check (e.g. service-layer
+ * `getActiveSyncRun`) absorbs the work — the scheduler did fire on
+ * cadence, but no new run was started.
+ */
+export interface TickRunResult {
+  skipped: boolean;
+  reason?: string;
+}
+
 export interface TickResult {
   /**
    * "completed" — the tick's runTick resolved without throwing.
    * "failed"    — runTick threw; the error message is captured.
-   * "skipped"   — the tick fired while a previous tick was still in flight.
+   * "skipped"   — either (a) the tick fired while a previous tick from
+   *               this scheduler was still in flight (internal anti-
+   *               overlap), or (b) runTick resolved with
+   *               `{ skipped: true, reason }` (external anti-overlap, e.g.
+   *               a manual sync absorbed the tick).
    */
   status: "completed" | "failed" | "skipped";
   startedAt: string;
@@ -67,7 +91,7 @@ export interface SchedulerStatus {
 
 export class Scheduler {
   private readonly intervalMs: number;
-  private readonly runTick: () => Promise<unknown>;
+  private readonly runTick: () => Promise<TickRunResult | void>;
   private readonly onTick: (result: TickResult) => void;
   private readonly setTimer: (handler: () => void, ms: number) => unknown;
   private readonly clearTimer: (timer: unknown) => void;
@@ -154,8 +178,19 @@ export class Scheduler {
 
     this.inflight = true;
     try {
-      await this.runTick();
+      const tickResult = await this.runTick();
       const finishedAt = new Date();
+      if (isExternalSkip(tickResult)) {
+        const result: TickResult = {
+          status: "skipped",
+          startedAt: startedAt.toISOString(),
+          finishedAt: finishedAt.toISOString(),
+          ...(tickResult.reason ? { error: tickResult.reason } : {}),
+        };
+        this.recordTickResult(result, finishedAt);
+        this.onTick(result);
+        return result;
+      }
       const result: TickResult = {
         status: "completed",
         startedAt: startedAt.toISOString(),
@@ -203,4 +238,8 @@ function toIsoOrNull(value: number | null): string | null {
     return null;
   }
   return new Date(value).toISOString();
+}
+
+function isExternalSkip(value: TickRunResult | void): value is TickRunResult {
+  return typeof value === "object" && value !== null && value.skipped === true;
 }

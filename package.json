@@ -1,6 +1,6 @@
 {
   "name": "plaud-mirror",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "private": true,
   "type": "module",
   "packageManager": "npm@11.6.2",
@@ -16,7 +16,7 @@
     "build:runtime": "tsc -b packages/shared/tsconfig.json apps/api/tsconfig.json",
     "build:web": "npm run build --workspace @plaud-mirror/web",
     "start": "npm run build && node apps/api/dist/cli/server.js",
-    "test": "npm run build && node --test packages/shared/dist/plaud.test.js packages/shared/dist/formatting.test.js apps/api/dist/plaud/client.test.js apps/api/dist/phase1/spike.test.js apps/api/dist/cli/spike.test.js apps/api/dist/runtime/secrets.test.js apps/api/dist/runtime/store.test.js apps/api/dist/runtime/scheduler.test.js apps/api/dist/runtime/service.test.js apps/api/dist/server.test.js tests/integration/http.test.mjs tests/integration/web-build.test.mjs && npm run test:web",
+    "test": "npm run build && node --test packages/shared/dist/plaud.test.js packages/shared/dist/formatting.test.js apps/api/dist/plaud/client.test.js apps/api/dist/phase1/spike.test.js apps/api/dist/cli/spike.test.js apps/api/dist/runtime/secrets.test.js apps/api/dist/runtime/store.test.js apps/api/dist/runtime/scheduler.test.js apps/api/dist/runtime/environment.test.js apps/api/dist/runtime/service.test.js apps/api/dist/server.test.js tests/integration/http.test.mjs tests/integration/web-build.test.mjs && npm run test:web",
     "test:web": "npm run test --workspace @plaud-mirror/web",
     "spike": "npm run build:runtime && node apps/api/dist/cli/spike.js"
   },

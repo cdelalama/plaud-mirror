@@ -1,9 +1,9 @@
-<!-- doc-version: 0.5.0 -->
+<!-- doc-version: 0.5.1 -->
 # Plaud Mirror Architecture
 
-> Version: 0.5.0
+> Version: 0.5.1
 > Last Updated: 2026-04-25
-> Status: Phase 3 in progress — v0.5.0 ships the in-process continuous sync scheduler (D-012) and the partial health observability surface (D-014, scheduler subset). Inherits the entire Phase 2 slice (manual sync/backfill, curation, UX polish, Mode B, classic pagination, sequence numbers, async-202 with live-progress polling, device catalog, backfill dry-run preview, Vitest+jsdom+@testing-library/react test framework). Webhook outbox (D-013) and full health observability (lastErrors, outbox backlog) are deferred to v0.5.1 / v0.5.2.
+> Status: Phase 3 in progress. `v0.5.0` introduced the in-process continuous sync scheduler (D-012) and the partial health observability surface (D-014, scheduler subset); `v0.5.1` corrects two regressions in that release — the scheduler defaulted to 15 minutes instead of being opt-in, and the documented service-level anti-overlap (`getActiveSyncRun` reuse) was missing in code. `v0.5.1` is the first stable Phase 3 release; operators should skip `v0.5.0`. Inherits the entire Phase 2 slice (manual sync/backfill, curation, UX polish, Mode B, classic pagination, sequence numbers, async-202 with live-progress polling, device catalog, backfill dry-run preview, Vitest+jsdom+@testing-library/react test framework). Webhook outbox (D-013) and full health observability (lastErrors, outbox backlog) are deferred to v0.5.2 / v0.5.3.
 
 ## Overview
 
@@ -42,9 +42,10 @@ Phase 2 was the first usable manual slice. It included:
 
 Phase 3 turns the manual slice into an unattended service. It is being delivered across the `0.5.x` line:
 
-- **`v0.5.0` (this release):** in-process continuous sync scheduler with anti-overlap protection (D-012); partial health observability — scheduler subset only (D-014, partial). Scheduler is opt-in via `PLAUD_MIRROR_SCHEDULER_INTERVAL_MS`; defaults to disabled (Phase 2 manual-only behavior preserved when the variable is absent or `0`).
-- **`v0.5.1` (next):** durable webhook outbox with explicit FSM (`pending` / `delivering` / `delivered` / `retry_waiting` / `permanently_failed`) and exponential-backoff retry (D-013).
-- **`v0.5.2` (after):** full health observability — `lastErrors` ring buffer + outbox backlog counters surfaced through `/api/health` (D-014, full).
+- **`v0.5.0` (regressed, do not deploy):** introduced the scheduler module and the partial `health.scheduler` block, but with two bugs — the scheduler arranged a 15-minute default when `PLAUD_MIRROR_SCHEDULER_INTERVAL_MS` was unset (silently turning on for upgrading operators), and the documented service-level anti-overlap was missing in code (`startMirror` inserted a new `sync_runs` row on every call without consulting `getActiveSyncRun`). See CHANGELOG `[0.5.1]` for the post-mortem.
+- **`v0.5.1` (this release, stable Phase 3 entry):** scheduler is genuinely opt-in (default `0` = disabled); `runScheduledSync()` / `runSync` consult `store.getActiveSyncRun()` before inserting and return the existing run id when one is active; the scheduler tick reports `lastTickStatus = "skipped"` (with reason in `lastTickError`) when the service-layer absorbs the tick, instead of mislabelling it as `completed`. 9 new regression tests (env-var matrix, concurrent `runSync` reuse, scheduler `runTick → { skipped: true }` path).
+- **`v0.5.2` (next):** durable webhook outbox with explicit FSM (`pending` / `delivering` / `delivered` / `retry_waiting` / `permanently_failed`) and exponential-backoff retry (D-013).
+- **`v0.5.3` (after):** full health observability — `lastErrors` ring buffer + outbox backlog counters surfaced through `/api/health` (D-014, full).
 
 Still **not** in Phase 3 scope:
 
@@ -104,11 +105,13 @@ The web panel polls `GET /api/health` every 2 s while a run is active. The healt
 
 ### Continuous sync scheduler (Phase 3, opt-in via env)
 
-1. At startup, `createApp` reads `PLAUD_MIRROR_SCHEDULER_INTERVAL_MS`. The value is parsed by `parseSchedulerInterval` in `apps/api/src/runtime/environment.ts`: `0` (or unset) means **disabled** — Phase 2 manual-only behavior is preserved. Any positive value enforces a 60 000 ms (60 s) floor; the default when the variable is set to a non-numeric or empty value is 15 minutes.
-2. When the interval is positive, `createApp` instantiates a `Scheduler` (`apps/api/src/runtime/scheduler.ts`) whose `runTick` callback invokes `service.runSync({ limit: environment.defaultSyncLimit })`. The scheduler is then `start()`ed and a `service.setSchedulerStatusProvider(() => scheduler.status())` hook is wired so health responses can read live state.
-3. The scheduler is a single in-process `setTimeout` loop. Each fire enters `tick()`, which is guarded by an `inflight` flag: if the previous tick has not yet resolved, the new fire records `lastTickStatus = "skipped"` and returns immediately. This is the **scheduler-level anti-overlap** — the second guardrail. The first is `service.runSync` itself, which serializes via `getActiveSyncRun` and rejects if a run is already in flight (returning the existing `id`); a "skipped" tick is therefore the expected outcome whenever a manual operator-triggered run is mid-flight.
+1. At startup, `createApp` reads `PLAUD_MIRROR_SCHEDULER_INTERVAL_MS`. The value is parsed by `parseSchedulerInterval` in `apps/api/src/runtime/environment.ts`: `0`, unset, and the empty string all mean **disabled** — Phase 2 manual-only behavior is preserved exactly. Any positive value enforces a 60 000 ms (60 s) floor; negative or non-integer values are rejected at startup with an explicit error (no silent default). The recommended starting interval (15 min = 900 000 ms) lives in `HOW_TO_USE.md` and `AUTH_AND_SYNC.md`, not in code, so an operator never sees a non-zero scheduler they did not type. (`v0.5.0` arranged a 15-minute fallback here, which broke the opt-in promise of the SemVer minor bump; `v0.5.1` reverts the fallback to `0`.)
+2. When the interval is positive, `createApp` instantiates a `Scheduler` (`apps/api/src/runtime/scheduler.ts`) whose `runTick` callback invokes `service.runScheduledSync()`. That method returns `{ id, started: boolean }`: when `started: true`, a fresh run was created; when `started: false`, an existing run absorbed the tick. The callback maps the latter to `{ skipped: true, reason: "another sync run was already in flight" }`, which the scheduler turns into `lastTickStatus = "skipped"` with the reason recorded in `lastTickError`. The scheduler is then `start()`ed and a `service.setSchedulerStatusProvider(() => scheduler.status())` hook is wired so health responses can read live state.
+3. **Anti-overlap is two layers (`v0.5.1` ships both — `v0.5.0` only had the second):**
+   - **Service-layer (first guardrail).** `startOrReuseMirror` (the private helper used by `runSync`, `runBackfill`, and `runScheduledSync`) calls `store.getActiveSyncRun()` before allocating a new `sync_runs` row. If a run is already mid-flight (manual or scheduled, no distinction), the helper returns the existing run's id with `started: false` and dispatches no new background work. Public REST callers see `{ id, status: "running" }` — indistinguishable from a fresh start because their contract is "poll until done." The scheduler tick callback uses `started: false` to label the tick `skipped` honestly.
+   - **Scheduler-level (second guardrail).** `Scheduler.executeTick` keeps an `inflight` flag: if the timer fires while the previous tick's promise has not resolved, the new fire is also recorded as `skipped` and discarded. This case is rare in practice (it requires a tick to take longer than `intervalMs`), but it is the second guardrail that protects against a silent backlog if Plaud responses degrade or the service-level reuse fails for some unforeseen reason.
 4. The next tick is scheduled **before** the current `runTick` is awaited. This means a long-running tick (large limit, slow Plaud responses) does not push subsequent ticks back; the cadence is always `intervalMs` from the previous fire, regardless of how long the work took. Anti-overlap absorbs the case where the work outlasts the interval.
-5. `Scheduler.status()` returns `{ enabled, intervalMs, nextTickAt, lastTickAt, lastTickStatus, lastTickError }`. `getHealth()` calls the registered status provider and includes the result as `scheduler` in the `/api/health` response. When the scheduler is enabled, `phase` reads `"Phase 3 - unattended operation"`; when it is disabled, `phase` falls back to the historical `"Phase 2 - manual sync"` string. Older clients that read `health.scheduler` get the disabled-shape default `{ enabled: false, intervalMs: 0, nextTickAt: null, lastTickAt: null, lastTickStatus: null, lastTickError: null }` thanks to Zod's `.default(...)` on `ServiceHealthSchema.scheduler`.
+5. `Scheduler.status()` returns `{ enabled, intervalMs, nextTickAt, lastTickAt, lastTickStatus, lastTickError }`. `getHealth()` calls the registered status provider and includes the result as `scheduler` in the `/api/health` response. When the scheduler is enabled, `phase` reads `"Phase 3 - unattended operation"`; when it is disabled, `phase` falls back to the historical `"Phase 2 - first usable slice"` string. Older clients that read `health.scheduler` get the disabled-shape default `{ enabled: false, intervalMs: 0, nextTickAt: null, lastTickAt: null, lastTickStatus: null, lastTickError: null }` thanks to Zod's `.default(...)` on `ServiceHealthSchema.scheduler`.
 6. Shutdown is wired via `app.addHook("onClose", async () => scheduler.stop())` so SIGTERM / Fastify graceful-close cancels the pending timer cleanly without leaving a half-fired tick.
 
 ### Device catalog
@@ -139,10 +142,10 @@ The web panel polls `GET /api/health` every 2 s while a run is active. The healt
 
 ## Next Architectural Step
 
-Phase 3 is in progress (`v0.5.0` ships the scheduler subset). The remaining Phase 3 work and Phase 4 horizon:
+Phase 3 is in progress (`v0.5.1` is the first stable release; `v0.5.0` is broken and superseded). The remaining Phase 3 work and Phase 4 horizon:
 
-- **Phase 3 cont.:** durable webhook outbox with retry/backoff (D-013 → `v0.5.1`)
-- **Phase 3 cont.:** full health observability — `lastErrors` ring buffer + outbox backlog counters surfaced through `/api/health` (D-014, full → `v0.5.2`)
+- **Phase 3 cont.:** durable webhook outbox with retry/backoff (D-013 → `v0.5.2`)
+- **Phase 3 cont.:** full health observability — `lastErrors` ring buffer + outbox backlog counters surfaced through `/api/health` (D-014, full → `v0.5.3`)
 - Resumable backfill (deferred; ROADMAP mentions but no firm release target)
 - **Phase 4:** automatic re-login via a non-browser path if it proves reliable
 - More robust degraded-state handling (incremental, threaded through Phase 3 + 4)

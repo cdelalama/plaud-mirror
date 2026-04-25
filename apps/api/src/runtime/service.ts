@@ -246,13 +246,14 @@ export class PlaudMirrorService {
       ...normalizeObject(input),
     });
 
-    return this.startMirror("sync", {
+    const { id } = this.startOrReuseMirror("sync", {
       ...parsed,
       from: null,
       to: null,
       serialNumber: null,
       scene: null,
     });
+    return { id, status: "running" };
   }
 
   async runBackfill(input: unknown = {}): Promise<StartSyncRunResponse> {
@@ -261,7 +262,30 @@ export class PlaudMirrorService {
       ...normalizeObject(input),
     });
 
-    return this.startMirror("backfill", parsed);
+    const { id } = this.startOrReuseMirror("backfill", parsed);
+    return { id, status: "running" };
+  }
+
+  /**
+   * Scheduler tick entry point (D-012). Returns whether the call actually
+   * started a new run (`started: true`) or reused an in-flight one
+   * (`started: false`). The scheduler uses the second case to label its
+   * tick as `skipped` so `health.scheduler.lastTickStatus` honestly
+   * reports anti-overlap absorption — public REST routes don't need this
+   * distinction (they always say `running` and let the caller poll).
+   */
+  async runScheduledSync(): Promise<{ id: string; started: boolean }> {
+    const filters = SyncFiltersSchema.parse({
+      limit: this.environment.defaultSyncLimit,
+      forceDownload: false,
+    });
+    return this.startOrReuseMirror("sync", {
+      ...filters,
+      from: null,
+      to: null,
+      serialNumber: null,
+      scene: null,
+    });
   }
 
   getSyncRunStatus(id: string): SyncRunSummary {
@@ -517,11 +541,29 @@ export class PlaudMirrorService {
     }
   }
 
-  private startMirror(mode: SyncRunMode, filters: SyncFilters): StartSyncRunResponse {
+  /**
+   * Service-layer anti-overlap (the second guardrail alongside the
+   * Scheduler's own `inflight` flag). Before creating a new `sync_runs`
+   * row and dispatching `executeMirror`, check whether a run is already
+   * mid-flight: if so, return its id with `started: false` so the caller
+   * can decide what to surface (REST: `{ id, status: "running" }` —
+   * indistinguishable from a fresh start because the caller's contract
+   * is "poll until done"; scheduler tick: label `skipped`).
+   *
+   * Without this guard a manual sync and a scheduled tick that fire
+   * concurrently would both insert into `sync_runs`, both paginate Plaud,
+   * and race on the recordings UPSERT path. v0.5.0 documented this guard
+   * but did not implement it; this is the fix in v0.5.1.
+   */
+  private startOrReuseMirror(mode: SyncRunMode, filters: SyncFilters): { id: string; started: boolean } {
+    const active = this.store.getActiveSyncRun();
+    if (active) {
+      return { id: active.id, started: false };
+    }
     const normalizedFilters = SyncFiltersSchema.parse(filters);
     const { id } = this.store.startSyncRun(mode, normalizedFilters);
     this.scheduler(() => this.executeMirror(id, mode, normalizedFilters));
-    return { id, status: "running" };
+    return { id, started: true };
   }
 
   // Public for tests; production callers go through `runSync` / `runBackfill`
