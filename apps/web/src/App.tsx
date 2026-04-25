@@ -1,5 +1,8 @@
 import { FormEvent, useEffect, useState } from "react";
 
+import { StateBadge } from "./components/StateBadge.js";
+import { readBackfillExpanded, readTab, STORAGE_KEYS } from "./storage.js";
+
 import {
   coerceNonNegativeInteger,
   computeMissing,
@@ -72,7 +75,7 @@ export function App() {
 
   useEffect(() => {
     try {
-      window.localStorage?.setItem("plaud-mirror:active-tab", activeTab);
+      window.localStorage?.setItem(STORAGE_KEYS.ACTIVE_TAB, activeTab);
     } catch {
       // localStorage may be unavailable (private browsing, sandbox). Non-fatal.
     }
@@ -80,7 +83,7 @@ export function App() {
 
   useEffect(() => {
     try {
-      window.localStorage?.setItem("plaud-mirror:backfill-expanded", String(backfillExpanded));
+      window.localStorage?.setItem(STORAGE_KEYS.BACKFILL_EXPANDED, String(backfillExpanded));
     } catch {
       // same
     }
@@ -912,11 +915,6 @@ function BackfillPreview({
   );
 }
 
-function StateBadge({ state }: { state: "missing" | "mirrored" | "dismissed" }) {
-  const label = state === "missing" ? "missing" : state === "mirrored" ? "already local" : "dismissed";
-  return <span className={`state-badge state-${state}`}>{label}</span>;
-}
-
 function Metric({ label, value }: { label: string; value: string }) {
   return (
     <div className="metric">
@@ -1014,25 +1012,6 @@ function formatDateTime(value: string | null | undefined): string {
   }
 
   return new Date(value).toLocaleString();
-}
-
-function readTab(): "main" | "config" {
-  try {
-    const saved = window.localStorage?.getItem("plaud-mirror:active-tab");
-    return saved === "config" ? "config" : "main";
-  } catch {
-    return "main";
-  }
-}
-
-function readBackfillExpanded(): boolean {
-  try {
-    const saved = window.localStorage?.getItem("plaud-mirror:backfill-expanded");
-    // Default is false (collapsed). Only "true" opts in.
-    return saved === "true";
-  } catch {
-    return false;
-  }
 }
 
 function toErrorMessage(error: unknown): string {

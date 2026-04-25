@@ -219,3 +219,150 @@ The `/device/list` endpoint in `v0.4.11` is the first real exercise of this dist
 - Every AGPL-sourced endpoint adoption must leave a trail in `docs/UPSTREAMS.md` (Phase 2 adoption bullet) pointing back to this decision.
 - Reviews must check that the implementation is genuinely independent (different Zod schema names, different client method signatures, different storage layout) rather than an import-and-rename of the upstream.
 - If an upstream under a restrictive license is the **only** source of *both* the endpoint facts and the meaningful product behavior (e.g. a whole auth dance), stop and ask before proceeding — that may be a case where the "facts, not expression" line is too thin to rely on.
+
+## D-012 - Continuous sync scheduler runs in-process with anti-overlap protection
+
+**Status:** accepted (designed; implementation lands incrementally during Phase 3)
+
+### Decision
+
+Phase 3's continuous-sync mechanism is implemented as an **in-process scheduler** inside the existing Fastify runtime. It does not introduce a separate worker process, an external job queue (BullMQ, Redis), or a cron daemon.
+
+The scheduler:
+
+- Reads its interval from a single configuration value (`PLAUD_MIRROR_SCHEDULER_INTERVAL_MS`, default `15 * 60 * 1000` = 15 minutes). Configurable via env var, optional override via `RuntimeConfig` if the operator wants runtime mutation.
+- Runs `service.runSync()` (the same async pipeline manual sync uses) on every tick.
+- **Holds an in-process lock** that prevents a tick from firing while a previous tick's `runSync` is still in flight. `service.getActiveSyncRun()` is the source of truth: if a run is `status="running"`, the next tick is skipped (logged, not stacked).
+- Persists nothing of its own — its state lives entirely in the existing `sync_runs` table. A restart starts fresh; the next tick fires after `intervalMs` from process boot, not from when the previous tick was supposed to fire.
+- Exposes its state via `/api/health` (next-tick estimate, last-tick result, scheduler enabled/disabled flag).
+- Can be disabled with `PLAUD_MIRROR_SCHEDULER_INTERVAL_MS=0` (or a similar opt-out), in which case Phase 2's manual-only behavior is preserved.
+
+### Rationale
+
+The product is single-operator, single-process, single-host. An external job queue is over-engineered for this scale and adds operational dependencies (Redis, separate worker container) that conflict with the "single Docker container serves both API and panel" packaging at v0.4.18.
+
+In-process scheduling with anti-overlap via the existing `getActiveSyncRun()` is the smallest change that satisfies Phase 3's exit gate ("multi-day unattended run on dev-vm with predictable recovery behavior"). If the project later needs cross-host scheduling or distributed locks, that's a Phase 5/6 concern when NAS rollout actually demands it.
+
+The interval-from-boot semantics (rather than absolute-cadence wall-clock) is deliberate: a restart resetting the clock is acceptable for a service whose primary value is "eventually consistent with Plaud's account." Cron-like wall-clock cadence would require persisting the next-fire timestamp and recovery logic on boot — extra complexity for a guarantee the product doesn't need.
+
+### Implications
+
+- `RuntimeServiceDependencies` gains an optional `scheduler` injection point already (used by tests). Phase 3's scheduler implementation is a new module that consumes the service via dependency injection — it does not bake the timer into `service.runMirror`.
+- The scheduler must be cancellable cleanly on process shutdown so SIGTERM does not leave a half-finished run.
+- Anti-overlap protection means an unusually long sync (e.g. backfilling 1000 missing recordings) blocks subsequent ticks until it finishes. That is the correct behavior — overlapping runs would corrupt the `sync_runs` row that polling relies on.
+- Test surface: a deterministic scheduler injection (similar to the one already in `service.test.ts`) lets tests fast-forward through ticks without real timers.
+
+## D-013 - Webhook outbox is a separate SQLite table with explicit state transitions
+
+**Status:** accepted (designed; implementation lands during Phase 3)
+
+### Decision
+
+The Phase 3 webhook outbox is a **new SQLite table** (`webhook_outbox`), not an extension of the existing `webhook_deliveries` table or of `sync_runs`. The new table tracks pending/in-flight delivery state; `webhook_deliveries` continues to log every attempt as an audit trail.
+
+Schema (additive migration, no destructive changes):
+
+```sql
+CREATE TABLE IF NOT EXISTS webhook_outbox (
+  id            TEXT PRIMARY KEY,           -- UUID
+  recording_id  TEXT NOT NULL,              -- FK to recordings.id (per D-006)
+  payload_json  TEXT NOT NULL,              -- the signed payload at enqueue time
+  state         TEXT NOT NULL,              -- 'pending' | 'delivering' | 'delivered' | 'retry_waiting' | 'permanently_failed'
+  attempt_count INTEGER NOT NULL DEFAULT 0,
+  next_attempt_at TEXT,                     -- ISO timestamp; null for delivered/permanently_failed
+  last_error    TEXT,                       -- last HTTP status / error message snippet
+  created_at    TEXT NOT NULL,
+  updated_at    TEXT NOT NULL
+);
+```
+
+State machine:
+
+```
+       enqueue
+         ↓
+      pending ──(picked up)──→ delivering ──(2xx)──→ delivered  [terminal]
+                                  │
+                                  ├──(failure, attempt_count < max)──→ retry_waiting ──(next_attempt_at reached)──→ pending
+                                  │
+                                  └──(failure, attempt_count == max)──→ permanently_failed  [terminal]
+```
+
+Retry policy: exponential backoff with jitter, capped. Default schedule (configurable via env): `30s, 2m, 10m, 1h, 6h`. After the 5th failure, transitions to `permanently_failed` and operator must intervene (manual retry button in panel, or DELETE the outbox row).
+
+### Rationale
+
+Separate table because:
+
+1. **`webhook_deliveries` is an append-only log** — every attempt creates a row. The outbox is mutable state with explicit transitions. Conflating them would force a schema change to a table whose current shape works.
+2. **Different access patterns** — outbox rows are queried by `state` and `next_attempt_at` (worker scan); delivery rows are queried by `recording_id` for audit. Indexed differently.
+3. **Different lifecycle** — delivered outbox rows can be archived or pruned after N days; delivery log rows must persist for audit indefinitely (or until configured retention).
+
+Explicit named states (rather than booleans like `delivered=true/false`) because the state machine has FIVE distinct positions, and naming them prevents the kind of "what does `failed` mean exactly" drift that bit Mode B sync at v0.4.9 (when "skipped" was overloaded to mean three things).
+
+Exponential backoff over linear because the failure modes we expect (downstream receiver down, network blip, signature mismatch) all benefit from rapid early retries followed by long pauses — linear would either hammer a down receiver or wait too long on a transient error.
+
+### Implications
+
+- `service.processRecording` no longer attempts immediate delivery as the only path. It enqueues into the outbox; a separate `webhook-worker` (driven by the same scheduler from D-012, or a dedicated worker tick) drains it.
+- The existing immediate-delivery codepath (Phase 2) becomes a special case: `outbox.enqueue + outbox.process(id)` synchronously when scheduler is disabled, async when enabled. Operators using Phase 2 mode (manual-sync only) see no behavioral change.
+- `/api/health` exposes outbox backlog count + oldest pending age (per D-014).
+- A new endpoint `POST /api/webhook-outbox/:id/retry` allows the operator to manually retry a `permanently_failed` row (resets `attempt_count` and transitions back to `pending`).
+- Backfill at scale (hundreds of recordings) creates hundreds of outbox rows in one batch. The worker processes them serially with the same backoff schedule — no parallel delivery, simplest correctness.
+
+## D-014 - Health endpoint surfaces operational state, not just configuration state
+
+**Status:** accepted (designed; implementation lands during Phase 3)
+
+### Decision
+
+`GET /api/health` at Phase 3 returns operational state suitable for an operator to answer "is this thing running correctly right now?" without checking SQLite or container logs. Specifically the response gains:
+
+- `scheduler`: `{ enabled: boolean, intervalMs: number, nextTickAt: string | null, lastTickAt: string | null, lastTickStatus: "completed" | "failed" | null }`
+- `outbox`: `{ pendingCount: number, oldestPendingAgeMs: number | null, permanentlyFailedCount: number }`
+- `lastErrors`: array of up to 5 most recent operational errors (sync failure, webhook failure, token validation failure) with timestamp + short message — circular buffer in memory, NOT persisted.
+
+The existing `auth`, `lastSync`, `activeRun`, `recordingsCount`, `dismissedCount`, `webhookConfigured`, `warnings` fields stay unchanged. Backward-compatible additive change.
+
+The web panel surfaces the new fields in a compact "Operational status" card on the Main tab (above Manual sync) — only the highlights, not the full payload. Detail goes in a dedicated `/api/health/detail` if it ever proves needed; v0.5.0 ships only `/api/health`.
+
+### Rationale
+
+Phase 2's `/api/health` answers "what is configured" (auth state, recordings count). Phase 3's exit gate is "multi-day unattended run with predictable recovery behavior" — the operator needs to know "is the scheduler ticking? are webhooks getting through? are there errors stacking up?" without SSH'ing into the host.
+
+In-memory circular buffer for errors (not SQLite) because:
+
+1. Operational errors are high-volume and ephemeral — persisting them costs disk and adds a retention question.
+2. The buffer's purpose is "what just went wrong?" not audit. Audit lives in `sync_runs.error` and `webhook_deliveries.error_message`.
+3. Survives the lifetime of one process — exactly the scope where "did the scheduler fire correctly in the last hour?" matters.
+
+### Implications
+
+- `ServiceHealthSchema` in `packages/shared/src/runtime.ts` gains the three new sub-objects with `.default(null)` semantics so older clients reading the response don't break.
+- The web panel's hero status block can render a compact summary line ("Scheduler: every 15m, next in 8m. Outbox: 0 pending.") that updates on the existing 2s health poll.
+- The "lastErrors" buffer is a service-internal concern; the service exposes a method `recordError(category, message)` that the scheduler/outbox/sync code calls.
+- Test surface: extending `service.getHealth` test to assert the new fields are present (with sensible defaults when scheduler is disabled).
+
+## D-015 - UI tests use Vitest + jsdom + @testing-library/react
+
+**Status:** accepted (lands in v0.4.19 as Phase 3 prerequisite)
+
+### Decision
+
+Web-side component testing uses **Vitest** as the test runner, **jsdom** as the DOM environment, and **@testing-library/react** for component-level assertions. Tests live alongside source under `apps/web/src/**/*.test.{ts,tsx}` and are executed by `vitest run` invoked from `apps/web`. The root `npm test` script invokes both the existing `node --test` backend suite and a new `npm run test:web` workspace command.
+
+### Rationale
+
+Choices considered:
+
+- **Vitest vs Jest:** Vitest because the web build is already Vite-based and Vitest reuses Vite's pipeline (no second TypeScript transformer config, no Jest-vs-Vite compatibility shims). Jest would be a parallel toolchain with a parallel config; the duplicated maintenance is not worth the marginal compatibility benefit.
+- **jsdom vs happy-dom:** jsdom because it is the de facto reference DOM-in-Node implementation, has the broadest @testing-library compatibility, and is what 90% of community React-test examples target. happy-dom is faster and lighter (~20MB less in node_modules) but its edge-case behaviors diverge in places the library docs do not always cover; debugging "why does this test pass in browser but fail in happy-dom" is paid maintenance the project does not need to take on.
+- **@testing-library/react vs Enzyme vs render-and-assert-by-hand:** @testing-library because it is the current React-team-recommended way and the assertion vocabulary (`getByRole`, `getByText`, `findByLabelText`) is what every newer guide uses. Enzyme is unmaintained for React 19. Hand-rolled rendering works but every project that takes that path eventually rebuilds @testing-library badly.
+
+### Implications
+
+- New devDependencies in `apps/web/package.json`: `vitest`, `jsdom`, `@testing-library/react`, `@testing-library/jest-dom`. Adds ~80MB to `apps/web/node_modules`.
+- New config: `apps/web/vitest.config.ts` (or block in `vite.config.ts`) with `environment: "jsdom"` and a setup file that imports `@testing-library/jest-dom/vitest` for the `toBeInTheDocument`-style matchers.
+- New script: `apps/web/package.json#scripts.test` runs `vitest run` (non-watch). The root `npm test` chains to it.
+- This decision is **scope-limited to plaud-mirror's web panel**. If a future sibling project (e.g. the multi-tenant variant per the ROADMAP "Beyond Phase 6" section) adopts a different stack (Next.js, Vite-React with different conventions), it can revisit this decision with its own D-NNN.
+- Component testability becomes a visible concern: a component that cannot be rendered in jsdom without massive mocking (e.g. `App` in its current shape with mount-time fetches) signals the component should be decomposed. The tests in v0.4.19 deliberately target small extractable pieces (`StateBadge`, storage helpers) before tackling the larger ones; the bigger components are a future patch.

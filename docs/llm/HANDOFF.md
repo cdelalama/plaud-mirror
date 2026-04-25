@@ -1,4 +1,4 @@
-<!-- doc-version: 0.4.18 -->
+<!-- doc-version: 0.4.19 -->
 # LLM Work Handoff
 
 This file is the live operational snapshot. Durable rationale lives in `docs/llm/DECISIONS.md`. Phase boundaries live in `docs/ROADMAP.md`.
@@ -6,8 +6,8 @@ This file is the live operational snapshot. Durable rationale lives in `docs/llm
 ## Current Status
 
 - Last Updated: 2026-04-25 - Claude Opus 4.7
-- Session Focus: Ship `v0.4.18` as the forward-fix for the broken `v0.4.17` commit. GPT-5 found that the two source files `v0.4.17` was supposed to introduce — `packages/shared/src/formatting.ts` and `packages/shared/src/formatting.test.ts` — were never staged into git: I had used `git add -u` (which only stages modified tracked files) and never ran `git status` post-stage. The local workspace was green because tsc reads from filesystem, not git, but a fresh clone of `v0.4.17` was unbuildable: imports resolved to nothing. After opining and getting explicit operator approval, this session executes the fix.
-- Status: **`v0.4.18` shipped**. The two missing files are now `git add`-ed explicitly (no more `-u` blanket); container rebuilt with `--no-cache`; `docker exec cat /app/VERSION` returns `0.4.18`; tests still 66/66; validator PASS 7/7; `git ls-tree -r HEAD packages/shared/src/` confirms `formatting.ts` and `formatting.test.ts` are now part of the committed tree on `origin/main`. The `v0.4.17` tag remains in history as a known-broken release — the CHANGELOG entry for `v0.4.18` documents that explicitly so future readers see the audit trail rather than a phantom-success narrative. Companion DocKit work queued for v4.5.5: **DF-027** + a stretch pre-commit check that greps the staged tree for imports referencing files NOT present in the staged set, which would have caught this exact failure mechanically.
+- Session Focus: Phase 3 Step 1 — set up the web-side test framework and lock the four design decisions (D-012 scheduler, D-013 outbox, D-014 health observability, D-015 test framework) before code for scheduler/outbox/health lands in v0.5.x. This release ships v0.4.19 as a Phase 2 hardening release: it adds the testing infrastructure and the first batch of web-side component tests, but does NOT yet add Phase 3 features. Phase 3 proper begins at v0.5.0 with the scheduler.
+- Status: `v0.4.19` shipped. Vitest + jsdom + @testing-library/react + @testing-library/jest-dom installed in `apps/web`. New `vitest.config.ts`, `test-setup.ts`, `apps/web/package.json#scripts.test = "vitest run"`. Root `npm test` chains a new `npm run test:web` step after the backend suite. New modules: `apps/web/src/storage.ts` (extracted `readTab` + `readBackfillExpanded` + `STORAGE_KEYS` constant) and `apps/web/src/components/StateBadge.tsx` (extracted from App.tsx). Two new test files (`storage.test.ts` 8 tests, `StateBadge.test.tsx` 3 tests) for 11 web-side tests; total 77 (66 backend + 11 web). Four new decisions: D-012/013/014 lock scheduler/outbox/health design contracts before code; D-015 records the test-framework choice. Doc sweep: ROADMAP/PROJECT_CONTEXT/ARCHITECTURE/HOW_TO_USE/CHANGELOG/HANDOFF/LLM_START_HERE all updated to v0.4.19. DocKit's DF-026 status moves to `partially implemented (plaud-mirror v0.4.19)` for the helper+component-level axis; App-level interaction tests (tabs/collapse/BackfillPreview lifecycle) deferred to a future patch because they need either App decomposition or fetch-mocking patterns that are non-trivial. Phase 3 next session: start v0.5.0 with the scheduler module per D-012.
 
 ## What Landed
 
@@ -47,7 +47,7 @@ This is now verified on the actual `dev-vm`, not assumed.
 ## Verified Runtime State
 
 - Container `plaud-mirror-plaud-mirror-1` is up on `dev-vm`, port `3040` bound, running as `USER 1000:1000`.
-- `GET /api/health` returns `200` with `{ version: "0.4.18", auth.state: "healthy" }` against the operator's real Plaud account.
+- `GET /api/health` returns `200` with `{ version: "0.4.19", auth.state: "healthy" }` against the operator's real Plaud account.
 - Bearer token saved via the web UI, auth validated with `/user/me`, encrypted at rest, survives restarts.
 - Manual sync and filtered backfill exercised against live Plaud. Latest confirmed state: 308 recordings in the account total, 215+ mirrored locally, `plaudTotal` + stable `#N` ranks populating correctly.
 - Device catalog populates after sync via `/device/list`; the backfill selector renders operator nicknames.
@@ -59,7 +59,7 @@ This is now verified on the actual `dev-vm`, not assumed.
 ## What Is Still Not Verified
 
 - **Real webhook delivery against a live downstream receiver.** No webhook URL has been configured in this environment yet; all recordings carry `lastWebhookStatus: "skipped"` because the service short-circuits when no URL is set. Once a receiver exists, confirm HMAC signature verification and persisted delivery attempts end-to-end.
-- **Unattended behavior from Phase 3 onward.** No scheduler loop, no retry/outbox, no automatic re-login. These are explicitly deferred by the roadmap and are not expected to work at `v0.4.18`.
+- **Unattended behavior from Phase 3 onward.** No scheduler loop, no retry/outbox, no automatic re-login. These are explicitly deferred by the roadmap and are not expected to work at `v0.4.19` — Phase 3 proper begins at v0.5.0 with the scheduler.
 - **Multi-day stability.** The service has been restarted many times across sessions; no long uninterrupted run has been measured.
 
 ## Roadmap Boundary

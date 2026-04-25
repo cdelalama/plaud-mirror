@@ -4,6 +4,27 @@ All notable changes to Plaud Mirror are documented in this file.
 
 This project follows Semantic Versioning (SemVer): MAJOR.MINOR.PATCH.
 
+## [0.4.19] - 2026-04-25
+
+### Added
+- Web-side test framework: Vitest + jsdom + @testing-library/react + @testing-library/jest-dom installed in `apps/web`. Decision recorded as **D-015** in `docs/llm/DECISIONS.md` (Vitest reuses Vite's pipeline, jsdom is the de facto reference DOM-in-Node, @testing-library/react is the React-team-recommended assertion vocabulary, the alternatives — Jest, happy-dom, Enzyme, hand-rolled rendering — were considered and explicitly rejected with rationale). New `apps/web/vitest.config.ts` + `apps/web/src/test-setup.ts` + `apps/web/package.json#scripts.test`. The root `npm test` chains a new `npm run test:web` step after the backend suite.
+- New module `apps/web/src/storage.ts` exporting `readTab`, `readBackfillExpanded`, and a `STORAGE_KEYS` constant. The two helpers were previously local to `App.tsx`; extracting them lets the test file exercise localStorage roundtrips without mounting React. `STORAGE_KEYS.ACTIVE_TAB` / `STORAGE_KEYS.BACKFILL_EXPANDED` deduplicate the literal key names that production code and tests would otherwise both repeat.
+- New component `apps/web/src/components/StateBadge.tsx` extracted from `App.tsx`. Same render behaviour, now testable in isolation (the prop type is now imported from `@plaud-mirror/shared` as `BackfillCandidateState`).
+- Two new test files: `apps/web/src/storage.test.ts` (8 tests covering default / "config" / "main" / corrupt-value branches for both helpers + a STORAGE_KEYS sanity assertion) and `apps/web/src/components/StateBadge.test.tsx` (3 tests covering all three state values, the "mirrored → already local" label remap, and class-name correctness). Total: 11 web-side tests.
+- Four new decisions in `docs/llm/DECISIONS.md`:
+  - **D-012** — Continuous sync scheduler runs in-process with anti-overlap protection. Locks the contract before scheduler code lands in v0.5.x.
+  - **D-013** — Webhook outbox is a separate SQLite table with explicit state transitions (`pending` / `delivering` / `delivered` / `retry_waiting` / `permanently_failed`) and exponential-backoff retry policy.
+  - **D-014** — Health endpoint surfaces operational state (scheduler status, outbox backlog, last errors), not just configuration state.
+  - **D-015** — Web UI tests use Vitest + jsdom + @testing-library/react.
+- New "Beyond Phase 6: Multi-tenant variant (out of scope for this repo)" section in `docs/ROADMAP.md` (committed earlier today) capturing the three viable paths (instance-per-tenant deployment, in-place refactor, new sibling project) for the operator's future multi-tenant interest, with explicit reference to D-009 as the current scope-limiting decision. D-009 gained a matching Implications bullet pointing back at the ROADMAP section.
+
+### Changed
+- `apps/web/src/App.tsx` no longer carries local copies of `readTab`, `readBackfillExpanded`, or `<StateBadge>`. Imports them from the new modules. Inline localStorage `setItem` calls now reference `STORAGE_KEYS.ACTIVE_TAB` and `STORAGE_KEYS.BACKFILL_EXPANDED` to keep production and test code in sync on the literal key names.
+
+### Notes
+- This release is the **Phase 3 prerequisite**, not Phase 3 itself. The roadmap's Phase 3 scope (continuous sync scheduler, webhook outbox, stronger health surfaces) lands in `v0.5.x` next; this release sets up the testing foundation and freezes the design contracts (D-012/013/014) before code is written. Test count: 53 (pre-helper-extract baseline at v0.4.16) → 66 (after D-015's first half + helper-level coverage) → 77 (after this release's web-side component-level coverage).
+- DF-026 in `~/src/LLM-DocKit/docs/DOWNSTREAM_FEEDBACK.md` (UI tests gap) is now `partially implemented (plaud-mirror v0.4.19)` on the helper+component-level axis. Component tests for `<App>`-level interaction (tabs, collapse, BackfillPreview lifecycle) remain a future patch — they need either App-decomposition or a fetch-mocking pattern that is non-trivial to set up. The current batch deliberately targets small extractable pieces first.
+
 ## [0.4.18] - 2026-04-25
 
 ### Fixed

@@ -1,9 +1,9 @@
-<!-- doc-version: 0.4.18 -->
+<!-- doc-version: 0.4.19 -->
 # Plaud Mirror Architecture
 
-> Version: 0.4.18
+> Version: 0.4.19
 > Last Updated: 2026-04-25
-> Status: Phase 2 vertical slice (extended through 0.4.x with local curation, UX polish, Mode B sync, classic pagination, stable sequence numbers, async sync with live-progress polling, cached device catalog, backfill dry-run preview, Main/Configuration tab split with collapsible Historical backfill, Dockerfile POSIX-portable, named/typed download filenames, and shared formatting helpers used by both web and api with their own test surface — v0.4.18 forward-fixes the v0.4.17 release that shipped without staging the formatting files into git)
+> Status: Phase 2 vertical slice (extended through 0.4.x with local curation, UX polish, Mode B sync, classic pagination, stable sequence numbers, async sync with live-progress polling, cached device catalog, backfill dry-run preview, Main/Configuration tab split with collapsible Historical backfill, Dockerfile POSIX-portable, named/typed download filenames, shared formatting helpers, and now Vitest+jsdom+@testing-library/react as the web-side test framework with first batch of component-level tests — v0.4.19 is the Phase 3 prerequisite step: testing infrastructure for the panel before scheduler/outbox/health work lands)
 
 ## Overview
 
