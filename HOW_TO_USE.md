@@ -1,11 +1,11 @@
-<!-- doc-version: 0.4.17 -->
+<!-- doc-version: 0.4.18 -->
 # How to Use This Repository
 
 This guide explains how Plaud Mirror is operated end-to-end and how it stays aligned with both `LLM-DocKit` (the governance scaffold it adopts) and the Plaud ecosystem upstreams it watches.
 
 ## Current Reality
 
-`v0.4.17` is the extended Phase 2 slice: a runnable, daily-operated service with a web panel, not a design stub. Today the repository gives you:
+`v0.4.18` is the extended Phase 2 slice: a runnable, daily-operated service with a web panel, not a design stub. Today the repository gives you:
 
 - a Fastify API and React/Vite panel bundled in a single Docker container;
 - encrypted persisted bearer-token auth against Plaud, surviving restarts;
@@ -84,7 +84,7 @@ Useful for live Plaud flow checks and metadata discovery without booting the pan
 npm test
 ```
 
-66/66 tests at `v0.4.17` (Plaud client, runtime service, store, server routes, shared schemas including the new `formatting` helpers used by both web and api, built-api smoke, web-build smoke).
+66/66 tests at `v0.4.18` (Plaud client, runtime service, store, server routes, shared schemas including the `formatting` helpers used by both web and api, built-api smoke, web-build smoke). Note: `v0.4.17` claimed the same 66/66 count locally, but its commit on `origin/main` did not actually stage the `formatting` source/test files — `v0.4.18` is the first release where a fresh clone reproduces those 66/66.
 
 ## Working With LLM-DocKit Upstream
 

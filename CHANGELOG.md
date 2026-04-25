@@ -4,6 +4,15 @@ All notable changes to Plaud Mirror are documented in this file.
 
 This project follows Semantic Versioning (SemVer): MAJOR.MINOR.PATCH.
 
+## [0.4.18] - 2026-04-25
+
+### Fixed
+- **`v0.4.17` was unbuildable from a fresh clone.** This release ships the two source files that should have been part of `v0.4.17` but were never staged: `packages/shared/src/formatting.ts` and `packages/shared/src/formatting.test.ts`. Root cause: the `v0.4.17` commit was prepared with `git add -u`, which stages MODIFIED tracked files only — not new untracked files. The two newly-created files stayed `??` in `git status` and were silently omitted. The local workspace passed 66/66 tests and the container at the time reported `version: "0.4.17"` because `tsc` + `COPY . .` both read from the filesystem, not from git. The published commit (`d1bc317` on `origin/main`) referenced the missing module from `package.json:19` (test runner path), `packages/shared/src/index.ts:1` (`export * from "./formatting.js"`), `apps/web/src/App.tsx` (helper imports), and `apps/api/src/runtime/service.ts` (`buildDownloadFilename` import) — so a fresh clone of `v0.4.17` would have failed `npm install && npm run build && npm test` at the import-resolution step. GPT-5 caught it on 2026-04-25; before that, the only signals were `git status` post-commit (untouched) and the commit's own stat line (`128 insertions, 183 deletions` for a release whose narrative claimed ~500 added lines of helpers + tests — net negative is incompatible with that claim). Force-push to amend `v0.4.17` was considered and rejected (project rule against destructive history rewrites on `main`). This release is the forward-fix: `v0.4.17` stays in history as a known-broken tag, `v0.4.18` is the first commit on `origin/main` that is actually buildable from clean.
+
+### Notes
+- The actual code shipped here — `formatting.ts` (10 helpers) and `formatting.test.ts` (12 tests covering them) — is identical to what the `v0.4.17` CHANGELOG entry described. No new features land in this release; it is purely the missing files plus the version bump plus this entry. The narrative in the `v0.4.17` CHANGELOG remains accurate as a description of what `v0.4.17` *intended to ship*, but only `v0.4.18` actually ships it on `origin/main`.
+- Companion DocKit work (queued, separate repo): `DF-027` in `~/src/LLM-DocKit/docs/DOWNSTREAM_FEEDBACK.md` to formalise the failure mode ("LLM uses `git add -u` and silently skips new files"), and a stretch pre-commit hook check that grep-verifies imports in the staged tree resolve to staged files — would catch this exact pattern mechanically.
+
 ## [0.4.17] - 2026-04-24
 
 ### Added

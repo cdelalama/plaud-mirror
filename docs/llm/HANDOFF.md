@@ -1,13 +1,13 @@
-<!-- doc-version: 0.4.17 -->
+<!-- doc-version: 0.4.18 -->
 # LLM Work Handoff
 
 This file is the live operational snapshot. Durable rationale lives in `docs/llm/DECISIONS.md`. Phase boundaries live in `docs/ROADMAP.md`.
 
 ## Current Status
 
-- Last Updated: 2026-04-24 - Claude Opus 4.7
-- Session Focus: Close the operator-reported download-filename bug (browser saves audio downloads as a file literally named `audio` with no extension), close two residual prose drifts a fourth GPT-5 review flagged (HOW_TO_USE.md still cited v0.4.15 internally even though its marker was at 0.4.16; CHANGELOG 0.4.16 had a confusing "version: 0.4.15" line), and close DF-026 partially by extracting pure UI helpers into `packages/shared` and adding a real test surface for them.
-- Status: `v0.4.17` ships in three orthogonal pieces. (1) **Download filename**: `apps/api/src/server.ts` emits `Content-Disposition: inline; filename="<safe-title>.<ext>"; filename*=UTF-8''<encoded>` on `/api/recordings/:id/audio`. Filename built by new `buildDownloadFilename(title, localPath, id)` helper in `packages/shared/src/formatting.ts` — extension comes from `localPath` (always matches the bytes), base from sanitised title (whitespace-only or empty falls back to recording id). Server route uses new local helper `buildContentDisposition(filename)` to produce both ASCII fallback and RFC 5987 UTF-8 forms; quote/backslash injection guarded. (2) **Pure UI helpers extracted**: `packages/shared/src/formatting.ts` now hosts `formatDuration`, `formatBytes`, `formatRecordingsMetric`, `computeMissing`, `formatDeviceLabel`, `formatDeviceShortName`, `coerceNonNegativeInteger`, `summarizeRun`, `describeBusy`. App.tsx imports them; previous local copies removed. New `formatting.test.ts` (12 tests) hooked into root `npm test` script. (3) **Prose sweep**: HOW_TO_USE body bumped from "v0.1.0 baseline" / "v0.4.15" leftovers to v0.4.17 reality; CHANGELOG 0.4.16 verification line clarified to spell out the timeline (verification ran against the in-progress working tree before the bump). One latent bug caught by the new tests: `coerceNonNegativeInteger("", fallback)` was returning `0` because `Number("")` is 0 — empty input now correctly falls back to default. Tests: 66/66 (53 + 12 helper + 1 server header). DF-026 status: partially implemented (pure helpers covered; React-component-level rendering tests still open — would need vitest+jsdom).
+- Last Updated: 2026-04-25 - Claude Opus 4.7
+- Session Focus: Ship `v0.4.18` as the forward-fix for the broken `v0.4.17` commit. GPT-5 found that the two source files `v0.4.17` was supposed to introduce — `packages/shared/src/formatting.ts` and `packages/shared/src/formatting.test.ts` — were never staged into git: I had used `git add -u` (which only stages modified tracked files) and never ran `git status` post-stage. The local workspace was green because tsc reads from filesystem, not git, but a fresh clone of `v0.4.17` was unbuildable: imports resolved to nothing. After opining and getting explicit operator approval, this session executes the fix.
+- Status: **`v0.4.18` shipped**. The two missing files are now `git add`-ed explicitly (no more `-u` blanket); container rebuilt with `--no-cache`; `docker exec cat /app/VERSION` returns `0.4.18`; tests still 66/66; validator PASS 7/7; `git ls-tree -r HEAD packages/shared/src/` confirms `formatting.ts` and `formatting.test.ts` are now part of the committed tree on `origin/main`. The `v0.4.17` tag remains in history as a known-broken release — the CHANGELOG entry for `v0.4.18` documents that explicitly so future readers see the audit trail rather than a phantom-success narrative. Companion DocKit work queued for v4.5.5: **DF-027** + a stretch pre-commit check that greps the staged tree for imports referencing files NOT present in the staged set, which would have caught this exact failure mechanically.
 
 ## What Landed
 
@@ -47,7 +47,7 @@ This is now verified on the actual `dev-vm`, not assumed.
 ## Verified Runtime State
 
 - Container `plaud-mirror-plaud-mirror-1` is up on `dev-vm`, port `3040` bound, running as `USER 1000:1000`.
-- `GET /api/health` returns `200` with `{ version: "0.4.17", auth.state: "healthy" }` against the operator's real Plaud account.
+- `GET /api/health` returns `200` with `{ version: "0.4.18", auth.state: "healthy" }` against the operator's real Plaud account.
 - Bearer token saved via the web UI, auth validated with `/user/me`, encrypted at rest, survives restarts.
 - Manual sync and filtered backfill exercised against live Plaud. Latest confirmed state: 308 recordings in the account total, 215+ mirrored locally, `plaudTotal` + stable `#N` ranks populating correctly.
 - Device catalog populates after sync via `/device/list`; the backfill selector renders operator nicknames.
@@ -59,7 +59,7 @@ This is now verified on the actual `dev-vm`, not assumed.
 ## What Is Still Not Verified
 
 - **Real webhook delivery against a live downstream receiver.** No webhook URL has been configured in this environment yet; all recordings carry `lastWebhookStatus: "skipped"` because the service short-circuits when no URL is set. Once a receiver exists, confirm HMAC signature verification and persisted delivery attempts end-to-end.
-- **Unattended behavior from Phase 3 onward.** No scheduler loop, no retry/outbox, no automatic re-login. These are explicitly deferred by the roadmap and are not expected to work at `v0.4.17`.
+- **Unattended behavior from Phase 3 onward.** No scheduler loop, no retry/outbox, no automatic re-login. These are explicitly deferred by the roadmap and are not expected to work at `v0.4.18`.
 - **Multi-day stability.** The service has been restarted many times across sessions; no long uninterrupted run has been measured.
 
 ## Roadmap Boundary
