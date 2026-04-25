@@ -1,4 +1,4 @@
-<!-- doc-version: 0.4.19 -->
+<!-- doc-version: 0.5.0 -->
 # Plaud Mirror Roadmap
 
 This document is the canonical phase boundary for Plaud Mirror. If implementation scope starts to cross a phase boundary, update this document before claiming the work is part of the current phase.
@@ -12,9 +12,10 @@ This document is the canonical phase boundary for Plaud Mirror. If implementatio
 
 ## Current Target
 
-- Current delivery target: `v0.4.19`
-- Current phase: **Phase 2 - first usable internal slice (extended through 0.4.x)**
+- Current delivery target: `v0.5.0`
+- Current phase: **Phase 3 - unattended operation (begins at 0.5.0)**
 - Deployment target: `dev-vm` first
+- Phase 3 entry: `v0.5.0` ships the in-process scheduler (D-012) and partial health observability (D-014, scheduler subset). Webhook outbox (D-013) and full health surfaces (lastErrors buffer, outbox backlog) land in `v0.5.1` / `v0.5.2`.
 
 ## Phase Table
 

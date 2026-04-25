@@ -1,4 +1,4 @@
-<!-- doc-version: 0.4.19 -->
+<!-- doc-version: 0.5.0 -->
 # LLM Work Handoff
 
 This file is the live operational snapshot. Durable rationale lives in `docs/llm/DECISIONS.md`. Phase boundaries live in `docs/ROADMAP.md`.
@@ -6,8 +6,8 @@ This file is the live operational snapshot. Durable rationale lives in `docs/llm
 ## Current Status
 
 - Last Updated: 2026-04-25 - Claude Opus 4.7
-- Session Focus: Phase 3 Step 1 — set up the web-side test framework and lock the four design decisions (D-012 scheduler, D-013 outbox, D-014 health observability, D-015 test framework) before code for scheduler/outbox/health lands in v0.5.x. This release ships v0.4.19 as a Phase 2 hardening release: it adds the testing infrastructure and the first batch of web-side component tests, but does NOT yet add Phase 3 features. Phase 3 proper begins at v0.5.0 with the scheduler.
-- Status: `v0.4.19` shipped. Vitest + jsdom + @testing-library/react + @testing-library/jest-dom installed in `apps/web`. New `vitest.config.ts`, `test-setup.ts`, `apps/web/package.json#scripts.test = "vitest run"`. Root `npm test` chains a new `npm run test:web` step after the backend suite. New modules: `apps/web/src/storage.ts` (extracted `readTab` + `readBackfillExpanded` + `STORAGE_KEYS` constant) and `apps/web/src/components/StateBadge.tsx` (extracted from App.tsx). Two new test files (`storage.test.ts` 8 tests, `StateBadge.test.tsx` 3 tests) for 11 web-side tests; total 77 (66 backend + 11 web). Four new decisions: D-012/013/014 lock scheduler/outbox/health design contracts before code; D-015 records the test-framework choice. Doc sweep: ROADMAP/PROJECT_CONTEXT/ARCHITECTURE/HOW_TO_USE/CHANGELOG/HANDOFF/LLM_START_HERE all updated to v0.4.19. DocKit's DF-026 status moves to `partially implemented (plaud-mirror v0.4.19)` for the helper+component-level axis; App-level interaction tests (tabs/collapse/BackfillPreview lifecycle) deferred to a future patch because they need either App decomposition or fetch-mocking patterns that are non-trivial. Phase 3 next session: start v0.5.0 with the scheduler module per D-012.
+- Session Focus: Phase 3 Step 2 — ship the in-process continuous sync scheduler (D-012) and the partial health observability surface (D-014, scheduler subset). This release flips the roadmap pointer from Phase 2 to Phase 3 and is the first release in the `0.5.x` line. The scheduler is opt-in via `PLAUD_MIRROR_SCHEDULER_INTERVAL_MS`; default-disabled containers behave exactly like `v0.4.19`. Webhook outbox (D-013) and full health observability (`lastErrors`, outbox backlog) remain queued for `v0.5.1` / `v0.5.2`.
+- Status: `v0.5.0` shipped. New module `apps/api/src/runtime/scheduler.ts` (217 lines, single-process `setTimeout` loop with two-layer anti-overlap and from-fire cadence). New schema `SchedulerStatusSchema` + type `SchedulerStatus` in `packages/shared/src/runtime.ts`; `ServiceHealthSchema` extended with `scheduler` (default disabled-shape so older clients parse). New env var `PLAUD_MIRROR_SCHEDULER_INTERVAL_MS` parsed by `parseSchedulerInterval()` in `apps/api/src/runtime/environment.ts` (60 s floor, 0/unset = disabled, default 15 min on malformed input). `apps/api/src/runtime/service.ts#getHealth()` reports the scheduler block and dynamically selects the `phase` string. `apps/api/src/server.ts` instantiates the `Scheduler` when interval > 0 and registers an `onClose` hook to stop it. New test file `apps/api/src/runtime/scheduler.test.ts` (7 tests, deterministic timer harness). Total: **84 tests** (73 backend + 11 web), up from 77 in `v0.4.19`. Doc sweep: ROADMAP "Current phase" → Phase 3 (`v0.5.0` target); PROJECT_CONTEXT current-status rewritten to describe `v0.5.0` Phase 3 entry; ARCHITECTURE "What Phase 2 Actually Means" → "What Phase 2 Shipped" + "What Phase 3 Adds" with `0.5.0` / `0.5.1` / `0.5.2` mapping; new "Continuous sync scheduler" Key Flow section under ARCHITECTURE; "Next Architectural Step" rewritten to point at the remaining `0.5.x` work and Phase 4; AUTH_AND_SYNC.md gained a full Phase 3 section with the env-var matrix and operational properties; API_CONTRACT.md gained a `GET /api/health` response example with the `scheduler` block + extended phase-boundary note covering `0.5.x`; HOW_TO_USE.md gained "Configuring the scheduler interval" and bumped test count to 84; CHANGELOG.md `[0.5.0]` filled with Added/Changed/Notes. DocKit's DF-026 status unchanged (UI tests gap remains `partially implemented` — this release is backend-only). Next session: `v0.5.1` for the durable webhook outbox per D-013.
 
 ## What Landed
 
@@ -47,7 +47,7 @@ This is now verified on the actual `dev-vm`, not assumed.
 ## Verified Runtime State
 
 - Container `plaud-mirror-plaud-mirror-1` is up on `dev-vm`, port `3040` bound, running as `USER 1000:1000`.
-- `GET /api/health` returns `200` with `{ version: "0.4.19", auth.state: "healthy" }` against the operator's real Plaud account.
+- `GET /api/health` returns `200` with `{ version: "0.5.0", auth.state: "healthy" }` against the operator's real Plaud account. The new `scheduler` block is present in every response (defaults to the disabled shape when the operator has not set `PLAUD_MIRROR_SCHEDULER_INTERVAL_MS`).
 - Bearer token saved via the web UI, auth validated with `/user/me`, encrypted at rest, survives restarts.
 - Manual sync and filtered backfill exercised against live Plaud. Latest confirmed state: 308 recordings in the account total, 215+ mirrored locally, `plaudTotal` + stable `#N` ranks populating correctly.
 - Device catalog populates after sync via `/device/list`; the backfill selector renders operator nicknames.
@@ -59,13 +59,16 @@ This is now verified on the actual `dev-vm`, not assumed.
 ## What Is Still Not Verified
 
 - **Real webhook delivery against a live downstream receiver.** No webhook URL has been configured in this environment yet; all recordings carry `lastWebhookStatus: "skipped"` because the service short-circuits when no URL is set. Once a receiver exists, confirm HMAC signature verification and persisted delivery attempts end-to-end.
-- **Unattended behavior from Phase 3 onward.** No scheduler loop, no retry/outbox, no automatic re-login. These are explicitly deferred by the roadmap and are not expected to work at `v0.4.19` — Phase 3 proper begins at v0.5.0 with the scheduler.
+- **Multi-day scheduler-driven unattended behavior.** The scheduler module ships in `v0.5.0` and is covered by 7 deterministic tests, but no live multi-day soak run has been measured yet. Once an operator sets `PLAUD_MIRROR_SCHEDULER_INTERVAL_MS` on the running container, observe the `health.scheduler` block over several ticks before declaring "unattended on `dev-vm` works."
+- **Durable webhook outbox.** Still not implemented (D-013, scheduled for `v0.5.1`). A failed webhook delivery still requires the operator to re-trigger sync; the persisted attempt log captures the failure but does not retry.
+- **Full health observability.** `lastErrors` ring buffer and outbox backlog counters are not yet on `/api/health` (D-014, scheduled for `v0.5.2`).
+- **Automatic re-login.** Phase 4. No code yet.
 - **Multi-day stability.** The service has been restarted many times across sessions; no long uninterrupted run has been measured.
 
 ## Roadmap Boundary
 
-- This work stays inside **Phase 2** from [docs/ROADMAP.md](../ROADMAP.md): usable UI + Docker + encrypted manual token + manual sync/backfill + signed webhook, plus the local-only curation increment added in `0.4.x`.
-- No Phase 3 scope has been pulled in silently. There is still no scheduler, durable outbox, unattended retry loop, or automatic re-login.
+- This work moves the project into **Phase 3** from [docs/ROADMAP.md](../ROADMAP.md). `v0.5.0` ships the scheduler subset (D-012, D-014 partial); the remaining Phase 3 increments are tracked: durable webhook outbox (D-013 → `v0.5.1`) and full health observability (D-014 full → `v0.5.2`).
+- Phase 4+ scope is still untouched: no automatic re-login, no resumable backfill, no NAS validation, no public OSS polish.
 - Working-tree cleanliness and validator status are not asserted here — they age badly. Run `git status` and `scripts/dockit-validate-session.sh --human` for the current fact.
 
 ## Governance Cleanup Landed in 0.4.1

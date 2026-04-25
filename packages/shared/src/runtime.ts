@@ -194,6 +194,26 @@ export const StartSyncRunResponseSchema = z.object({
   status: z.literal("running"),
 }).strict();
 
+/**
+ * Scheduler observability surface (D-014, partial — scheduler subset only).
+ * v0.5.0 ships this minimum; outbox + last-errors arrive in v0.5.1 / v0.5.2.
+ *
+ * - `enabled === false` means the scheduler is disabled (Phase 2 manual-only
+ *   mode), either because `PLAUD_MIRROR_SCHEDULER_INTERVAL_MS=0` or because
+ *   the runtime never instantiated one. UI should show "Scheduler off".
+ * - `lastTickStatus` of `null` means no tick has fired yet in this process
+ *   (fresh boot, first interval not elapsed).
+ * - All timestamps are ISO 8601 strings; `null` means "not applicable".
+ */
+export const SchedulerStatusSchema = z.object({
+  enabled: z.boolean(),
+  intervalMs: z.number().int().nonnegative(),
+  nextTickAt: z.string().nullable(),
+  lastTickAt: z.string().nullable(),
+  lastTickStatus: z.enum(["completed", "failed", "skipped"]).nullable(),
+  lastTickError: z.string().nullable(),
+}).strict();
+
 export const ServiceHealthSchema = z.object({
   version: z.string(),
   phase: z.string(),
@@ -206,6 +226,18 @@ export const ServiceHealthSchema = z.object({
   // cleared once the background worker finalizes the row. The panel uses this
   // for its progress banner and to decide when to stop polling.
   activeRun: SyncRunSummarySchema.nullable().default(null),
+  // Phase 3 scheduler observability (D-014 partial). Default is "disabled"
+  // so older clients reading the response when the scheduler is off see a
+  // sane shape, and pre-Phase-3 backends that have not yet started emitting
+  // the field still parse via Zod's default.
+  scheduler: SchedulerStatusSchema.default({
+    enabled: false,
+    intervalMs: 0,
+    nextTickAt: null,
+    lastTickAt: null,
+    lastTickStatus: null,
+    lastTickError: null,
+  }),
   recordingsCount: z.number().int().nonnegative(),
   dismissedCount: z.number().int().nonnegative().default(0),
   webhookConfigured: z.boolean(),
@@ -251,5 +283,6 @@ export type SyncRunMode = z.infer<typeof SyncRunModeSchema>;
 export type SyncRunStatus = z.infer<typeof SyncRunStatusSchema>;
 export type SyncRunSummary = z.infer<typeof SyncRunSummarySchema>;
 export type StartSyncRunResponse = z.infer<typeof StartSyncRunResponseSchema>;
+export type SchedulerStatus = z.infer<typeof SchedulerStatusSchema>;
 export type ServiceHealth = z.infer<typeof ServiceHealthSchema>;
 export type WebhookPayload = z.infer<typeof WebhookPayloadSchema>;

@@ -27,6 +27,7 @@ function createEnvironment(root: string): ServerEnvironment {
     webDistDir: join(root, "missing-web-dist"),
     defaultSyncLimit: 100,
     requestTimeoutMs: 5_000,
+    schedulerIntervalMs: 0,
   };
 }
 

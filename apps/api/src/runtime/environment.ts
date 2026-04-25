@@ -13,6 +13,14 @@ export interface ServerEnvironment {
   initialWebhookUrl?: string;
   initialWebhookSecret?: string;
   requestTimeoutMs: number;
+  /**
+   * Continuous-sync scheduler interval in milliseconds (D-012). When > 0,
+   * the runtime ticks `service.runSync({ limit: defaultSyncLimit })` on
+   * this cadence with anti-overlap protection. When 0, the scheduler is
+   * disabled and Phase 2's manual-only behavior is preserved exactly.
+   * Default: 15 minutes.
+   */
+  schedulerIntervalMs: number;
 }
 
 export function loadServerEnvironment(env: NodeJS.ProcessEnv = process.env): ServerEnvironment {
@@ -31,6 +39,11 @@ export function loadServerEnvironment(env: NodeJS.ProcessEnv = process.env): Ser
   const initialWebhookUrl = env.PLAUD_MIRROR_WEBHOOK_URL?.trim() || undefined;
   const initialWebhookSecret = env.PLAUD_MIRROR_WEBHOOK_SECRET?.trim() || undefined;
   const requestTimeoutMs = parsePositiveInteger(env.PLAUD_MIRROR_REQUEST_TIMEOUT_MS, 30_000);
+  // Scheduler accepts 0 (= disabled) explicitly, so we cannot use
+  // parsePositiveInteger here — that helper rejects 0. The cadence floor
+  // for "enabled" is 60_000ms (1 minute) to prevent accidental
+  // configuration that would hammer Plaud once per second.
+  const schedulerIntervalMs = parseSchedulerInterval(env.PLAUD_MIRROR_SCHEDULER_INTERVAL_MS, 15 * 60 * 1000);
 
   const resolvedEnvironment: ServerEnvironment = {
     port,
@@ -41,6 +54,7 @@ export function loadServerEnvironment(env: NodeJS.ProcessEnv = process.env): Ser
     webDistDir,
     defaultSyncLimit,
     requestTimeoutMs,
+    schedulerIntervalMs,
   };
 
   if (apiBase) {
@@ -70,5 +84,30 @@ function parsePositiveInteger(input: string | undefined, fallback: number): numb
     throw new Error(`Expected a positive integer, received: ${input}`);
   }
 
+  return value;
+}
+
+function parseSchedulerInterval(input: string | undefined, fallback: number): number {
+  if (input === undefined) {
+    return fallback;
+  }
+  const trimmed = input.trim();
+  if (trimmed === "") {
+    return fallback;
+  }
+
+  const value = Number(trimmed);
+  if (!Number.isInteger(value) || value < 0) {
+    throw new Error(`PLAUD_MIRROR_SCHEDULER_INTERVAL_MS must be a non-negative integer; received: ${input}`);
+  }
+  if (value === 0) {
+    // Explicit opt-out: scheduler disabled, manual-only behavior.
+    return 0;
+  }
+  if (value < 60_000) {
+    throw new Error(
+      `PLAUD_MIRROR_SCHEDULER_INTERVAL_MS=${value} is below the 60_000ms floor; pick at least 1 minute or set 0 to disable.`,
+    );
+  }
   return value;
 }

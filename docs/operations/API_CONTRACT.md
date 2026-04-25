@@ -1,13 +1,13 @@
-<!-- doc-version: 0.4.19 -->
+<!-- doc-version: 0.5.0 -->
 # API Contract
 
-This document describes the Phase 2 HTTP and webhook surface that now exists in-repo.
+This document describes the HTTP and webhook surface that now exists in-repo. The current implementation covers the full Phase 2 slice (manual sync/backfill, immediate HMAC-signed webhook delivery with persisted attempt log, local curation routes) and the Phase 3 scheduler subset that landed in `v0.5.0` (in-process continuous sync scheduler observable through the `scheduler` block in `/api/health`). The durable webhook outbox (D-013) and full health observability (`lastErrors`, outbox backlog) are deferred to `v0.5.1` / `v0.5.2` and are NOT yet part of the contract.
 
 ## Admin API
 
 | Method | Path | Purpose |
 |--------|------|---------|
-| `GET` | `/api/health` | Return version, phase, auth summary, last sync, warning list |
+| `GET` | `/api/health` | Return version, phase string, auth summary, last completed sync, currently active run (if any), scheduler status (D-014 partial — scheduler subset; full surface in `v0.5.2`), recording counts, webhook configuration flag, warning list. |
 | `GET` | `/api/config` | Return sanitized runtime config |
 | `PUT` | `/api/config` | Update webhook URL and optional webhook secret |
 | `GET` | `/api/auth/status` | Return current auth state |
@@ -166,6 +166,49 @@ No request body. Response:
 
 Returns 409 when called on a recording whose `dismissed` is already `false`.
 
+### `GET /api/health`
+
+No request body. Response (200 OK):
+
+```json
+{
+  "version": "0.5.0",
+  "phase": "Phase 3 - unattended operation",
+  "auth": {
+    "mode": "manual-token",
+    "configured": true,
+    "state": "healthy",
+    "resolvedApiBase": "https://api.plaud.ai",
+    "lastValidatedAt": "2026-04-25T10:00:00.000Z",
+    "lastError": null,
+    "userSummary": null
+  },
+  "lastSync": { /* SyncRunSummary, or null before any run completes */ },
+  "activeRun": { /* SyncRunSummary while a run is in flight, else null */ },
+  "scheduler": {
+    "enabled": true,
+    "intervalMs": 900000,
+    "nextTickAt": "2026-04-25T10:15:00.000Z",
+    "lastTickAt": "2026-04-25T10:00:00.000Z",
+    "lastTickStatus": "completed",
+    "lastTickError": null
+  },
+  "recordingsCount": 215,
+  "dismissedCount": 12,
+  "webhookConfigured": true,
+  "warnings": []
+}
+```
+
+Fields:
+
+- `phase` reads `"Phase 3 - unattended operation"` when the scheduler is enabled, `"Phase 2 - manual sync"` otherwise. The exact string is for human consumption; do not key logic off it.
+- `lastSync` holds the last **completed** run (`status` ∈ `"completed"` / `"failed"`). It stays pinned through subsequent runs so the panel's hero metric does not flicker to zero. `null` until any run finishes.
+- `activeRun` holds the currently-running run (only when `status === "running"`); `null` otherwise. The panel polls `/api/health` every 2 s while `activeRun !== null` and stops once it clears.
+- `scheduler` is the partial D-014 surface shipped in `v0.5.0`. Always present (defaults to `{ enabled: false, intervalMs: 0, nextTickAt: null, lastTickAt: null, lastTickStatus: null, lastTickError: null }` when the scheduler is disabled). `lastTickStatus` is one of `"completed"` / `"failed"` / `"skipped"` (anti-overlap skip) or `null` (no tick yet in this process). `nextTickAt` and `lastTickAt` are ISO 8601 strings or `null`. `lastTickError` carries the `Error.message` from the most recent failed tick.
+- `recordingsCount` excludes dismissed rows; `dismissedCount` is the dismissed-only count.
+- `warnings` is a free-form string array reserved for non-fatal operator-visible signals.
+
 ## Webhook Contract
 
 Event name:
@@ -205,4 +248,8 @@ Payload:
 
 ## Phase Boundary Note
 
-Phase 2 delivers the route surface and immediate webhook delivery with persisted attempt logging. Durable retry/outbox semantics remain a Phase 3 concern and should not be implied here.
+Phase 2 delivers the manual route surface and immediate HMAC-signed webhook delivery with persisted attempt logging. Phase 3 is in progress and lands incrementally across `0.5.x`:
+
+- `v0.5.0` (this release) adds the in-process continuous sync scheduler and the `health.scheduler` subset of D-014. Webhook delivery is still **immediate** — the outbox does not yet exist, so a failed delivery still requires the operator to re-trigger sync.
+- `v0.5.1` adds the durable webhook outbox (D-013): explicit FSM, exponential-backoff retry, and the persisted queue replaces the immediate-only delivery path. The contract above will gain backlog observability fields.
+- `v0.5.2` adds the full health observability surface (D-014, full): a `lastErrors` ring buffer and outbox backlog counters.

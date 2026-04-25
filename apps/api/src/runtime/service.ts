@@ -26,6 +26,7 @@ import {
   type RecordingMirror,
   type RecordingRestoreResult,
   type RuntimeConfig,
+  type SchedulerStatus,
   type StartSyncRunResponse,
   type SyncFilters,
   type SyncRunMode,
@@ -70,6 +71,25 @@ interface RemoteRecordingShape {
   scene?: number | null | undefined;
 }
 
+/**
+ * Provider for the operational scheduler status surfaced through
+ * `/api/health.scheduler` (D-014 partial). The runtime entry point
+ * registers a provider after both the service and the Scheduler are
+ * constructed; the service itself does not own the Scheduler instance,
+ * so health computation goes through this getter to avoid a circular
+ * dependency between the two modules.
+ */
+export type SchedulerStatusProvider = () => SchedulerStatus;
+
+const DISABLED_SCHEDULER_STATUS: SchedulerStatus = {
+  enabled: false,
+  intervalMs: 0,
+  nextTickAt: null,
+  lastTickAt: null,
+  lastTickStatus: null,
+  lastTickError: null,
+};
+
 export class PlaudMirrorService {
   private readonly environment: ServerEnvironment;
   private readonly store: RuntimeStore;
@@ -78,6 +98,7 @@ export class PlaudMirrorService {
   private readonly artifactFetchImpl: typeof fetch;
   private readonly webhookFetchImpl: typeof fetch;
   private readonly scheduler: (work: () => Promise<unknown>) => void;
+  private schedulerStatusProvider: SchedulerStatusProvider | null = null;
 
   constructor(
     environment: ServerEnvironment,
@@ -113,6 +134,16 @@ export class PlaudMirrorService {
     this.store.close();
   }
 
+  /**
+   * Wire the operational scheduler in after both the service and the
+   * Scheduler are constructed. Called by `cli/server.ts` during runtime
+   * boot. Tests that exercise getHealth without a real scheduler can
+   * skip this and the response surfaces a "disabled" SchedulerStatus.
+   */
+  setSchedulerStatusProvider(provider: SchedulerStatusProvider | null): void {
+    this.schedulerStatusProvider = provider;
+  }
+
   async getHealth(): Promise<ReturnType<typeof ServiceHealthSchema.parse>> {
     const auth = await this.getAuthStatus();
     const config = await this.getConfig();
@@ -130,10 +161,15 @@ export class PlaudMirrorService {
 
     return ServiceHealthSchema.parse({
       version: API_PACKAGE_VERSION,
-      phase: "Phase 2 - first usable slice",
+      phase: this.schedulerStatusProvider !== null && this.schedulerStatusProvider().enabled
+        ? "Phase 3 - unattended operation"
+        : "Phase 2 - first usable slice",
       auth,
       lastSync: this.store.getLastSyncRun(),
       activeRun: this.store.getActiveSyncRun(),
+      scheduler: this.schedulerStatusProvider !== null
+        ? this.schedulerStatusProvider()
+        : DISABLED_SCHEDULER_STATUS,
       recordingsCount: this.store.countRecordings(),
       dismissedCount: this.store.countDismissed(),
       webhookConfigured: Boolean(config.webhookUrl),

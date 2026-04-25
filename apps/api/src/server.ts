@@ -6,6 +6,7 @@ import fastifyStatic from "@fastify/static";
 import Fastify from "fastify";
 
 import { loadServerEnvironment, type ServerEnvironment } from "./runtime/environment.js";
+import { Scheduler } from "./runtime/scheduler.js";
 import { SecretStore } from "./runtime/secrets.js";
 import { PlaudMirrorService, type RuntimeServiceDependencies } from "./runtime/service.js";
 import { RuntimeStore } from "./runtime/store.js";
@@ -32,9 +33,36 @@ export async function createApp(options: CreateAppOptions = {}) {
 
   await service.initialize();
 
+  // Phase 3 scheduler (D-012). Activated only when the environment opts in
+  // (`schedulerIntervalMs > 0`). Tests construct environments with the
+  // value set to 0, so they keep Phase 2 manual-only behavior.
+  const scheduler = environment.schedulerIntervalMs > 0
+    ? new Scheduler({
+        intervalMs: environment.schedulerIntervalMs,
+        runTick: async () => {
+          // Tick = a manual sync at the operator-configured default limit.
+          // The service already serializes runs via `getActiveSyncRun`;
+          // the scheduler's own anti-overlap check is the second guardrail.
+          await service.runSync({ limit: environment.defaultSyncLimit });
+        },
+      })
+    : null;
+  if (scheduler) {
+    service.setSchedulerStatusProvider(() => scheduler.status());
+    scheduler.start();
+  }
+
   const app = Fastify({
     logger: false,
   });
+
+  // Stop the scheduler on shutdown so SIGTERM does not leave a half-fired
+  // tick or a dangling timer when the process unwinds.
+  if (scheduler) {
+    app.addHook("onClose", async () => {
+      scheduler.stop();
+    });
+  }
 
   app.setErrorHandler((error, _request, reply) => {
     const normalizedError = error instanceof Error ? error : new Error(String(error));

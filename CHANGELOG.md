@@ -4,6 +4,26 @@ All notable changes to Plaud Mirror are documented in this file.
 
 This project follows Semantic Versioning (SemVer): MAJOR.MINOR.PATCH.
 
+## [0.5.0] - 2026-04-25
+
+### Added
+- **Phase 3 begins.** In-process continuous sync scheduler — opt-in via `PLAUD_MIRROR_SCHEDULER_INTERVAL_MS` (`0` or unset → disabled, Phase 2 manual-only behavior preserved; positive values enforce a 60 000 ms floor; default when set to a non-numeric/empty string is 15 minutes). Implementation: `apps/api/src/runtime/scheduler.ts` (217 lines). The scheduler is a single `setTimeout` loop with two layers of anti-overlap protection — an `inflight` flag at the scheduler level (records `lastTickStatus = "skipped"` when a tick fires while the previous one has not resolved) plus the existing `service.runSync` serialization via `getActiveSyncRun` (rejects mid-flight, returns the existing run id). Cadence is from-fire, not from-completion: the next tick is scheduled before the current tick is awaited, so a slow run does not push subsequent ticks back. Wired into `createApp` in `apps/api/src/server.ts`; Fastify's `onClose` hook stops the scheduler so SIGTERM cleanly cancels the pending timer. Locks the contract from **D-012** (`docs/llm/DECISIONS.md`).
+- Health observability surface — partial **D-014** (scheduler subset). `GET /api/health` now includes a `scheduler` block (`enabled`, `intervalMs`, `nextTickAt`, `lastTickAt`, `lastTickStatus` ∈ `"completed"` / `"failed"` / `"skipped"` / `null`, `lastTickError`). When the scheduler is enabled, `health.phase` flips to `"Phase 3 - unattended operation"`; otherwise it stays `"Phase 2 - manual sync"`. Older clients reading the response when the scheduler is off see the disabled-shape default thanks to Zod's `.default(...)` on `ServiceHealthSchema.scheduler`. Webhook outbox backlog and `lastErrors` ring buffer arrive in `v0.5.1` / `v0.5.2`.
+- New shared schema + type: `SchedulerStatusSchema` and `SchedulerStatus` in `packages/shared/src/runtime.ts`. Strict Zod object enforcing the wire shape; reused by `getHealth()` and the panel's TypeScript imports.
+- New environment variable parsed in `apps/api/src/runtime/environment.ts` via a new `parseSchedulerInterval()` helper. Validates the 60 000 ms floor, normalizes `0` and unset to disabled, and falls back to a 900 000 ms default when given malformed input. Exposed as `ServerEnvironment.schedulerIntervalMs`.
+- New service hook `setSchedulerStatusProvider(provider)` on `PlaudMirrorService` so the runtime can register a live scheduler-status function without coupling the service to the scheduler module. `getHealth()` calls it (or returns the disabled default) when assembling the response.
+- New test file `apps/api/src/runtime/scheduler.test.ts` (7 tests, ~264 lines): `fireOnce` with completed and failed cases (error message captured), anti-overlap skip semantics, `start`/`stop` with a deterministic injected timer harness, `start` idempotency (a second `start()` does not double the cadence), constructor input validation (rejects non-positive `intervalMs`), and `status()` reflecting the last result with `nextTickAt` cleared on stop.
+
+### Changed
+- `apps/api/src/runtime/service.ts` `getHealth()` now reports the scheduler status and dynamically selects the `phase` string. `apps/api/src/server.ts` instantiates the `Scheduler` and registers the status provider when `environment.schedulerIntervalMs > 0`. Test environments in `apps/api/src/runtime/service.test.ts` and `apps/api/src/server.test.ts` now include `schedulerIntervalMs: 0` to keep the existing manual-only test surface intact.
+- `packages/shared/src/formatting.test.ts` `withPlaudTotal` fixture now includes the new `scheduler` field on its `ServiceHealth` literal so the strict shape continues to compile.
+- `package.json#scripts.test` chains the new `apps/api/dist/runtime/scheduler.test.js` into the Node `--test` invocation. Total backend tests: 73 (up from 66 in `v0.4.19`); web-side tests: 11 (unchanged); grand total: **84**.
+
+### Notes
+- This release is the **first Phase 3 release**. The roadmap's "Current phase" pointer flips from Phase 2 to Phase 3, and the version table now reads `0.5.x` → Phase 3 in progress. The remaining Phase 3 increments — durable webhook outbox (`v0.5.1`, locks **D-013**) and full health observability (`v0.5.2`, completes **D-014**) — are queued; the scheduler shipped here is enough to validate "does the service run unattended?" with the existing immediate-webhook path.
+- Default behavior is unchanged: containers without `PLAUD_MIRROR_SCHEDULER_INTERVAL_MS` set get the disabled scheduler and behave exactly like `v0.4.19`. Operators who want continuous sync set the env var (recommended starting point: 900000 = 15 minutes) and the panel's health card will start showing `nextTickAt` / `lastTickAt`.
+- DF-026 in `~/src/LLM-DocKit/docs/DOWNSTREAM_FEEDBACK.md` (UI tests gap) status is unchanged: still `partially implemented` — the new tests in this release are backend-only.
+
 ## [0.4.19] - 2026-04-25
 
 ### Added

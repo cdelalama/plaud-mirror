@@ -1,9 +1,9 @@
-<!-- doc-version: 0.4.19 -->
+<!-- doc-version: 0.5.0 -->
 # Plaud Mirror Architecture
 
-> Version: 0.4.19
+> Version: 0.5.0
 > Last Updated: 2026-04-25
-> Status: Phase 2 vertical slice (extended through 0.4.x with local curation, UX polish, Mode B sync, classic pagination, stable sequence numbers, async sync with live-progress polling, cached device catalog, backfill dry-run preview, Main/Configuration tab split with collapsible Historical backfill, Dockerfile POSIX-portable, named/typed download filenames, shared formatting helpers, and now Vitest+jsdom+@testing-library/react as the web-side test framework with first batch of component-level tests — v0.4.19 is the Phase 3 prerequisite step: testing infrastructure for the panel before scheduler/outbox/health work lands)
+> Status: Phase 3 in progress — v0.5.0 ships the in-process continuous sync scheduler (D-012) and the partial health observability surface (D-014, scheduler subset). Inherits the entire Phase 2 slice (manual sync/backfill, curation, UX polish, Mode B, classic pagination, sequence numbers, async-202 with live-progress polling, device catalog, backfill dry-run preview, Vitest+jsdom+@testing-library/react test framework). Webhook outbox (D-013) and full health observability (lastErrors, outbox backlog) are deferred to v0.5.1 / v0.5.2.
 
 ## Overview
 
@@ -26,9 +26,9 @@ Plaud Mirror is a single-operator, server-first service that:
 - **Artifacts:** filesystem under `recordings/<recording-id>/`
 - **Packaging:** single Docker container serving both API and panel
 
-## What Phase 2 Actually Means
+## What Phase 2 Shipped
 
-Phase 2 is the first usable manual slice. It includes:
+Phase 2 was the first usable manual slice. It included:
 
 - token save + validation
 - manual sync
@@ -38,14 +38,20 @@ Phase 2 is the first usable manual slice. It includes:
 - HMAC-signed delivery attempts
 - Docker launch on `dev-vm`
 
-Phase 2 does **not** include:
+## What Phase 3 Adds (in progress)
 
-- scheduler-driven unattended sync
-- resumable backfill
-- durable retry outbox
-- automatic re-login
+Phase 3 turns the manual slice into an unattended service. It is being delivered across the `0.5.x` line:
 
-Those belong to [Phase 3 and Phase 4](ROADMAP.md).
+- **`v0.5.0` (this release):** in-process continuous sync scheduler with anti-overlap protection (D-012); partial health observability — scheduler subset only (D-014, partial). Scheduler is opt-in via `PLAUD_MIRROR_SCHEDULER_INTERVAL_MS`; defaults to disabled (Phase 2 manual-only behavior preserved when the variable is absent or `0`).
+- **`v0.5.1` (next):** durable webhook outbox with explicit FSM (`pending` / `delivering` / `delivered` / `retry_waiting` / `permanently_failed`) and exponential-backoff retry (D-013).
+- **`v0.5.2` (after):** full health observability — `lastErrors` ring buffer + outbox backlog counters surfaced through `/api/health` (D-014, full).
+
+Still **not** in Phase 3 scope:
+
+- resumable backfill (deferred; ROADMAP mentions but no firm release target)
+- automatic re-login → [Phase 4](ROADMAP.md)
+- NAS rollout → [Phase 5](ROADMAP.md)
+- public OSS polish → [Phase 6](ROADMAP.md)
 
 ## Key Flows
 
@@ -96,6 +102,15 @@ The web panel polls `GET /api/health` every 2 s while a run is active. The healt
 4. The response includes `plaudTotal`, `matched` (pre-truncation count), `missing` (how many would actually download), `previewLimit`, and the recordings array (newest-first, capped at `previewLimit`, default 200, max 500). The panel renders this as a table with colored state badges and a header summary ("X match — Y would be downloaded").
 5. Because the preview reuses the exact same primitives (`listEverything`, `applyLocalFilters`, same date normalization via `toStartTimestamp`/`toEndTimestamp`), it cannot drift from real backfill behavior.
 
+### Continuous sync scheduler (Phase 3, opt-in via env)
+
+1. At startup, `createApp` reads `PLAUD_MIRROR_SCHEDULER_INTERVAL_MS`. The value is parsed by `parseSchedulerInterval` in `apps/api/src/runtime/environment.ts`: `0` (or unset) means **disabled** — Phase 2 manual-only behavior is preserved. Any positive value enforces a 60 000 ms (60 s) floor; the default when the variable is set to a non-numeric or empty value is 15 minutes.
+2. When the interval is positive, `createApp` instantiates a `Scheduler` (`apps/api/src/runtime/scheduler.ts`) whose `runTick` callback invokes `service.runSync({ limit: environment.defaultSyncLimit })`. The scheduler is then `start()`ed and a `service.setSchedulerStatusProvider(() => scheduler.status())` hook is wired so health responses can read live state.
+3. The scheduler is a single in-process `setTimeout` loop. Each fire enters `tick()`, which is guarded by an `inflight` flag: if the previous tick has not yet resolved, the new fire records `lastTickStatus = "skipped"` and returns immediately. This is the **scheduler-level anti-overlap** — the second guardrail. The first is `service.runSync` itself, which serializes via `getActiveSyncRun` and rejects if a run is already in flight (returning the existing `id`); a "skipped" tick is therefore the expected outcome whenever a manual operator-triggered run is mid-flight.
+4. The next tick is scheduled **before** the current `runTick` is awaited. This means a long-running tick (large limit, slow Plaud responses) does not push subsequent ticks back; the cadence is always `intervalMs` from the previous fire, regardless of how long the work took. Anti-overlap absorbs the case where the work outlasts the interval.
+5. `Scheduler.status()` returns `{ enabled, intervalMs, nextTickAt, lastTickAt, lastTickStatus, lastTickError }`. `getHealth()` calls the registered status provider and includes the result as `scheduler` in the `/api/health` response. When the scheduler is enabled, `phase` reads `"Phase 3 - unattended operation"`; when it is disabled, `phase` falls back to the historical `"Phase 2 - manual sync"` string. Older clients that read `health.scheduler` get the disabled-shape default `{ enabled: false, intervalMs: 0, nextTickAt: null, lastTickAt: null, lastTickStatus: null, lastTickError: null }` thanks to Zod's `.default(...)` on `ServiceHealthSchema.scheduler`.
+6. Shutdown is wired via `app.addHook("onClose", async () => scheduler.stop())` so SIGTERM / Fastify graceful-close cancels the pending timer cleanly without leaving a half-fired tick.
+
 ### Device catalog
 
 1. During the background portion of a sync run, the service calls `client.listDevices()` which hits `GET /device/list`. The response is translated from Plaud's wire shape (`sn`, `name`, `model`, `version_number`) into the domain `Device` type (`serialNumber`, `displayName`, `model`, `firmwareVersion`, `lastSeenAt`). The wire format is isolated to `packages/shared/src/plaud.ts`; the rest of the codebase only imports `Device`.
@@ -124,9 +139,10 @@ The web panel polls `GET /api/health` every 2 s while a run is active. The healt
 
 ## Next Architectural Step
 
-The next architectural jump is Phase 3:
+Phase 3 is in progress (`v0.5.0` ships the scheduler subset). The remaining Phase 3 work and Phase 4 horizon:
 
-- scheduler loop
-- resumable backfill
-- explicit retry/outbox flow for webhooks
-- more robust degraded-state handling
+- **Phase 3 cont.:** durable webhook outbox with retry/backoff (D-013 → `v0.5.1`)
+- **Phase 3 cont.:** full health observability — `lastErrors` ring buffer + outbox backlog counters surfaced through `/api/health` (D-014, full → `v0.5.2`)
+- Resumable backfill (deferred; ROADMAP mentions but no firm release target)
+- **Phase 4:** automatic re-login via a non-browser path if it proves reliable
+- More robust degraded-state handling (incremental, threaded through Phase 3 + 4)
