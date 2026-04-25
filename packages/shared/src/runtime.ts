@@ -23,11 +23,22 @@ export const RuntimeConfigSchema = z.object({
   webhookUrl: z.string().nullable(),
   hasWebhookSecret: z.boolean(),
   defaultSyncLimit: z.number().int().positive(),
+  // Continuous-sync scheduler interval in milliseconds (D-012). 0 = disabled
+  // (manual-only behaviour). When >0, must be >= 60_000ms (1 minute) — the
+  // floor is enforced at the request boundary in `updateConfig`. Persisted
+  // in SQLite from v0.5.2 onwards so the operator can change it from the
+  // panel without restarting the container; the
+  // `PLAUD_MIRROR_SCHEDULER_INTERVAL_MS` env var seeds the initial value on
+  // a fresh database, then the SQLite-backed value wins.
+  schedulerIntervalMs: z.number().int().nonnegative().default(0),
 }).strict();
 
 export const UpdateRuntimeConfigRequestSchema = z.object({
   webhookUrl: z.string().trim().url().nullable().optional(),
   webhookSecret: z.string().trim().min(1).nullable().optional(),
+  // Same semantics as `RuntimeConfigSchema.schedulerIntervalMs`. Optional
+  // (omit to leave unchanged); explicit `0` disables the scheduler.
+  schedulerIntervalMs: z.number().int().nonnegative().optional(),
 }).strict();
 
 export const SaveAccessTokenRequestSchema = z.object({

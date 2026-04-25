@@ -115,23 +115,45 @@ export class RuntimeStore {
     }
   }
 
+  /**
+   * Seed `config.schedulerIntervalMs` from the env-var bootstrap value, but
+   * only when the SQLite row is absent. Once the operator touches the
+   * panel even once, the SQLite value wins and the env var stops mattering
+   * — that is the whole point of moving the knob to the UI in v0.5.2.
+   */
+  seedSchedulerDefaults(intervalMs: number): void {
+    if (this.getSetting<string>("config.schedulerIntervalMs") === null) {
+      this.setSetting("config.schedulerIntervalMs", String(intervalMs));
+    }
+  }
+
   getConfig(hasWebhookSecret: boolean): RuntimeConfig {
+    const rawInterval = this.getSetting<string>("config.schedulerIntervalMs");
+    const schedulerIntervalMs = rawInterval === null ? 0 : Number.parseInt(rawInterval, 10);
     return RuntimeConfigSchema.parse({
       dataDir: this.dataDir,
       recordingsDir: this.recordingsDir,
       webhookUrl: this.getSetting<string>("config.webhookUrl") ?? null,
       hasWebhookSecret,
       defaultSyncLimit: this.defaultSyncLimit,
+      schedulerIntervalMs: Number.isFinite(schedulerIntervalMs) ? schedulerIntervalMs : 0,
     });
   }
 
-  saveConfig(input: { webhookUrl?: string | null }): RuntimeConfig {
+  saveConfig(input: { webhookUrl?: string | null; schedulerIntervalMs?: number }): RuntimeConfig {
     if (input.webhookUrl !== undefined) {
       if (input.webhookUrl) {
         this.setSetting("config.webhookUrl", input.webhookUrl);
       } else {
         this.deleteSetting("config.webhookUrl");
       }
+    }
+
+    if (input.schedulerIntervalMs !== undefined) {
+      // Always store the value, including 0, so the operator can disable
+      // the scheduler from the panel after a non-zero env-var seed without
+      // losing the choice on the next boot.
+      this.setSetting("config.schedulerIntervalMs", String(input.schedulerIntervalMs));
     }
 
     return this.getConfig(Boolean(this.getSetting<string>("config.webhookSecretSentinel")));

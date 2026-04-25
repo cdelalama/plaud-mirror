@@ -6,7 +6,7 @@ import fastifyStatic from "@fastify/static";
 import Fastify from "fastify";
 
 import { loadServerEnvironment, type ServerEnvironment } from "./runtime/environment.js";
-import { Scheduler } from "./runtime/scheduler.js";
+import { SchedulerManager } from "./runtime/scheduler-manager.js";
 import { SecretStore } from "./runtime/secrets.js";
 import { PlaudMirrorService, type RuntimeServiceDependencies } from "./runtime/service.js";
 import { RuntimeStore } from "./runtime/store.js";
@@ -33,36 +33,35 @@ export async function createApp(options: CreateAppOptions = {}) {
 
   await service.initialize();
 
-  // Phase 3 scheduler (D-012). Activated only when the environment opts in
-  // (`schedulerIntervalMs > 0`). The fallback in environment.ts is 0
-  // (disabled), so an operator who upgrades from 0.4.x without setting
-  // PLAUD_MIRROR_SCHEDULER_INTERVAL_MS keeps Phase 2 manual-only behavior.
-  const scheduler = environment.schedulerIntervalMs > 0
-    ? new Scheduler({
-        intervalMs: environment.schedulerIntervalMs,
-        runTick: async () => {
-          // Two-layer anti-overlap (documented in 0.5.0 but only fully
-          // implemented in 0.5.1):
-          //   1. Service-layer: runScheduledSync consults
-          //      store.getActiveSyncRun() and returns `started: false`
-          //      when a manual or scheduled run is already mid-flight,
-          //      without inserting into sync_runs.
-          //   2. Scheduler-level: the inflight flag on Scheduler.executeTick
-          //      stops two ticks from this same scheduler from running
-          //      concurrently.
-          // When the service absorbs the tick, surface that as `skipped`
-          // in the health response — `completed` would mislead operators.
-          const { started } = await service.runScheduledSync();
-          if (!started) {
-            return { skipped: true, reason: "another sync run was already in flight" };
-          }
-        },
-      })
-    : null;
-  if (scheduler) {
-    service.setSchedulerStatusProvider(() => scheduler.status());
-    scheduler.start();
-  }
+  // Phase 3 scheduler (D-012). The SchedulerManager wraps the actual
+  // Scheduler so the operator can change the interval from the panel
+  // (v0.5.2) — `service.updateConfig` calls back into
+  // `manager.applyInterval(...)` and the Scheduler is started, stopped,
+  // or swapped to a new cadence in place. The seed value comes from
+  // SQLite (operator's last choice), with the env var as the bootstrap
+  // default on a fresh database (handled inside `service.initialize`).
+  const manager = new SchedulerManager({
+    runTick: async () => {
+      // Two-layer anti-overlap (v0.5.1 onwards):
+      //   1. Service-layer: runScheduledSync consults
+      //      store.getActiveSyncRun() and returns `started: false`
+      //      when a manual or scheduled run is already mid-flight,
+      //      without inserting into sync_runs.
+      //   2. Scheduler-level: the inflight flag on Scheduler.executeTick
+      //      stops two ticks from this same scheduler from running
+      //      concurrently.
+      const { started } = await service.runScheduledSync();
+      if (!started) {
+        return { skipped: true, reason: "another sync run was already in flight" };
+      }
+    },
+  });
+  service.setSchedulerStatusProvider(() => manager.status());
+  service.setSchedulerReconfigureHook((intervalMs) => manager.applyInterval(intervalMs));
+  // Read the persisted interval after `initialize` seeded the SQLite
+  // bootstrap. From here on, the SQLite value is authoritative.
+  const initialConfig = await service.getConfig();
+  manager.applyInterval(initialConfig.schedulerIntervalMs);
 
   const app = Fastify({
     logger: false,
@@ -70,11 +69,9 @@ export async function createApp(options: CreateAppOptions = {}) {
 
   // Stop the scheduler on shutdown so SIGTERM does not leave a half-fired
   // tick or a dangling timer when the process unwinds.
-  if (scheduler) {
-    app.addHook("onClose", async () => {
-      scheduler.stop();
-    });
-  }
+  app.addHook("onClose", async () => {
+    manager.stop();
+  });
 
   app.setErrorHandler((error, _request, reply) => {
     const normalizedError = error instanceof Error ? error : new Error(String(error));

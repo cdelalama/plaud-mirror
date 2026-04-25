@@ -4,6 +4,25 @@ All notable changes to Plaud Mirror are documented in this file.
 
 This project follows Semantic Versioning (SemVer): MAJOR.MINOR.PATCH.
 
+## [0.5.2] - 2026-04-25
+
+### Added
+- **Panel-driven scheduler configuration.** The continuous sync scheduler is now configured from the Configuration tab of the web UI: a new "Continuous sync scheduler" card shows the live status (`enabled` / `interval` / `next tick` / `last tick` / `last tick reason`) and an "Interval (minutes, 0 disables)" form that posts to `PUT /api/config`. The interval persists in SQLite (the same `settings` key/value table the webhook URL already uses), so changes survive container restarts and the operator never has to touch `.env`. The `PLAUD_MIRROR_SCHEDULER_INTERVAL_MS` env var is downgraded to a **bootstrap-only seed** — it pre-populates the SQLite row on a fresh database, then the SQLite-backed value wins on every subsequent boot, ignoring any later env-var changes.
+- **Hot reconfigure without restart.** New `SchedulerManager` (`apps/api/src/runtime/scheduler-manager.ts`) wraps the `Scheduler` class and exposes `applyInterval(ms)` with start / stop / swap-cadence semantics. `service.updateConfig` calls back into the manager via a new reconfigure hook, so a panel save takes effect immediately — the existing `Scheduler` is `stop()`ed and a fresh one is started with the new cadence in the same tick. Idempotent for unchanged values (no cadence reset on a no-op save).
+- New shared schema field `RuntimeConfig.schedulerIntervalMs` (with `.default(0)` so older clients still parse) and `UpdateRuntimeConfigRequest.schedulerIntervalMs?` (optional, omit to leave unchanged). `GET /api/config` now reports the persisted value; `PUT /api/config` accepts and validates it (must be `0` or `≥ 60_000`) and persists via `RuntimeStore.saveConfig`.
+- New `RuntimeStore.seedSchedulerDefaults(ms)` method called on `service.initialize()`. Only writes the env-var value to SQLite when the row is absent — once the operator has touched the panel even once, the env var is irrelevant on subsequent boots.
+
+### Changed
+- `SchedulerManager` replaces the inline `Scheduler` instantiation that lived in `apps/api/src/server.ts`. The runtime now always constructs a manager (regardless of the persisted interval); `manager.applyInterval(0)` is a no-op so a freshly-installed container with no env var and no panel save stays disabled exactly like `v0.5.1`.
+- `PlaudMirrorService` gains a `setSchedulerReconfigureHook(hook)` API alongside the existing `setSchedulerStatusProvider` so the runtime can wire bidirectional integration with the manager: read live status into `getHealth`, push interval changes from `updateConfig`.
+- `apps/web/src/App.tsx` adds the scheduler card under the existing Webhook card on the Configuration tab. Helpers `formatSchedulerInput` / `parseSchedulerInput` round-trip between the operator-facing minutes and the wire-format milliseconds.
+
+### Notes
+- This is a **minor** release (0.5.1 → 0.5.2) because the panel surface gains a new operator-visible feature. The HTTP contract is additive (a new optional field on `PUT /api/config`, a new field on `GET /api/config` and `RuntimeConfig`); existing callers that ignore the field continue to work.
+- For operators who already had `PLAUD_MIRROR_SCHEDULER_INTERVAL_MS` set in `.env`: the value seeds SQLite on the first `v0.5.2` boot, after which the panel is the source of truth. You can safely remove the env var; it does nothing once the SQLite row exists.
+- Phase 3 sequencing pushed back one slot again to absorb this UX work: `v0.5.3` is now the durable webhook outbox (D-013), `v0.5.4` is the full health observability surface (D-014, complete). This is the third roadmap shift in `0.5.x`; the pattern is finally settling because the scheduler subsystem is now operator-controllable end-to-end.
+- Test totals: 93 → 102 (91 backend + 11 web). 9 new tests: 1 in `store.test.ts` (round-trip + seed-only-once semantics), 7 in the new `scheduler-manager.test.ts` (start / stop / reconfigure / idempotency / floor / sub-floor rejection), 1 in `service.test.ts` (validation + persistence + hook dispatch on `updateConfig`).
+
 ## [0.5.1] - 2026-04-25
 
 ### Fixed

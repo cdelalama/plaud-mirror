@@ -1,15 +1,15 @@
-<!-- doc-version: 0.5.1 -->
+<!-- doc-version: 0.5.2 -->
 # API Contract
 
-This document describes the HTTP and webhook surface that now exists in-repo. The current implementation covers the full Phase 2 slice (manual sync/backfill, immediate HMAC-signed webhook delivery with persisted attempt log, local curation routes) and the Phase 3 scheduler subset stabilized in `v0.5.1` (the in-process continuous sync scheduler introduced in `v0.5.0`, with the default-on regression and the missing service-level anti-overlap fixed — see CHANGELOG `[0.5.1]`). The durable webhook outbox (D-013) and full health observability (`lastErrors`, outbox backlog) are deferred to `v0.5.2` / `v0.5.3` and are NOT yet part of the contract.
+This document describes the HTTP and webhook surface that now exists in-repo. The current implementation covers the full Phase 2 slice (manual sync/backfill, immediate HMAC-signed webhook delivery with persisted attempt log, local curation routes) and the Phase 3 scheduler subset stabilized in `v0.5.1` and made panel-driven in `v0.5.2`. The scheduler interval now persists in SQLite (`config.schedulerIntervalMs`) and is set via `PUT /api/config { schedulerIntervalMs }`; `GET /api/config` reports the persisted value. The durable webhook outbox (D-013) and full health observability (`lastErrors`, outbox backlog) are deferred to `v0.5.3` / `v0.5.4` and are NOT yet part of the contract.
 
 ## Admin API
 
 | Method | Path | Purpose |
 |--------|------|---------|
-| `GET` | `/api/health` | Return version, phase string, auth summary, last completed sync, currently active run (if any), scheduler status (D-014 partial — scheduler subset; full surface in `v0.5.3`), recording counts, webhook configuration flag, warning list. |
-| `GET` | `/api/config` | Return sanitized runtime config |
-| `PUT` | `/api/config` | Update webhook URL and optional webhook secret |
+| `GET` | `/api/health` | Return version, phase string, auth summary, last completed sync, currently active run (if any), scheduler status (D-014 partial — scheduler subset; full surface in `v0.5.4`), recording counts, webhook configuration flag, warning list. |
+| `GET` | `/api/config` | Return sanitized runtime config: webhook URL + secret-presence flag, default sync limit, **and the persisted `schedulerIntervalMs`** (the panel reads this on load to populate the scheduler form). |
+| `PUT` | `/api/config` | Update webhook URL, optional webhook secret, **and / or the scheduler interval**. All three fields are optional and independent — omit any to leave it unchanged. `schedulerIntervalMs` must be `0` (disable) or `≥ 60000`; sub-floor positives return HTTP 400. When this field changes, the live `Scheduler` is started / stopped / swapped to the new cadence in place via the `SchedulerManager` reconfigure hook. |
 | `GET` | `/api/auth/status` | Return current auth state |
 | `POST` | `/api/auth/token` | Validate and persist a Plaud bearer token |
 | `POST` | `/api/sync/run` | Schedule a manual sync. Returns `202 Accepted` with `{ id, status: "running" }` immediately; the work runs in the background. Poll `GET /api/sync/runs/:id` or `GET /api/health` (`activeRun` carries progress while running, `lastSync` updates on completion). |
@@ -37,11 +37,16 @@ This document describes the HTTP and webhook surface that now exists in-repo. Th
 ```json
 {
   "webhookUrl": "https://example.internal/hooks/plaud",
-  "webhookSecret": "optional-secret-to-store"
+  "webhookSecret": "optional-secret-to-store",
+  "schedulerIntervalMs": 900000
 }
 ```
 
-`webhookSecret` is optional on update. Omitting it keeps the current secret unchanged. Sending `null` clears it.
+All three fields are optional and independent.
+
+- `webhookUrl`: full URL or `null` to clear. Omit to leave unchanged.
+- `webhookSecret`: omit to leave unchanged. Send `null` to clear it.
+- `schedulerIntervalMs`: omit to leave unchanged. Send `0` to disable the scheduler. Send any integer `≥ 60000` to enable / re-tune. Sub-floor positive values return `400`. Hot-applied via the `SchedulerManager` reconfigure hook — no container restart.
 
 ### `POST /api/sync/run`
 
@@ -172,7 +177,7 @@ No request body. Response (200 OK):
 
 ```json
 {
-  "version": "0.5.1",
+  "version": "0.5.2",
   "phase": "Phase 3 - unattended operation",
   "auth": {
     "mode": "manual-token",
@@ -251,6 +256,7 @@ Payload:
 Phase 2 delivers the manual route surface and immediate HMAC-signed webhook delivery with persisted attempt logging. Phase 3 is in progress and lands incrementally across `0.5.x`:
 
 - `v0.5.0` introduced the in-process continuous sync scheduler and the `health.scheduler` subset of D-014, but with two regressions (default-on without opt-in, missing service-layer anti-overlap). It is broken and superseded — do not deploy it.
-- `v0.5.1` (this release) is the stable Phase 3 entry point: scheduler is genuinely opt-in, service-layer reuse via `getActiveSyncRun` is implemented, and the scheduler tick honestly labels absorbed ticks `skipped`. Webhook delivery is still **immediate** — the outbox does not yet exist, so a failed delivery still requires the operator to re-trigger sync.
-- `v0.5.2` adds the durable webhook outbox (D-013): explicit FSM, exponential-backoff retry, and the persisted queue replaces the immediate-only delivery path. The contract above will gain backlog observability fields.
-- `v0.5.3` adds the full health observability surface (D-014, full): a `lastErrors` ring buffer and outbox backlog counters.
+- `v0.5.1` is the stable Phase 3 entry point: scheduler is genuinely opt-in, service-layer reuse via `getActiveSyncRun` is implemented, and the scheduler tick honestly labels absorbed ticks `skipped`.
+- `v0.5.2` (this release) makes the scheduler interval **operator-controllable from the panel**: `RuntimeConfig.schedulerIntervalMs` added to `GET /api/config`, optional `schedulerIntervalMs` accepted by `PUT /api/config`, hot-applied via the `SchedulerManager` reconfigure hook with no container restart. Webhook delivery is still **immediate** — the outbox does not yet exist, so a failed delivery still requires the operator to re-trigger sync.
+- `v0.5.3` adds the durable webhook outbox (D-013): explicit FSM, exponential-backoff retry, and the persisted queue replaces the immediate-only delivery path. The contract above will gain backlog observability fields.
+- `v0.5.4` adds the full health observability surface (D-014, full): a `lastErrors` ring buffer and outbox backlog counters.

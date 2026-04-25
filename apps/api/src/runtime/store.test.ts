@@ -24,6 +24,7 @@ test("RuntimeStore persists config, recordings, and sync summaries", async () =>
     webhookUrl: "https://hooks.example/plaud",
     hasWebhookSecret: true,
     defaultSyncLimit: 100,
+    schedulerIntervalMs: 0,
   });
 
   store.upsertRecording({
@@ -84,6 +85,40 @@ test("RuntimeStore persists config, recordings, and sync summaries", async () =>
   const lastRun = store.getLastSyncRun();
   assert.equal(lastRun?.mode, "backfill");
   assert.equal(lastRun?.plaudTotal, 42, "plaudTotal must round-trip through SQLite");
+
+  store.close();
+});
+
+test("RuntimeStore persists schedulerIntervalMs through saveConfig and only seeds once", async () => {
+  // Regression test for v0.5.2: the panel-driven scheduler config has to
+  // round-trip through SQLite, and `seedSchedulerDefaults` must NOT
+  // overwrite an operator's previous choice on subsequent boots.
+  const root = await mkdtemp(join(tmpdir(), "plaud-mirror-store-sched-"));
+  const store = new RuntimeStore({
+    dbPath: join(root, "data", "app.db"),
+    dataDir: join(root, "data"),
+    recordingsDir: join(root, "recordings"),
+    defaultSyncLimit: 100,
+  });
+
+  // Fresh DB → seed bootstraps from the env-var value.
+  store.seedSchedulerDefaults(900_000);
+  assert.equal(store.getConfig(false).schedulerIntervalMs, 900_000);
+
+  // Operator changes the value from the panel.
+  store.saveConfig({ schedulerIntervalMs: 600_000 });
+  assert.equal(store.getConfig(false).schedulerIntervalMs, 600_000);
+
+  // A subsequent seed (e.g. process restart with a different env var) must
+  // be a no-op — the operator's choice wins.
+  store.seedSchedulerDefaults(900_000);
+  assert.equal(store.getConfig(false).schedulerIntervalMs, 600_000);
+
+  // Explicit 0 disables the scheduler and survives further seeds.
+  store.saveConfig({ schedulerIntervalMs: 0 });
+  assert.equal(store.getConfig(false).schedulerIntervalMs, 0);
+  store.seedSchedulerDefaults(900_000);
+  assert.equal(store.getConfig(false).schedulerIntervalMs, 0);
 
   store.close();
 });

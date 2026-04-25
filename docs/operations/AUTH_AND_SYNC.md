@@ -1,7 +1,7 @@
-<!-- doc-version: 0.5.1 -->
+<!-- doc-version: 0.5.2 -->
 # Authentication and Sync Operations
 
-This runbook defines the live behavior of Plaud Mirror's auth and sync surface. Phase 2 (manual sync/backfill, immediate HMAC webhook) is fully shipped. Phase 3 is in progress: `v0.5.0` introduced the in-process continuous sync scheduler (D-012); `v0.5.1` corrects two regressions in that release (scheduler default-on without opt-in, and a service-layer anti-overlap claim that was documented but not implemented — see CHANGELOG `[0.5.1]`). The durable webhook outbox (D-013) and full health observability (D-014, `lastErrors` + outbox backlog) are scheduled for `v0.5.2` / `v0.5.3`.
+This runbook defines the live behavior of Plaud Mirror's auth and sync surface. Phase 2 (manual sync/backfill, immediate HMAC webhook) is fully shipped. Phase 3 is in progress: `v0.5.0` introduced the in-process continuous sync scheduler (D-012); `v0.5.1` corrected two regressions in that release; `v0.5.2` makes the scheduler **operator-controllable from the web panel** — the interval is persisted in SQLite (`config.schedulerIntervalMs`) and hot-applied via the new `SchedulerManager` without a container restart. The `PLAUD_MIRROR_SCHEDULER_INTERVAL_MS` env var is now a one-time seed for fresh installs, not a live knob. The durable webhook outbox (D-013) and full health observability (D-014, `lastErrors` + outbox backlog) are scheduled for `v0.5.3` / `v0.5.4`.
 
 ## Auth Mode
 
@@ -42,20 +42,19 @@ The service exposes:
 
 ### Phase 3 (in progress, `0.5.x` line)
 
-#### Continuous sync scheduler — introduced in `v0.5.0`, fixed in `v0.5.1`
+#### Continuous sync scheduler — introduced in `v0.5.0`, stabilized in `v0.5.1`, panel-driven from `v0.5.2`
 
-The scheduler is **opt-in**. It is governed by the `PLAUD_MIRROR_SCHEDULER_INTERVAL_MS` environment variable. From `v0.5.1` onward:
+The live source of truth for the scheduler interval is **the SQLite `config.schedulerIntervalMs` row**, set from the Configuration tab of the web panel (`PUT /api/config { schedulerIntervalMs }`). The same rules apply regardless of whether the value comes from the panel or the env-var seed:
 
 | Value                          | Behavior                                                                                                       |
 |--------------------------------|----------------------------------------------------------------------------------------------------------------|
-| unset / absent                 | Scheduler **disabled** — Phase 2 manual-only behavior preserved exactly. (Fixed in `v0.5.1`; `v0.5.0` arranged a 15-minute default here, which was a regression — see CHANGELOG `[0.5.1]`.) |
-| empty string                   | Treated as unset. Scheduler **disabled**.                                                                      |
-| `0`                            | Scheduler **disabled** explicitly. Same as unset.                                                              |
-| any positive number `< 60000`  | Rejected at startup — minimum interval is 60 000 ms (60 s) to protect Plaud from over-polling.                 |
-| any positive number `≥ 60000`  | Scheduler **enabled**, fires `runScheduledSync()` every `intervalMs` measured from the previous fire (not from the previous completion). |
-| negative or non-integer string | Rejected at startup with an explicit error. (`v0.5.0` silently fell back to 15 min in this case; this was also fixed.) |
+| `0`                            | Scheduler **disabled** — Phase 2 manual-only behavior preserved exactly.                                       |
+| any positive integer `< 60000` | Rejected at the request boundary (HTTP 400 from `PUT /api/config`) and at startup if it slipped in via env.    |
+| any positive integer `≥ 60000` | Scheduler **enabled**, fires `runScheduledSync()` every `intervalMs` measured from the previous fire.          |
 
-Recommended starting point when enabling: `900000` (15 minutes). The cadence is documented here, not baked into the code, so an operator never gets a non-zero scheduler without typing the value themselves.
+A panel save round-trips through `PUT /api/config`, validates server-side, persists to SQLite, then hot-applies via the `SchedulerManager` reconfigure hook — no container restart, no env-var edit. The `PLAUD_MIRROR_SCHEDULER_INTERVAL_MS` env var still has a role on **fresh installs only**: `service.initialize()` calls `RuntimeStore.seedSchedulerDefaults(env.schedulerIntervalMs)`, which writes the env value to SQLite **only when the row is absent**. After the operator has touched the panel even once (or after the seed has run), the env var is irrelevant on every subsequent boot. To take an existing install back to "disabled," set the value to `0` in the panel — do not rely on removing the env var, that no longer changes anything.
+
+Recommended starting point when enabling for the first time: `15` minutes (`900000` ms on the wire). The recommendation lives in this doc and in the panel placeholder, not in code; the runtime never picks a non-zero scheduler without an explicit operator action.
 
 Operational properties:
 
@@ -68,8 +67,8 @@ Operational properties:
 
 #### Still later in `0.5.x`
 
-- **`v0.5.2`:** durable webhook outbox with explicit FSM (`pending` / `delivering` / `delivered` / `retry_waiting` / `permanently_failed`) and exponential-backoff retry policy (D-013). Pushed back one patch slot because `v0.5.1` was consumed by the scheduler regression fix.
-- **`v0.5.3`:** full health observability — `lastErrors` ring buffer + outbox backlog counters surfaced through `/api/health` (D-014, full).
+- **`v0.5.3`:** durable webhook outbox with explicit FSM (`pending` / `delivering` / `delivered` / `retry_waiting` / `permanently_failed`) and exponential-backoff retry policy (D-013). Pushed back two patch slots because `v0.5.1` consumed one for the regression fix and `v0.5.2` consumed another for the panel-driven scheduler config.
+- **`v0.5.4`:** full health observability — `lastErrors` ring buffer + outbox backlog counters surfaced through `/api/health` (D-014, full).
 - Resumable backfill (no firm release target; deferred within Phase 3).
 
 ## Failure Modes

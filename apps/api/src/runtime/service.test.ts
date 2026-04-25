@@ -82,6 +82,58 @@ test("PlaudMirrorService saves a validated token into encrypted storage", async 
   service.close();
 });
 
+test("PlaudMirrorService updateConfig persists schedulerIntervalMs and dispatches the reconfigure hook", async () => {
+  // Regression test for v0.5.2: the panel-driven scheduler config has to
+  // (a) validate the floor server-side, (b) persist to SQLite via
+  // store.saveConfig, and (c) call the reconfigure hook so the live
+  // SchedulerManager can start/stop without a container restart.
+  const root = await mkdtemp(join(tmpdir(), "plaud-mirror-service-sched-"));
+  const environment = createEnvironment(root);
+  const store = new RuntimeStore({
+    dbPath: join(environment.dataDir, "app.db"),
+    dataDir: environment.dataDir,
+    recordingsDir: environment.recordingsDir,
+    defaultSyncLimit: environment.defaultSyncLimit,
+  });
+  const secrets = new SecretStore(join(environment.dataDir, "secrets.enc"), environment.masterKey);
+  const reconfigureCalls: number[] = [];
+  const service = new PlaudMirrorService(environment, store, secrets, {});
+  await service.initialize();
+  service.setSchedulerReconfigureHook((ms) => {
+    reconfigureCalls.push(ms);
+  });
+
+  // Sub-floor positive value rejected with HTTP 400 — the panel sees the
+  // error synchronously rather than the operator wondering why nothing
+  // happened.
+  await assert.rejects(
+    () => service.updateConfig({ schedulerIntervalMs: 1_000 }),
+    /below the 60_000ms floor/,
+  );
+
+  // Valid enable: persisted + hook fired with the new value.
+  const enabled = await service.updateConfig({ schedulerIntervalMs: 600_000 });
+  assert.equal(enabled.schedulerIntervalMs, 600_000);
+  assert.deepEqual(reconfigureCalls, [600_000]);
+  // Round-trips through SQLite.
+  assert.equal((await service.getConfig()).schedulerIntervalMs, 600_000);
+
+  // Disable: persisted as 0 + hook fired with 0.
+  const disabled = await service.updateConfig({ schedulerIntervalMs: 0 });
+  assert.equal(disabled.schedulerIntervalMs, 0);
+  assert.deepEqual(reconfigureCalls, [600_000, 0]);
+
+  // Updating webhook only must NOT touch the scheduler hook.
+  await service.updateConfig({ webhookUrl: "https://hooks.example/plaud" });
+  assert.deepEqual(
+    reconfigureCalls,
+    [600_000, 0],
+    "the reconfigure hook must not fire when schedulerIntervalMs is omitted",
+  );
+
+  service.close();
+});
+
 test("PlaudMirrorService anti-overlap: concurrent runSync / runScheduledSync reuse the active run instead of creating a new one", async () => {
   // Regression test for the v0.5.0 documentation/code mismatch: the
   // CHANGELOG and AUTH_AND_SYNC promised that runSync serialises via

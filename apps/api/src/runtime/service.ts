@@ -99,6 +99,7 @@ export class PlaudMirrorService {
   private readonly webhookFetchImpl: typeof fetch;
   private readonly scheduler: (work: () => Promise<unknown>) => void;
   private schedulerStatusProvider: SchedulerStatusProvider | null = null;
+  private schedulerReconfigureHook: ((intervalMs: number) => void) | null = null;
 
   constructor(
     environment: ServerEnvironment,
@@ -128,6 +129,12 @@ export class PlaudMirrorService {
     }
 
     this.store.setWebhookSecretPresence(Boolean((await this.secrets.load()).webhookSecret));
+
+    // Seed the SQLite-backed scheduler interval from the env var on a
+    // fresh database. After this point, the SQLite value is the source
+    // of truth — operator changes from the panel persist; the env var
+    // is irrelevant on subsequent boots.
+    this.store.seedSchedulerDefaults(this.environment.schedulerIntervalMs);
   }
 
   close(): void {
@@ -142,6 +149,15 @@ export class PlaudMirrorService {
    */
   setSchedulerStatusProvider(provider: SchedulerStatusProvider | null): void {
     this.schedulerStatusProvider = provider;
+  }
+
+  /**
+   * Wire a hook the service calls when `updateConfig` changes the
+   * scheduler interval, so the runtime can start/stop/reconfigure the
+   * Scheduler in place without a container restart (v0.5.2).
+   */
+  setSchedulerReconfigureHook(hook: ((intervalMs: number) => void) | null): void {
+    this.schedulerReconfigureHook = hook;
   }
 
   async getHealth(): Promise<ReturnType<typeof ServiceHealthSchema.parse>> {
@@ -186,16 +202,41 @@ export class PlaudMirrorService {
   async updateConfig(input: unknown): Promise<RuntimeConfig> {
     const parsed = UpdateRuntimeConfigRequestSchema.parse(input);
 
+    if (parsed.schedulerIntervalMs !== undefined) {
+      // Validate at the request boundary so the panel sees a 4xx error
+      // synchronously instead of the operator wondering why /api/health
+      // never started reporting `enabled: true`. Floor + 0-disable rule
+      // matches the env-var pipeline in environment.ts so the two paths
+      // stay consistent.
+      const value = parsed.schedulerIntervalMs;
+      if (value !== 0 && value < 60_000) {
+        throw createHttpError(
+          400,
+          `schedulerIntervalMs ${value} is below the 60_000ms floor; pick at least 60000 (1 minute) or 0 to disable.`,
+        );
+      }
+    }
+
     if (parsed.webhookSecret !== undefined) {
       const secrets = await this.secrets.update({ webhookSecret: parsed.webhookSecret });
       this.store.setWebhookSecretPresence(Boolean(secrets.webhookSecret));
     }
 
-    const configUpdate: { webhookUrl?: string | null } = {};
+    const configUpdate: { webhookUrl?: string | null; schedulerIntervalMs?: number } = {};
     if (parsed.webhookUrl !== undefined) {
       configUpdate.webhookUrl = parsed.webhookUrl;
     }
+    if (parsed.schedulerIntervalMs !== undefined) {
+      configUpdate.schedulerIntervalMs = parsed.schedulerIntervalMs;
+    }
     this.store.saveConfig(configUpdate);
+
+    if (parsed.schedulerIntervalMs !== undefined && this.schedulerReconfigureHook) {
+      // Apply the new interval to the live Scheduler. The manager handles
+      // start / stop / reconfigure idempotently — no-op when the value did
+      // not actually change.
+      this.schedulerReconfigureHook(parsed.schedulerIntervalMs);
+    }
 
     return this.getConfig();
   }

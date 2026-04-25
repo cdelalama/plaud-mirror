@@ -1,23 +1,23 @@
-<!-- doc-version: 0.5.1 -->
+<!-- doc-version: 0.5.2 -->
 # How to Use This Repository
 
 This guide explains how Plaud Mirror is operated end-to-end and how it stays aligned with both `LLM-DocKit` (the governance scaffold it adopts) and the Plaud ecosystem upstreams it watches.
 
 ## Current Reality
 
-`v0.5.1` is the **stable Phase 3 entry point**: it inherits the full Phase 2 manual slice and adds the in-process continuous sync scheduler (D-012) plus the partial health observability surface (D-014, scheduler subset). It also corrects two regressions introduced in `v0.5.0` — the scheduler defaulted to 15 minutes when `PLAUD_MIRROR_SCHEDULER_INTERVAL_MS` was unset (now correctly disabled), and `service.runSync` / `runScheduledSync` now actually serialise via `getActiveSyncRun` instead of merely claiming to. **Operators upgrading from `v0.4.x` should skip `v0.5.0` and go directly to `v0.5.1`.** Today the repository gives you:
+`v0.5.2` builds on the `v0.5.1` Phase 3 stabilization and makes the continuous sync scheduler **operator-controllable from the web panel** — no env var edit, no container restart. The Configuration tab now has a "Continuous sync scheduler" card with a live status block and a form to set the interval in minutes (`0` disables it). The interval persists in SQLite, so changes survive restarts; the new `SchedulerManager` hot-applies the change in the same tick. The `PLAUD_MIRROR_SCHEDULER_INTERVAL_MS` env var still seeds the SQLite row on a fresh database for first-boot ergonomics, but is irrelevant once the operator has touched the panel. **Operators upgrading from `v0.4.x` should skip `v0.5.0` (default-on regression) and go directly to `v0.5.2`.** Today the repository gives you:
 
 - a Fastify API and React/Vite panel bundled in a single Docker container;
 - encrypted persisted bearer-token auth against Plaud, surviving restarts;
 - async manual sync and filtered historical backfill with live progress polling and a dry-run preview;
-- **opt-in continuous sync scheduler** — set `PLAUD_MIRROR_SCHEDULER_INTERVAL_MS` to enable automatic ticks (see "Configuring the scheduler interval" below);
+- **opt-in continuous sync scheduler** — configurable from the Configuration tab of the panel (set the interval in minutes, `0` disables); see "Configuring the scheduler" below;
 - a cached device catalog that feeds a real device selector in the backfill form;
 - local recording index in SQLite with stable `#N` ranks, classic pagination, inline audio playback with HTTP Range support, and local-only dismiss/restore;
 - immediate HMAC-signed webhook delivery with persisted delivery attempts;
 - a `scheduler` block on `/api/health` reporting `enabled` / `intervalMs` / `nextTickAt` / `lastTickAt` / `lastTickStatus` / `lastTickError`;
 - upstream-watch tooling plus the full LLM-DocKit governance circuit (HANDOFF, HISTORY, DECISIONS, REVIEWS, version-sync manifest, validator, pre-commit hook).
 
-What it deliberately does **not** give you yet: durable retry outbox (next: `v0.5.2`), `lastErrors` ring buffer + outbox backlog in health (next: `v0.5.3`), resumable backfill, automatic re-login, NAS rollout. Those are remaining Phase 3 work and Phase 4+ per `docs/ROADMAP.md`.
+What it deliberately does **not** give you yet: durable retry outbox (next: `v0.5.3`), `lastErrors` ring buffer + outbox backlog in health (next: `v0.5.4`), resumable backfill, automatic re-login, NAS rollout. Those are remaining Phase 3 work and Phase 4+ per `docs/ROADMAP.md`.
 
 For the full feature inventory see [README.md](README.md); for the product intent see [docs/PROJECT_CONTEXT.md](docs/PROJECT_CONTEXT.md); for current work state see [docs/llm/HANDOFF.md](docs/llm/HANDOFF.md).
 
@@ -44,27 +44,35 @@ export PLAUD_MIRROR_MASTER_KEY="<long-random-secret>"
 npm start
 ```
 
-### Configuring the scheduler interval (Phase 3, opt-in)
+### Configuring the scheduler (Phase 3, opt-in)
 
-The continuous sync scheduler is **disabled by default** to preserve Phase 2 manual-only behavior for existing operators. Enable it by setting `PLAUD_MIRROR_SCHEDULER_INTERVAL_MS` in the environment that boots the container or `npm start`:
+The continuous sync scheduler is **disabled by default** to preserve Phase 2 manual-only behavior for existing operators. From `v0.5.2` onwards, you configure it from the **Configuration tab of the web panel**:
 
-| Value                          | Result                                                                              |
-|--------------------------------|-------------------------------------------------------------------------------------|
-| (unset) / empty / `0`          | Scheduler disabled — operator triggers every sync manually.                         |
-| `60000` … any positive integer | Scheduler fires every `intervalMs` ms (minimum 60 000 = 60 s).                      |
-| Below `60000` (positive)       | Rejected at startup — protects Plaud from over-polling.                             |
-| Negative / non-integer string  | Rejected at startup with an explicit error — fail loud, never default silently.     |
+1. Open the panel at `http://localhost:3040`, switch to the Configuration tab.
+2. Find the **Continuous sync scheduler** card. The status block shows whether it is enabled, the current interval, the next tick, the last tick result, and (when applicable) the reason a tick was skipped.
+3. In the form, type the desired interval in **minutes** (e.g. `15`) and click "Save scheduler settings". The change persists in SQLite and is hot-applied — no container restart, no `.env` edit.
+4. To disable, set the field to `0` and save.
 
-Recommended starting point: `900000` (15 min). The recommendation lives in this doc deliberately, not in code; the runtime never picks a non-zero scheduler on your behalf.
+Rules enforced by the panel + the API:
+
+| Value (minutes) | Result                                                                                  |
+|-----------------|-----------------------------------------------------------------------------------------|
+| `0`             | Scheduler disabled. Manual sync only.                                                   |
+| `1` … any       | Scheduler enabled, fires every `N` minutes (the wire format is milliseconds: `N * 60_000`). |
+| Below `1`       | Rejected by the panel and by `PUT /api/config` (HTTP 400).                              |
+
+Recommended starting point: `15` minutes.
 
 Each tick performs `runScheduledSync()` against Plaud. Two layers of anti-overlap protect against double work:
 
 1. **Service-layer.** If a manual `POST /api/sync/run` (or another scheduled tick) is already mid-flight, the tick reuses that run's id without inserting a second `sync_runs` row, and `lastTickStatus` is `"skipped"` with `lastTickError` carrying the reason (e.g. `"another sync run was already in flight"`).
 2. **Scheduler-level.** If the previous tick's promise has not resolved by the time the next timer fires, the new fire is also recorded as `"skipped"` and discarded.
 
-Verify the scheduler is live by checking `GET /api/health` and confirming the `scheduler` block reports `enabled: true` with a populated `nextTickAt`. After the first tick fires, watch `lastTickAt` / `lastTickStatus` to confirm cadence.
-
 When the scheduler is enabled, `health.phase` reads `"Phase 3 - unattended operation"`; when disabled it falls back to `"Phase 2 - first usable slice"`. Use this string for human eyes only — never for control flow.
+
+#### Optional: bootstrap from the env var
+
+The `PLAUD_MIRROR_SCHEDULER_INTERVAL_MS` env var (in `.env` or `compose.yml`) is **only used to seed the SQLite row on a fresh install**. It is convenient if you want a brand-new container to start with a non-zero scheduler without having to log into the panel afterwards. Once the SQLite row exists (either because the seed wrote it, or because you saved from the panel), the env var is ignored on every subsequent boot. To change the value of an existing install, **always use the panel** — editing `.env` after the first boot will silently do nothing.
 
 ### Phase 1 spike (still available)
 
@@ -108,7 +116,7 @@ Useful for live Plaud flow checks and metadata discovery without booting the pan
 npm test
 ```
 
-93 tests at `v0.5.1`: 82 backend (Plaud client, runtime service, store, server routes, shared schemas including the `formatting` helpers used by both web and api, built-api smoke, web-build smoke, scheduler tests, **plus 9 regression tests added in `v0.5.1`: 6 in `apps/api/dist/runtime/environment.test.js` proving the env var matrix above (unset → disabled, empty → disabled, explicit `0` → disabled, positive accepted, sub-floor rejected, non-numeric/negative rejected), 1 in `apps/api/dist/runtime/service.test.js` proving concurrent `runSync` / `runScheduledSync` reuse the active run instead of inserting a second `sync_runs` row, and 2 in `apps/api/dist/runtime/scheduler.test.js` proving `runTick` returning `{ skipped: true, reason }` flips `lastTickStatus` to `skipped` and that void / non-skip return values stay `completed`**) + 11 web (`storage` localStorage helpers, `<StateBadge>` component rendering). The web side runs under Vitest+jsdom+@testing-library/react (D-015) and is hooked into the root `npm test` via `npm run test:web`.
+102 tests at `v0.5.2`: 91 backend (Plaud client, runtime service, store, server routes, shared schemas, built-api smoke, web-build smoke, scheduler + manager + environment tests; **`v0.5.2` adds 9 tests: 1 in `store.test.js` covering the `schedulerIntervalMs` round-trip + the seed-only-once semantics, 7 in the new `scheduler-manager.test.js` covering `applyInterval` start / stop / reconfigure / idempotency / floor / sub-floor rejection / negative rejection, and 1 in `service.test.js` covering `updateConfig` validation, persistence, and dispatch of the reconfigure hook**) + 11 web (`storage` localStorage helpers, `<StateBadge>` component rendering). The web side runs under Vitest+jsdom+@testing-library/react (D-015) and is hooked into the root `npm test` via `npm run test:web`.
 
 ## Working With LLM-DocKit Upstream
 

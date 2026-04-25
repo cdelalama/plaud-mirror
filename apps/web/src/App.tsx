@@ -53,6 +53,9 @@ export function App() {
   const [tokenInput, setTokenInput] = useState("");
   const [webhookUrlInput, setWebhookUrlInput] = useState("");
   const [webhookSecretInput, setWebhookSecretInput] = useState("");
+  // Scheduler interval input is in minutes for operator ergonomics; the
+  // wire format is milliseconds. 0 disables the scheduler.
+  const [schedulerMinutesInput, setSchedulerMinutesInput] = useState("0");
   const [backfill, setBackfill] = useState<BackfillDraft>(DEFAULT_BACKFILL_DRAFT);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -198,6 +201,7 @@ export function App() {
       setRecordings(recordingsResponse.recordings);
       setTotalRecordings(recordingsResponse.total);
       setWebhookUrlInput(configResponse.webhookUrl ?? "");
+      setSchedulerMinutesInput(formatSchedulerInput(configResponse.schedulerIntervalMs));
       setLastRun(healthResponse.lastSync);
       setDevices(devicesResponse.devices);
     } catch (error) {
@@ -276,6 +280,25 @@ export function App() {
       setWebhookSecretInput("");
       await refreshSnapshot();
       return "Webhook configuration updated.";
+    });
+  }
+
+  async function handleSaveScheduler(event: FormEvent<HTMLFormElement>): Promise<void> {
+    event.preventDefault();
+
+    await runOperation(async () => {
+      const intervalMs = parseSchedulerInput(schedulerMinutesInput);
+      const nextConfig = await requestJson<RuntimeConfig>("/api/config", {
+        method: "PUT",
+        body: JSON.stringify({ schedulerIntervalMs: intervalMs }),
+      });
+
+      setConfig(nextConfig);
+      setSchedulerMinutesInput(formatSchedulerInput(nextConfig.schedulerIntervalMs));
+      await refreshSnapshot();
+      return intervalMs === 0
+        ? "Continuous sync scheduler disabled."
+        : `Continuous sync scheduler set to ${intervalMs / 60_000} min.`;
     });
   }
 
@@ -462,6 +485,71 @@ export function App() {
             </label>
             <button type="submit" disabled={busy}>
               Save webhook settings
+            </button>
+          </form>
+        </section>
+
+        <section className="card">
+          <header className="card-header">
+            <div>
+              <p className="kicker">Automation</p>
+              <h2>Continuous sync scheduler</h2>
+            </div>
+            <StatusPill state={health?.scheduler.enabled ? "healthy" : "missing"} />
+          </header>
+
+          <p className="muted">
+            When enabled, the service runs a sync automatically every N
+            minutes. Concurrent runs are absorbed (a tick that fires while
+            a manual or scheduled run is still in flight is recorded as
+            <code>skipped</code>). 0 disables the scheduler; the floor when
+            enabled is 1 minute.
+          </p>
+
+          <dl className="details">
+            <Detail
+              label="State"
+              value={health?.scheduler.enabled ? "enabled" : "disabled"}
+            />
+            <Detail
+              label="Interval"
+              value={
+                health?.scheduler.enabled
+                  ? `${(health.scheduler.intervalMs / 60_000).toString()} min`
+                  : "—"
+              }
+            />
+            <Detail
+              label="Next tick"
+              value={formatDateTime(health?.scheduler.nextTickAt)}
+            />
+            <Detail
+              label="Last tick"
+              value={
+                health?.scheduler.lastTickStatus
+                  ? `${health.scheduler.lastTickStatus} (${formatDateTime(health.scheduler.lastTickAt)})`
+                  : "no ticks yet"
+              }
+            />
+            {health?.scheduler.lastTickError ? (
+              <Detail label="Last tick reason" value={health.scheduler.lastTickError} />
+            ) : null}
+          </dl>
+
+          <form className="stack" onSubmit={(event) => void handleSaveScheduler(event)}>
+            <label className="field">
+              <span>Interval (minutes, 0 disables)</span>
+              <input
+                type="number"
+                min={0}
+                step={1}
+                value={schedulerMinutesInput}
+                onChange={(event) => setSchedulerMinutesInput(event.target.value)}
+                placeholder="0 = disabled · 15 = every 15 min"
+              />
+            </label>
+            <button type="submit" disabled={busy}>
+              Save scheduler settings
             </button>
           </form>
         </section>
@@ -1020,4 +1108,38 @@ function toErrorMessage(error: unknown): string {
   }
 
   return String(error);
+}
+
+// Scheduler input helpers. The wire format is milliseconds (matches the
+// env var and `/api/config` shape) but the panel exposes minutes because
+// that is what operators actually think about.
+function formatSchedulerInput(intervalMs: number): string {
+  if (!Number.isFinite(intervalMs) || intervalMs <= 0) {
+    return "0";
+  }
+  // Whole minutes when possible; fallback to a decimal so a custom value
+  // like 90_000ms (1.5 min — sub-floor, but the field will still render
+  // it as 1.5) does not silently round to an unrelated cadence.
+  const minutes = intervalMs / 60_000;
+  return Number.isInteger(minutes) ? String(minutes) : minutes.toString();
+}
+
+function parseSchedulerInput(raw: string): number {
+  const trimmed = raw.trim();
+  if (trimmed === "") {
+    return 0;
+  }
+  const minutes = Number(trimmed);
+  if (!Number.isFinite(minutes) || minutes < 0) {
+    throw new Error(`Scheduler interval must be 0 (disabled) or a positive number of minutes; received: ${raw}`);
+  }
+  if (minutes === 0) {
+    return 0;
+  }
+  if (minutes < 1) {
+    throw new Error(`Scheduler interval must be at least 1 minute when enabled; received: ${raw}`);
+  }
+  // Round to whole minutes — sub-minute precision would only confuse the
+  // operator and the floor on the server side is 60_000ms anyway.
+  return Math.round(minutes) * 60_000;
 }
