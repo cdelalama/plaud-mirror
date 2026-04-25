@@ -22,7 +22,7 @@ Plaud Mirror is a server-first product with two runtime surfaces:
 
 Persistence is split between SQLite for state/indexes and the filesystem for mirrored audio artifacts. Secrets are encrypted at rest with a master key supplied by the surrounding deployment.
 
-## Current Status (2026-04-24)
+## Current Status (2026-04-25)
 
 Plaud Mirror `v0.4.18` is the extended Phase 2 slice: the original manual vertical slice plus local-only curation, UX polish, Mode B sync semantics, classic pagination, stable `#N` sequence numbers, async sync with live-progress polling, a cached device catalog that backs a real `<select>` in the backfill form, and a backfill dry-run preview that shows the operator exactly which recordings a click would download (with per-row state badges) before committing. `POST /api/sync/run` returns 202 immediately and the panel polls `/api/health` every 2 s to surface `downloaded X of Y` as the run advances. The repository now has:
 
