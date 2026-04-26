@@ -1,7 +1,7 @@
-<!-- doc-version: 0.5.2 -->
+<!-- doc-version: 0.5.3 -->
 # Authentication and Sync Operations
 
-This runbook defines the live behavior of Plaud Mirror's auth and sync surface. Phase 2 (manual sync/backfill, immediate HMAC webhook) is fully shipped. Phase 3 is in progress: `v0.5.0` introduced the in-process continuous sync scheduler (D-012); `v0.5.1` corrected two regressions in that release; `v0.5.2` makes the scheduler **operator-controllable from the web panel** — the interval is persisted in SQLite (`config.schedulerIntervalMs`) and hot-applied via the new `SchedulerManager` without a container restart. The `PLAUD_MIRROR_SCHEDULER_INTERVAL_MS` env var is now a one-time seed for fresh installs, not a live knob. The durable webhook outbox (D-013) and full health observability (D-014, `lastErrors` + outbox backlog) are scheduled for `v0.5.3` / `v0.5.4`.
+This runbook defines the live behavior of Plaud Mirror's auth and sync surface. Phase 2 (manual sync/backfill) is fully shipped. Phase 3: the continuous sync scheduler landed in `v0.5.0` (regressed) → `v0.5.1` (fixed) → `v0.5.2` (panel-driven). `v0.5.3` ships the **durable webhook outbox** (D-013): webhook delivery is no longer synchronous inside a sync run, payloads are persisted to a `webhook_outbox` SQLite table and a dedicated worker retries with exponential backoff (30 s → 8 h, 8 attempts) before escalating. Full health observability with `lastErrors` ring buffer (D-014, complete) lands in `v0.5.4`.
 
 ## Auth Mode
 
@@ -37,8 +37,8 @@ The service exposes:
   - `serialNumber` — surfaced in the web UI as a device selector fed by `/api/devices`.
   - `scene` — accepted for programmatic callers only; the web UI no longer exposes it because the raw integer values are opaque to operators (see CHANGELOG 0.4.12).
 - Existing mirrored recordings are skipped unless `forceDownload` is requested.
-- Webhook delivery is attempted immediately after mirroring.
-- Delivery attempts are persisted even when the webhook call fails.
+- Webhook delivery: through `v0.5.2` it was synchronous inside `executeMirror`. From `v0.5.3` onwards it is **enqueued to the durable outbox** and delivered asynchronously by the worker (see "Webhook outbox" below).
+- Delivery attempts are persisted even when the webhook call fails (`webhook_deliveries` audit log, append-only, unchanged across releases).
 
 ### Phase 3 (in progress, `0.5.x` line)
 
@@ -65,10 +65,27 @@ Operational properties:
 - **Observability.** `/api/health` exposes the scheduler block — `enabled`, `intervalMs`, `nextTickAt` (ISO), `lastTickAt` (ISO), `lastTickStatus` (`completed` / `failed` / `skipped` / `null`), `lastTickError` (string or `null`). When a tick is absorbed by an active run, `lastTickStatus = "skipped"` and `lastTickError` carries an operator-readable reason like `"another sync run was already in flight"` (it is not actually an error; the field is reused for context). When the scheduler is enabled, `health.phase` reads `"Phase 3 - unattended operation"`; when disabled, it falls back to `"Phase 2 - first usable slice"`.
 - **Shutdown.** Fastify's `onClose` hook stops the scheduler so SIGTERM does not leave a half-fired tick or a dangling timer.
 
+#### Webhook outbox — shipped in `v0.5.3`
+
+Each successfully-mirrored recording pushes its `recording.synced` payload into `webhook_outbox` (SQLite). The recording's `lastWebhookStatus` is set to `"queued"` immediately. A dedicated `OutboxWorker` runs every 5 seconds in the background, atomically claims one due row, recomputes the HMAC at delivery time (so a rotated secret is honoured), POSTs to the configured URL, and either:
+
+- **2xx** → row state `delivered`; the audit log records a `success`.
+- **non-2xx or thrown error** → row state `retry_waiting`, `attempts` incremented, `next_attempt_at = now + backoff[attempts]`. Audit log records a `failed`.
+- After **8 failed attempts** → row state `permanently_failed`. Operator sees the row in the panel's "Webhook outbox" card and can press **Retry** to reset it to `pending` (`attempts = 0`).
+
+Backoff schedule: `30 s, 2 m, 10 m, 30 m, 1 h, 2 h, 4 h, 8 h`. Cumulative ~16 h before escalation, sized to ride out an overnight downstream outage on a home-infra box.
+
+Operational properties:
+
+- **Independent of the sync scheduler.** The two share SQLite, not state. A long sync run does not block delivery; a stuck downstream does not block sync.
+- **HMAC at delivery time.** Rotating `webhookSecret` from the panel takes effect on the next worker tick — items already in the queue get re-signed with the new secret.
+- **Mode rotation.** `executeMirror` stamps the run's mode (`sync` / `backfill`) into the payload at enqueue time so the downstream sees the original context, not the worker's tick context.
+- **Atomic claim.** The transition `pending|retry_waiting → delivering` is a guarded UPDATE; two concurrent claims (worker tick + panel-triggered Retry) cannot both pick the same row.
+- **No web-config short-circuit.** When the operator clears the webhook URL while items are in the queue, the worker escalates them to `permanently_failed` with `last_error = "webhook not configured"` rather than silently dropping or retrying forever. The operator must reconfigure and Retry.
+
 #### Still later in `0.5.x`
 
-- **`v0.5.3`:** durable webhook outbox with explicit FSM (`pending` / `delivering` / `delivered` / `retry_waiting` / `permanently_failed`) and exponential-backoff retry policy (D-013). Pushed back two patch slots because `v0.5.1` consumed one for the regression fix and `v0.5.2` consumed another for the panel-driven scheduler config.
-- **`v0.5.4`:** full health observability — `lastErrors` ring buffer + outbox backlog counters surfaced through `/api/health` (D-014, full).
+- **`v0.5.4`:** full health observability — `lastErrors` ring buffer (cross-subsystem error history) + extended outbox / sync history through `/api/health` (D-014, full).
 - Resumable backfill (no firm release target; deferred within Phase 3).
 
 ## Failure Modes

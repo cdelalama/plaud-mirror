@@ -6,6 +6,7 @@ import fastifyStatic from "@fastify/static";
 import Fastify from "fastify";
 
 import { loadServerEnvironment, type ServerEnvironment } from "./runtime/environment.js";
+import { OutboxWorker } from "./runtime/outbox-worker.js";
 import { SchedulerManager } from "./runtime/scheduler-manager.js";
 import { SecretStore } from "./runtime/secrets.js";
 import { PlaudMirrorService, type RuntimeServiceDependencies } from "./runtime/service.js";
@@ -19,15 +20,25 @@ export interface CreateAppOptions extends RuntimeServiceDependencies {
 export async function createApp(options: CreateAppOptions = {}) {
   const environment = options.environment ?? loadServerEnvironment();
   const ownsService = !options.service;
+  // Build the store + secrets in module scope (not inline in the service
+  // constructor) so the outbox worker can share them without going
+  // through the service. The worker reads/writes the same SQLite file
+  // and decrypts with the same master key — no duplication.
+  const store = options.service
+    ? null
+    : new RuntimeStore({
+        dbPath: join(environment.dataDir, "app.db"),
+        dataDir: environment.dataDir,
+        recordingsDir: environment.recordingsDir,
+        defaultSyncLimit: environment.defaultSyncLimit,
+      });
+  const secrets = options.service
+    ? null
+    : new SecretStore(join(environment.dataDir, "secrets.enc"), environment.masterKey);
   const service = options.service ?? new PlaudMirrorService(
     environment,
-    new RuntimeStore({
-      dbPath: join(environment.dataDir, "app.db"),
-      dataDir: environment.dataDir,
-      recordingsDir: environment.recordingsDir,
-      defaultSyncLimit: environment.defaultSyncLimit,
-    }),
-    new SecretStore(join(environment.dataDir, "secrets.enc"), environment.masterKey),
+    store!,
+    secrets!,
     options,
   );
 
@@ -63,14 +74,33 @@ export async function createApp(options: CreateAppOptions = {}) {
   const initialConfig = await service.getConfig();
   manager.applyInterval(initialConfig.schedulerIntervalMs);
 
+  // Phase 3 outbox worker (D-013, v0.5.3). Independent of the sync
+  // scheduler — they share SQLite but not state. The worker always
+  // starts (no opt-in) because the queue is the only delivery path now;
+  // when no webhook is configured, items short-circuit to
+  // permanently_failed inside the worker tick. When the caller injected
+  // its own service (test path), it is responsible for managing its own
+  // worker — we cannot reach the inner store/secrets through the public
+  // service surface.
+  const outboxWorker = store && secrets
+    ? new OutboxWorker({
+        store,
+        secrets,
+        requestTimeoutMs: environment.requestTimeoutMs,
+        ...(options.webhookFetchImpl ? { webhookFetchImpl: options.webhookFetchImpl } : {}),
+      })
+    : null;
+  outboxWorker?.start();
+
   const app = Fastify({
     logger: false,
   });
 
-  // Stop the scheduler on shutdown so SIGTERM does not leave a half-fired
-  // tick or a dangling timer when the process unwinds.
+  // Stop the scheduler + outbox worker on shutdown so SIGTERM does not
+  // leave half-fired ticks or dangling timers when the process unwinds.
   app.addHook("onClose", async () => {
     manager.stop();
+    outboxWorker?.stop();
   });
 
   app.setErrorHandler((error, _request, reply) => {
@@ -195,6 +225,21 @@ export async function createApp(options: CreateAppOptions = {}) {
   app.post("/api/recordings/:id/restore", async (request) => {
     const id = (request.params as { id: string }).id;
     return service.restoreRecording(id);
+  });
+
+  // Outbox admin (D-013, v0.5.3). The list returns ONLY
+  // permanently_failed items so the panel can render them with a Retry
+  // button per row. Pending and retry_waiting items are visible only as
+  // counters via /api/health.outbox to avoid encouraging a "browse the
+  // queue" workflow that would invite manual surgery on rows the worker
+  // is already handling.
+  app.get("/api/outbox", async () => {
+    return { items: service.listFailedOutboxItems() };
+  });
+
+  app.post("/api/outbox/:id/retry", async (request) => {
+    const id = (request.params as { id: string }).id;
+    return { item: service.forceOutboxRetry(id) };
   });
 
   if (await pathExists(environment.webDistDir)) {

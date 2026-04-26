@@ -1,11 +1,11 @@
-<!-- doc-version: 0.5.2 -->
+<!-- doc-version: 0.5.3 -->
 # How to Use This Repository
 
 This guide explains how Plaud Mirror is operated end-to-end and how it stays aligned with both `LLM-DocKit` (the governance scaffold it adopts) and the Plaud ecosystem upstreams it watches.
 
 ## Current Reality
 
-`v0.5.2` builds on the `v0.5.1` Phase 3 stabilization and makes the continuous sync scheduler **operator-controllable from the web panel** — no env var edit, no container restart. The Configuration tab now has a "Continuous sync scheduler" card with a live status block and a form to set the interval in minutes (`0` disables it). The interval persists in SQLite, so changes survive restarts; the new `SchedulerManager` hot-applies the change in the same tick. The `PLAUD_MIRROR_SCHEDULER_INTERVAL_MS` env var still seeds the SQLite row on a fresh database for first-boot ergonomics, but is irrelevant once the operator has touched the panel. **Operators upgrading from `v0.4.x` should skip `v0.5.0` (default-on regression) and go directly to `v0.5.2`.** Today the repository gives you:
+`v0.5.3` ships the **durable webhook outbox** (D-013) on top of the panel-driven scheduler that landed in `v0.5.2`. Webhook delivery is no longer synchronous: each successful sync enqueues the payload, a worker retries with exponential backoff (30 s → 8 h, 8 attempts, ~16 h total) and surfaces permanently-failed items in a new "Webhook outbox" card on the Configuration tab with a Retry button per row. **Operators upgrading from `v0.4.x` should skip `v0.5.0` (default-on regression) and go directly to `v0.5.3`.** Today the repository gives you:
 
 - a Fastify API and React/Vite panel bundled in a single Docker container;
 - encrypted persisted bearer-token auth against Plaud, surviving restarts;
@@ -13,11 +13,11 @@ This guide explains how Plaud Mirror is operated end-to-end and how it stays ali
 - **opt-in continuous sync scheduler** — configurable from the Configuration tab of the panel (set the interval in minutes, `0` disables); see "Configuring the scheduler" below;
 - a cached device catalog that feeds a real device selector in the backfill form;
 - local recording index in SQLite with stable `#N` ranks, classic pagination, inline audio playback with HTTP Range support, and local-only dismiss/restore;
-- immediate HMAC-signed webhook delivery with persisted delivery attempts;
-- a `scheduler` block on `/api/health` reporting `enabled` / `intervalMs` / `nextTickAt` / `lastTickAt` / `lastTickStatus` / `lastTickError`;
+- HMAC-signed webhook delivery via a **durable outbox**: every sync enqueues, the worker retries failures with exponential backoff, the panel exposes counters and a Retry button for permanently-failed items;
+- a `scheduler` block + a new `outbox` block on `/api/health`;
 - upstream-watch tooling plus the full LLM-DocKit governance circuit (HANDOFF, HISTORY, DECISIONS, REVIEWS, version-sync manifest, validator, pre-commit hook).
 
-What it deliberately does **not** give you yet: durable retry outbox (next: `v0.5.3`), `lastErrors` ring buffer + outbox backlog in health (next: `v0.5.4`), resumable backfill, automatic re-login, NAS rollout. Those are remaining Phase 3 work and Phase 4+ per `docs/ROADMAP.md`.
+What it deliberately does **not** give you yet: full health observability with `lastErrors` ring buffer + extended outbox/sync history (next: `v0.5.4`), resumable backfill, automatic re-login, NAS rollout. Those are remaining Phase 3 work and Phase 4+ per `docs/ROADMAP.md`.
 
 For the full feature inventory see [README.md](README.md); for the product intent see [docs/PROJECT_CONTEXT.md](docs/PROJECT_CONTEXT.md); for current work state see [docs/llm/HANDOFF.md](docs/llm/HANDOFF.md).
 
@@ -74,6 +74,35 @@ When the scheduler is enabled, `health.phase` reads `"Phase 3 - unattended opera
 
 The `PLAUD_MIRROR_SCHEDULER_INTERVAL_MS` env var (in `.env` or `compose.yml`) is **only used to seed the SQLite row on a fresh install**. It is convenient if you want a brand-new container to start with a non-zero scheduler without having to log into the panel afterwards. Once the SQLite row exists (either because the seed wrote it, or because you saved from the panel), the env var is ignored on every subsequent boot. To change the value of an existing install, **always use the panel** — editing `.env` after the first boot will silently do nothing.
 
+### Webhook outbox (Phase 3, durable retry queue, v0.5.3+)
+
+Every successfully-mirrored recording is pushed into the durable outbox (`webhook_outbox` SQLite table). A dedicated worker walks the queue every 5 s, retries with exponential backoff, and either delivers (`→ delivered`) or escalates to `permanently_failed` after 8 attempts.
+
+Backoff schedule (per-attempt wait):
+
+| Attempt | Wait before next attempt |
+|---------|--------------------------|
+| 1 → fail | 30 s |
+| 2 → fail | 2 min |
+| 3 → fail | 10 min |
+| 4 → fail | 30 min |
+| 5 → fail | 1 h |
+| 6 → fail | 2 h |
+| 7 → fail | 4 h |
+| 8 → fail | (escalates to `permanently_failed`) |
+
+Cumulative window before escalation: ~16 hours. Tuned for home infra: long enough to ride out an overnight downstream outage without paging the operator, short enough that a permanently-broken downstream doesn't accumulate weeks of retry attempts.
+
+In the panel, open the Configuration tab and find the **Webhook outbox** card:
+
+- **Counters** — `pending`, `retry_waiting`, `permanently_failed`, plus the age of the oldest queued/retrying row. Live from `/api/health.outbox`.
+- **Permanently-failed list** — every row that exhausted its retries shows up here with the recording id, attempt count, and last error message. Press **Retry** to reset that row to `pending` (the worker re-attempts on its next tick).
+- **No queue browser**. The pending and retry-waiting backlog is intentionally not listed individually — only counters. The outbox is a "deliver and forget" surface, not a workflow tool. If you need to inspect a specific in-flight item, query SQLite directly.
+
+The HMAC signature is recomputed at delivery time, not at enqueue time. If you rotate `webhookSecret` in the panel while items are in the queue, the worker re-signs them with the new secret on the next attempt. Items already in `delivered` are not retroactively re-delivered.
+
+If you clear the webhook URL while items are queued, the worker escalates them to `permanently_failed` with `last_error = "webhook not configured"` (instead of looping forever or silently dropping). Reconfigure the URL and press **Retry** on each row to re-enqueue.
+
 ### Phase 1 spike (still available)
 
 The original CLI probe for direct Plaud validation lives at `apps/api/src/phase1/`:
@@ -116,7 +145,7 @@ Useful for live Plaud flow checks and metadata discovery without booting the pan
 npm test
 ```
 
-102 tests at `v0.5.2`: 91 backend (Plaud client, runtime service, store, server routes, shared schemas, built-api smoke, web-build smoke, scheduler + manager + environment tests; **`v0.5.2` adds 9 tests: 1 in `store.test.js` covering the `schedulerIntervalMs` round-trip + the seed-only-once semantics, 7 in the new `scheduler-manager.test.js` covering `applyInterval` start / stop / reconfigure / idempotency / floor / sub-floor rejection / negative rejection, and 1 in `service.test.js` covering `updateConfig` validation, persistence, and dispatch of the reconfigure hook**) + 11 web (`storage` localStorage helpers, `<StateBadge>` component rendering). The web side runs under Vitest+jsdom+@testing-library/react (D-015) and is hooked into the root `npm test` via `npm run test:web`.
+113 tests at `v0.5.3`: 102 backend (Plaud client, runtime service, store, server routes, shared schemas, built-api smoke, web-build smoke, scheduler + manager + environment tests, **plus 11 new tests for the durable outbox: 4 store-level (`enqueue → claim → markDelivered`, `markRetry` with backoff deadline, `markPermanentlyFailed` + `forceRetry` round-trip, `forceRetry` rejection from non-failed states), 6 worker-level in `outbox-worker.test.js` (empty-queue skip, success path, transient-failure retry with backoff, monotonic `deliveryAttempt` across retries, `MAX_ATTEMPTS` escalation, unconfigured-webhook escalation), 1 server-level (HTTP shape: empty list, list, retry success, 409 / 404 / 400)**) + 11 web (`storage` localStorage helpers, `<StateBadge>` component rendering). The web side runs under Vitest+jsdom+@testing-library/react (D-015) and is hooked into the root `npm test` via `npm run test:web`.
 
 ## Working With LLM-DocKit Upstream
 

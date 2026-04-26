@@ -1,4 +1,3 @@
-import { createHmac } from "node:crypto";
 import { access, mkdir, stat, unlink } from "node:fs/promises";
 import { isAbsolute, join, relative, resolve } from "node:path";
 
@@ -22,6 +21,7 @@ import {
   type BackfillPreviewFilters,
   type BackfillPreviewResponse,
   type Device,
+  type OutboxItem,
   type RecordingDeleteResult,
   type RecordingMirror,
   type RecordingRestoreResult,
@@ -39,6 +39,7 @@ import { API_PACKAGE_VERSION } from "../version.js";
 import { type ServerEnvironment } from "./environment.js";
 import { SecretStore, type StoredSecrets } from "./secrets.js";
 import { type DeliveryAttemptRecord, RuntimeStore } from "./store.js";
+import { buildWebhookSignature } from "./webhook-signature.js";
 
 export interface RuntimeServiceDependencies {
   plaudFetchImpl?: typeof fetch;
@@ -50,14 +51,30 @@ export interface RuntimeServiceDependencies {
   scheduler?: (work: () => Promise<unknown>) => void;
 }
 
-interface DeliveryResult {
-  status: "skipped" | "success" | "failed";
-  attemptedAt: string | null;
+/**
+ * Outcome of `enqueueOrSkipWebhook`. Maps directly to the
+ * `lastWebhookStatus` written into the `recordings` row.
+ *   - `"queued"`  → an outbox row was created; the worker will deliver.
+ *   - `"skipped"` → no webhook configured; nothing to deliver.
+ */
+interface EnqueueDecision {
+  status: "queued" | "skipped";
+  attemptedAt: string;
 }
 
 interface ProcessRecordingResult {
   downloaded: boolean;
+  // From v0.5.3 onwards `delivered` reflects only **synchronous**
+  // deliveries that happen inside this run. The durable outbox owns
+  // retry-eligible deliveries, so the in-flight path enqueues instead of
+  // delivering and `delivered` is always false here. The field is kept
+  // for the SyncRunSummary contract (see CHANGELOG `[0.5.3]`).
   delivered: boolean;
+  // Whether the run pushed a webhook payload into the durable outbox
+  // (v0.5.3+). Independent of `downloaded`: a "force re-deliver" path
+  // for an already-mirrored recording will set `enqueued=true` /
+  // `downloaded=false`.
+  enqueued: boolean;
   skipped: boolean;
 }
 
@@ -186,6 +203,7 @@ export class PlaudMirrorService {
       scheduler: this.schedulerStatusProvider !== null
         ? this.schedulerStatusProvider()
         : DISABLED_SCHEDULER_STATUS,
+      outbox: this.store.getOutboxHealth(),
       recordingsCount: this.store.countRecordings(),
       dismissedCount: this.store.countDismissed(),
       webhookConfigured: Boolean(config.webhookUrl),
@@ -711,6 +729,7 @@ export class PlaudMirrorService {
 
       let downloaded = 0;
       let delivered = 0;
+      let enqueued = 0;
       let skipped = 0;
 
       for (const recording of candidates) {
@@ -721,11 +740,14 @@ export class PlaudMirrorService {
         if (result.delivered) {
           delivered += 1;
         }
+        if (result.enqueued) {
+          enqueued += 1;
+        }
         if (result.skipped) {
           skipped += 1;
         }
         // After each candidate so the UI poll sees the counter tick up.
-        this.store.updateSyncRunProgress(id, { downloaded, delivered, skipped });
+        this.store.updateSyncRunProgress(id, { downloaded, delivered, enqueued, skipped });
       }
 
       // Apply ranks last so freshly-inserted rows (from processRecording above)
@@ -742,6 +764,7 @@ export class PlaudMirrorService {
         matched: candidates.length,
         downloaded,
         delivered,
+        enqueued,
         skipped,
         plaudTotal,
         filters: normalizedFilters,
@@ -763,6 +786,7 @@ export class PlaudMirrorService {
         matched: partial?.matched ?? 0,
         downloaded: partial?.downloaded ?? 0,
         delivered: partial?.delivered ?? 0,
+        enqueued: partial?.enqueued ?? 0,
         skipped: partial?.skipped ?? 0,
         plaudTotal: partial?.plaudTotal ?? null,
         filters: normalizedFilters,
@@ -785,6 +809,7 @@ export class PlaudMirrorService {
       return {
         downloaded: false,
         delivered: false,
+        enqueued: false,
         skipped: true,
       };
     }
@@ -794,22 +819,28 @@ export class PlaudMirrorService {
         return {
           downloaded: false,
           delivered: false,
+          enqueued: false,
           skipped: true,
         };
       }
 
-      const delivery = await this.deliverWebhook(existing, mode);
+      // Already-mirrored row whose previous webhook delivery did not
+      // succeed. Enqueue (or re-enqueue) it for the durable outbox to
+      // pick up and update the recording row's `lastWebhookStatus` to
+      // reflect the new "in queue" state.
+      const enqueueDecision = await this.enqueueOrSkipWebhook(existing, mode);
       const updated = RecordingMirrorSchema.parse({
         ...existing,
-        lastWebhookStatus: delivery.status,
-        lastWebhookAttemptAt: delivery.attemptedAt,
+        lastWebhookStatus: enqueueDecision.status,
+        lastWebhookAttemptAt: enqueueDecision.attemptedAt,
       });
       this.store.upsertRecording(updated);
 
       return {
         downloaded: false,
-        delivered: delivery.status === "success",
-        skipped: delivery.status === "skipped",
+        delivered: false,
+        enqueued: enqueueDecision.status === "queued",
+        skipped: enqueueDecision.status === "skipped",
       };
     }
 
@@ -842,26 +873,41 @@ export class PlaudMirrorService {
       lastWebhookAttemptAt: null,
     });
 
-    const delivery = await this.deliverWebhook(mirrored, mode);
+    const enqueueDecision = await this.enqueueOrSkipWebhook(mirrored, mode);
     const persisted = this.store.upsertRecording({
       ...mirrored,
-      lastWebhookStatus: delivery.status,
-      lastWebhookAttemptAt: delivery.attemptedAt,
+      lastWebhookStatus: enqueueDecision.status,
+      lastWebhookAttemptAt: enqueueDecision.attemptedAt,
     });
 
     return {
       downloaded: true,
-      delivered: persisted.lastWebhookStatus === "success",
+      delivered: false,
+      enqueued: enqueueDecision.status === "queued",
       skipped: persisted.lastWebhookStatus === "skipped",
     };
   }
 
-  private async deliverWebhook(recording: RecordingMirror, mode: SyncRunMode): Promise<DeliveryResult> {
+  /**
+   * Push the webhook payload for a freshly-mirrored (or re-mirrored)
+   * recording into the durable outbox. Returns the status to write into
+   * the `recordings` row's `lastWebhookStatus`:
+   *   - `"queued"` when an outbox row was created and the worker will
+   *     deliver it asynchronously.
+   *   - `"skipped"` when no webhook is configured (URL or secret missing)
+   *     so there is nothing to enqueue.
+   *
+   * Note: `lastWebhookStatus` of `"queued"` is a new state introduced in
+   * v0.5.3. Older rows may carry the legacy `"success"` / `"failed"`
+   * values from before the outbox existed; those are read-only and are
+   * not produced by this code path anymore.
+   */
+  private async enqueueOrSkipWebhook(recording: RecordingMirror, mode: SyncRunMode): Promise<EnqueueDecision> {
     const secrets = await this.secrets.load();
     const config = this.store.getConfig(Boolean(secrets.webhookSecret));
     const attemptedAt = new Date().toISOString();
 
-    if (!config.webhookUrl) {
+    if (!config.webhookUrl || !secrets.webhookSecret) {
       this.store.recordDeliveryAttempt({
         recordingId: recording.id,
         status: "skipped",
@@ -871,29 +917,9 @@ export class PlaudMirrorService {
         payloadJson: JSON.stringify({ reason: "webhook disabled" }),
         attemptedAt,
       });
-      return {
-        status: "skipped",
-        attemptedAt,
-      };
+      return { status: "skipped", attemptedAt };
     }
 
-    if (!secrets.webhookSecret) {
-      this.store.recordDeliveryAttempt({
-        recordingId: recording.id,
-        status: "failed",
-        webhookUrl: config.webhookUrl,
-        httpStatus: null,
-        errorMessage: "Webhook secret is missing",
-        payloadJson: JSON.stringify({ reason: "missing webhook secret" }),
-        attemptedAt,
-      });
-      return {
-        status: "failed",
-        attemptedAt,
-      };
-    }
-
-    const attemptNumber = this.store.countDeliveryAttempts(recording.id) + 1;
     const payload = WebhookPayloadSchema.parse({
       event: "recording.synced",
       source: "plaud-mirror",
@@ -907,55 +933,54 @@ export class PlaudMirrorService {
         bytesWritten: recording.bytesWritten,
       },
       sync: {
+        // Stamped at delivery time by the outbox worker, not at enqueue
+        // time. The schema requires a positive integer here, so seed 1
+        // and let the worker overwrite per-attempt.
         syncedAt: attemptedAt,
-        deliveryAttempt: attemptNumber,
+        deliveryAttempt: 1,
+        // sync-vs-backfill labelling at enqueue time. No way to recover
+        // it post-hoc once the row sits in the outbox, so capture it now.
         mode,
       },
     });
-    const body = JSON.stringify(payload);
-    const signature = buildSignature(body, secrets.webhookSecret);
 
-    try {
-      const response = await this.webhookFetchImpl(config.webhookUrl, {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          "x-plaud-mirror-signature-256": signature,
-        },
-        body,
-        signal: AbortSignal.timeout(this.environment.requestTimeoutMs),
-      });
+    this.store.enqueueOutboxItem({ recordingId: recording.id, payload });
+    return { status: "queued", attemptedAt };
+  }
 
-      const attempt = createDeliveryAttemptRecord({
-        recordingId: recording.id,
-        status: response.ok ? "success" : "failed",
-        webhookUrl: config.webhookUrl,
-        httpStatus: response.status,
-        errorMessage: response.ok ? null : `Webhook returned HTTP ${response.status}`,
-        payloadJson: body,
-        attemptedAt,
-      });
-      this.store.recordDeliveryAttempt(attempt);
+  // ─── Outbox admin (D-013, v0.5.3) ──────────────────────────────────
 
-      return {
-        status: response.ok ? "success" : "failed",
-        attemptedAt,
-      };
-    } catch (error) {
-      this.store.recordDeliveryAttempt(createDeliveryAttemptRecord({
-        recordingId: recording.id,
-        status: "failed",
-        webhookUrl: config.webhookUrl,
-        httpStatus: null,
-        errorMessage: toErrorMessage(error),
-        payloadJson: body,
-        attemptedAt,
-      }));
-      return {
-        status: "failed",
-        attemptedAt,
-      };
+  /**
+   * List `permanently_failed` outbox items so the panel can render them
+   * with a per-row Retry button. Pending and retry-waiting items are NOT
+   * included — they are visible only as counters via `health.outbox`.
+   */
+  listFailedOutboxItems(): OutboxItem[] {
+    return this.store.listFailedOutboxItems();
+  }
+
+  /**
+   * Force a `permanently_failed` row back to `pending` so the worker
+   * re-attempts delivery. Validates the id shape, surfaces 404 for
+   * unknown rows and 409 for any item not in `permanently_failed`.
+   * (The store also rejects, but checking here lets us return a
+   * specific HTTP status to the panel.)
+   */
+  forceOutboxRetry(id: string): OutboxItem {
+    if (!/^[A-Za-z0-9_-]+$/.test(id)) {
+      throw createHttpError(400, "Outbox id contains unsupported characters");
     }
+    const item = this.store.getOutboxItem(id);
+    if (!item) {
+      throw createHttpError(404, `Outbox item ${id} not found`);
+    }
+    if (item.state !== "permanently_failed") {
+      throw createHttpError(
+        409,
+        `Outbox item ${id} is in '${item.state}' state; only permanently_failed items can be force-retried`,
+      );
+    }
+    return this.store.forceOutboxRetry(id);
   }
 
   private async loadValidatedClient(): Promise<{ client: PlaudClient; secrets: StoredSecrets }> {
@@ -1024,10 +1049,6 @@ function selectRecordingTitle(
   detailName: string | null | undefined,
 ): string {
   return detailName?.trim() || fullname?.trim() || filename.trim() || "Untitled recording";
-}
-
-function buildSignature(body: string, secret: string): string {
-  return `sha256=${createHmac("sha256", secret).update(body, "utf8").digest("hex")}`;
 }
 
 function extractFormat(localPath: string | null): string {

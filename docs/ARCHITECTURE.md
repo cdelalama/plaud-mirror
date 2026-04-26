@@ -1,9 +1,9 @@
-<!-- doc-version: 0.5.2 -->
+<!-- doc-version: 0.5.3 -->
 # Plaud Mirror Architecture
 
-> Version: 0.5.2
-> Last Updated: 2026-04-25
-> Status: Phase 3 in progress. `v0.5.0` introduced the in-process continuous sync scheduler (D-012) and the partial health observability surface (D-014, scheduler subset); `v0.5.1` fixed two regressions; `v0.5.2` (this release) adds **panel-driven scheduler configuration** — the operator enables / disables / re-tunes the cadence from the Configuration tab, the value persists in SQLite, and the new `SchedulerManager` hot-applies the change without a container restart. The `PLAUD_MIRROR_SCHEDULER_INTERVAL_MS` env var is now a one-time seed, not a live knob. Operators upgrading from `0.4.x` should skip `v0.5.0` and go directly to `v0.5.2`. Inherits the entire Phase 2 slice (manual sync/backfill, curation, UX polish, Mode B, classic pagination, sequence numbers, async-202 with live-progress polling, device catalog, backfill dry-run preview, Vitest+jsdom+@testing-library/react test framework). Webhook outbox (D-013) and full health observability (lastErrors, outbox backlog) are deferred to v0.5.3 / v0.5.4.
+> Version: 0.5.3
+> Last Updated: 2026-04-26
+> Status: Phase 3 in progress. `v0.5.0` introduced the in-process continuous sync scheduler (D-012); `v0.5.1` fixed two regressions; `v0.5.2` made the scheduler panel-driven; `v0.5.3` (this release) ships the **durable webhook outbox** (D-013) — webhook delivery is no longer synchronous inside the sync run, payloads are persisted to a `webhook_outbox` SQLite table and delivered by a dedicated worker with exponential backoff (30 s → 8 h, 8 attempts, ~16 h window) and a Retry-from-panel path for permanently-failed rows. `GET /api/health` gains an `outbox` counters block; `SyncRunSummary` gains an `enqueued` counter; `delivered` keeps its original semantic and structurally stays at 0 from now on. Operators upgrading from `0.4.x` should skip `v0.5.0` and go directly to `v0.5.3`. Full health observability with `lastErrors` ring buffer (D-014, complete) is the only Phase 3 piece left and lands in `v0.5.4`.
 
 ## Overview
 
@@ -44,9 +44,9 @@ Phase 3 turns the manual slice into an unattended service. It is being delivered
 
 - **`v0.5.0` (regressed, do not deploy):** introduced the scheduler module and the partial `health.scheduler` block, but with two bugs — the scheduler arranged a 15-minute default when `PLAUD_MIRROR_SCHEDULER_INTERVAL_MS` was unset (silently turning on for upgrading operators), and the documented service-level anti-overlap was missing in code (`startMirror` inserted a new `sync_runs` row on every call without consulting `getActiveSyncRun`). See CHANGELOG `[0.5.1]` for the post-mortem.
 - **`v0.5.1` (stable Phase 3 entry):** scheduler is genuinely opt-in (default `0` = disabled); `runScheduledSync()` / `runSync` consult `store.getActiveSyncRun()` before inserting and return the existing run id when one is active; the scheduler tick reports `lastTickStatus = "skipped"` (with reason in `lastTickError`) when the service-layer absorbs the tick, instead of mislabelling it as `completed`. 9 regression tests (env-var matrix, concurrent `runSync` reuse, scheduler `runTick → { skipped: true }` path).
-- **`v0.5.2` (this release):** panel-driven scheduler configuration. New `RuntimeConfig.schedulerIntervalMs` field (persisted in SQLite via the existing `settings` key/value table, same pattern as `webhookUrl`), new `SchedulerManager` (`apps/api/src/runtime/scheduler-manager.ts`) that swaps the underlying `Scheduler` in place when the interval changes, new "Continuous sync scheduler" card on the Configuration tab. `PUT /api/config` accepts an optional `schedulerIntervalMs`; the env var is downgraded to a one-time seed (`RuntimeStore.seedSchedulerDefaults`). 9 new tests (store round-trip + seed-only-once, manager start/stop/reconfigure/idempotency/floor, service `updateConfig` validation + hook dispatch).
-- **`v0.5.3` (next):** durable webhook outbox with explicit FSM (`pending` / `delivering` / `delivered` / `retry_waiting` / `permanently_failed`) and exponential-backoff retry (D-013).
-- **`v0.5.4` (after):** full health observability — `lastErrors` ring buffer + outbox backlog counters surfaced through `/api/health` (D-014, full).
+- **`v0.5.2`:** panel-driven scheduler configuration. New `RuntimeConfig.schedulerIntervalMs` field (persisted in SQLite via the existing `settings` key/value table, same pattern as `webhookUrl`), new `SchedulerManager` (`apps/api/src/runtime/scheduler-manager.ts`) that swaps the underlying `Scheduler` in place when the interval changes, new "Continuous sync scheduler" card on the Configuration tab. `PUT /api/config` accepts an optional `schedulerIntervalMs`; the env var is downgraded to a one-time seed (`RuntimeStore.seedSchedulerDefaults`). 9 tests covering the new path.
+- **`v0.5.3` (this release):** durable webhook outbox (D-013). New SQLite table `webhook_outbox` with FSM `pending → delivering → delivered | retry_waiting → permanently_failed`. New `OutboxWorker` (`apps/api/src/runtime/outbox-worker.ts`, 5-second cadence, reuses the existing `Scheduler` for the timer, recomputes the HMAC at delivery time so a rotated `webhookSecret` is honoured). Exponential backoff `[30s, 2m, 10m, 30m, 1h, 2h, 4h, 8h]` and `OUTBOX_MAX_ATTEMPTS = 8`. `service.processRecording` enqueues instead of POSTing; `lastWebhookStatus` enum gains `"queued"`. New routes `GET /api/outbox` (failed list) and `POST /api/outbox/:id/retry`; new `health.outbox` counters block (`pending` / `retryWaiting` / `permanentlyFailed` / `oldestPendingAgeMs`); new `SyncRunSummary.enqueued` counter. Panel gains a "Webhook outbox" card with counters + failed-list + Retry buttons. 11 new tests covering the FSM, the worker, and the HTTP shape.
+- **`v0.5.4` (next):** full health observability — `lastErrors` ring buffer + extended outbox/sync history surfaced through `/api/health` (D-014, full).
 
 Still **not** in Phase 3 scope:
 
@@ -80,11 +80,15 @@ Still **not** in Phase 3 scope:
 
 The web panel polls `GET /api/health` every 2 s while a run is active. The health payload splits state into two fields: `lastSync` holds the last COMPLETED run (drives "Last run" stats, "Plaud total", and the hero metric) and stays pinned while a new run is in flight; `activeRun` holds the running run (drives the progress banner). Polling stops once `activeRun` becomes `null` — at that point `lastSync.id` matches the run's id and the final summary is surfaced. The pre-0.4.7 semantics ("look at the N newest recordings Plaud has and skip ones that are already mirrored") silently did nothing when the N newest were all already local. Mode B instead walks as deep as needed to find N genuine gaps.
 
-### Webhook
+### Webhook (durable outbox, D-013, v0.5.3+)
 
-1. After mirroring, the service builds a `recording.synced` payload.
-2. If a webhook URL and secret are configured, it signs the payload with HMAC-SHA256.
-3. Delivery result is persisted in SQLite, even when the request fails.
+1. After mirroring, `service.enqueueOrSkipWebhook(recording, mode)` builds the `recording.synced` payload and inserts a row into `webhook_outbox` with `state = 'pending'`. The recording row is updated with `lastWebhookStatus = "queued"`. **No HTTP call happens during the sync run.** When no webhook URL or secret is configured, the helper short-circuits to `lastWebhookStatus = "skipped"` and never enqueues.
+2. The `OutboxWorker` runs an independent `setTimeout` loop at 5-second cadence. Each tick atomically claims one row (`pending` or `retry_waiting` whose `next_attempt_at` is due) by transitioning it to `delivering` via a guarded `UPDATE`. The atomic claim ensures a worker tick and a panel-triggered retry cannot pick the same row twice.
+3. The worker recomputes the HMAC signature at delivery time using the current `webhookSecret` (so an operator-rotated secret is honoured for items already in the queue) and stamps `sync.deliveryAttempt` to the current attempt number. POSTs to the configured `webhookUrl` with `AbortSignal.timeout(requestTimeoutMs)`.
+4. On a 2xx response: `markOutboxDelivered` (state → `delivered`, attempts++) plus a `webhook_deliveries` audit row with status `success`.
+5. On a non-2xx response or thrown error: a `webhook_deliveries` row with status `failed` is recorded, then either `markOutboxRetry(id, nextAttemptAt, error)` (state → `retry_waiting`, attempts++, `next_attempt_at = now + backoff[attempts]`) or `markOutboxPermanentlyFailed(id, error)` (state → `permanently_failed`, attempts++) when `attempts >= OUTBOX_MAX_ATTEMPTS`. Backoff schedule: `[30s, 2m, 10m, 30m, 1h, 2h, 4h, 8h]` — cumulative ~16 h before escalating.
+6. The panel polls `health.outbox` (`pending` / `retryWaiting` / `permanentlyFailed` / `oldestPendingAgeMs`) and `GET /api/outbox` (the list of `permanently_failed` rows) to render the Webhook outbox card on the Configuration tab. `POST /api/outbox/:id/retry` resets a `permanently_failed` row to `pending` (`attempts = 0`, `last_error = null`) so the worker re-attempts on its next tick.
+7. The legacy `webhook_deliveries` table stays as-is (append-only audit log; every attempt records a row regardless of success/failure). The new `webhook_outbox` table holds live retry state — once a row reaches `delivered` or `permanently_failed`, the worker never touches it again.
 
 ### Local curation (audition then dismiss)
 
@@ -147,8 +151,7 @@ The web panel polls `GET /api/health` every 2 s while a run is active. The healt
 
 Phase 3 is in progress (`v0.5.2` adds panel-driven scheduler config on top of the `v0.5.1` stabilization; `v0.5.0` is broken and superseded). The remaining Phase 3 work and Phase 4 horizon:
 
-- **Phase 3 cont.:** durable webhook outbox with retry/backoff (D-013 → `v0.5.3`)
-- **Phase 3 cont.:** full health observability — `lastErrors` ring buffer + outbox backlog counters surfaced through `/api/health` (D-014, full → `v0.5.4`)
+- **Phase 3 cont.:** full health observability — `lastErrors` ring buffer + extended outbox/sync history surfaced through `/api/health` (D-014, full → `v0.5.4`)
 - Resumable backfill (deferred; ROADMAP mentions but no firm release target)
 - **Phase 4:** automatic re-login via a non-browser path if it proves reliable
 - More robust degraded-state handling (incremental, threaded through Phase 3 + 4)

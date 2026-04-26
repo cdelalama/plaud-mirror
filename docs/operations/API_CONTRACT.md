@@ -1,7 +1,7 @@
-<!-- doc-version: 0.5.2 -->
+<!-- doc-version: 0.5.3 -->
 # API Contract
 
-This document describes the HTTP and webhook surface that now exists in-repo. The current implementation covers the full Phase 2 slice (manual sync/backfill, immediate HMAC-signed webhook delivery with persisted attempt log, local curation routes) and the Phase 3 scheduler subset stabilized in `v0.5.1` and made panel-driven in `v0.5.2`. The scheduler interval now persists in SQLite (`config.schedulerIntervalMs`) and is set via `PUT /api/config { schedulerIntervalMs }`; `GET /api/config` reports the persisted value. The durable webhook outbox (D-013) and full health observability (`lastErrors`, outbox backlog) are deferred to `v0.5.3` / `v0.5.4` and are NOT yet part of the contract.
+This document describes the HTTP and webhook surface that now exists in-repo. The current implementation covers the full Phase 2 slice (manual sync/backfill, local curation routes) plus the Phase 3 scheduler subset (panel-driven from `v0.5.2`) plus the **durable webhook outbox** (D-013) shipped in `v0.5.3`. From `v0.5.3` onwards webhook delivery is asynchronous: each sync run enqueues the payload, a worker retries it with exponential backoff. New routes `GET /api/outbox` and `POST /api/outbox/:id/retry`; new `health.outbox` block; new `enqueued` field on `SyncRunSummary`. The full health observability surface (`lastErrors` ring buffer) is deferred to `v0.5.4` and is NOT yet part of the contract.
 
 ## Admin API
 
@@ -21,6 +21,8 @@ This document describes the HTTP and webhook surface that now exists in-repo. Th
 | `GET` | `/api/recordings/:id/audio` | Stream the locally mirrored audio file for a single recording. Returns 404 if the recording is not tracked or has no local file. Response body is the raw audio bytes with the stored `Content-Type`. Supports HTTP Range (RFC 7233 single-range): advertises `Accept-Ranges: bytes`, includes `Content-Length`, and honors `Range: bytes=start-end` (plus suffix `bytes=-N` and open-ended `bytes=start-`) with `206 Partial Content`. Unsatisfiable ranges return `416` with `Content-Range: bytes */size`. Multipart byteranges are intentionally unsupported. |
 | `DELETE` | `/api/recordings/:id` | Local-only dismiss. Removes the audio file from disk, clears `localPath`/`bytesWritten`, and marks the row `dismissed=true`. Plaud is not touched. Subsequent sync/backfill runs skip dismissed rows. |
 | `POST` | `/api/recordings/:id/restore` | Clear the dismissed flag **and immediately re-download the audio** (fresh `/file/detail` + `/file/temp-url` against Plaud, artifact written to `recordings/<id>/audio.<ext>`). Returns 409 if the recording is not currently dismissed. If the immediate download fails (missing/invalid token, network error), the flag is still cleared and the error is surfaced so the caller can recover. |
+| `GET` | `/api/outbox` | Return `{ items: OutboxItem[] }` with **only `permanently_failed` rows** from the durable webhook outbox (D-013). The pending and retry-waiting backlog is visible only as counters via `health.outbox` to keep the panel from becoming a queue browser. Empty array when the queue has no failed items. |
+| `POST` | `/api/outbox/:id/retry` | Reset a `permanently_failed` outbox row back to `pending` (clears `attempts` and `last_error`); the worker will re-attempt delivery on its next tick. Returns the updated `OutboxItem`. 400 on unsafe id shape, 404 on unknown id, 409 when the row is in any state other than `permanently_failed` (the FSM guard — the panel must not bypass `delivering` or restart `delivered` rows). |
 
 ## Request Shapes
 
@@ -177,7 +179,7 @@ No request body. Response (200 OK):
 
 ```json
 {
-  "version": "0.5.2",
+  "version": "0.5.3",
   "phase": "Phase 3 - unattended operation",
   "auth": {
     "mode": "manual-token",
@@ -197,6 +199,12 @@ No request body. Response (200 OK):
     "lastTickAt": "2026-04-25T10:00:00.000Z",
     "lastTickStatus": "completed",
     "lastTickError": null
+  },
+  "outbox": {
+    "pending": 0,
+    "retryWaiting": 0,
+    "permanentlyFailed": 0,
+    "oldestPendingAgeMs": null
   },
   "recordingsCount": 215,
   "dismissedCount": 12,
@@ -257,6 +265,6 @@ Phase 2 delivers the manual route surface and immediate HMAC-signed webhook deli
 
 - `v0.5.0` introduced the in-process continuous sync scheduler and the `health.scheduler` subset of D-014, but with two regressions (default-on without opt-in, missing service-layer anti-overlap). It is broken and superseded — do not deploy it.
 - `v0.5.1` is the stable Phase 3 entry point: scheduler is genuinely opt-in, service-layer reuse via `getActiveSyncRun` is implemented, and the scheduler tick honestly labels absorbed ticks `skipped`.
-- `v0.5.2` (this release) makes the scheduler interval **operator-controllable from the panel**: `RuntimeConfig.schedulerIntervalMs` added to `GET /api/config`, optional `schedulerIntervalMs` accepted by `PUT /api/config`, hot-applied via the `SchedulerManager` reconfigure hook with no container restart. Webhook delivery is still **immediate** — the outbox does not yet exist, so a failed delivery still requires the operator to re-trigger sync.
-- `v0.5.3` adds the durable webhook outbox (D-013): explicit FSM, exponential-backoff retry, and the persisted queue replaces the immediate-only delivery path. The contract above will gain backlog observability fields.
-- `v0.5.4` adds the full health observability surface (D-014, full): a `lastErrors` ring buffer and outbox backlog counters.
+- `v0.5.2` makes the scheduler interval **operator-controllable from the panel**: `RuntimeConfig.schedulerIntervalMs` added to `GET /api/config`, optional `schedulerIntervalMs` accepted by `PUT /api/config`, hot-applied via the `SchedulerManager` reconfigure hook with no container restart.
+- `v0.5.3` (this release) adds the durable webhook outbox (D-013): explicit FSM, exponential-backoff retry, the persisted queue replaces the immediate-only delivery path. New routes `GET /api/outbox` and `POST /api/outbox/:id/retry`. New `health.outbox` block (`pending` / `retryWaiting` / `permanentlyFailed` / `oldestPendingAgeMs`). New `SyncRunSummary.enqueued` counter (with `.default(0)` for retro-compat); `delivered` keeps its original semantic and structurally stays at 0 from now on.
+- `v0.5.4` adds the full health observability surface (D-014, full): a `lastErrors` ring buffer plus extended outbox / sync history.

@@ -4,6 +4,35 @@ All notable changes to Plaud Mirror are documented in this file.
 
 This project follows Semantic Versioning (SemVer): MAJOR.MINOR.PATCH.
 
+## [0.5.3] - 2026-04-26
+
+### Added
+- **Durable webhook outbox (D-013).** Webhook delivery is now decoupled from sync: each successfully-mirrored recording pushes its `recording.synced` payload into a new SQLite table `webhook_outbox`, and a dedicated `OutboxWorker` (5-second cadence, anti-overlap reusing the existing `Scheduler`) walks the queue, retries with exponential backoff, and either delivers (`→ delivered`) or escalates to `permanently_failed` after 8 attempts. Backoff schedule: 30 s, 2 m, 10 m, 30 m, 1 h, 2 h, 4 h, 8 h — cumulative ~16 hours, sized to ride out an overnight downstream outage on a home-infra box. The HMAC signature is recomputed at delivery time (not at enqueue), so rotating `webhookSecret` mid-flight is honoured for items still in the queue.
+- **`webhook_outbox` SQLite table** with FSM `pending → delivering → delivered | retry_waiting → permanently_failed`. Atomic claim via `UPDATE ... WHERE id = ? AND state = ?` so a worker tick and a panel-triggered retry cannot pick the same row twice. Index on `(state, next_attempt_at)` for cheap polling. `webhook_deliveries` (the existing append-only audit log) keeps every individual attempt record.
+- **New routes**:
+  - `GET /api/outbox` returns `{ items: OutboxItem[] }`, **only `permanently_failed` rows**. The pending and retry-waiting backlog is visible only as counters (see below) so the panel does not become a queue browser.
+  - `POST /api/outbox/:id/retry` resets a `permanently_failed` row to `pending` (clears `attempts` and `last_error`); 409 when the item is in any other state, 404 when unknown, 400 when the id shape is unsafe.
+- **`/api/health.outbox` block** with `pending`, `retryWaiting`, `permanentlyFailed`, and `oldestPendingAgeMs` (ms age of the oldest queued or retrying row, null when both states are empty). Visible in every health response from now on.
+- **`SyncRunSummary.enqueued`** new counter — number of webhook payloads pushed to the outbox during a run. Coexists with `delivered`, which keeps its original semantic ("delivered synchronously inside this run") and now stays at 0 for runs executed by the outbox-aware service.
+- **New "Webhook outbox" card on the Configuration tab** of the panel: live counters from `health.outbox`, oldest-pending age, list of `permanently_failed` rows with a Retry button per row. StatusPill colour: green when empty, amber when there is anything pending or retrying, red when there is at least one permanently-failed item.
+- New shared schema types: `OutboxState`, `OutboxItem`, `OutboxHealth`, `OutboxListResponse`, `OutboxRetryResponse`. New `RuntimeStore` methods: `enqueueOutboxItem`, `claimOutboxItem`, `markOutboxDelivered`, `markOutboxRetry`, `markOutboxPermanentlyFailed`, `forceOutboxRetry`, `getOutboxHealth`, `listFailedOutboxItems`, `getOutboxPayload`, `getOutboxItem`, plus `seedSchedulerDefaults`-style additive migration on `sync_runs.enqueued`. New module `apps/api/src/runtime/outbox-worker.ts`. New module `apps/api/src/runtime/webhook-signature.ts` extracting `buildWebhookSignature` so the worker and the legacy code path can share the HMAC code without duplication.
+
+### Changed
+- **Webhook delivery is no longer synchronous.** `service.processRecording` calls a new private `enqueueOrSkipWebhook(recording, mode)` that pushes a payload into the outbox and writes `lastWebhookStatus = "queued"` on the recording row. The legacy synchronous `deliverWebhook` method is removed. Every operator-visible HTTP POST to the configured webhook URL now comes from the outbox worker, not from `executeMirror`.
+- **`RecordingMirror.lastWebhookStatus` enum extended** with `"queued"` (the new normal state right after a sync) alongside the legacy `"skipped"` / `"success"` / `"failed"` values. Older rows in long-lived databases keep their original value; new rows finalised by v0.5.3 carry `"queued"` (or `"skipped"` when the webhook is not configured).
+- `apps/api/src/server.ts` constructs an `OutboxWorker` unconditionally during boot and registers an `onClose` hook to stop it, alongside the existing scheduler manager.
+- `apps/web/src/App.tsx` wires `failedOutboxItems` state, `handleRetryOutboxItem` handler, and the new card. The existing manual-sync metrics block is unchanged in this release; a follow-up will surface `enqueued` next to `delivered`.
+- `package.json#scripts.test` chains the new `apps/api/dist/runtime/outbox-worker.test.js` alongside the existing scheduler / manager / environment tests.
+
+### Notes
+- This is a **patch** release (0.5.2 → 0.5.3) because the HTTP contract additions are strictly additive (new fields default-fill in older clients via Zod's `.default(...)` and `.default(0)`; new routes do not affect existing ones). Operator-visible behaviour does change — webhook delivery is now async — but the _shape_ of the payload, the HMAC scheme, and every existing route remain identical, so a downstream that was working with v0.5.2 keeps working without code changes.
+- `delivered` in `SyncRunSummary` is now structurally always 0 for new runs. Dashboards that read it as "successful webhook deliveries during this run" will start showing 0 — that is the correct value, because deliveries no longer happen during the run. Use the `enqueued` field for the equivalent v0.5.3+ count, and `health.outbox.pending + retryWaiting` for "what is waiting to be delivered right now."
+- For an operator who already had `lastWebhookStatus: "success"` rows in their database from before v0.5.3: those rows are NOT re-enqueued. The outbox is fed by `executeMirror`, not by a backfill scan of historical recordings. If you want the new audit-trail-by-outbox semantics for a recording that pre-dates v0.5.3, force a re-mirror via the existing `forceDownload` path.
+- Test totals: 102 → 113 (102 backend + 11 web). 11 new tests: 4 in `store.test.ts` (outbox enqueue/claim/markDelivered + retry transitions + permanently_failed + force-retry rejection from non-failed states), 6 in `outbox-worker.test.ts` (empty-queue skip, success path, transient-failure retry with backoff, monotonic deliveryAttempt across retries, MAX_ATTEMPTS escalation, unconfigured-webhook escalation), 1 server test (HTTP shape: empty list, list, retry success, 409 on non-failed, 404 on unknown, 400 on bad id).
+
+### Fixed
+- (No bug fixes in this release — the in-flight `lastWebhookStatus = "queued"` value is a new state, not a fix to an existing bug.)
+
 ## [0.5.2] - 2026-04-25
 
 ### Added

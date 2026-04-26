@@ -1,4 +1,4 @@
-<!-- doc-version: 0.5.2 -->
+<!-- doc-version: 0.5.3 -->
 # Project Context - Plaud Mirror
 
 ## Vision
@@ -22,11 +22,13 @@ Plaud Mirror is a server-first product with two runtime surfaces:
 
 Persistence is split between SQLite for state/indexes and the filesystem for mirrored audio artifacts. Secrets are encrypted at rest with a master key supplied by the surrounding deployment.
 
-## Current Status (2026-04-25)
+## Current Status (2026-04-26)
 
-Plaud Mirror `v0.5.2` makes the Phase 3 scheduler **operator-controllable from the web panel**: the Configuration tab now has a "Continuous sync scheduler" card showing the live status (`enabled`, `interval`, `next tick`, `last tick`, `last tick reason`) and a form to set the interval in minutes. The interval persists in SQLite, hot-applies via a new `SchedulerManager` (no container restart), and survives restarts. The `PLAUD_MIRROR_SCHEDULER_INTERVAL_MS` env var is downgraded to a **bootstrap-only seed** that pre-populates the SQLite row on a fresh database — once the operator touches the panel, the env var is irrelevant on every subsequent boot. The release also carries forward everything `v0.5.1` stabilized: the in-process continuous sync scheduler (D-012), the partial health observability surface (D-014, scheduler subset), and the two-layer anti-overlap (service-level via `startOrReuseMirror` consulting `getActiveSyncRun`, scheduler-level via the `inflight` flag). `GET /api/health` reports the same `scheduler` block as before; the `phase` string flips to `"Phase 3 - unattended operation"` when the scheduler is enabled.
+Plaud Mirror `v0.5.3` ships the **durable webhook outbox** (D-013). Webhook delivery is no longer synchronous inside the sync run: each successfully-mirrored recording pushes its `recording.synced` payload into a new SQLite table `webhook_outbox`, and a dedicated worker retries with exponential backoff (30 s → 8 h across 8 attempts, ~16 h cumulative window) before escalating to `permanently_failed`. The Configuration tab gains a new "Webhook outbox" card with live counters (`pending` / `retry_waiting` / `permanently_failed` / `oldestPendingAgeMs`), a list of permanently-failed items, and a per-row Retry button that resets the row to `pending` so the worker re-attempts on its next tick. The HMAC signature is recomputed at delivery time so rotating `webhookSecret` mid-flight is honoured. New routes: `GET /api/outbox` (failed list only) and `POST /api/outbox/:id/retry`.
 
-Operators upgrading from `0.4.x` should skip `v0.5.0` (scheduler default-on regression + missing service-layer anti-overlap) and go directly to `v0.5.2`. Webhook outbox (D-013) and full health observability (lastErrors buffer, outbox backlog) are now deferred to `v0.5.3` / `v0.5.4` — pushed back one more slot because the `v0.5.2` UX work absorbed the slot the outbox was holding.
+`v0.5.3` carries forward everything earlier `0.5.x` shipped: the in-process continuous sync scheduler (D-012, stabilized in `v0.5.1`, panel-driven from `v0.5.2`), the partial health observability surface (D-014, scheduler subset), the two-layer anti-overlap, and SQLite-persisted scheduler config. `GET /api/health` now also reports an `outbox` block alongside `scheduler`. `SyncRunSummary` gains a new `enqueued` counter (the count of webhook payloads pushed to the outbox during the run); `delivered` keeps its original semantic ("delivered synchronously inside this run") and structurally stays at 0 from `v0.5.3` onwards because synchronous delivery no longer exists.
+
+Operators upgrading from `0.4.x` should skip `v0.5.0` (scheduler default-on regression + missing service-layer anti-overlap) and go directly to `v0.5.3`. The remaining Phase 3 piece — full health observability with `lastErrors` ring buffer (D-014, complete) — lands in `v0.5.4`.
 
 The Phase 2 slice it inherits: a live Fastify API, a web panel for token setup, webhook configuration, sync/backfill controls, recordings visibility with inline audio playback, encrypted persisted manual bearer-token auth, manual sync and filtered historical backfill (async-202, with a `limit=0` "refresh server stats" path), SQLite-backed recording and delivery state (including `dismissed` / `dismissed_at` columns for local curation), immediate HMAC-signed webhook delivery with persisted attempt logging, a confirmed local-only dismiss/restore flow that never touches Plaud, Docker packaging for `dev-vm` running as non-root `USER 1000:1000`, and the original Phase 1 spike CLI for direct Plaud probing. Concretely:
 
@@ -42,8 +44,7 @@ The Phase 2 slice it inherits: a live Fastify API, a web panel for token setup, 
 
 What it still does not have:
 
-- durable webhook outbox with retry/backoff (next: v0.5.3)
-- full health observability surface (`lastErrors` ring buffer, outbox backlog) (next: v0.5.4)
+- full health observability surface (`lastErrors` ring buffer, outbox backlog history beyond live counters) (next: v0.5.4)
 - resumable backfill
 - automatic re-login
 - NAS validation

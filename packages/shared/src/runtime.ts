@@ -70,7 +70,12 @@ export const RecordingMirrorSchema = z.object({
   contentType: z.string().nullable(),
   bytesWritten: z.number().int().nonnegative(),
   mirroredAt: z.string().nullable(),
-  lastWebhookStatus: z.enum(["skipped", "success", "failed"]).nullable(),
+  // Per-recording webhook state. The legacy values (`success` / `failed`)
+  // come from the pre-0.5.3 synchronous delivery path; rows finalised by
+  // the v0.5.3 outbox path use `queued` (the worker will deliver
+  // asynchronously) or `skipped` (no webhook configured at the time of
+  // sync). All four values may co-exist in a long-lived database.
+  lastWebhookStatus: z.enum(["skipped", "queued", "success", "failed"]).nullable(),
   lastWebhookAttemptAt: z.string().nullable(),
   dismissed: z.boolean().default(false),
   dismissedAt: z.string().nullable().default(null),
@@ -189,7 +194,18 @@ export const SyncRunSummarySchema = z.object({
   examined: z.number().int().nonnegative(),
   matched: z.number().int().nonnegative(),
   downloaded: z.number().int().nonnegative(),
+  // Webhook deliveries that **completed inside this sync run**. From v0.5.3
+  // onwards delivery is asynchronous (the durable webhook outbox owns the
+  // retry loop), so this counter stays at 0 for runs executed by the
+  // outbox-aware service. The field is preserved (with its original
+  // semantic) instead of being repurposed so existing dashboards do not
+  // silently start meaning something else. Use `enqueued` for the count of
+  // items the run pushed to the outbox.
   delivered: z.number().int().nonnegative(),
+  // Webhook payloads enqueued to the durable outbox during this run
+  // (v0.5.3+). `.default(0)` for retro-compat with rows finalised before
+  // 0.5.3 — those rows just read 0 for this field.
+  enqueued: z.number().int().nonnegative().default(0),
   skipped: z.number().int().nonnegative(),
   // Total recordings reported by Plaud's `data_file_total` on the first page of
   // the listing. Independent of `examined` (which is capped by the caller's
@@ -204,6 +220,74 @@ export const StartSyncRunResponseSchema = z.object({
   id: z.string(),
   status: z.literal("running"),
 }).strict();
+
+/**
+ * Durable webhook outbox state (D-013, v0.5.3). Each enqueued payload
+ * lives in `webhook_outbox` and walks through this FSM:
+ *
+ *   pending  ─── claim ───►  delivering ─── 2xx ───►  delivered
+ *      ▲                         │
+ *      │                         └── non-2xx / throw ───►  retry_waiting
+ *   force-retry from UI                                       │
+ *      │                                                      ├── attempts < 8 ──►  next claim re-enters delivering
+ *      │                                                      │
+ *   permanently_failed ◄────────── attempts >= 8 ──────────────┘
+ */
+export const OutboxStateSchema = z.enum([
+  "pending",
+  "delivering",
+  "delivered",
+  "retry_waiting",
+  "permanently_failed",
+]);
+
+export const OutboxItemSchema = z.object({
+  id: z.string(),
+  recordingId: z.string(),
+  state: OutboxStateSchema,
+  // Total delivery attempts the worker has executed against this item.
+  // 0 while the row is still `pending` and has never been claimed.
+  attempts: z.number().int().nonnegative(),
+  // ISO timestamp the worker is allowed to claim this item again. Null
+  // when the item is in a terminal state (`delivered` /
+  // `permanently_failed`) or actively `delivering`.
+  nextAttemptAt: z.string().nullable(),
+  // Last error message the worker captured. Carries through retries so
+  // the operator can read the most recent failure cause from `/api/outbox`.
+  lastError: z.string().nullable(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+}).strict();
+
+export const OutboxListResponseSchema = z.object({
+  items: z.array(OutboxItemSchema),
+}).strict();
+
+export const OutboxRetryResponseSchema = z.object({
+  item: OutboxItemSchema,
+}).strict();
+
+/**
+ * Outbox observability surface — the minimum slice for v0.5.3.
+ * `lastErrors` ring buffer + per-state breakdown beyond these counters
+ * lands with D-014 full in v0.5.4.
+ */
+export const OutboxHealthSchema = z.object({
+  pending: z.number().int().nonnegative(),
+  retryWaiting: z.number().int().nonnegative(),
+  permanentlyFailed: z.number().int().nonnegative(),
+  // Age (in ms, as observed at health-read time) of the oldest row in
+  // either `pending` or `retry_waiting`. Useful to spot a stuck queue
+  // without listing every row. Null when both states are empty.
+  oldestPendingAgeMs: z.number().int().nonnegative().nullable(),
+}).strict();
+
+const DISABLED_OUTBOX_HEALTH = {
+  pending: 0,
+  retryWaiting: 0,
+  permanentlyFailed: 0,
+  oldestPendingAgeMs: null,
+};
 
 /**
  * Scheduler observability surface (D-014, partial — scheduler subset only).
@@ -249,6 +333,11 @@ export const ServiceHealthSchema = z.object({
     lastTickStatus: null,
     lastTickError: null,
   }),
+  // Durable webhook outbox counters (D-013, v0.5.3). Defaults to the
+  // empty shape so older clients reading the response on a freshly-booted
+  // service (or against a backend that has never enqueued anything) see a
+  // sane structure rather than missing keys.
+  outbox: OutboxHealthSchema.default(DISABLED_OUTBOX_HEALTH),
   recordingsCount: z.number().int().nonnegative(),
   dismissedCount: z.number().int().nonnegative().default(0),
   webhookConfigured: z.boolean(),
@@ -295,5 +384,10 @@ export type SyncRunStatus = z.infer<typeof SyncRunStatusSchema>;
 export type SyncRunSummary = z.infer<typeof SyncRunSummarySchema>;
 export type StartSyncRunResponse = z.infer<typeof StartSyncRunResponseSchema>;
 export type SchedulerStatus = z.infer<typeof SchedulerStatusSchema>;
+export type OutboxState = z.infer<typeof OutboxStateSchema>;
+export type OutboxItem = z.infer<typeof OutboxItemSchema>;
+export type OutboxListResponse = z.infer<typeof OutboxListResponseSchema>;
+export type OutboxRetryResponse = z.infer<typeof OutboxRetryResponseSchema>;
+export type OutboxHealth = z.infer<typeof OutboxHealthSchema>;
 export type ServiceHealth = z.infer<typeof ServiceHealthSchema>;
 export type WebhookPayload = z.infer<typeof WebhookPayloadSchema>;

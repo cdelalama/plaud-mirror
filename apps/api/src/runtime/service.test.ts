@@ -187,7 +187,7 @@ test("PlaudMirrorService anti-overlap: concurrent runSync / runScheduledSync reu
   service.close();
 });
 
-test("PlaudMirrorService backfill downloads audio and signs webhook delivery", async () => {
+test("PlaudMirrorService backfill downloads audio and enqueues the webhook payload to the outbox (delivery is async from v0.5.3)", async () => {
   const root = await mkdtemp(join(tmpdir(), "plaud-mirror-service-"));
   const environment = createEnvironment(root);
   const store = new RuntimeStore({
@@ -266,6 +266,10 @@ test("PlaudMirrorService backfill downloads audio and signs webhook delivery", a
       });
     },
     webhookFetchImpl: async (_input, init) => {
+      // From v0.5.3 the sync run path enqueues to the outbox instead of
+      // POSTing directly. Any HTTP call here would mean the service
+      // regressed to synchronous delivery — keep recording so the test
+      // can fail loudly if that happens.
       webhookCalls.push({
         headers: new Headers(init?.headers),
         body: String(init?.body ?? ""),
@@ -294,20 +298,28 @@ test("PlaudMirrorService backfill downloads audio and signs webhook delivery", a
 
   assert.equal(summary.status, "completed");
   assert.equal(summary.downloaded, 1);
-  assert.equal(summary.delivered, 1);
+  assert.equal(summary.delivered, 0, "delivered stays 0 — the sync run no longer POSTs synchronously (v0.5.3)");
+  assert.equal(summary.enqueued, 1, "the run pushed exactly one payload into the outbox");
   assert.equal(summary.plaudTotal, 1, "sync summary should carry Plaud's data_file_total");
 
   const recordings = await service.listRecordings(10);
   assert.equal(recordings.recordings.length, 1);
   assert.equal(recordings.recordings[0]?.bytesWritten, 5);
-  assert.equal(recordings.recordings[0]?.lastWebhookStatus, "success");
-
-  assert.equal(webhookCalls.length, 1);
-  assert.match(
-    webhookCalls[0]?.headers.get("x-plaud-mirror-signature-256") ?? "",
-    /^sha256=/,
+  assert.equal(
+    recordings.recordings[0]?.lastWebhookStatus,
+    "queued",
+    "recording row reflects the new in-queue state",
   );
-  assert.match(webhookCalls[0]?.body ?? "", /recording\.synced/);
+
+  // The sync run itself made zero HTTP calls to the webhook — delivery
+  // is the outbox worker's job.
+  assert.equal(webhookCalls.length, 0, "backfill must NOT call the webhook synchronously");
+
+  // The outbox now holds exactly one pending payload for rec-1.
+  const outboxHealth = store.getOutboxHealth();
+  assert.equal(outboxHealth.pending, 1);
+  assert.equal(outboxHealth.retryWaiting, 0);
+  assert.equal(outboxHealth.permanentlyFailed, 0);
 
   service.close();
 });
@@ -839,6 +851,7 @@ test("PlaudMirrorService getHealth pins lastSync to the last completed run while
     matched: 5,
     downloaded: 5,
     delivered: 0,
+    enqueued: 0,
     skipped: 0,
     plaudTotal: 308,
     filters: { limit: 5, forceDownload: false },

@@ -16,6 +16,7 @@ import {
   type AuthStatus,
   type BackfillPreviewResponse,
   type Device,
+  type OutboxItem,
   type RecordingMirror,
   type RuntimeConfig,
   type ServiceHealth,
@@ -56,6 +57,10 @@ export function App() {
   // Scheduler interval input is in minutes for operator ergonomics; the
   // wire format is milliseconds. 0 disables the scheduler.
   const [schedulerMinutesInput, setSchedulerMinutesInput] = useState("0");
+  // Permanently-failed outbox rows for the Configuration > Outbox card.
+  // The pending / retry_waiting counters live in `health.outbox` and do
+  // not need a separate state slot.
+  const [failedOutboxItems, setFailedOutboxItems] = useState<OutboxItem[]>([]);
   const [backfill, setBackfill] = useState<BackfillDraft>(DEFAULT_BACKFILL_DRAFT);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -185,7 +190,7 @@ export function App() {
       if (showDismissed) {
         params.set("includeDismissed", "true");
       }
-      const [healthResponse, configResponse, authResponse, recordingsResponse, devicesResponse] = await Promise.all([
+      const [healthResponse, configResponse, authResponse, recordingsResponse, devicesResponse, outboxResponse] = await Promise.all([
         requestJson<ServiceHealth>("/api/health"),
         requestJson<RuntimeConfig>("/api/config"),
         requestJson<AuthStatus>("/api/auth/status"),
@@ -193,6 +198,7 @@ export function App() {
           `/api/recordings?${params.toString()}`,
         ),
         requestJson<{ devices: Device[] }>("/api/devices"),
+        requestJson<{ items: OutboxItem[] }>("/api/outbox"),
       ]);
 
       setHealth(healthResponse);
@@ -204,6 +210,7 @@ export function App() {
       setSchedulerMinutesInput(formatSchedulerInput(configResponse.schedulerIntervalMs));
       setLastRun(healthResponse.lastSync);
       setDevices(devicesResponse.devices);
+      setFailedOutboxItems(outboxResponse.items);
     } catch (error) {
       setOperationError(toErrorMessage(error));
     } finally {
@@ -280,6 +287,24 @@ export function App() {
       setWebhookSecretInput("");
       await refreshSnapshot();
       return "Webhook configuration updated.";
+    });
+  }
+
+  async function handleRetryOutboxItem(item: OutboxItem): Promise<void> {
+    await runOperation(async () => {
+      await requestJson<{ item: OutboxItem }>(`/api/outbox/${item.id}/retry`, {
+        method: "POST",
+      });
+      // Refresh the failed list and the health counters from the server
+      // rather than mutating local state — the worker may already have
+      // re-claimed the row by the time the next poll lands.
+      const [outboxResponse, healthResponse] = await Promise.all([
+        requestJson<{ items: OutboxItem[] }>("/api/outbox"),
+        requestJson<ServiceHealth>("/api/health"),
+      ]);
+      setFailedOutboxItems(outboxResponse.items);
+      setHealth(healthResponse);
+      return `Webhook for ${item.recordingId} re-queued.`;
     });
   }
 
@@ -552,6 +577,73 @@ export function App() {
               Save scheduler settings
             </button>
           </form>
+        </section>
+
+        <section className="card">
+          <header className="card-header">
+            <div>
+              <p className="kicker">Delivery queue</p>
+              <h2>Webhook outbox</h2>
+            </div>
+            <StatusPill state={outboxPillState(health, failedOutboxItems.length)} />
+          </header>
+
+          <p className="muted">
+            Each successful sync enqueues one webhook payload here. The
+            worker retries with exponential backoff (30s, 2m, 10m, 30m, 1h,
+            2h, 4h, 8h) and escalates to <code>permanently_failed</code>
+            after 8 attempts. Failed items are listed below with a Retry
+            button — Retry resets the row to <code>pending</code>; the
+            worker picks it up on its next tick.
+          </p>
+
+          <dl className="details">
+            <Detail label="Pending" value={String(health?.outbox.pending ?? 0)} />
+            <Detail label="Retry waiting" value={String(health?.outbox.retryWaiting ?? 0)} />
+            <Detail label="Permanently failed" value={String(health?.outbox.permanentlyFailed ?? 0)} />
+            <Detail
+              label="Oldest pending age"
+              value={
+                health?.outbox.oldestPendingAgeMs != null
+                  ? formatDuration(Math.round(health.outbox.oldestPendingAgeMs / 1000))
+                  : "—"
+              }
+            />
+          </dl>
+
+          {failedOutboxItems.length === 0 ? (
+            <p className="muted">No permanently-failed items.</p>
+          ) : (
+            <ul className="stack" style={{ listStyle: "none", padding: 0 }}>
+              {failedOutboxItems.map((item) => (
+                <li
+                  key={item.id}
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    gap: "0.75rem",
+                    padding: "0.5rem 0",
+                    borderTop: "1px solid var(--border-color, #ddd)",
+                  }}
+                >
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div><strong>{item.recordingId}</strong> · {item.attempts} attempts</div>
+                    <div className="muted" style={{ fontSize: "0.85em", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {item.lastError ?? "no error message"}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => void handleRetryOutboxItem(item)}
+                  >
+                    Retry
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
         </section>
       </div>
       ) : null}
@@ -1122,6 +1214,20 @@ function formatSchedulerInput(intervalMs: number): string {
   // it as 1.5) does not silently round to an unrelated cadence.
   const minutes = intervalMs / 60_000;
   return Number.isInteger(minutes) ? String(minutes) : minutes.toString();
+}
+
+// StatusPill state for the Webhook outbox card. Order matters:
+//   - any permanently-failed item → "missing" (red): operator must act.
+//   - any pending or retry-waiting item → "degraded" (amber): in flight.
+//   - empty queue + no failures → "healthy" (green).
+function outboxPillState(health: ServiceHealth | null, failedListLength: number): string {
+  if (failedListLength > 0 || (health?.outbox.permanentlyFailed ?? 0) > 0) {
+    return "missing";
+  }
+  if ((health?.outbox.pending ?? 0) > 0 || (health?.outbox.retryWaiting ?? 0) > 0) {
+    return "degraded";
+  }
+  return "healthy";
 }
 
 function parseSchedulerInput(raw: string): number {

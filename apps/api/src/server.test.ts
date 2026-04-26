@@ -88,6 +88,103 @@ test("createApp wires auth and config routes", async () => {
   await app.close();
 });
 
+test("createApp exposes outbox routes: list shows only permanently_failed; force-retry rejects non-failed items", async () => {
+  // The HTTP surface for D-013: GET /api/outbox returns the failed
+  // backlog so the panel can render Retry buttons; POST /api/outbox/:id/retry
+  // resurrects a permanently_failed row, and refuses to touch any other
+  // state (panel must not bypass the FSM).
+  const root = await mkdtemp(join(tmpdir(), "plaud-mirror-server-outbox-"));
+  const environment = createEnvironment(root);
+  const app = await createApp({
+    environment,
+    plaudFetchImpl: async () => {
+      throw new Error("Unexpected Plaud fetch in outbox-route test");
+    },
+  });
+
+  // Empty queue → empty list.
+  const emptyList = await app.inject({ method: "GET", url: "/api/outbox" });
+  assert.equal(emptyList.statusCode, 200);
+  assert.deepEqual(emptyList.json(), { items: [] });
+
+  // Reach into the same SQLite file the app uses to seed a
+  // permanently_failed row directly. This avoids spinning up a real
+  // sync just to populate the outbox; the FSM path is already covered
+  // exhaustively by store.test.ts and outbox-worker.test.ts. The point
+  // here is the HTTP shape.
+  const { RuntimeStore } = await import("./runtime/store.js");
+  const store = new RuntimeStore({
+    dbPath: join(environment.dataDir, "app.db"),
+    dataDir: environment.dataDir,
+    recordingsDir: environment.recordingsDir,
+    defaultSyncLimit: environment.defaultSyncLimit,
+  });
+  const item = store.enqueueOutboxItem({
+    recordingId: "rec-failed",
+    payload: {
+      event: "recording.synced",
+      source: "plaud-mirror",
+      recording: {
+        id: "rec-failed",
+        title: "Title",
+        createdAt: null,
+        localPath: "recordings/rec-failed/audio.mp3",
+        format: "mp3",
+        contentType: "audio/mpeg",
+        bytesWritten: 1,
+      },
+      sync: { syncedAt: "2026-04-26T10:00:00.000Z", deliveryAttempt: 1, mode: "sync" },
+    },
+  });
+  store.claimOutboxItem();
+  store.markOutboxPermanentlyFailed(item.id, "synthetic failure for the test");
+  store.close();
+
+  const listResponse = await app.inject({ method: "GET", url: "/api/outbox" });
+  assert.equal(listResponse.statusCode, 200);
+  const listed = listResponse.json().items;
+  assert.equal(listed.length, 1);
+  assert.equal(listed[0].id, item.id);
+  assert.equal(listed[0].state, "permanently_failed");
+
+  // Successful force-retry: 200 + the row now reads `pending`.
+  const retryResponse = await app.inject({
+    method: "POST",
+    url: `/api/outbox/${item.id}/retry`,
+  });
+  assert.equal(retryResponse.statusCode, 200);
+  assert.equal(retryResponse.json().item.id, item.id);
+  assert.equal(retryResponse.json().item.state, "pending");
+  assert.equal(retryResponse.json().item.attempts, 0);
+
+  // After recovery, the item is no longer in the failed list.
+  const afterRetry = await app.inject({ method: "GET", url: "/api/outbox" });
+  assert.deepEqual(afterRetry.json(), { items: [] });
+
+  // Trying to retry the now-pending row returns 409 (the FSM guard).
+  const conflictResponse = await app.inject({
+    method: "POST",
+    url: `/api/outbox/${item.id}/retry`,
+  });
+  assert.equal(conflictResponse.statusCode, 409);
+
+  // Unknown id → 404.
+  const unknownResponse = await app.inject({
+    method: "POST",
+    url: "/api/outbox/this-id-does-not-exist/retry",
+  });
+  assert.equal(unknownResponse.statusCode, 404);
+
+  // Bad id shape → 400 (the panel must never reach the store with junk).
+  const badIdResponse = await app.inject({
+    method: "POST",
+    url: "/api/outbox/has%20a%20space/retry",
+  });
+  assert.equal(badIdResponse.statusCode, 400);
+
+  await app.close();
+});
+
 test("createApp exposes audio streaming, delete, and restore routes for mirrored recordings", async () => {
   const { mkdir, writeFile } = await import("node:fs/promises");
 

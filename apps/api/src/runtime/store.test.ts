@@ -64,6 +64,7 @@ test("RuntimeStore persists config, recordings, and sync summaries", async () =>
     matched: 1,
     downloaded: 1,
     delivered: 1,
+    enqueued: 0,
     skipped: 0,
     plaudTotal: 42,
     filters: {
@@ -123,6 +124,212 @@ test("RuntimeStore persists schedulerIntervalMs through saveConfig and only seed
   store.close();
 });
 
+test("RuntimeStore webhook_outbox: enqueue → claim → markDelivered round-trips and updates counters", async () => {
+  const root = await mkdtemp(join(tmpdir(), "plaud-mirror-store-outbox-"));
+  const store = new RuntimeStore({
+    dbPath: join(root, "data", "app.db"),
+    dataDir: join(root, "data"),
+    recordingsDir: join(root, "recordings"),
+    defaultSyncLimit: 100,
+  });
+
+  const payload = {
+    event: "recording.synced" as const,
+    source: "plaud-mirror" as const,
+    recording: {
+      id: "rec-1",
+      title: "Weekly sync",
+      createdAt: "2026-04-26T10:00:00.000Z",
+      localPath: "recordings/rec-1/audio.mp3",
+      format: "mp3",
+      contentType: "audio/mpeg",
+      bytesWritten: 1024,
+    },
+    sync: {
+      syncedAt: "2026-04-26T10:00:30.000Z",
+      deliveryAttempt: 1,
+      mode: "sync" as const,
+    },
+  };
+
+  const enqueued = store.enqueueOutboxItem({ recordingId: "rec-1", payload });
+  assert.equal(enqueued.state, "pending");
+  assert.equal(enqueued.attempts, 0);
+  assert.equal(enqueued.nextAttemptAt, null);
+  assert.equal(enqueued.recordingId, "rec-1");
+
+  // Counters reflect the pending item. Use a definitively-future "now" so
+  // oldestPendingAgeMs is positive.
+  const beforeClaim = store.getOutboxHealth(new Date(Date.now() + 60_000));
+  assert.equal(beforeClaim.pending, 1);
+  assert.equal(beforeClaim.retryWaiting, 0);
+  assert.equal(beforeClaim.permanentlyFailed, 0);
+  assert.ok(beforeClaim.oldestPendingAgeMs !== null && beforeClaim.oldestPendingAgeMs > 0);
+
+  const claimed = store.claimOutboxItem();
+  assert.ok(claimed, "the pending row should claim");
+  assert.equal(claimed.id, enqueued.id);
+  assert.equal(claimed.state, "delivering");
+
+  // Payload round-trips intact.
+  const persistedPayload = store.getOutboxPayload(enqueued.id);
+  assert.deepEqual(persistedPayload, payload);
+
+  // A second claim with the row still in 'delivering' returns null — no
+  // worker/UI race can pick the same item twice.
+  const reClaim = store.claimOutboxItem();
+  assert.equal(reClaim, null, "an in-flight delivering row must not be re-claimed");
+
+  const delivered = store.markOutboxDelivered(enqueued.id);
+  assert.equal(delivered.state, "delivered");
+  assert.equal(delivered.attempts, 1);
+
+  // Counters drop to zero (delivered is a terminal state, not counted).
+  const afterDelivered = store.getOutboxHealth();
+  assert.equal(afterDelivered.pending, 0);
+  assert.equal(afterDelivered.retryWaiting, 0);
+  assert.equal(afterDelivered.permanentlyFailed, 0);
+  assert.equal(afterDelivered.oldestPendingAgeMs, null);
+
+  store.close();
+});
+
+test("RuntimeStore webhook_outbox: markOutboxRetry transitions delivering → retry_waiting and respects nextAttemptAt", async () => {
+  const root = await mkdtemp(join(tmpdir(), "plaud-mirror-store-outbox-retry-"));
+  const store = new RuntimeStore({
+    dbPath: join(root, "data", "app.db"),
+    dataDir: join(root, "data"),
+    recordingsDir: join(root, "recordings"),
+    defaultSyncLimit: 100,
+  });
+
+  const item = store.enqueueOutboxItem({
+    recordingId: "rec-2",
+    payload: makeMinimalPayload("rec-2"),
+  });
+  store.claimOutboxItem();
+
+  const future = new Date("2026-04-26T11:00:00.000Z");
+  const afterRetry = store.markOutboxRetry(item.id, future, "boom");
+  assert.equal(afterRetry.state, "retry_waiting");
+  assert.equal(afterRetry.attempts, 1);
+  assert.equal(afterRetry.nextAttemptAt, future.toISOString());
+  assert.equal(afterRetry.lastError, "boom");
+
+  // claimOutboxItem must NOT pick a retry_waiting row whose nextAttemptAt
+  // is still in the future.
+  const tooEarly = store.claimOutboxItem(new Date("2026-04-26T10:30:00.000Z"));
+  assert.equal(tooEarly, null);
+
+  // After the deadline passes, the same row is claimable again.
+  const due = store.claimOutboxItem(new Date("2026-04-26T11:00:01.000Z"));
+  assert.ok(due, "row must be claimable once nextAttemptAt has passed");
+  assert.equal(due.id, item.id);
+  assert.equal(due.state, "delivering");
+
+  // Failing again bumps attempts to 2 (it's the second delivery attempt
+  // by the worker; the count tracks attempts executed, not retries
+  // scheduled).
+  const failedAgain = store.markOutboxRetry(item.id, new Date("2026-04-26T12:00:00.000Z"), "boom2");
+  assert.equal(failedAgain.attempts, 2);
+
+  store.close();
+});
+
+test("RuntimeStore webhook_outbox: markOutboxPermanentlyFailed terminal + forceOutboxRetry recovers it", async () => {
+  const root = await mkdtemp(join(tmpdir(), "plaud-mirror-store-outbox-perm-"));
+  const store = new RuntimeStore({
+    dbPath: join(root, "data", "app.db"),
+    dataDir: join(root, "data"),
+    recordingsDir: join(root, "recordings"),
+    defaultSyncLimit: 100,
+  });
+
+  const item = store.enqueueOutboxItem({
+    recordingId: "rec-3",
+    payload: makeMinimalPayload("rec-3"),
+  });
+  store.claimOutboxItem();
+  const failed = store.markOutboxPermanentlyFailed(item.id, "max attempts exhausted");
+  assert.equal(failed.state, "permanently_failed");
+  assert.equal(failed.lastError, "max attempts exhausted");
+  assert.equal(failed.nextAttemptAt, null);
+
+  // Counters now reflect a permanently failed item, not pending or retry_waiting.
+  const counts = store.getOutboxHealth();
+  assert.equal(counts.permanentlyFailed, 1);
+  assert.equal(counts.pending, 0);
+  assert.equal(counts.retryWaiting, 0);
+
+  // listFailedOutboxItems surfaces the failed item.
+  const failedList = store.listFailedOutboxItems();
+  assert.equal(failedList.length, 1);
+  assert.equal(failedList[0]?.id, item.id);
+
+  // Worker tick must NOT re-claim a permanently_failed row.
+  assert.equal(store.claimOutboxItem(), null);
+
+  // forceOutboxRetry from the panel resets attempts and re-arms it as pending.
+  const recovered = store.forceOutboxRetry(item.id);
+  assert.equal(recovered.state, "pending");
+  assert.equal(recovered.attempts, 0);
+  assert.equal(recovered.lastError, null);
+
+  // After recovery, the worker can claim it again.
+  const reClaim = store.claimOutboxItem();
+  assert.ok(reClaim);
+  assert.equal(reClaim.id, item.id);
+  assert.equal(reClaim.state, "delivering");
+
+  store.close();
+});
+
+test("RuntimeStore webhook_outbox: forceOutboxRetry rejects items that are not permanently_failed", async () => {
+  const root = await mkdtemp(join(tmpdir(), "plaud-mirror-store-outbox-reject-"));
+  const store = new RuntimeStore({
+    dbPath: join(root, "data", "app.db"),
+    dataDir: join(root, "data"),
+    recordingsDir: join(root, "recordings"),
+    defaultSyncLimit: 100,
+  });
+
+  const pending = store.enqueueOutboxItem({
+    recordingId: "rec-4",
+    payload: makeMinimalPayload("rec-4"),
+  });
+
+  assert.throws(() => store.forceOutboxRetry(pending.id), /not in 'permanently_failed' state/);
+
+  store.claimOutboxItem();
+  assert.throws(() => store.forceOutboxRetry(pending.id), /not in 'permanently_failed' state/);
+
+  store.markOutboxDelivered(pending.id);
+  assert.throws(() => store.forceOutboxRetry(pending.id), /not in 'permanently_failed' state/);
+
+  store.close();
+});
+
+function makeMinimalPayload(recordingId: string) {
+  return {
+    event: "recording.synced" as const,
+    source: "plaud-mirror" as const,
+    recording: {
+      id: recordingId,
+      title: `Title for ${recordingId}`,
+      createdAt: null,
+      localPath: `recordings/${recordingId}/audio.mp3`,
+      format: "mp3",
+      contentType: "audio/mpeg",
+      bytesWritten: 1024,
+    },
+    sync: {
+      syncedAt: "2026-04-26T10:00:00.000Z",
+      deliveryAttempt: 1,
+      mode: "sync" as const,
+    },
+  };
+}
+
 test("RuntimeStore splits last completed run from active running run", async () => {
   const root = await mkdtemp(join(tmpdir(), "plaud-mirror-store-active-"));
   const store = new RuntimeStore({
@@ -143,6 +350,7 @@ test("RuntimeStore splits last completed run from active running run", async () 
     matched: 5,
     downloaded: 5,
     delivered: 0,
+    enqueued: 0,
     skipped: 0,
     plaudTotal: 308,
     filters: { limit: 5, forceDownload: false },
@@ -176,6 +384,7 @@ test("RuntimeStore splits last completed run from active running run", async () 
     matched: 25,
     downloaded: 25,
     delivered: 0,
+    enqueued: 0,
     skipped: 0,
     plaudTotal: 308,
     filters: { limit: 25, forceDownload: false },

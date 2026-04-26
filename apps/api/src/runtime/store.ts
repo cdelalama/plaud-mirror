@@ -7,17 +7,22 @@ import Database from "better-sqlite3";
 import {
   AuthStatusSchema,
   DeviceSchema,
+  OutboxItemSchema,
   RecordingMirrorSchema,
   RuntimeConfigSchema,
   SyncFiltersSchema,
   SyncRunSummarySchema,
   type AuthStatus,
   type Device,
+  type OutboxHealth,
+  type OutboxItem,
+  type OutboxState,
   type RecordingMirror,
   type RuntimeConfig,
   type SyncFilters,
   type SyncRunMode,
   type SyncRunSummary,
+  type WebhookPayload,
 } from "@plaud-mirror/shared";
 
 interface SyncRunRow {
@@ -31,6 +36,7 @@ interface SyncRunRow {
   matched: number;
   downloaded: number;
   delivered: number;
+  enqueued: number;
   skipped: number;
   plaud_total: number | null;
   error_message: string | null;
@@ -55,7 +61,7 @@ interface RecordingRow {
   content_type: string | null;
   bytes_written: number;
   mirrored_at: string | null;
-  last_webhook_status: "skipped" | "success" | "failed" | null;
+  last_webhook_status: "skipped" | "queued" | "success" | "failed" | null;
   last_webhook_attempt_at: string | null;
   dismissed: number;
   dismissed_at: string | null;
@@ -457,9 +463,10 @@ export class RuntimeStore {
         matched,
         downloaded,
         delivered,
+        enqueued,
         skipped,
         error_message
-      ) VALUES (?, ?, 'running', ?, ?, NULL, 0, 0, 0, 0, 0, NULL)
+      ) VALUES (?, ?, 'running', ?, ?, NULL, 0, 0, 0, 0, 0, 0, NULL)
     `).run(id, mode, JSON.stringify(filters), startedAt);
 
     return { id, startedAt };
@@ -477,6 +484,7 @@ export class RuntimeStore {
         matched = ?,
         downloaded = ?,
         delivered = ?,
+        enqueued = ?,
         skipped = ?,
         plaud_total = ?,
         error_message = ?
@@ -489,6 +497,7 @@ export class RuntimeStore {
       normalized.matched,
       normalized.downloaded,
       normalized.delivered,
+      normalized.enqueued,
       normalized.skipped,
       normalized.plaudTotal,
       normalized.error,
@@ -515,6 +524,7 @@ export class RuntimeStore {
         matched,
         downloaded,
         delivered,
+        enqueued,
         skipped,
         plaud_total,
         error_message
@@ -546,6 +556,7 @@ export class RuntimeStore {
         matched,
         downloaded,
         delivered,
+        enqueued,
         skipped,
         plaud_total,
         error_message
@@ -575,6 +586,7 @@ export class RuntimeStore {
         matched,
         downloaded,
         delivered,
+        enqueued,
         skipped,
         plaud_total,
         error_message
@@ -589,7 +601,7 @@ export class RuntimeStore {
   // status, finished_at, or error_message — those are owned by finishSyncRun.
   updateSyncRunProgress(
     id: string,
-    progress: { examined?: number; matched?: number; downloaded?: number; delivered?: number; skipped?: number; plaudTotal?: number },
+    progress: { examined?: number; matched?: number; downloaded?: number; delivered?: number; enqueued?: number; skipped?: number; plaudTotal?: number },
   ): void {
     const sets: string[] = [];
     const values: Array<number> = [];
@@ -597,6 +609,7 @@ export class RuntimeStore {
     if (progress.matched !== undefined) { sets.push("matched = ?"); values.push(progress.matched); }
     if (progress.downloaded !== undefined) { sets.push("downloaded = ?"); values.push(progress.downloaded); }
     if (progress.delivered !== undefined) { sets.push("delivered = ?"); values.push(progress.delivered); }
+    if (progress.enqueued !== undefined) { sets.push("enqueued = ?"); values.push(progress.enqueued); }
     if (progress.skipped !== undefined) { sets.push("skipped = ?"); values.push(progress.skipped); }
     if (progress.plaudTotal !== undefined) { sets.push("plaud_total = ?"); values.push(progress.plaudTotal); }
     if (sets.length === 0) {
@@ -639,6 +652,203 @@ export class RuntimeStore {
     return row.count;
   }
 
+  // ─── Webhook outbox (D-013, v0.5.3) ───────────────────────────────────
+
+  /**
+   * Insert a new payload into the outbox in `pending` state. Returns the
+   * row that was inserted (with its generated id and timestamps) so the
+   * caller can log it or surface the id for tests.
+   */
+  enqueueOutboxItem(input: { recordingId: string; payload: WebhookPayload }): OutboxItem {
+    const now = new Date().toISOString();
+    const id = randomUUID();
+    this.db.prepare(`
+      INSERT INTO webhook_outbox (id, recording_id, payload_json, state, attempts, next_attempt_at, last_error, created_at, updated_at)
+      VALUES (?, ?, ?, 'pending', 0, NULL, NULL, ?, ?)
+    `).run(id, input.recordingId, JSON.stringify(input.payload), now, now);
+    return this.requireOutboxItem(id);
+  }
+
+  /**
+   * Atomically claim the next deliverable item: the oldest row in
+   * `pending` or `retry_waiting` whose `next_attempt_at` (when set) has
+   * passed. Returns null when the queue is empty or no row is yet due.
+   *
+   * The transition `→ delivering` is wrapped in a single UPDATE-by-id
+   * with a state guard so two concurrent claims (e.g. a tick + a manual
+   * UI retry) cannot both pick the same row.
+   */
+  claimOutboxItem(now: Date = new Date()): OutboxItem | null {
+    const candidate = this.db.prepare(`
+      SELECT id, state FROM webhook_outbox
+      WHERE state IN ('pending','retry_waiting')
+        AND (next_attempt_at IS NULL OR next_attempt_at <= ?)
+      ORDER BY datetime(COALESCE(next_attempt_at, created_at)) ASC, created_at ASC
+      LIMIT 1
+    `).get(now.toISOString()) as { id: string; state: string } | undefined;
+    if (!candidate) {
+      return null;
+    }
+
+    const result = this.db.prepare(`
+      UPDATE webhook_outbox
+      SET state = 'delivering', updated_at = ?
+      WHERE id = ? AND state = ?
+    `).run(now.toISOString(), candidate.id, candidate.state);
+    if (result.changes === 0) {
+      // Lost the race — another claimant flipped the row first.
+      return null;
+    }
+    return this.requireOutboxItem(candidate.id);
+  }
+
+  /** Mark a `delivering` row as `delivered`. Increments `attempts`. */
+  markOutboxDelivered(id: string): OutboxItem {
+    const now = new Date().toISOString();
+    const result = this.db.prepare(`
+      UPDATE webhook_outbox
+      SET state = 'delivered',
+          attempts = attempts + 1,
+          next_attempt_at = NULL,
+          last_error = NULL,
+          updated_at = ?
+      WHERE id = ? AND state = 'delivering'
+    `).run(now, id);
+    if (result.changes === 0) {
+      throw new Error(`webhook_outbox ${id} is not in 'delivering' state`);
+    }
+    return this.requireOutboxItem(id);
+  }
+
+  /**
+   * Mark a `delivering` row as `retry_waiting` with the next-attempt
+   * deadline applied. Bumps `attempts`. The caller decides the deadline
+   * (the worker computes it from the backoff schedule based on the new
+   * attempt count).
+   */
+  markOutboxRetry(id: string, nextAttemptAt: Date, errorMessage: string): OutboxItem {
+    const now = new Date().toISOString();
+    const result = this.db.prepare(`
+      UPDATE webhook_outbox
+      SET state = 'retry_waiting',
+          attempts = attempts + 1,
+          next_attempt_at = ?,
+          last_error = ?,
+          updated_at = ?
+      WHERE id = ? AND state = 'delivering'
+    `).run(nextAttemptAt.toISOString(), errorMessage, now, id);
+    if (result.changes === 0) {
+      throw new Error(`webhook_outbox ${id} is not in 'delivering' state`);
+    }
+    return this.requireOutboxItem(id);
+  }
+
+  /** Mark a `delivering` row as `permanently_failed`. */
+  markOutboxPermanentlyFailed(id: string, errorMessage: string): OutboxItem {
+    const now = new Date().toISOString();
+    const result = this.db.prepare(`
+      UPDATE webhook_outbox
+      SET state = 'permanently_failed',
+          attempts = attempts + 1,
+          next_attempt_at = NULL,
+          last_error = ?,
+          updated_at = ?
+      WHERE id = ? AND state = 'delivering'
+    `).run(errorMessage, now, id);
+    if (result.changes === 0) {
+      throw new Error(`webhook_outbox ${id} is not in 'delivering' state`);
+    }
+    return this.requireOutboxItem(id);
+  }
+
+  /**
+   * Force a `permanently_failed` row back into `pending` so the worker
+   * re-attempts delivery on its next tick. Resets `attempts` to 0 and
+   * clears `last_error`. Throws if the row is in any other state — the
+   * UI must not be able to retry an in-flight or already-delivered item.
+   */
+  forceOutboxRetry(id: string): OutboxItem {
+    const now = new Date().toISOString();
+    const result = this.db.prepare(`
+      UPDATE webhook_outbox
+      SET state = 'pending',
+          attempts = 0,
+          next_attempt_at = ?,
+          last_error = NULL,
+          updated_at = ?
+      WHERE id = ? AND state = 'permanently_failed'
+    `).run(now, now, id);
+    if (result.changes === 0) {
+      throw new Error(`webhook_outbox ${id} is not in 'permanently_failed' state (force-retry rejected)`);
+    }
+    return this.requireOutboxItem(id);
+  }
+
+  /** Live counters for `/api/health.outbox`. */
+  getOutboxHealth(now: Date = new Date()): OutboxHealth {
+    const counts = this.db.prepare(`
+      SELECT state, COUNT(*) AS count FROM webhook_outbox
+      WHERE state IN ('pending','retry_waiting','permanently_failed')
+      GROUP BY state
+    `).all() as Array<{ state: string; count: number }>;
+    const byState = new Map(counts.map((row) => [row.state, row.count]));
+
+    const oldestRow = this.db.prepare(`
+      SELECT MIN(created_at) AS oldest FROM webhook_outbox
+      WHERE state IN ('pending','retry_waiting')
+    `).get() as { oldest: string | null } | undefined;
+    const oldestPendingAgeMs = oldestRow?.oldest
+      ? Math.max(0, now.getTime() - new Date(oldestRow.oldest).getTime())
+      : null;
+
+    return {
+      pending: byState.get("pending") ?? 0,
+      retryWaiting: byState.get("retry_waiting") ?? 0,
+      permanentlyFailed: byState.get("permanently_failed") ?? 0,
+      oldestPendingAgeMs,
+    };
+  }
+
+  /**
+   * Return all `permanently_failed` rows so the panel can render them
+   * with a "Retry" button. Newest-first so a flaky downstream that just
+   * gave up shows up at the top.
+   */
+  listFailedOutboxItems(): OutboxItem[] {
+    const rows = this.db.prepare(`
+      SELECT id, recording_id, state, attempts, next_attempt_at, last_error, created_at, updated_at
+      FROM webhook_outbox
+      WHERE state = 'permanently_failed'
+      ORDER BY updated_at DESC
+    `).all() as OutboxRowWithoutPayload[];
+    return rows.map((row) => mapOutboxRow(row));
+  }
+
+  /** Read the payload for an item that the worker is about to deliver. */
+  getOutboxPayload(id: string): WebhookPayload | null {
+    const row = this.db.prepare(`
+      SELECT payload_json FROM webhook_outbox WHERE id = ?
+    `).get(id) as { payload_json: string } | undefined;
+    return row ? (JSON.parse(row.payload_json) as WebhookPayload) : null;
+  }
+
+  /** Test/diagnostic accessor; not used by production runtime. */
+  getOutboxItem(id: string): OutboxItem | null {
+    const row = this.db.prepare(`
+      SELECT id, recording_id, state, attempts, next_attempt_at, last_error, created_at, updated_at
+      FROM webhook_outbox WHERE id = ?
+    `).get(id) as OutboxRowWithoutPayload | undefined;
+    return row ? mapOutboxRow(row) : null;
+  }
+
+  private requireOutboxItem(id: string): OutboxItem {
+    const item = this.getOutboxItem(id);
+    if (!item) {
+      throw new Error(`webhook_outbox ${id} disappeared between write and read`);
+    }
+    return item;
+  }
+
   private migrate(): void {
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS settings (
@@ -675,6 +885,7 @@ export class RuntimeStore {
         matched INTEGER NOT NULL DEFAULT 0,
         downloaded INTEGER NOT NULL DEFAULT 0,
         delivered INTEGER NOT NULL DEFAULT 0,
+        enqueued INTEGER NOT NULL DEFAULT 0,
         skipped INTEGER NOT NULL DEFAULT 0,
         plaud_total INTEGER,
         error_message TEXT
@@ -698,6 +909,29 @@ export class RuntimeStore {
         payload_json TEXT NOT NULL,
         attempted_at TEXT NOT NULL
       );
+
+      -- Durable webhook outbox (D-013, v0.5.3). Each row is a payload
+      -- pending delivery. The worker walks pending + retry_waiting rows
+      -- whose next_attempt_at is due, claims one atomically, retries with
+      -- exponential backoff, and either delivers it or escalates to
+      -- permanently_failed after 8 attempts. webhook_deliveries stays as
+      -- the append-only audit log (every attempt records there); this
+      -- table holds the live retry state.
+      CREATE TABLE IF NOT EXISTS webhook_outbox (
+        id TEXT PRIMARY KEY,
+        recording_id TEXT NOT NULL,
+        payload_json TEXT NOT NULL,
+        state TEXT NOT NULL CHECK (state IN ('pending','delivering','delivered','retry_waiting','permanently_failed')),
+        attempts INTEGER NOT NULL DEFAULT 0,
+        next_attempt_at TEXT,
+        last_error TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_webhook_outbox_state_next
+        ON webhook_outbox (state, next_attempt_at);
+      CREATE INDEX IF NOT EXISTS idx_webhook_outbox_recording
+        ON webhook_outbox (recording_id);
     `);
 
     // Additive migration for pre-0.4.0 databases that predate the dismissed columns.
@@ -718,6 +952,11 @@ export class RuntimeStore {
     const syncRunColumnNames = new Set(syncRunColumns.map((column) => column.name));
     if (!syncRunColumnNames.has("plaud_total")) {
       this.db.exec("ALTER TABLE sync_runs ADD COLUMN plaud_total INTEGER");
+    }
+    // Additive migration for pre-0.5.3 databases that predate the
+    // outbox-driven `enqueued` counter.
+    if (!syncRunColumnNames.has("enqueued")) {
+      this.db.exec("ALTER TABLE sync_runs ADD COLUMN enqueued INTEGER NOT NULL DEFAULT 0");
     }
   }
 
@@ -746,6 +985,30 @@ export class RuntimeStore {
   private setJsonSetting(key: string, value: unknown): void {
     this.setSetting(key, JSON.stringify(value));
   }
+}
+
+interface OutboxRowWithoutPayload {
+  id: string;
+  recording_id: string;
+  state: string;
+  attempts: number;
+  next_attempt_at: string | null;
+  last_error: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+function mapOutboxRow(row: OutboxRowWithoutPayload): OutboxItem {
+  return OutboxItemSchema.parse({
+    id: row.id,
+    recordingId: row.recording_id,
+    state: row.state as OutboxState,
+    attempts: row.attempts,
+    nextAttemptAt: row.next_attempt_at,
+    lastError: row.last_error,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  });
 }
 
 function mapDeviceRow(row: DeviceRow): Device {
@@ -789,6 +1052,7 @@ function mapSyncRunRow(row: SyncRunRow): SyncRunSummary {
     matched: row.matched,
     downloaded: row.downloaded,
     delivered: row.delivered,
+    enqueued: row.enqueued ?? 0,
     skipped: row.skipped,
     plaudTotal: row.plaud_total,
     filters: SyncFiltersSchema.parse(JSON.parse(row.filters_json)),
