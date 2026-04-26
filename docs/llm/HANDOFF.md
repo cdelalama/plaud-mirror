@@ -5,8 +5,9 @@ This file is the live operational snapshot. Durable rationale lives in `docs/llm
 
 ## Current Status
 
-- Last Updated: 2026-04-25 - Claude Opus 4.7
-- Session Focus: `v0.5.2` adds **panel-driven scheduler configuration**. The user explicitly asked for the scheduler to be configurable from the UI ("no me interesa que esté en el .env"), so the scheduler interval moves from "env-var only" to "persisted in SQLite, settable via `PUT /api/config`, hot-applied with no restart." The env var is downgraded to a one-time seed for fresh installs. Tercer roadmap shift en `0.5.x`: outbox (D-013) → `v0.5.3`, full health (D-014) → `v0.5.4`.
+- Last Updated: 2026-04-26 - Claude Opus 4.7
+- Session Focus: Doc-only sweep after an external review flagged drift the same day `v0.5.2` shipped: README.md still listed continuous sync as a "later phase," and HANDOFF's Top Priorities + What Is Still Not Verified + Roadmap Boundary sections still cited the old `v0.5.1` / `v0.5.2` outbox mapping (now `v0.5.3` / `v0.5.4`). Doc-only commit (no VERSION bump per `docs/VERSIONING_RULES.md` exclusion list). Pattern recognized: post-`bump-version.sh` sweep must read prose line-by-line, not trust that "marker updated" means "doc up to date" — the `feedback_prose_version_drift` auto-memory rule extended now to README and HANDOFF Top Priorities. Previous Session Focus (`v0.5.2` panel-driven scheduler) preserved verbatim below for historical continuity.
+- Session Focus (v0.5.2 release, 2026-04-25): `v0.5.2` adds **panel-driven scheduler configuration**. The user explicitly asked for the scheduler to be configurable from the UI ("no me interesa que esté en el .env"), so the scheduler interval moves from "env-var only" to "persisted in SQLite, settable via `PUT /api/config`, hot-applied with no restart." The env var is downgraded to a one-time seed for fresh installs. Tercer roadmap shift en `0.5.x`: outbox (D-013) → `v0.5.3`, full health (D-014) → `v0.5.4`.
 - Status: `v0.5.2` shipped. Code: new module `apps/api/src/runtime/scheduler-manager.ts` with `SchedulerManager.applyInterval(ms)` (start / stop / swap-cadence in place, idempotent for unchanged values, throws below the 60 000 ms floor); `RuntimeConfig.schedulerIntervalMs` and `UpdateRuntimeConfigRequest.schedulerIntervalMs?` added to the shared schema (`.default(0)` so older clients still parse); `RuntimeStore.seedSchedulerDefaults(ms)` writes the env-var bootstrap value only when the SQLite row is absent; `RuntimeStore.saveConfig` accepts the new field and persists via the existing `settings` key/value table; `service.updateConfig` validates the floor at the request boundary (HTTP 400 for sub-floor positives), persists, then calls a new reconfigure hook so the live `Scheduler` is started / stopped / swapped via the manager; `service.setSchedulerReconfigureHook(fn)` mirrors `setSchedulerStatusProvider`; `apps/api/src/server.ts` now constructs a `SchedulerManager` unconditionally, wires both hooks, and applies the persisted interval after `service.initialize()` (env-var seed runs first); the inline `Scheduler` instantiation in `createApp` is gone. Web: new "Continuous sync scheduler" card on the Configuration tab with a live status block (state, interval, next/last tick, last reason) and a form (`Interval (minutes, 0 disables)`); helpers `formatSchedulerInput` / `parseSchedulerInput` round-trip minutes ↔ ms; `handleSaveScheduler` posts to `PUT /api/config { schedulerIntervalMs }`. Tests: 9 new (1 store round-trip + seed-only-once, 7 in the new `scheduler-manager.test.ts`, 1 service `updateConfig`). Test totals: **102** (91 backend + 11 web), up from 93 at `v0.5.1`. Doc sweep: CHANGELOG `[0.5.2]` filled (Added/Changed/Notes); ROADMAP "Current target" → `v0.5.2` and entry note rewritten to mention panel-driven config + push outbox to `v0.5.3` and full-health to `v0.5.4`; PROJECT_CONTEXT current-status rewritten to lead with the panel UX win; ARCHITECTURE status header + "What Phase 3 Adds" / "Continuous sync scheduler" / "Next Architectural Step" all updated to describe the SchedulerManager + SQLite-as-source-of-truth flow + the env var as a one-time seed; AUTH_AND_SYNC env-var matrix replaced with a unified value matrix that applies regardless of source (panel or seed) plus an explicit "to take an existing install back to disabled, set the value to 0 in the panel — removing the env var no longer changes anything" warning; API_CONTRACT route table + `PUT /api/config` example + Phase Boundary Note all updated; HOW_TO_USE "Configuring the scheduler" rewritten to lead with panel steps and demote env-var to "Optional: bootstrap from the env var" subsection; test count bumped to 102 with breakdown. HANDOFF / LLM_START_HERE kept in sync. Next session: `v0.5.3` for the durable webhook outbox per D-013.
 
 ## What Landed
@@ -59,15 +60,15 @@ This is now verified on the actual `dev-vm`, not assumed.
 ## What Is Still Not Verified
 
 - **Real webhook delivery against a live downstream receiver.** No webhook URL has been configured in this environment yet; all recordings carry `lastWebhookStatus: "skipped"` because the service short-circuits when no URL is set. Once a receiver exists, confirm HMAC signature verification and persisted delivery attempts end-to-end.
-- **Multi-day scheduler-driven unattended behavior.** The scheduler module ships in `v0.5.0` and is covered by 7 deterministic tests, but no live multi-day soak run has been measured yet. Once an operator sets `PLAUD_MIRROR_SCHEDULER_INTERVAL_MS` on the running container, observe the `health.scheduler` block over several ticks before declaring "unattended on `dev-vm` works."
-- **Durable webhook outbox.** Still not implemented (D-013, scheduled for `v0.5.1`). A failed webhook delivery still requires the operator to re-trigger sync; the persisted attempt log captures the failure but does not retry.
-- **Full health observability.** `lastErrors` ring buffer and outbox backlog counters are not yet on `/api/health` (D-014, scheduled for `v0.5.2`).
+- **Multi-day scheduler-driven unattended behavior.** The scheduler ships in `v0.5.0` (regressed), `v0.5.1` (regressions fixed), and `v0.5.2` (panel-driven config). Backed by 18 deterministic tests across `scheduler.test.ts`, `scheduler-manager.test.ts`, `environment.test.ts`, and the relevant `service.test.ts` cases, but no live multi-day soak run has been measured yet. Once an operator sets a non-zero interval from the panel, observe the `health.scheduler` block over several ticks before declaring "unattended on `dev-vm` works."
+- **Durable webhook outbox.** Still not implemented (D-013, scheduled for `v0.5.3`). A failed webhook delivery still requires the operator to re-trigger sync; the persisted attempt log captures the failure but does not retry.
+- **Full health observability.** `lastErrors` ring buffer and outbox backlog counters are not yet on `/api/health` (D-014, scheduled for `v0.5.4`).
 - **Automatic re-login.** Phase 4. No code yet.
 - **Multi-day stability.** The service has been restarted many times across sessions; no long uninterrupted run has been measured.
 
 ## Roadmap Boundary
 
-- This work moves the project into **Phase 3** from [docs/ROADMAP.md](../ROADMAP.md). `v0.5.0` ships the scheduler subset (D-012, D-014 partial); the remaining Phase 3 increments are tracked: durable webhook outbox (D-013 → `v0.5.1`) and full health observability (D-014 full → `v0.5.2`).
+- The project is in **Phase 3** per [docs/ROADMAP.md](../ROADMAP.md). `v0.5.0` introduced the scheduler but regressed; `v0.5.1` fixed the regressions; `v0.5.2` added panel-driven configuration. The remaining Phase 3 increments are tracked: durable webhook outbox (D-013 → `v0.5.3`) and full health observability (D-014 full → `v0.5.4`).
 - Phase 4+ scope is still untouched: no automatic re-login, no resumable backfill, no NAS validation, no public OSS polish.
 - Working-tree cleanliness and validator status are not asserted here — they age badly. Run `git status` and `scripts/dockit-validate-session.sh --human` for the current fact.
 
@@ -84,11 +85,11 @@ The six items GPT-5 flagged in the 2026-04-23 review are closed:
 
 ## Top Priorities
 
-1. Run the Phase 2 stack on `dev-vm` with a real Plaud token and validate the full UI flow. Backend schema still accepts `scene` for programmatic callers; the UI now hides it.
-2. Confirm that filtered backfill works against real Plaud metadata, especially `serialNumber` and date-range filters (these are the filters the UI surfaces).
-3. Confirm webhook delivery against the real downstream target.
-4. Create the Doppler project `plaud-mirror` before moving past `dev-vm`.
-5. Start Phase 3 only after the live Phase 2 validation is documented.
+1. Live-soak the scheduler from the panel: set 15 min, observe `health.scheduler.lastTickAt` advancing for several ticks, confirm a manual sync mid-tick is recorded as `lastTickStatus = "skipped"` with a useful `lastTickError` reason.
+2. Confirm webhook delivery against a real downstream target (still untested in this environment because no webhook URL has been configured).
+3. Ship `v0.5.3` (D-013, durable webhook outbox) — pushed back twice already, this is the next minor.
+4. Ship `v0.5.4` (D-014 full, `lastErrors` ring buffer + outbox backlog on `/api/health`) right after the outbox lands.
+5. Create the Doppler project `plaud-mirror` before moving past `dev-vm`.
 
 ## Open Questions
 

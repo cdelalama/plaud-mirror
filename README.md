@@ -9,7 +9,7 @@ Self-hosted Plaud audio mirror with a local web panel, manual sync/backfill cont
 
 Plaud Mirror is an operator-run service for mirroring Plaud recordings into local storage and notifying downstream systems through a generic webhook. It is intentionally audio-first: it validates auth, lists recordings, downloads the original artifact, stores it in a predictable layout, and hands off the result.
 
-The repository now contains the extended Phase 2 slice:
+The repository now contains the full Phase 2 slice plus the Phase 3 scheduler subset (operator-controllable from the web panel since v0.5.2):
 
 - Fastify admin API
 - React/Vite web panel
@@ -21,9 +21,10 @@ The repository now contains the extended Phase 2 slice:
 - classic pagination and inline audio player with HTTP Range support
 - local-only dismiss and restore (Plaud itself is never mutated)
 - immediate HMAC-signed webhook delivery with persisted delivery attempts
+- **opt-in continuous sync scheduler** configured from the Configuration tab of the panel (interval in minutes, `0` disables, hot-applied without container restart); status surfaced via the `scheduler` block on `/api/health`
 - Docker packaging for `dev-vm`, running as non-root `USER 1000:1000`
 
-Continuous sync, resumable backfill, retry outbox, and automatic re-login are explicitly later phases.
+Resumable backfill, durable retry outbox (next: v0.5.3), full health observability with `lastErrors` ring buffer (next: v0.5.4), and automatic re-login are explicitly later phases.
 
 ## Operator Posture
 
