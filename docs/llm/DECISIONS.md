@@ -254,61 +254,99 @@ The interval-from-boot semantics (rather than absolute-cadence wall-clock) is de
 
 ## D-013 - Webhook outbox is a separate SQLite table with explicit state transitions
 
-**Status:** accepted (designed; implementation lands during Phase 3)
+**Status:** accepted; **implemented in v0.5.3** (`apps/api/src/runtime/outbox-worker.ts`, `apps/api/src/runtime/store.ts` `webhook_outbox` methods, `GET /api/outbox` + `POST /api/outbox/:id/retry` in `apps/api/src/server.ts`).
 
 ### Decision
 
-The Phase 3 webhook outbox is a **new SQLite table** (`webhook_outbox`), not an extension of the existing `webhook_deliveries` table or of `sync_runs`. The new table tracks pending/in-flight delivery state; `webhook_deliveries` continues to log every attempt as an audit trail.
+The Phase 3 webhook outbox is a **new SQLite table** (`webhook_outbox`), not an extension of the existing `webhook_deliveries` table or of `sync_runs`. The new table tracks pending/in-flight delivery state; `webhook_deliveries` continues to log every attempt as an append-only audit trail.
 
-Schema (additive migration, no destructive changes):
+Schema (additive migration, no destructive changes; final shipped form in `apps/api/src/runtime/store.ts`):
 
 ```sql
 CREATE TABLE IF NOT EXISTS webhook_outbox (
-  id            TEXT PRIMARY KEY,           -- UUID
-  recording_id  TEXT NOT NULL,              -- FK to recordings.id (per D-006)
-  payload_json  TEXT NOT NULL,              -- the signed payload at enqueue time
-  state         TEXT NOT NULL,              -- 'pending' | 'delivering' | 'delivered' | 'retry_waiting' | 'permanently_failed'
-  attempt_count INTEGER NOT NULL DEFAULT 0,
-  next_attempt_at TEXT,                     -- ISO timestamp; null for delivered/permanently_failed
-  last_error    TEXT,                       -- last HTTP status / error message snippet
-  created_at    TEXT NOT NULL,
-  updated_at    TEXT NOT NULL
+  id              TEXT PRIMARY KEY,         -- UUID via crypto.randomUUID()
+  recording_id    TEXT NOT NULL,            -- FK (logical) to recordings.id (per D-006)
+  payload_json    TEXT NOT NULL,            -- payload captured at enqueue time; signature is NOT cached, see Implications
+  state           TEXT NOT NULL CHECK (state IN ('pending','delivering','delivered','retry_waiting','permanently_failed')),
+  attempts        INTEGER NOT NULL DEFAULT 0,
+  next_attempt_at TEXT,                     -- ISO timestamp; null for delivered / permanently_failed / freshly-pending
+  last_error      TEXT,                     -- last HTTP status / error message
+  created_at      TEXT NOT NULL,
+  updated_at      TEXT NOT NULL
 );
+CREATE INDEX IF NOT EXISTS idx_webhook_outbox_state_next ON webhook_outbox (state, next_attempt_at);
+CREATE INDEX IF NOT EXISTS idx_webhook_outbox_recording  ON webhook_outbox (recording_id);
 ```
 
-State machine:
+(The original D-013 draft named the column `attempt_count`; the shipped column is `attempts`. Column name is internal; no contract impact.)
+
+State machine (shipped):
 
 ```
        enqueue
          ↓
-      pending ──(picked up)──→ delivering ──(2xx)──→ delivered  [terminal]
-                                  │
-                                  ├──(failure, attempt_count < max)──→ retry_waiting ──(next_attempt_at reached)──→ pending
-                                  │
-                                  └──(failure, attempt_count == max)──→ permanently_failed  [terminal]
+      pending ──(claim)──→ delivering ──(2xx)──→ delivered  [terminal]
+         ▲                     │
+         │                     ├──(failure, attempts < OUTBOX_MAX_ATTEMPTS)──→ retry_waiting ──(next_attempt_at reached, claim)──→ delivering
+         │                     │
+   force-retry from UI         └──(failure, attempts >= OUTBOX_MAX_ATTEMPTS)──→ permanently_failed  [terminal until force-retry]
+         │
+   permanently_failed
 ```
 
-Retry policy: exponential backoff with jitter, capped. Default schedule (configurable via env): `30s, 2m, 10m, 1h, 6h`. After the 5th failure, transitions to `permanently_failed` and operator must intervene (manual retry button in panel, or DELETE the outbox row).
+Retry policy (shipped, **revised from the original draft**):
+
+```ts
+// apps/api/src/runtime/outbox-worker.ts
+export const OUTBOX_BACKOFF_SCHEDULE_MS = [
+  30_000,            // after attempt 1
+  2 * 60_000,        // after attempt 2
+  10 * 60_000,       // after attempt 3
+  30 * 60_000,       // after attempt 4
+  60 * 60_000,       // after attempt 5
+  2 * 60 * 60_000,   // after attempt 6
+  4 * 60 * 60_000,   // after attempt 7
+  8 * 60 * 60_000,   // after attempt 8
+];
+export const OUTBOX_MAX_ATTEMPTS = 8;
+```
+
+Cumulative window before escalation: ~16 hours.
+
+### Revisions from original draft
+
+The original draft (pre-implementation) specified a 5-attempt schedule (`30s, 2m, 10m, 1h, 6h`) and the endpoint `POST /api/webhook-outbox/:id/retry`. During v0.5.3 implementation, both were updated based on review feedback:
+
+- **Backoff schedule extended from 5 to 8 attempts (~7h cumulative → ~16h cumulative).** Reason: home-infra deployments typically experience overnight downstream outages (8–10 hours offline). A 7h window gave up too early — the operator would wake up to a queue full of `permanently_failed` rows that needed manual retry. 16h covers a full overnight window; the curve `30s, 2m, 10m, 30m, 1h, 2h, 4h, 8h` keeps early retries snappy for transient blips and lengthens later retries so a long outage doesn't hammer the downstream when it eventually comes back. Reviewer (GPT-5) explicitly recommended this; adopted without further changes.
+- **Endpoint renamed from `/api/webhook-outbox/:id/retry` to `/api/outbox/:id/retry`.** Reason: the new GET-list route had to live somewhere too, and `/api/outbox` reads better as a resource root than `/api/webhook-outbox` (the table name leaks into the URL otherwise). No functional difference.
+- **`GET /api/outbox` returns ONLY `permanently_failed` rows.** Pending and retry-waiting items are visible only as counters via `health.outbox` (`pending`, `retryWaiting`, `permanentlyFailed`, `oldestPendingAgeMs`). Decision driver: keep the panel focused on "what needs operator attention" and not turn it into a queue browser. If the operator needs to inspect a specific in-flight row, query SQLite directly.
+
+The original draft also implied that backoff could include "jitter" — the shipped implementation does NOT add jitter. Single-process, single-tenant home-infra deployment; no thundering-herd risk to mitigate.
 
 ### Rationale
 
 Separate table because:
 
 1. **`webhook_deliveries` is an append-only log** — every attempt creates a row. The outbox is mutable state with explicit transitions. Conflating them would force a schema change to a table whose current shape works.
-2. **Different access patterns** — outbox rows are queried by `state` and `next_attempt_at` (worker scan); delivery rows are queried by `recording_id` for audit. Indexed differently.
-3. **Different lifecycle** — delivered outbox rows can be archived or pruned after N days; delivery log rows must persist for audit indefinitely (or until configured retention).
+2. **Different access patterns** — outbox rows are queried by `(state, next_attempt_at)` (worker scan); delivery rows are queried by `recording_id` for audit. Different indices, different read patterns.
+3. **Different lifecycle** — delivered outbox rows can be archived or pruned after N days; delivery log rows must persist for audit (or until configured retention).
 
-Explicit named states (rather than booleans like `delivered=true/false`) because the state machine has FIVE distinct positions, and naming them prevents the kind of "what does `failed` mean exactly" drift that bit Mode B sync at v0.4.9 (when "skipped" was overloaded to mean three things).
+Explicit named states (rather than booleans like `delivered=true/false`) because the state machine has FIVE distinct positions, and naming them prevents the "what does `failed` mean exactly" drift that bit Mode B sync at v0.4.9.
 
 Exponential backoff over linear because the failure modes we expect (downstream receiver down, network blip, signature mismatch) all benefit from rapid early retries followed by long pauses — linear would either hammer a down receiver or wait too long on a transient error.
 
 ### Implications
 
-- `service.processRecording` no longer attempts immediate delivery as the only path. It enqueues into the outbox; a separate `webhook-worker` (driven by the same scheduler from D-012, or a dedicated worker tick) drains it.
-- The existing immediate-delivery codepath (Phase 2) becomes a special case: `outbox.enqueue + outbox.process(id)` synchronously when scheduler is disabled, async when enabled. Operators using Phase 2 mode (manual-sync only) see no behavioral change.
-- `/api/health` exposes outbox backlog count + oldest pending age (per D-014).
-- A new endpoint `POST /api/webhook-outbox/:id/retry` allows the operator to manually retry a `permanently_failed` row (resets `attempt_count` and transitions back to `pending`).
-- Backfill at scale (hundreds of recordings) creates hundreds of outbox rows in one batch. The worker processes them serially with the same backoff schedule — no parallel delivery, simplest correctness.
+- `service.processRecording` no longer attempts immediate delivery. It calls `enqueueOrSkipWebhook(recording, mode)` which inserts into `webhook_outbox` with `state = pending` and stamps `lastWebhookStatus = "queued"` on the recording row. The legacy synchronous `deliverWebhook` method is **removed** (not preserved as a fallback).
+- A new private `OutboxWorker` (`apps/api/src/runtime/outbox-worker.ts`) drives delivery. It runs an independent `Scheduler` (5-second cadence, reusing the D-012 `Scheduler` class for the timer abstraction) and is started unconditionally from `createApp` — no opt-in. When no webhook is configured, items short-circuit to `permanently_failed` inside the worker tick with `last_error = "webhook not configured"`.
+- **HMAC signature is recomputed at delivery time, not cached at enqueue time.** This means the `webhookSecret` at the moment the worker POSTs is the secret used — rotating the secret from the panel takes effect on the next worker tick for items still in the queue. Trade-off accepted: a bad-secret window exists between rotation and the next claim, during which deliveries fail with HTTP 401/403; those failures retry through the normal backoff and eventually succeed once the new secret is fully propagated.
+- **Payload IS captured at enqueue time, not recomputed**. The `payload_json` row carries the recording's state at T+0 (the moment of download). If the operator dismisses the recording between enqueue and delivery, the worker still delivers the original payload — the downstream's idempotency contract assumes that `recording.synced` describes "what happened," not "what is true now."
+- `SyncRunSummary.delivered` keeps its pre-v0.5.3 semantic (synchronous deliveries inside this run). Because synchronous delivery no longer exists, it structurally stays at 0 from v0.5.3 onwards. A new `SyncRunSummary.enqueued` counter tracks "payloads pushed to the outbox during this run." Dashboards reading `delivered` should switch to `enqueued` plus `health.outbox.pending + retryWaiting` for the v0.5.3+ equivalent.
+- `RecordingMirror.lastWebhookStatus` enum is extended with `"queued"` (the new normal state right after a sync). Legacy values `"success"` / `"failed"` still appear on rows that pre-date v0.5.3.
+- `/api/health` exposes the outbox backlog (`pending` / `retryWaiting` / `permanentlyFailed` / `oldestPendingAgeMs`) per D-014's first slice.
+- `POST /api/outbox/:id/retry` allows the operator to recover a `permanently_failed` row from the panel: resets `attempts = 0`, clears `last_error`, transitions back to `pending`. Returns 409 for any other state, 404 for unknown id, 400 for unsafe id shape.
+- Atomic claim: the transition `pending|retry_waiting → delivering` is a guarded `UPDATE ... WHERE id = ? AND state = ?` that fails when a concurrent claim has already moved the row. Worker-tick + panel-triggered retry cannot pick the same row twice.
+- Backfill at scale creates many outbox rows in one batch. The worker processes them serially (one per 5-second tick) — simplest correctness, no parallel delivery. A 100-recording backfill against a healthy downstream drains in ~8.5 minutes; against a flaky downstream, the queue persists and recovers without operator intervention.
 
 ## D-014 - Health endpoint surfaces operational state, not just configuration state
 

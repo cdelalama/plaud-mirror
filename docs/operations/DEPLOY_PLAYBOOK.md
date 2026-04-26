@@ -78,5 +78,5 @@ docker compose up --build -d
 
 ## Notes
 
-- The current container is a single-process Phase 3 slice: API + static web panel + opt-in continuous sync scheduler (D-012). The scheduler stays **disabled unless** `PLAUD_MIRROR_SCHEDULER_INTERVAL_MS` is set to a positive value of at least 60 000 ms — see [HOW_TO_USE.md](../../HOW_TO_USE.md) and [AUTH_AND_SYNC.md](AUTH_AND_SYNC.md) for the configuration matrix.
-- Durable webhook outbox (D-013) and full health observability — `lastErrors` ring buffer + outbox backlog (D-014, full) — are still later in `0.5.x`.
+- The current container is a single-process Phase 3 slice: API + static web panel + opt-in continuous sync scheduler (D-012, panel-driven from `v0.5.2`) + durable webhook outbox (D-013, shipped in `v0.5.3`). The scheduler stays **disabled unless** the operator sets a positive interval from the panel (or, on a fresh install, via `PLAUD_MIRROR_SCHEDULER_INTERVAL_MS`); the outbox **always runs** and short-circuits to `permanently_failed` when no webhook URL is configured. See [HOW_TO_USE.md](../../HOW_TO_USE.md) and [AUTH_AND_SYNC.md](AUTH_AND_SYNC.md) for both surfaces.
+- Full health observability — `lastErrors` ring buffer + extended outbox/sync history (D-014, full) — is still later in `0.5.x` (`v0.5.4`).

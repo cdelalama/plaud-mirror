@@ -108,3 +108,7 @@ test-results/
 .vscode/settings.json
 .idea/workspace.xml
 *.sublime-workspace
+
+# Third-party AI assistant working files (never tracked)
+.codex
+.codex/
