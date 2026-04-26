@@ -1,7 +1,7 @@
-<!-- doc-version: 0.5.3 -->
+<!-- doc-version: 0.5.4 -->
 # API Contract
 
-This document describes the HTTP and webhook surface that now exists in-repo. The current implementation covers the full Phase 2 slice (manual sync/backfill, local curation routes) plus the Phase 3 scheduler subset (panel-driven from `v0.5.2`) plus the **durable webhook outbox** (D-013) shipped in `v0.5.3`. From `v0.5.3` onwards webhook delivery is asynchronous: each sync run enqueues the payload, a worker retries it with exponential backoff. New routes `GET /api/outbox` and `POST /api/outbox/:id/retry`; new `health.outbox` block; new `enqueued` field on `SyncRunSummary`. The full health observability surface (`lastErrors` ring buffer) is deferred to `v0.5.4` and is NOT yet part of the contract.
+This document describes the HTTP and webhook surface that now exists in-repo. The current implementation covers the full Phase 2 slice (manual sync/backfill, local curation routes) plus the Phase 3 scheduler subset (panel-driven from `v0.5.2`) plus the **durable webhook outbox** (D-013) shipped in `v0.5.3`. From `v0.5.3` onwards webhook delivery is asynchronous: each sync run enqueues the payload, a worker retries it with exponential backoff. New routes `GET /api/outbox` and `POST /api/outbox/:id/retry`; new `health.outbox` block; new `enqueued` field on `SyncRunSummary`. The full health observability surface (`lastErrors` ring buffer) is deferred to `v0.5.5` and is NOT yet part of the contract.
 
 ## Admin API
 

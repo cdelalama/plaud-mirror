@@ -1,4 +1,4 @@
-<!-- doc-version: 0.5.3 -->
+<!-- doc-version: 0.5.4 -->
 # Plaud Mirror Roadmap
 
 This document is the canonical phase boundary for Plaud Mirror. If implementation scope starts to cross a phase boundary, update this document before claiming the work is part of the current phase.
@@ -12,7 +12,7 @@ This document is the canonical phase boundary for Plaud Mirror. If implementatio
 
 ## Current Target
 
-- Current delivery target: `v0.5.3`
+- Current delivery target: `v0.5.4`
 - Current phase: **Phase 3 - unattended operation (stable since 0.5.1)**
 - Deployment target: `dev-vm` first
 - Phase 3 entry: `v0.5.0` introduced the in-process scheduler (D-012) and partial health observability (D-014, scheduler subset) but shipped two regressions; `v0.5.1` fixed both. `v0.5.2` made the scheduler panel-driven (SQLite-persisted, hot-applied via `SchedulerManager`). `v0.5.3` adds the **durable webhook outbox** (D-013): every successful sync enqueues the payload, a worker retries with exponential backoff (30s → 8h, 8 attempts), permanently-failed items are surfaced in the panel with a Retry button, counters land on `/api/health.outbox`. Full health observability with `lastErrors` ring buffer (D-014, complete) lands in `v0.5.4`. Operators upgrading from `0.4.x` should skip `v0.5.0` and go directly to `v0.5.3`.

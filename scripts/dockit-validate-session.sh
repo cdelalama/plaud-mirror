@@ -448,6 +448,42 @@ check_external_triggers() {
     fi
 }
 
+# ── Check: prose-drift (D-016 — Layer-1 wrapper) ───────────────────────────
+# Thin wrapper around scripts/check-prose-drift.sh per the
+# Layer-1/Layer-2 architecture proposed in
+# ~/src/LLM-DocKit/docs/HOOKS_ENFORCEMENT_PROPOSAL.md (RFC, draft). The
+# external script is the validation logic; this function is the driver
+# adapter that translates exit code → add_result.
+#
+# Severity is WARN during v0.5.4 (the calibration window — assume
+# false positives in the first release using the script). Promote to
+# FAIL in v0.5.5 once the baseline is stable.
+check_prose_drift() {
+    if ! should_run "prose-drift"; then return; fi
+
+    _script="$PROJECT_ROOT/scripts/check-prose-drift.sh"
+    if [ ! -f "$_script" ]; then
+        add_result "prose-drift" "WARN" "scripts/check-prose-drift.sh not found; skipping (D-016 not yet adopted in this project root)"
+        return
+    fi
+    if [ ! -x "$_script" ]; then
+        add_result "prose-drift" "WARN" "scripts/check-prose-drift.sh is not executable; skipping"
+        return
+    fi
+
+    # Run in quiet+strict mode. The script prints findings to stdout when
+    # it fails; capture the first finding line for the result message.
+    _output=$("$_script" --strict --quiet 2>&1)
+    _exit=$?
+    if [ "$_exit" = "0" ]; then
+        add_result "prose-drift" "PASS" "No drift detected (regex-based, see D-016 for scope and limits)"
+    else
+        # First non-header line of the output is the most informative summary.
+        _summary=$(printf '%s' "$_output" | head -3 | tr '\n' ' ' | sed 's/  */ /g; s/^ //; s/ $//')
+        add_result "prose-drift" "WARN" "Drift detected: $_summary | run scripts/check-prose-drift.sh for details"
+    fi
+}
+
 # ── Run all checks ──────────────────────────────────────────────────────────
 
 check_handoff_date
@@ -457,6 +493,7 @@ check_decisions_referenced
 check_version_sync
 check_external_context
 check_external_triggers
+check_prose_drift
 
 # ── Output ───────────────────────────────────────────────────────────────────
 

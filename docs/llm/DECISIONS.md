@@ -222,7 +222,7 @@ The `/device/list` endpoint in `v0.4.11` is the first real exercise of this dist
 
 ## D-012 - Continuous sync scheduler runs in-process with anti-overlap protection
 
-**Status:** accepted (designed; implementation lands incrementally during Phase 3)
+**Status:** accepted; **implemented across v0.5.0 → v0.5.2** (`apps/api/src/runtime/scheduler.ts`, `apps/api/src/runtime/scheduler-manager.ts`, hot-reconfigure via `service.setSchedulerReconfigureHook`). v0.5.0 introduced the timer + tick path (regressed: default-on without opt-in, missing service-level anti-overlap); v0.5.1 fixed the regressions; v0.5.2 made the interval panel-driven via `RuntimeConfig.schedulerIntervalMs` persisted in SQLite.
 
 ### Decision
 
@@ -350,7 +350,7 @@ Exponential backoff over linear because the failure modes we expect (downstream 
 
 ## D-014 - Health endpoint surfaces operational state, not just configuration state
 
-**Status:** accepted (designed; implementation lands during Phase 3)
+**Status:** accepted; **partially implemented** — `/api/health.scheduler` shipped in v0.5.0, `/api/health.outbox` (counters: pending / retryWaiting / permanentlyFailed / oldestPendingAgeMs) shipped in v0.5.3. The remaining piece — `lastErrors` ring buffer (cross-subsystem error history) and extended outbox/sync history beyond live counters — is scheduled for v0.5.4.
 
 ### Decision
 
@@ -404,3 +404,58 @@ Choices considered:
 - New script: `apps/web/package.json#scripts.test` runs `vitest run` (non-watch). The root `npm test` chains to it.
 - This decision is **scope-limited to plaud-mirror's web panel**. If a future sibling project (e.g. the multi-tenant variant per the ROADMAP "Beyond Phase 6" section) adopts a different stack (Next.js, Vite-React with different conventions), it can revisit this decision with its own D-NNN.
 - Component testability becomes a visible concern: a component that cannot be rendered in jsdom without massive mocking (e.g. `App` in its current shape with mount-time fetches) signals the component should be decomposed. The tests in v0.4.19 deliberately target small extractable pieces (`StateBadge`, storage helpers) before tackling the larger ones; the bigger components are a future patch.
+
+
+## D-016 - Doc-drift enforcement is layered: regex now (paliativo), semantic agent later (full closure)
+
+**Status:** accepted; **partially implemented in v0.5.4** (`scripts/check-prose-drift.sh` plus `check_prose_drift` wrapper in `scripts/dockit-validate-session.sh`). The semantic-check half of the layer is explicit deferred work, not hidden debt — it lands when LLM-DocKit's `LLM_DOCKIT_CE_V2_PROPOSAL.md` (currently draft, untracked in `~/src/LLM-DocKit/docs/`) provides the agent-based `Stop` hook framework described in `HOOKS_ENFORCEMENT_PROPOSAL.md` Optional Enhancement B (currently draft, untracked).
+
+### Decision
+
+Documentation drift in this project is enforced by a **two-layer cascade**, not by LLM discipline alone:
+
+1. **Layer 1 (regex, in v0.5.4):** `scripts/check-prose-drift.sh` runs four rules against the documentation tree:
+   - `R1-stale-version` — `vX.Y.Z` literals in primary docs that don't match `VERSION` and aren't baselined as historical.
+   - `R2-phase-string-mismatch` — `"Phase N - <text>"` literals in docs that don't match the canonical strings emitted by `apps/api/src/runtime/service.ts`.
+   - `R3-future-claim-already-shipped` — phrases like "still later", "lands during", "deferred to vX.Y.Z" in `docs/operations/` and `docs/llm/DECISIONS.md` that cite a version `<= VERSION` (i.e. a "this is future" claim about something already shipped).
+   - `R4-decision-status-stale` — `D-XXX` entries with `Status: ... designed / lands during ...` in `DECISIONS.md` while `CHANGELOG.md` references that decision as shipped.
+   The script ships three modes: `--strict` (default; exit 1 on drift, used by the validator wrapper), `--review` (JSON output of every finding including baselined entries — designed as input for the future agent-based check), and `--update-baseline --note "<reason>"` (deliberate human operation that records a finding as accepted with `id`, `literal`, `file`, `rule`, `reason`, `commit_sha`, `created_at`, optional `transient_until`). The baseline file `scripts/.prose-drift-baseline.json` is auditable: every entry carries the reason it was accepted and optionally a version after which it must disappear. When current `VERSION >= transient_until`, the entry is reported as expired with a remediation message naming the explicit recovery actions.
+
+2. **Layer 2 (semantic, deferred):** a future agent-based `Stop` hook (or equivalent) reads code + docs and detects contradictions that no regex can. This is **Optional Enhancement B** of `HOOKS_ENFORCEMENT_PROPOSAL.md`. The on-ramp from Layer 1 to Layer 2 is the `--review` JSON output: it produces structured findings that an agent can consume directly, plus an exhaustive view of what the regex layer cannot see (false negatives). When the LLM-DocKit team firms up the agent hook framework, plaud-mirror adopts it with no rework on Layer 1 — they coexist (regex is fast and pre-commit; agent is thorough and at session-end).
+
+The `prose-drift` check is wired into `scripts/dockit-validate-session.sh` as the eighth check, following the Layer-1/Layer-2 architecture proposed in the upstream RFC. It runs on every validator invocation; severity is `WARN` during the v0.5.4 calibration window, hardened to `FAIL` from v0.5.5 onwards once the baseline shape settles.
+
+### Rationale
+
+The project hit the same prose-drift class six times across `v0.4.x → v0.5.3` despite an `auto-memory` entry (`feedback_prose_version_drift`) that explicitly described the failure mode and listed the documents to sweep. The rule was extended four times. The pattern recurred each release. Diagnosis: **memory is advisory; the failure mode demanded enforcement.** This matches the principle stated in `HOOKS_ENFORCEMENT_PROPOSAL.md`: "compliance depends on LLM discipline, not on system enforcement."
+
+Why regex first:
+
+- Cheap to write (~250 lines of POSIX sh), zero new dependencies.
+- Fast (no LLM round-trip; runs in pre-commit and at every validator invocation).
+- Deterministic, machine-auditable, debuggable by the human reviewer.
+- Catches the structural / literal subset of drift, which is empirically the majority of what hit this project.
+
+Why regex is not enough:
+
+- Each of the six recurrent drifts had a slightly different shape. Codifying past drifts in regex catches them — and only them. The next drift will be a new shape (current example: a `Status:` field that says "lands during Phase 3" while CHANGELOG mentions the decision as shipped — caught by R4, but only because R4 was written for it). Regex is reactive; the next failure mode will not match yet.
+- Semantic contradictions ("we're still designing the ETL phase" when the ETL is implemented; "the worker uses backoff X" when it actually uses backoff Y) require comparing prose to code, which regex cannot do without exploding into thousands of bespoke rules.
+
+Why a separate script with a thin validator wrapper, not a function inside the validator:
+
+- `dockit-validate-session.sh` is intentionally portable POSIX sh with zero external deps and a stable shape (the upstream LLM-DocKit template ships it). Adding a 250-line check function would double its size and entangle the project-specific drift rules with the universal validator core.
+- A separate script is reusable upstream: `scripts/check-prose-drift.sh` is exactly the kind of artifact that `~/src/LLM-DocKit/docs/DOWNSTREAM_FEEDBACK.md` `DF-028` proposes to upstream into the DocKit template once it has proven itself across a release cycle here. Keeping it standalone makes that propagation a copy operation, not a refactor.
+- The `--review` and `--update-baseline` modes need their own argument parsing and output formats; folding them into the validator's CLI would compromise both surfaces.
+
+Why `WARN` first, `FAIL` later:
+
+- The first activation against an existing codebase is guaranteed to surface findings the project considers acceptable (historical `vX.Y.Z` mentions in legitimate "since vA.B.C" sentences, etc.). Hard-fail from day 1 either blocks the legitimate work or pushes the operator to weaken the regex. Soft-fail with a baseline file lets the project tame the noise deliberately. The rampa to hard-fail is `v0.5.5` once the baseline shape settles.
+- The pattern matches industry norm (ESLint, mypy, Ruff): introducing a new linter into a legacy codebase always uses a baseline + advisory-then-strict ramp.
+
+### Implications
+
+- The `auto-memory` entry `feedback_prose_version_drift` no longer claims to enforce anything — it stays as an explanatory pointer to D-016 and to the script. The enforcement vector is the script + validator wrapper; memory is the rationale.
+- The global rule **"Before adding a passive rule (auto-memory)"** in `~/.claude/CLAUDE.md` (added in v0.5.4) plus the `~/.claude/hooks/check-passive-rule.sh` `PostToolUse` hook are the meta-enforcement that prevent this project (and any other project sharing the same `~/.claude/`) from accumulating more passive rules without the heuristic check. That layer is global on purpose: `~/.claude/projects/*/memory/` is global infrastructure, so a project-local rule cannot reach it.
+- Future projects adopting LLM-DocKit pick up `prose-drift` for free if `scripts/check-prose-drift.sh` is upstreamed via `DF-028`. Until then, plaud-mirror is the canonical reference implementation.
+- The `--review` JSON output is the explicit handoff format for any future semantic-check layer (Optional Enhancement B). The schema is documented inside the script itself; do not rename fields without updating the consumer when it lands.
+- Adding a new rule (R5+) to the script: function `rule_<name>()`, register it in the run section, write tests if/when the script gets a test harness (currently smoke-tested by running it against the live tree). Rules should be **structural**, not semantic — anything semantic belongs in Layer 2.

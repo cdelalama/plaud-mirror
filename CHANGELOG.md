@@ -4,6 +4,35 @@ All notable changes to Plaud Mirror are documented in this file.
 
 This project follows Semantic Versioning (SemVer): MAJOR.MINOR.PATCH.
 
+## [0.5.4] - 2026-04-26
+
+### Added
+- **Layer-1 doc-drift enforcement (D-016).** New `scripts/check-prose-drift.sh` (POSIX sh, ~290 lines, zero external deps) catches the prose-drift class that has hit plaud-mirror six times across `v0.4.x → v0.5.3` despite a passive auto-memory rule that was extended four times and never enforced anything. Four rules:
+  - `R1-current-state-stale-version` — "Current"-context lines (`Version:`, `Current delivery target:`) that don't match `VERSION`.
+  - `R1-future-version-without-planning-phrase` — `vX.Y.Z > current` mentioned without a planning phrase (`next:`, `scheduled for`, `lands in v`, `from v`, etc.).
+  - `R3-future-claim-already-shipped` — phrases like "deferred to vX.Y.Z" / "still later in vX.Y.Z" that cite a version `<= current` (i.e., a "future" claim about something already shipped). Adjacency-aware: only flags the version literal immediately following the phrase, not unrelated versions later in the same line.
+  - `R4-decision-status-stale` — `D-XXX` entries whose `Status:` says "designed/lands during" while `CHANGELOG.md` mentions them as shipped.
+  Three modes: `--strict` (default; exit 1 on drift, used by the validator wrapper), `--review` (JSON output for the future agent-based check, on-ramp to Layer 2), `--update-baseline --note "<reason>" [--transient-until vX.Y.Z]` (deliberate operation that records auditable acceptances). The baseline file `scripts/.prose-drift-baseline.json` carries `{id, literal, file, rule, reason, commit_sha, created_at, transient_until?}` per entry and is enforced (when `current VERSION >= transient_until`, the entry is reported as expired with a remediation message).
+- **`prose-drift` check** in `scripts/dockit-validate-session.sh` (eighth check). Thin wrapper that invokes the standalone script in `--strict --quiet` mode and translates exit code → `add_result`. Severity `WARN` during v0.5.4 (calibration window — assumes false positives in the first release using the script). Promoted to `FAIL` from v0.5.5 once the baseline shape settles. Per the Layer-1/Layer-2 architecture from `~/src/LLM-DocKit/docs/HOOKS_ENFORCEMENT_PROPOSAL.md` (RFC, draft).
+- **Decision D-016** in `docs/llm/DECISIONS.md` documenting the regex-paliativo / semantic-deferred two-layer cascade. Explicit acknowledgment that the script is not the full closure of the doc-drift class — Optional Enhancement B of `HOOKS_ENFORCEMENT_PROPOSAL.md` (agent-based Stop hook reading code + docs) is the closure path. The `--review` JSON output of the script is the explicit on-ramp to that future agent.
+- **Global meta-rule** in `~/.claude/CLAUDE.md` ("Before adding a passive rule") plus a `PostToolUse` hook in `~/.claude/hooks/check-passive-rule.sh` that nudges whenever a write lands in `~/.claude/projects/*/memory/*`. The nudge is the meta-enforcement; the heuristic in `CLAUDE.md` is the rationale. Both are global because auto-memory is global infrastructure (`~/.claude/projects/*/memory/`) — a per-project rule cannot reach it.
+- **`docs/llm/D-013` and `docs/llm/D-014` Status fields rewritten** to reflect shipped reality (caught immediately by the new R4 rule on the script's first run — the script paid for itself before its own commit).
+- **`scripts/.prose-drift-baseline.json`** with two permanent entries for `docs/UPSTREAMS.md` (`v0.5.10` for `rsteckler/applaud`, `v1.4.1` for `iiAtlas/plaud-recording-downloader`). These are external upstream package versions, not plaud-mirror's, and drift independently from the `VERSION` file. The baseline reason is recorded in the entry itself for future auditability.
+- **DF-028** in `~/src/LLM-DocKit/docs/DOWNSTREAM_FEEDBACK.md` (separate commit, separate repo) framing this episode as the first empirical demand for `LLM_DOCKIT_CE_V2_PROPOSAL.md` P0 #1 ("Manifest = intención, CI = evidencia"). Status `candidate, awaiting validation`. Resolution path explicit: `candidate → validated → tracked → adopted`.
+
+### Changed
+- `scripts/dockit-validate-session.sh` registers the new `check_prose_drift` function in the run list (now 8 checks; was 7).
+- `~/.claude/settings.json` gains a `PostToolUse` hook entry alongside the existing `SessionStart`, `Stop`, `Notification`, and `PostToolUseFailure` hooks.
+
+### Notes
+- This is a **patch** release (0.5.3 → 0.5.4). The product surface is unchanged — no new runtime behavior, no new HTTP routes, no schema changes. What changes is the **governance enforcement layer**: a class of doc-drift bug that has been recurrent in this project is now caught structurally instead of by LLM discipline. Operators upgrading from `v0.5.3` see no behavior change.
+- D-014 full (`lastErrors` ring buffer + extended outbox/sync history) is pushed back to **`v0.5.5`** to absorb this governance work. The roadmap shift (the fourth in `0.5.x`) is small in scope: v0.5.4 absorbs only the script + check + meta-rule, leaving D-014 as the only remaining Phase 3 piece for v0.5.5.
+- Test totals are unchanged: 113 (102 backend + 11 web). The script does not have its own test suite yet — it is smoke-tested by running against the live tree (and immediately found two real drifts on first invocation, which is the strongest test possible). A formal harness for the script is deferred to the moment it is upstreamed into LLM-DocKit per DF-028.
+- The `prose-drift` check is in `WARN` severity during this release. Operators who run the validator will see `[WARN] prose-drift: ...` if drift is detected, but commits and pushes are not blocked. From v0.5.5 onwards, `[FAIL]` will block. Use `scripts/check-prose-drift.sh --update-baseline --note "<reason>"` between now and v0.5.5 to record any legitimate exceptions before the gate hardens.
+
+### Fixed
+- (No bug fixes in this release — the new check fixed two stale `Status:` lines in `D-012` and `D-014` on its first run, but those weren't bugs in the runtime sense; they were doc drift caught by the new tool. They are listed under "Added" because the fix was a side effect of building the tool.)
+
 ## [0.5.3] - 2026-04-26
 
 ### Added
