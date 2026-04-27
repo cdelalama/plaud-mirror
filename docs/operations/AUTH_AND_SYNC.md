@@ -1,7 +1,7 @@
-<!-- doc-version: 0.5.4 -->
+<!-- doc-version: 0.5.5 -->
 # Authentication and Sync Operations
 
-This runbook defines the live behavior of Plaud Mirror's auth and sync surface. Phase 2 (manual sync/backfill) is fully shipped. Phase 3: the continuous sync scheduler landed in `v0.5.0` (regressed) → `v0.5.1` (fixed) → `v0.5.2` (panel-driven). `v0.5.3` shipped the **durable webhook outbox** (D-013): webhook delivery is no longer synchronous inside a sync run, payloads are persisted to a `webhook_outbox` SQLite table and a dedicated worker retries with exponential backoff (30 s → 8 h, 8 attempts) before escalating. `v0.5.4` is governance-only (Layer-1 doc-drift enforcement, D-016, no runtime change). Full health observability with `lastErrors` ring buffer (D-014, complete) lands next: v0.5.5.
+This runbook defines the live behavior of Plaud Mirror's auth and sync surface. Phase 2 (manual sync/backfill) is fully shipped. Phase 3: the continuous sync scheduler landed in `v0.5.0` (regressed) → `v0.5.1` (fixed) → `v0.5.2` (panel-driven). `v0.5.3` shipped the **durable webhook outbox** (D-013): webhook delivery is no longer synchronous inside a sync run, payloads are persisted to a `webhook_outbox` SQLite table and a dedicated worker retries with exponential backoff (30 s → 8 h, 8 attempts) before escalating. `v0.5.4` was governance-only (Layer-1 doc-drift enforcement, D-016, no runtime change). `v0.5.5` ships **D-014 full**: `lastErrors` ring buffer (cross-subsystem, in-memory, capped at 20) and `recentSyncRuns` (last 5 finished runs from SQLite) on `/api/health`. The Phase 3 runtime surface is now complete; remaining work (resumable backfill, automatic re-login) is deferred.
 
 ## Auth Mode
 
@@ -83,10 +83,14 @@ Operational properties:
 - **Atomic claim.** The transition `pending|retry_waiting → delivering` is a guarded UPDATE; two concurrent claims (worker tick + panel-triggered Retry) cannot both pick the same row.
 - **No web-config short-circuit.** When the operator clears the webhook URL while items are in the queue, the worker escalates them to `permanently_failed` with `last_error = "webhook not configured"` rather than silently dropping or retrying forever. The operator must reconfigure and Retry.
 
-#### Still later in `0.5.x`
+#### Full health observability — shipped in `v0.5.5`
 
-- **next: v0.5.5** — full health observability — `lastErrors` ring buffer (cross-subsystem error history) + extended outbox / sync history through `/api/health` (D-014, full). (`v0.5.4` was governance-only — Layer-1 doc-drift enforcement, D-016 — with no runtime change.)
-- Resumable backfill (no firm release target; deferred within Phase 3).
+`/api/health` now also exposes:
+
+- **`lastErrors`** — cross-subsystem ring buffer (capped at 20 entries, most-recent-first, in-memory). Each entry: `occurredAt` (ISO), `subsystem` (`scheduler` | `outbox` | `sync` | `auth`), `message`, `context` (string→string map). Failed scheduler ticks, outbox delivery errors (both retry and permanent escalations), and failed sync runs all feed this buffer through `service.recordError`. The buffer resets per container restart by design — durable failures live in `outbox.permanentlyFailed` or `lastSync.error`.
+- **`recentSyncRuns`** — last 5 finished sync runs (`finished_at DESC`) from SQLite. Distinct from `lastSync` (single most-recent finished run) — this is the operator-facing audit signal for "are recent runs succeeding or failing?". Active runs are intentionally excluded; they remain on `activeRun`.
+
+Resumable backfill remains deferred (no firm release target).
 
 ## Failure Modes
 

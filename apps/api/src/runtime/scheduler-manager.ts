@@ -5,7 +5,7 @@
 // fixed-cadence loop. The manager adds the "swap to a new instance when
 // the interval changes" semantics on top.
 
-import { Scheduler, type SchedulerStatus, type TickRunResult } from "./scheduler.js";
+import { Scheduler, type SchedulerStatus, type TickResult, type TickRunResult } from "./scheduler.js";
 
 const DISABLED_STATUS: SchedulerStatus = {
   enabled: false,
@@ -24,15 +24,24 @@ export interface SchedulerManagerOptions {
    * is `completed`; throwing is `failed`.
    */
   runTick: () => Promise<TickRunResult | void>;
+  /**
+   * Optional observer invoked after each tick result is recorded. The
+   * runtime wires this to `service.recordError` for failed ticks so the
+   * cross-subsystem `lastErrors` ring buffer (D-014 full, v0.5.5) sees
+   * scheduler-side failures alongside outbox/sync ones.
+   */
+  onTick?: (result: TickResult) => void;
 }
 
 export class SchedulerManager {
   private readonly runTick: () => Promise<TickRunResult | void>;
+  private readonly onTick: ((result: TickResult) => void) | undefined;
   private current: Scheduler | null = null;
   private currentIntervalMs = 0;
 
   constructor(options: SchedulerManagerOptions) {
     this.runTick = options.runTick;
+    this.onTick = options.onTick;
   }
 
   /**
@@ -72,6 +81,7 @@ export class SchedulerManager {
     this.current = new Scheduler({
       intervalMs,
       runTick: this.runTick,
+      ...(this.onTick ? { onTick: this.onTick } : {}),
     });
     this.current.start();
     this.currentIntervalMs = intervalMs;

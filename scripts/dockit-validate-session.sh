@@ -480,7 +480,36 @@ check_prose_drift() {
     else
         # First non-header line of the output is the most informative summary.
         _summary=$(printf '%s' "$_output" | head -3 | tr '\n' ' ' | sed 's/  */ /g; s/^ //; s/ $//')
-        add_result "prose-drift" "WARN" "Drift detected: $_summary | run scripts/check-prose-drift.sh for details"
+        # Hardened from WARN to FAIL in v0.5.5 per D-016 plan. Operators
+        # rephrase to use a recognised planning phrase, or baseline via
+        # `scripts/check-prose-drift.sh --update-baseline --note "<reason>"`.
+        add_result "prose-drift" "FAIL" "Drift detected: $_summary | run scripts/check-prose-drift.sh for details"
+    fi
+}
+
+check_unabsorbed_artifact() {
+    if ! should_run "unabsorbed-artifact"; then return; fi
+
+    _script="$PROJECT_ROOT/scripts/check-unabsorbed-artifact.sh"
+    if [ ! -f "$_script" ]; then
+        add_result "unabsorbed-artifact" "WARN" "scripts/check-unabsorbed-artifact.sh not found; skipping (D-017 not yet adopted in this project root)"
+        return
+    fi
+    if [ ! -x "$_script" ]; then
+        add_result "unabsorbed-artifact" "WARN" "scripts/check-unabsorbed-artifact.sh is not executable; skipping"
+        return
+    fi
+
+    # Always WARN-level: this check generates DF-candidate signal, not blocking
+    # gate. Project-specific artifacts get baselined permanently; in-flight
+    # absorption candidates get baselined transiently with df_id.
+    _output=$("$_script" --quiet 2>&1)
+    _exit=$?
+    if [ "$_exit" = "0" ]; then
+        add_result "unabsorbed-artifact" "PASS" "No unbaselined artifacts (see D-017 for absorption protocol)"
+    else
+        _summary=$(printf '%s' "$_output" | head -1 | sed 's/  */ /g; s/^ //; s/ $//')
+        add_result "unabsorbed-artifact" "WARN" "$_summary | run scripts/check-unabsorbed-artifact.sh for details"
     fi
 }
 
@@ -494,6 +523,7 @@ check_version_sync
 check_external_context
 check_external_triggers
 check_prose_drift
+check_unabsorbed_artifact
 
 # ── Output ───────────────────────────────────────────────────────────────────
 

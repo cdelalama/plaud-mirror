@@ -1,13 +1,13 @@
-<!-- doc-version: 0.5.4 -->
+<!-- doc-version: 0.5.5 -->
 # API Contract
 
-This document describes the HTTP and webhook surface that now exists in-repo. The current implementation covers the full Phase 2 slice (manual sync/backfill, local curation routes) plus the Phase 3 scheduler subset (panel-driven from `v0.5.2`) plus the **durable webhook outbox** (D-013) shipped in `v0.5.3`. From `v0.5.3` onwards webhook delivery is asynchronous: each sync run enqueues the payload, a worker retries it with exponential backoff. New routes `GET /api/outbox` and `POST /api/outbox/:id/retry`; new `health.outbox` block; new `enqueued` field on `SyncRunSummary`. The full health observability surface (`lastErrors` ring buffer) is deferred to `v0.5.5` and is NOT yet part of the contract.
+This document describes the HTTP and webhook surface that now exists in-repo. The current implementation covers the full Phase 2 slice (manual sync/backfill, local curation routes) plus the Phase 3 scheduler subset (panel-driven from `v0.5.2`) plus the **durable webhook outbox** (D-013) shipped in `v0.5.3` plus **full health observability** (D-014, complete) shipped in `v0.5.5`. From `v0.5.3` onwards webhook delivery is asynchronous: each sync run enqueues the payload, a worker retries it with exponential backoff. From `v0.5.5` onwards `/api/health` also returns `lastErrors` (cross-subsystem ring buffer, capped at 20) and `recentSyncRuns` (last 5 finished runs).
 
 ## Admin API
 
 | Method | Path | Purpose |
 |--------|------|---------|
-| `GET` | `/api/health` | Return version, phase string, auth summary, last completed sync, currently active run (if any), scheduler status (D-014 partial — scheduler subset; full surface lands in v0.5.5), recording counts, webhook configuration flag, warning list. |
+| `GET` | `/api/health` | Return version, phase string, auth summary, last completed sync, currently active run (if any), scheduler status, outbox counters, **lastErrors** ring buffer (cross-subsystem error history, capped at 20, most-recent-first), **recentSyncRuns** (last 5 finished runs from SQLite, `finished_at DESC`), recording counts, webhook configuration flag, warning list. D-014 full as of v0.5.5. |
 | `GET` | `/api/config` | Return sanitized runtime config: webhook URL + secret-presence flag, default sync limit, **and the persisted `schedulerIntervalMs`** (the panel reads this on load to populate the scheduler form). |
 | `PUT` | `/api/config` | Update webhook URL, optional webhook secret, **and / or the scheduler interval**. All three fields are optional and independent — omit any to leave it unchanged. `schedulerIntervalMs` must be `0` (disable) or `≥ 60000`; sub-floor positives return HTTP 400. When this field changes, the live `Scheduler` is started / stopped / swapped to the new cadence in place via the `SchedulerManager` reconfigure hook. |
 | `GET` | `/api/auth/status` | Return current auth state |
@@ -267,5 +267,5 @@ Phase 2 delivers the manual route surface and immediate HMAC-signed webhook deli
 - `v0.5.1` is the stable Phase 3 entry point: scheduler is genuinely opt-in, service-layer reuse via `getActiveSyncRun` is implemented, and the scheduler tick honestly labels absorbed ticks `skipped`.
 - `v0.5.2` makes the scheduler interval **operator-controllable from the panel**: `RuntimeConfig.schedulerIntervalMs` added to `GET /api/config`, optional `schedulerIntervalMs` accepted by `PUT /api/config`, hot-applied via the `SchedulerManager` reconfigure hook with no container restart.
 - `v0.5.3` adds the durable webhook outbox (D-013): explicit FSM, exponential-backoff retry, the persisted queue replaces the immediate-only delivery path. New routes `GET /api/outbox` and `POST /api/outbox/:id/retry`. New `health.outbox` block (`pending` / `retryWaiting` / `permanentlyFailed` / `oldestPendingAgeMs`). New `SyncRunSummary.enqueued` counter (with `.default(0)` for retro-compat); `delivered` keeps its original semantic and structurally stays at 0 from now on.
-- `v0.5.4` (this release) is governance-only: Layer-1 doc-drift enforcement (D-016) — `scripts/check-prose-drift.sh` + `prose-drift` validator check + global meta-rule. The HTTP/webhook contract is unchanged from `v0.5.3`.
-- v0.5.5 will land the full health observability surface (D-014, full): a `lastErrors` ring buffer plus extended outbox / sync history.
+- `v0.5.4` was governance-only: Layer-1 doc-drift enforcement (D-016) — `scripts/check-prose-drift.sh` + `prose-drift` validator check + global meta-rule. The HTTP/webhook contract did not change from `v0.5.3`.
+- `v0.5.5` (this release) lands the full health observability surface (D-014, full): `/api/health` adds two new fields — `lastErrors` (array of `{occurredAt, subsystem, message, context}`, in-memory ring buffer capped at 20, cross-subsystem) and `recentSyncRuns` (array of `SyncRunSummary`, last 5 finished, `finished_at DESC`). Both fields default to `[]` for backwards-compat with older readers.

@@ -47,6 +47,22 @@ export interface OutboxWorkerDependencies {
   requestTimeoutMs: number;
   /** Override for tests; defaults to wall-clock `new Date()`. */
   now?: () => Date;
+  /**
+   * Optional observer fired when a delivery attempt fails. Wired to
+   * `service.recordError` for the cross-subsystem ring buffer (D-014 full,
+   * v0.5.5). Both `escalation: "retry"` (the row goes back to retry_waiting)
+   * and `escalation: "permanent"` (the row escalates to permanently_failed)
+   * are reported so operators see the trail of attempts in `lastErrors`,
+   * not just the final permanent failure.
+   */
+  onDeliveryError?: (
+    info: {
+      outboxId: string;
+      attempt: number;
+      escalation: "retry" | "permanent";
+      message: string;
+    },
+  ) => void;
 }
 
 export class OutboxWorker {
@@ -55,6 +71,7 @@ export class OutboxWorker {
   private readonly webhookFetchImpl: typeof fetch;
   private readonly requestTimeoutMs: number;
   private readonly now: () => Date;
+  private readonly onDeliveryError: OutboxWorkerDependencies["onDeliveryError"];
   private scheduler: Scheduler | null = null;
 
   constructor(dependencies: OutboxWorkerDependencies) {
@@ -63,6 +80,7 @@ export class OutboxWorker {
     this.webhookFetchImpl = dependencies.webhookFetchImpl ?? fetch;
     this.requestTimeoutMs = dependencies.requestTimeoutMs;
     this.now = dependencies.now ?? (() => new Date());
+    this.onDeliveryError = dependencies.onDeliveryError;
   }
 
   /**
@@ -170,9 +188,21 @@ export class OutboxWorker {
 
     if (newAttemptCount >= OUTBOX_MAX_ATTEMPTS) {
       this.store.markOutboxPermanentlyFailed(claimed.id, result.errorMessage);
+      this.onDeliveryError?.({
+        outboxId: claimed.id,
+        attempt: newAttemptCount,
+        escalation: "permanent",
+        message: result.errorMessage,
+      });
       return;
     }
 
+    this.onDeliveryError?.({
+      outboxId: claimed.id,
+      attempt: newAttemptCount,
+      escalation: "retry",
+      message: result.errorMessage,
+    });
     const backoffMs = OUTBOX_BACKOFF_SCHEDULE_MS[newAttemptCount - 1] ?? OUTBOX_BACKOFF_SCHEDULE_MS[OUTBOX_BACKOFF_SCHEDULE_MS.length - 1]!;
     const nextAttemptAt = new Date(this.now().getTime() + backoffMs);
     this.store.markOutboxRetry(claimed.id, nextAttemptAt, result.errorMessage);

@@ -1057,6 +1057,144 @@ test("PlaudMirrorService restoreRecording without a token clears the flag but su
   service.close();
 });
 
+test("PlaudMirrorService recordError feeds the lastErrors ring buffer (D-014 full)", async () => {
+  const root = await mkdtemp(join(tmpdir(), "plaud-mirror-service-last-errors-"));
+  const environment = createEnvironment(root);
+  const store = new RuntimeStore({
+    dbPath: join(environment.dataDir, "app.db"),
+    dataDir: environment.dataDir,
+    recordingsDir: environment.recordingsDir,
+    defaultSyncLimit: environment.defaultSyncLimit,
+  });
+  const secrets = new SecretStore(join(environment.dataDir, "secrets.enc"), environment.masterKey);
+  const service = new PlaudMirrorService(environment, store, secrets);
+  await service.initialize();
+
+  // Empty on a fresh service.
+  let health = await service.getHealth();
+  assert.deepEqual(health.lastErrors, []);
+
+  // Each recordError call lands at the front (most-recent-first). Cross-subsystem
+  // mixing is allowed — the ring buffer is intentionally untyped beyond the
+  // subsystem enum so operators see the actual chronology.
+  service.recordError("scheduler", "tick failed: ETIMEDOUT", { tickAt: "t0" });
+  service.recordError("outbox", "delivery 503", { outboxId: "ob-1", attempt: "3", escalation: "retry" });
+  service.recordError("sync", "auth degraded mid-run", { runId: "run-x", mode: "sync" });
+
+  health = await service.getHealth();
+  assert.equal(health.lastErrors.length, 3);
+  assert.equal(health.lastErrors[0]!.subsystem, "sync");
+  assert.equal(health.lastErrors[1]!.subsystem, "outbox");
+  assert.equal(health.lastErrors[2]!.subsystem, "scheduler");
+  assert.equal(health.lastErrors[1]!.context.attempt, "3");
+
+  // Cap at 20: pushing 25 more should leave exactly 20 entries, all with the
+  // newest 20 messages, oldest dropped.
+  for (let i = 0; i < 25; i += 1) {
+    service.recordError("sync", `flood-${i}`);
+  }
+  health = await service.getHealth();
+  assert.equal(health.lastErrors.length, 20);
+  assert.equal(health.lastErrors[0]!.message, "flood-24");
+  assert.equal(health.lastErrors[19]!.message, "flood-5");
+
+  service.close();
+});
+
+test("PlaudMirrorService runSync failure path records into lastErrors and lastSync", async () => {
+  const root = await mkdtemp(join(tmpdir(), "plaud-mirror-service-sync-error-"));
+  const environment = createEnvironment(root);
+  const store = new RuntimeStore({
+    dbPath: join(environment.dataDir, "app.db"),
+    dataDir: environment.dataDir,
+    recordingsDir: environment.recordingsDir,
+    defaultSyncLimit: environment.defaultSyncLimit,
+  });
+  const secrets = new SecretStore(join(environment.dataDir, "secrets.enc"), environment.masterKey);
+  const det = createDeterministicScheduler();
+  // /user/me succeeds (token validation), but the sync-listing endpoint 403s
+  // to force the failure path. The catch in service.runSync calls recordError.
+  const plaudFetchImpl: typeof fetch = async (input) => {
+    const url = String(input);
+    if (url.endsWith("/user/me")) {
+      return createJsonResponse({ status: 0, data: { uid: "user-1" } });
+    }
+    return new Response("forbidden", { status: 403, headers: { "content-type": "text/plain" } });
+  };
+  const service = new PlaudMirrorService(environment, store, secrets, {
+    plaudFetchImpl,
+    scheduler: det.scheduler,
+  });
+  await service.initialize();
+  await service.saveAccessToken({ accessToken: "test-token" });
+
+  await service.runSync({});
+  await det.settled();
+
+  const health = await service.getHealth();
+  assert.equal(health.lastSync?.status, "failed");
+  // The catch path in service.runSync calls recordError("sync", ...).
+  const syncEntries = health.lastErrors.filter((e) => e.subsystem === "sync");
+  assert.ok(syncEntries.length >= 1, "expected at least one sync entry in lastErrors");
+  assert.ok(typeof syncEntries[0]!.context.runId === "string");
+  assert.equal(syncEntries[0]!.context.mode, "sync");
+
+  service.close();
+});
+
+test("PlaudMirrorService getHealth.recentSyncRuns surfaces the last 5 completed runs (D-014 full)", async () => {
+  const root = await mkdtemp(join(tmpdir(), "plaud-mirror-service-recent-runs-"));
+  const environment = createEnvironment(root);
+  const store = new RuntimeStore({
+    dbPath: join(environment.dataDir, "app.db"),
+    dataDir: environment.dataDir,
+    recordingsDir: environment.recordingsDir,
+    defaultSyncLimit: environment.defaultSyncLimit,
+  });
+  const secrets = new SecretStore(join(environment.dataDir, "secrets.enc"), environment.masterKey);
+  const service = new PlaudMirrorService(environment, store, secrets);
+  await service.initialize();
+
+  // Start + finish 7 sync runs sequentially. SQLite's monotonic finished_at
+  // ordering means recentSyncRuns surfaces the last 5 inserted, most-recent-first.
+  // We capture the IDs as we go because startSyncRun generates them.
+  const ids: string[] = [];
+  for (let i = 0; i < 7; i += 1) {
+    const { id, startedAt } = store.startSyncRun("sync", { limit: 100, forceDownload: false });
+    ids.push(id);
+    // Finished slightly after the next one started: the only ordering signal
+    // recentSyncRuns relies on is `finished_at DESC`, so as long as each
+    // finish lands after the previous one the test is deterministic.
+    const finishedAt = new Date(Date.parse(startedAt) + 1000 + i).toISOString();
+    store.finishSyncRun({
+      id,
+      mode: "sync",
+      status: "completed",
+      startedAt,
+      finishedAt,
+      examined: 0,
+      matched: 0,
+      downloaded: 0,
+      delivered: 0,
+      enqueued: 0,
+      skipped: 0,
+      plaudTotal: null,
+      filters: { limit: 100, forceDownload: false },
+      error: null,
+    });
+  }
+
+  const health = await service.getHealth();
+  assert.equal(health.recentSyncRuns.length, 5);
+  // Most-recent-first: run 6, run 5, ..., run 2.
+  assert.equal(health.recentSyncRuns[0]!.id, ids[6]);
+  assert.equal(health.recentSyncRuns[4]!.id, ids[2]);
+  // lastSync is the same as recentSyncRuns[0] (single most-recent FINISHED).
+  assert.equal(health.lastSync?.id, ids[6]);
+
+  service.close();
+});
+
 test("PlaudMirrorService rejects audio requests for unsafe recording ids", async () => {
   const root = await mkdtemp(join(tmpdir(), "plaud-mirror-service-unsafe-"));
   const environment = createEnvironment(root);

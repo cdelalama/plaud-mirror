@@ -4,6 +4,44 @@ All notable changes to Plaud Mirror are documented in this file.
 
 This project follows Semantic Versioning (SemVer): MAJOR.MINOR.PATCH.
 
+## [0.5.5] - 2026-04-27
+
+### Added
+
+- **D-014 full — full health observability.** `GET /api/health` now also returns:
+  - `lastErrors`: cross-subsystem error ring buffer (in-memory, capped at `LAST_ERRORS_CAP=20`, most-recent-first). Each entry has `occurredAt` (ISO), `subsystem` (`scheduler` | `outbox` | `sync` | `auth`), `message`, `context` (string→string map). Failed scheduler ticks, outbox delivery errors (both retry and permanent escalations), and failed sync runs all feed it through `service.recordError`. The buffer resets per container restart by design — durable failures live in `outbox.permanentlyFailed` or `lastSync.error`.
+  - `recentSyncRuns`: last 5 finished sync runs from SQLite (`finished_at DESC`). Distinct from `lastSync` (single most-recent finished run) — operator-facing audit signal for "are recent runs succeeding or failing?". Active runs excluded; they remain on `activeRun`.
+- New `LastErrorEntrySchema` and `LAST_ERRORS_CAP` exports in `@plaud-mirror/shared`.
+- New `RuntimeStore.getRecentSyncRuns(limit)` query.
+- New `service.recordError(subsystem, message, context?)` method.
+- New `SchedulerManagerOptions.onTick` callback, used by the runtime to feed failed ticks into the ring buffer.
+- New `OutboxWorkerDependencies.onDeliveryError` callback, used by the runtime to feed both retry and permanent-failure escalations into the ring buffer.
+- 3 new tests in `apps/api/src/runtime/service.test.ts` (ring buffer cap+ordering+cross-subsystem; sync error feeds lastErrors; recentSyncRuns surfaces last 5 most-recent finished).
+- **D-017 — new `check_unabsorbed_artifact()` validator check (ninth check, WARN-level non-blocking).** New `scripts/check-unabsorbed-artifact.sh` (POSIX sh, filename-only comparison) detects local artifacts in `scripts/` and `.claude/rules/` whose filename does not exist in the LLM-DocKit upstream template (`$HOME/src/LLM-DocKit/`). New `scripts/.unabsorbed-artifact-baseline.json` ships with three entries:
+  - `scripts/check-prose-drift.sh` — transient (`df_id: DF-028`), candidate-for-absorption upstream
+  - `scripts/check-upstreams.sh` — permanent project-specific (watches plaud-specific upstreams)
+  - `.claude/rules/external-context-triggers.md` — permanent project-specific (glob list is local data; the rule template lives upstream)
+
+### Changed
+
+- **`prose-drift` validator hardened from WARN to FAIL** in `scripts/dockit-validate-session.sh` per D-016 plan. One calibration release (v0.5.4) was sufficient — operator workflow is rephrase-or-baseline. False positives caught during today's drift sweep (parens/backticks separating planning phrase from version literal) were resolved by rewording, not by relaxing the regex; the script remains a structural check, the operator's task is to phrase prose so the regex sees a recognised planning phrase on the same line as the version literal.
+- D-014 status in `docs/llm/DECISIONS.md` updated from "partially implemented" to "fully implemented in v0.5.5".
+- D-016 status updated to acknowledge the WARN→FAIL transition shipped in v0.5.5.
+- `OutboxHealthSchema` doc-comment cleaned up (was pointing at a non-existent v0.5.4 D-014 landing).
+- `SchedulerStatusSchema` doc-comment cleaned up similarly.
+- `docs/operations/AUTH_AND_SYNC.md` "Still later in 0.5.x" section replaced with "Full health observability — shipped in v0.5.5" (resumable backfill remains deferred).
+- `docs/operations/API_CONTRACT.md` `/api/health` description updated to describe the new fields and mark D-014 full as of v0.5.5.
+
+### Notes
+
+- Test count: 113 → 116 (105 backend + 11 web). Backend gained the 3 D-014 tests; web suite unchanged.
+- POSIX-shell bugs caught and worth recording (per D-017 §"Revisions"):
+  1. `$'\t'` ANSI-C quoting is bash-only. Under `#!/bin/sh` it is treated as a literal `$\t` and silently fails. Fix: define `TAB=$(printf '\t')` once, interpolate as `"${TAB}"`. Same shape that hit `check-prose-drift.sh` in v0.5.4.
+  2. `grep -c X file 2>/dev/null || echo 0` produces a multi-line value when there are zero matches: grep prints "0" AND exits nonzero, so the fallback also runs. Fix: `grep X file 2>/dev/null | wc -l | tr -d ' '`.
+  3. sed-based JSON merge in `--update-baseline` mode breaks on `/` literals in path strings. Fix: delegate JSON read-modify-write to Python3 (already a documented dependency via `~/.claude/hooks/check-passive-rule.sh`).
+- The `check_unabsorbed_artifact()` validator check generates the structural anchor for `DF-028` upstream: every `dockit-validate-session.sh --human` run on a tree where DF-028 is still un-absorbed will emit a baseline-suppressed transient entry, reminding the operator that the upstream story is open.
+- `/api/health.lastErrors` is in-memory and resets per container restart by design. This is the right shape for a transient observability surface — durable failures already live in `outbox.permanentlyFailed` and `lastSync.error`, where they survive a restart.
+
 ## [0.5.4] - 2026-04-26
 
 ### Added

@@ -269,8 +269,8 @@ export const OutboxRetryResponseSchema = z.object({
 
 /**
  * Outbox observability surface — the minimum slice for v0.5.3.
- * `lastErrors` ring buffer + per-state breakdown beyond these counters
- * lands with D-014 full in v0.5.4.
+ * `lastErrors` ring buffer + recent sync-run history landed with D-014 full
+ * in v0.5.5 (see `ServiceHealthSchema.lastErrors` and `recentSyncRuns`).
  */
 export const OutboxHealthSchema = z.object({
   pending: z.number().int().nonnegative(),
@@ -290,8 +290,26 @@ const DISABLED_OUTBOX_HEALTH = {
 };
 
 /**
+ * Cross-subsystem error ring buffer entry (D-014, full slice in v0.5.5).
+ * The buffer is bounded to LAST_ERRORS_CAP entries and ordered most-recent-first.
+ * Subsystems push via `service.recordError`; readers see a snapshot through
+ * `GET /api/health.lastErrors`.
+ */
+export const LastErrorEntrySchema = z.object({
+  occurredAt: z.string(),
+  subsystem: z.enum(["scheduler", "outbox", "sync", "auth"]),
+  message: z.string(),
+  // Optional structured context: stable string keys/values. Subsystems use
+  // this to convey the failing run id, outbox row id, attempt count, etc.
+  // Kept as a flat string→string map for stable serialisation across processes.
+  context: z.record(z.string(), z.string()).default({}),
+}).strict();
+
+export const LAST_ERRORS_CAP = 20;
+
+/**
  * Scheduler observability surface (D-014, partial — scheduler subset only).
- * v0.5.0 ships this minimum; outbox + last-errors arrive in v0.5.1 / v0.5.2.
+ * v0.5.0 shipped this minimum; outbox + last-errors arrived in v0.5.5.
  *
  * - `enabled === false` means the scheduler is disabled (Phase 2 manual-only
  *   mode), either because `PLAUD_MIRROR_SCHEDULER_INTERVAL_MS=0` or because
@@ -338,6 +356,20 @@ export const ServiceHealthSchema = z.object({
   // service (or against a backend that has never enqueued anything) see a
   // sane structure rather than missing keys.
   outbox: OutboxHealthSchema.default(DISABLED_OUTBOX_HEALTH),
+  // Cross-subsystem error ring buffer (D-014 full, v0.5.5). Most-recent-first,
+  // capped at LAST_ERRORS_CAP entries. Empty array on a fresh boot or when
+  // no error has occurred since process start (the buffer is in-memory and
+  // resets per container restart — by design, errors that survive a restart
+  // belong to durable state like `outbox.permanentlyFailed` or
+  // `lastSync.error`, not this transient observability surface).
+  lastErrors: z.array(LastErrorEntrySchema).default([]),
+  // Recent FINISHED sync runs (D-014 full, v0.5.5), most-recent-first,
+  // capped at the store query limit (5 by default). Distinct from `lastSync`
+  // (which is the single most-recent run) — this is the operator-facing
+  // history strip on the panel and the audit signal for "are recent runs
+  // succeeding or failing?". `activeRun` (if any) is intentionally NOT
+  // included here; it is a different question.
+  recentSyncRuns: z.array(SyncRunSummarySchema).default([]),
   recordingsCount: z.number().int().nonnegative(),
   dismissedCount: z.number().int().nonnegative().default(0),
   webhookConfigured: z.boolean(),
@@ -390,4 +422,5 @@ export type OutboxListResponse = z.infer<typeof OutboxListResponseSchema>;
 export type OutboxRetryResponse = z.infer<typeof OutboxRetryResponseSchema>;
 export type OutboxHealth = z.infer<typeof OutboxHealthSchema>;
 export type ServiceHealth = z.infer<typeof ServiceHealthSchema>;
+export type LastErrorEntry = z.infer<typeof LastErrorEntrySchema>;
 export type WebhookPayload = z.infer<typeof WebhookPayloadSchema>;

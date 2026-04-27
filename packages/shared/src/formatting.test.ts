@@ -95,6 +95,8 @@ test("computeMissing clamps negative arithmetic and surfaces staleness", () => {
       permanentlyFailed: 0,
       oldestPendingAgeMs: null,
     },
+    lastErrors: [],
+    recentSyncRuns: [],
     recordingsCount,
     dismissedCount,
     webhookConfigured: false,

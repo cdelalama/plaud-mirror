@@ -573,6 +573,36 @@ export class RuntimeStore {
     return mapSyncRunRow(row);
   }
 
+  getRecentSyncRuns(limit: number): SyncRunSummary[] {
+    // D-014 full (v0.5.5): return the last `limit` FINISHED runs, most-recent-first.
+    // `lastSync` covers the very most recent — this fills in the operator-facing
+    // history strip beyond it. Active runs are excluded (see getActiveSyncRun).
+    const safeLimit = Math.max(0, Math.min(50, Math.trunc(limit)));
+    if (safeLimit === 0) return [];
+    const rows = this.db.prepare(`
+      SELECT
+        id,
+        mode,
+        status,
+        filters_json,
+        started_at,
+        finished_at,
+        examined,
+        matched,
+        downloaded,
+        delivered,
+        enqueued,
+        skipped,
+        plaud_total,
+        error_message
+      FROM sync_runs
+      WHERE finished_at IS NOT NULL
+      ORDER BY finished_at DESC
+      LIMIT ?
+    `).all(safeLimit) as SyncRunRow[];
+    return rows.map(mapSyncRunRow);
+  }
+
   getSyncRun(id: string): SyncRunSummary | null {
     const row = this.db.prepare(`
       SELECT

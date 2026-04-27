@@ -5,6 +5,7 @@ import {
   AuthStatusSchema,
   BackfillPreviewFiltersSchema,
   BackfillPreviewResponseSchema,
+  LAST_ERRORS_CAP,
   RecordingDeleteResultSchema,
   RecordingListResponseSchema,
   RecordingMirrorSchema,
@@ -21,6 +22,7 @@ import {
   type BackfillPreviewFilters,
   type BackfillPreviewResponse,
   type Device,
+  type LastErrorEntry,
   type OutboxItem,
   type RecordingDeleteResult,
   type RecordingMirror,
@@ -117,6 +119,11 @@ export class PlaudMirrorService {
   private readonly scheduler: (work: () => Promise<unknown>) => void;
   private schedulerStatusProvider: SchedulerStatusProvider | null = null;
   private schedulerReconfigureHook: ((intervalMs: number) => void) | null = null;
+  // D-014 full (v0.5.5). Cross-subsystem error ring buffer. Most-recent-first;
+  // older entries fall off the back when length exceeds LAST_ERRORS_CAP. In-
+  // memory by design — errors that need to survive a container restart belong
+  // in durable state (`outbox.permanentlyFailed`, `lastSync.error`), not here.
+  private readonly lastErrors: LastErrorEntry[] = [];
 
   constructor(
     environment: ServerEnvironment,
@@ -177,6 +184,30 @@ export class PlaudMirrorService {
     this.schedulerReconfigureHook = hook;
   }
 
+  /**
+   * Push an error onto the cross-subsystem ring buffer (D-014 full, v0.5.5).
+   * Called from the scheduler tick path (failed ticks), the outbox worker
+   * (delivery escalations), and the sync run path (failed runs). The buffer
+   * is bounded; the oldest entry is dropped when the cap is reached.
+   * Idempotent against duplicate calls — callers may invoke freely.
+   */
+  recordError(
+    subsystem: LastErrorEntry["subsystem"],
+    message: string,
+    context: Record<string, string> = {},
+  ): void {
+    const entry: LastErrorEntry = {
+      occurredAt: new Date().toISOString(),
+      subsystem,
+      message,
+      context,
+    };
+    this.lastErrors.unshift(entry);
+    if (this.lastErrors.length > LAST_ERRORS_CAP) {
+      this.lastErrors.length = LAST_ERRORS_CAP;
+    }
+  }
+
   async getHealth(): Promise<ReturnType<typeof ServiceHealthSchema.parse>> {
     const auth = await this.getAuthStatus();
     const config = await this.getConfig();
@@ -204,6 +235,8 @@ export class PlaudMirrorService {
         ? this.schedulerStatusProvider()
         : DISABLED_SCHEDULER_STATUS,
       outbox: this.store.getOutboxHealth(),
+      lastErrors: this.lastErrors.slice(),
+      recentSyncRuns: this.store.getRecentSyncRuns(5),
       recordingsCount: this.store.countRecordings(),
       dismissedCount: this.store.countDismissed(),
       webhookConfigured: Boolean(config.webhookUrl),
@@ -776,6 +809,7 @@ export class PlaudMirrorService {
       // non-zero if the failure happened mid-loop). Resetting them to 0 here
       // would discard real signal from the operator's polling UI.
       const partial = this.store.getSyncRun(id);
+      const errorMessage = toErrorMessage(error);
       this.store.finishSyncRun(SyncRunSummarySchema.parse({
         id,
         mode,
@@ -790,8 +824,9 @@ export class PlaudMirrorService {
         skipped: partial?.skipped ?? 0,
         plaudTotal: partial?.plaudTotal ?? null,
         filters: normalizedFilters,
-        error: toErrorMessage(error),
+        error: errorMessage,
       }));
+      this.recordError("sync", errorMessage, { runId: id, mode });
 
       throw error;
     }

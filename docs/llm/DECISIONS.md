@@ -350,7 +350,7 @@ Exponential backoff over linear because the failure modes we expect (downstream 
 
 ## D-014 - Health endpoint surfaces operational state, not just configuration state
 
-**Status:** accepted; **partially implemented** — `/api/health.scheduler` shipped in v0.5.0, `/api/health.outbox` (counters: pending / retryWaiting / permanentlyFailed / oldestPendingAgeMs) shipped in v0.5.3. The remaining piece — `lastErrors` ring buffer (cross-subsystem error history) and extended outbox/sync history beyond live counters — is scheduled for v0.5.5. (`v0.5.4` was governance-only — Layer-1 doc-drift enforcement, D-016 — and did not advance D-014.)
+**Status:** accepted; **fully implemented in v0.5.5**. `/api/health.scheduler` shipped in v0.5.0, `/api/health.outbox` (counters: pending / retryWaiting / permanentlyFailed / oldestPendingAgeMs) shipped in v0.5.3, and `lastErrors` (in-memory ring buffer, cap LAST_ERRORS_CAP=20, most-recent-first, cross-subsystem) plus `recentSyncRuns` (last 5 finished runs from `sync_runs` ordered by `finished_at DESC`) shipped in v0.5.5. (`v0.5.4` was governance-only — Layer-1 doc-drift enforcement, D-016 — and did not advance D-014.)
 
 ### Decision
 
@@ -408,7 +408,7 @@ Choices considered:
 
 ## D-016 - Doc-drift enforcement is layered: regex now (paliativo), semantic agent later (full closure)
 
-**Status:** accepted; **partially implemented in v0.5.4** (`scripts/check-prose-drift.sh` plus `check_prose_drift` wrapper in `scripts/dockit-validate-session.sh`). The semantic-check half of the layer is explicit deferred work, not hidden debt — it lands when LLM-DocKit's `LLM_DOCKIT_CE_V2_PROPOSAL.md` (currently draft, untracked in `~/src/LLM-DocKit/docs/`) provides the agent-based `Stop` hook framework described in `HOOKS_ENFORCEMENT_PROPOSAL.md` Optional Enhancement B (currently draft, untracked).
+**Status:** accepted; **partially implemented**. `scripts/check-prose-drift.sh` plus `check_prose_drift` wrapper landed in v0.5.4 (WARN-level during the calibration window) and the wrapper was hardened to FAIL in v0.5.5 after empirical confirmation that operator workflow rephrases or baselines false positives without operational pain. The semantic-check half of the layer is explicit deferred work, not hidden debt — it lands when LLM-DocKit's `LLM_DOCKIT_CE_V2_PROPOSAL.md` (currently draft, untracked in `~/src/LLM-DocKit/docs/`) provides the agent-based `Stop` hook framework described in `HOOKS_ENFORCEMENT_PROPOSAL.md` Optional Enhancement B (currently draft, untracked).
 
 ### Decision
 
@@ -459,3 +459,38 @@ Why `WARN` first, `FAIL` later:
 - Future projects adopting LLM-DocKit pick up `prose-drift` for free if `scripts/check-prose-drift.sh` is upstreamed via `DF-028`. Until then, plaud-mirror is the canonical reference implementation.
 - The `--review` JSON output is the explicit handoff format for any future semantic-check layer (Optional Enhancement B). The schema is documented inside the script itself; do not rename fields without updating the consumer when it lands.
 - Adding a new rule (R5+) to the script: function `rule_<name>()`, register it in the run section, write tests if/when the script gets a test harness (currently smoke-tested by running it against the live tree). Rules should be **structural**, not semantic — anything semantic belongs in Layer 2.
+
+## D-017 - Unabsorbed-artifact detection is local in plaud-mirror, symmetric `forge audit` lives in ForgeOS
+
+**Status:** accepted; **implemented in v0.5.5** (`scripts/check-unabsorbed-artifact.sh` + `scripts/.unabsorbed-artifact-baseline.json` + `check_unabsorbed_artifact` wrapper as the ninth `dockit-validate-session` check, WARN-level non-blocking).
+
+### Decision
+
+plaud-mirror grows a `check_unabsorbed_artifact` validator check that flags local artifacts in `scripts/` and `.claude/rules/` whose filename does not exist in the LLM-DocKit upstream template (`$HOME/src/LLM-DocKit/scripts/` and `~/.claude/rules/`). The check is WARN-level non-blocking. Project-specific artifacts (e.g. `scripts/check-upstreams.sh` watching plaud-specific upstreams) are baselined as `permanent: true` with a reason. In-flight absorption candidates (e.g. `scripts/check-prose-drift.sh` per `DF-028`) are baselined as `permanent: false` with a `df_id` link. Comparison is filename-only, not content match — content divergence is a different drift class and is intentionally out of scope for this check.
+
+The symmetric companion (`forge audit` CLI that automates the cross-repo audit ForgeOS↔plaud-mirror↔LLM-DocKit) lives in `~/src/ForgeOS/` per the cross-session audit on 2026-04-27, and is explicitly **out of scope** for plaud-mirror. plaud-mirror builds the local termómetro; ForgeOS builds the motor.
+
+### Revisions from original draft
+
+The 2026-04-27 plan drafted by the ForgeOS-context Claude session proposed a single piece. During implementation the matiz **"day-one ignore-list"** was made mandatory: without baseline support the check would emit noise on every project-specific script, and operators would learn to ignore the WARN. The baseline file (`scripts/.unabsorbed-artifact-baseline.json`) is required from the first commit, mirroring the precedent of `scripts/.prose-drift-baseline.json` (D-016). Initial baseline ships with three entries: `scripts/check-upstreams.sh` (permanent), `.claude/rules/external-context-triggers.md` (permanent), `scripts/check-prose-drift.sh` (transient, `df_id: DF-028`).
+
+Two POSIX-shell bugs were caught during implementation and worth noting for any future Layer-1 script:
+1. `$'\t'` ANSI-C quoting is a bashism and silently fails under `#!/bin/sh`. Use `TAB=$(printf '\t')` and interpolate as `"${TAB}"`. The fix is the same one D-016 §"Empirical history" called out for `check-prose-drift.sh`.
+2. `grep -c X file 2>/dev/null || echo 0` concatenates two zeros into a multi-line value when there are zero matches (grep prints "0" AND exits 1, so the fallback also runs). Use `grep X file 2>/dev/null | wc -l | tr -d ' '` instead.
+
+JSON merge in `--update-baseline` mode is delegated to Python3 (already a documented dependency via `~/.claude/hooks/check-passive-rule.sh`). A sed-based templating attempt broke immediately on `/` literals in path strings — the same class of bug, this time in the rewriter rather than the scanner.
+
+### Rationale
+
+The ForgeOS-context session diagnosed (2026-04-27 cross-session audit) that the bucle de aprendizaje LLM-DocKit ↔ downstreams ↔ ForgeOS depends on manual cross-audits to detect deltas that should propagate upstream. With one downstream (plaud-mirror) accumulating artifacts and seven other `.dockit-enabled` downstreams parado, the failure mode is asymmetric: plaud-mirror generates lessons that never become template improvements because no one is watching the deltas systematically. Building the full inverse motor (`dockit-absorb`, template test-suite, automatic DF promotion, LLM-as-judge) on a single-downstream sample is exactly the modo-de-fallo the global rule "Before adding a passive rule" prohibits — design from data, not from speculation. Two minimal pieces generate the data: this check (local termómetro) plus `forge audit` in ForgeOS (cross-repo motor).
+
+The check is intentionally non-blocking (WARN). The DF promotion is a human decision that depends on signals this check cannot evaluate: whether the artifact is generalizable, whether other downstreams will benefit, whether upstream maintainers will accept it. The check's job is to make those candidates **visible** at every `dockit-validate-session` run so the operator does not need to remember to look. Once the upstream framework matures (CE_V2 pilot completes, `forge audit` ships, ≥2 downstreams generate DF candidates), the WARN→FAIL transition becomes defensible. Today, FAIL would block legitimate project-specific artifacts behind a baseline ceremony that is not yet justified by the data.
+
+Why filename-only comparison: content matching is a different problem. A local script may diverge from upstream because the local copy fixed a bug, customised behaviour, or simply ages. Detecting "your local copy is stale relative to upstream" is a `dockit-sync` concern, not an `unabsorbed-artifact` concern. The two checks are complementary; this one answers "do I have something upstream does not?", `dockit-sync` answers "is what we share still in sync?". Confusing the two would create a check that flags every minor edit, defeating the WARN-level signal.
+
+### Implications
+
+- DF-028 has a structural anchor in plaud-mirror's validator output now. Every `dockit-validate-session.sh --human` run on a plaud-mirror tree where DF-028 is still un-absorbed will emit a baseline-suppressed transient entry, reminding the operator that the upstream story is not closed. When LLM-DocKit absorbs the script, the local file gets deleted and the baseline entry removed in the same commit — the check then drops from 1 transient to 0 naturally.
+- Future absorption events (DF-XXX upstream → script lands in `~/src/LLM-DocKit/scripts/`) follow the same protocol: delete local file + baseline entry in one commit. The check provides the empirical signal that the absorption is complete (no more "transient" entries for that path).
+- `forge audit` in ForgeOS depends on the baseline file format. Treat `scripts/.unabsorbed-artifact-baseline.json` as a public interface for cross-repo tooling: schema changes require coordinated updates with `~/src/ForgeOS/`. Schema is intentionally minimal (`id`, `path`, `permanent`, `reason`, optional `df_id`, `created_at`) to keep both sides cheap to evolve.
+- The check shares D-016's regex-paliativo posture: it catches mechanical drift (filename presence) but cannot detect semantic divergence (a local script that has drifted in content or intent from its upstream namesake). Layer 2 (Optional Enhancement B of `HOOKS_ENFORCEMENT_PROPOSAL`) is the closure path for the full picture; this check is a thermometer, not a thermostat.

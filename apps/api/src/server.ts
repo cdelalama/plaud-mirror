@@ -66,6 +66,21 @@ export async function createApp(options: CreateAppOptions = {}) {
         return { skipped: true, reason: "another sync run was already in flight" };
       }
     },
+    onTick: (result) => {
+      // D-014 full (v0.5.5): only failed ticks feed the cross-subsystem
+      // ring buffer. `skipped` (anti-overlap absorption) and `completed`
+      // are healthy outcomes. Sync-side errors that propagate up into a
+      // failed tick will already have been recorded by the service's
+      // own catch path; the duplicate is acceptable because each layer
+      // captures different context (sync layer = run id; scheduler
+      // layer = tick timestamps).
+      if (result.status === "failed" && result.error) {
+        service.recordError("scheduler", result.error, {
+          startedAt: result.startedAt,
+          finishedAt: result.finishedAt,
+        });
+      }
+    },
   });
   service.setSchedulerStatusProvider(() => manager.status());
   service.setSchedulerReconfigureHook((intervalMs) => manager.applyInterval(intervalMs));
@@ -87,6 +102,16 @@ export async function createApp(options: CreateAppOptions = {}) {
         store,
         secrets,
         requestTimeoutMs: environment.requestTimeoutMs,
+        onDeliveryError: ({ outboxId, attempt, escalation, message }) => {
+          // D-014 full (v0.5.5). Both retry and permanent escalations land
+          // in the ring buffer so operators can spot a flaky downstream
+          // before it permanently fails — same shape as scheduler/sync.
+          service.recordError("outbox", message, {
+            outboxId,
+            attempt: String(attempt),
+            escalation,
+          });
+        },
         ...(options.webhookFetchImpl ? { webhookFetchImpl: options.webhookFetchImpl } : {}),
       })
     : null;

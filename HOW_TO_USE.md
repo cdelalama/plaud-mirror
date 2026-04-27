@@ -1,11 +1,11 @@
-<!-- doc-version: 0.5.4 -->
+<!-- doc-version: 0.5.5 -->
 # How to Use This Repository
 
 This guide explains how Plaud Mirror is operated end-to-end and how it stays aligned with both `LLM-DocKit` (the governance scaffold it adopts) and the Plaud ecosystem upstreams it watches.
 
 ## Current Reality
 
-`v0.5.3` ships the **durable webhook outbox** (D-013) on top of the panel-driven scheduler that landed in `v0.5.2`. Webhook delivery is no longer synchronous: each successful sync enqueues the payload, a worker retries with exponential backoff (30 s → 8 h, 8 attempts, ~16 h total) and surfaces permanently-failed items in a new "Webhook outbox" card on the Configuration tab with a Retry button per row. **Operators upgrading from `v0.4.x` should skip `v0.5.0` (default-on regression) and go directly to `v0.5.3`.** Today the repository gives you:
+`v0.5.5` ships **full health observability** (D-014, complete): `/api/health` now also returns a cross-subsystem `lastErrors` ring buffer (capped at 20, most-recent-first) and `recentSyncRuns` (last 5 finished runs). It builds on the durable webhook outbox (D-013, v0.5.3) and the panel-driven scheduler (v0.5.2). **Operators upgrading from `v0.4.x` should skip `v0.5.0` (default-on regression) and go directly to `v0.5.5`.** Today the repository gives you:
 
 - a Fastify API and React/Vite panel bundled in a single Docker container;
 - encrypted persisted bearer-token auth against Plaud, surviving restarts;
@@ -14,10 +14,10 @@ This guide explains how Plaud Mirror is operated end-to-end and how it stays ali
 - a cached device catalog that feeds a real device selector in the backfill form;
 - local recording index in SQLite with stable `#N` ranks, classic pagination, inline audio playback with HTTP Range support, and local-only dismiss/restore;
 - HMAC-signed webhook delivery via a **durable outbox**: every sync enqueues, the worker retries failures with exponential backoff, the panel exposes counters and a Retry button for permanently-failed items;
-- a `scheduler` block + a new `outbox` block on `/api/health`;
+- a `scheduler` block, an `outbox` counters block, plus the `lastErrors` ring buffer and `recentSyncRuns` list on `/api/health` (D-014 full from v0.5.5);
 - upstream-watch tooling plus the full LLM-DocKit governance circuit (HANDOFF, HISTORY, DECISIONS, REVIEWS, version-sync manifest, validator, pre-commit hook).
 
-What it deliberately does **not** give you yet: full health observability with `lastErrors` ring buffer + extended outbox/sync history (next: `v0.5.5`), resumable backfill, automatic re-login, NAS rollout. Those are remaining Phase 3 work and Phase 4+ per `docs/ROADMAP.md`.
+What it deliberately does **not** give you yet: resumable backfill, automatic re-login, NAS rollout. Those are remaining Phase 3+ work per `docs/ROADMAP.md`.
 
 For the full feature inventory see [README.md](README.md); for the product intent see [docs/PROJECT_CONTEXT.md](docs/PROJECT_CONTEXT.md); for current work state see [docs/llm/HANDOFF.md](docs/llm/HANDOFF.md).
 
