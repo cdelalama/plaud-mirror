@@ -24,7 +24,7 @@ The repository now contains the full Phase 2 slice plus the Phase 3 scheduler su
 - **opt-in continuous sync scheduler** configured from the Configuration tab of the panel (interval in minutes, `0` disables, hot-applied without container restart); status surfaced via the `scheduler` block on `/api/health`
 - Docker packaging for `dev-vm`, running as non-root `USER 1000:1000`
 
-Resumable backfill, full health observability with `lastErrors` ring buffer (next: v0.5.4), and automatic re-login are explicitly later phases.
+Resumable backfill, full health observability with `lastErrors` ring buffer (next: v0.5.5), and automatic re-login are explicitly later phases.
 
 ## Operator Posture
 

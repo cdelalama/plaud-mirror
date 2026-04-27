@@ -17,7 +17,7 @@ This guide explains how Plaud Mirror is operated end-to-end and how it stays ali
 - a `scheduler` block + a new `outbox` block on `/api/health`;
 - upstream-watch tooling plus the full LLM-DocKit governance circuit (HANDOFF, HISTORY, DECISIONS, REVIEWS, version-sync manifest, validator, pre-commit hook).
 
-What it deliberately does **not** give you yet: full health observability with `lastErrors` ring buffer + extended outbox/sync history (next: `v0.5.4`), resumable backfill, automatic re-login, NAS rollout. Those are remaining Phase 3 work and Phase 4+ per `docs/ROADMAP.md`.
+What it deliberately does **not** give you yet: full health observability with `lastErrors` ring buffer + extended outbox/sync history (next: `v0.5.5`), resumable backfill, automatic re-login, NAS rollout. Those are remaining Phase 3 work and Phase 4+ per `docs/ROADMAP.md`.
 
 For the full feature inventory see [README.md](README.md); for the product intent see [docs/PROJECT_CONTEXT.md](docs/PROJECT_CONTEXT.md); for current work state see [docs/llm/HANDOFF.md](docs/llm/HANDOFF.md).
 

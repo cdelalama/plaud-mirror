@@ -350,7 +350,7 @@ Exponential backoff over linear because the failure modes we expect (downstream 
 
 ## D-014 - Health endpoint surfaces operational state, not just configuration state
 
-**Status:** accepted; **partially implemented** — `/api/health.scheduler` shipped in v0.5.0, `/api/health.outbox` (counters: pending / retryWaiting / permanentlyFailed / oldestPendingAgeMs) shipped in v0.5.3. The remaining piece — `lastErrors` ring buffer (cross-subsystem error history) and extended outbox/sync history beyond live counters — is scheduled for v0.5.4.
+**Status:** accepted; **partially implemented** — `/api/health.scheduler` shipped in v0.5.0, `/api/health.outbox` (counters: pending / retryWaiting / permanentlyFailed / oldestPendingAgeMs) shipped in v0.5.3. The remaining piece — `lastErrors` ring buffer (cross-subsystem error history) and extended outbox/sync history beyond live counters — is scheduled for v0.5.5. (`v0.5.4` was governance-only — Layer-1 doc-drift enforcement, D-016 — and did not advance D-014.)
 
 ### Decision
 

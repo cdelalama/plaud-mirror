@@ -1,7 +1,7 @@
 <!-- doc-version: 0.5.4 -->
 # Authentication and Sync Operations
 
-This runbook defines the live behavior of Plaud Mirror's auth and sync surface. Phase 2 (manual sync/backfill) is fully shipped. Phase 3: the continuous sync scheduler landed in `v0.5.0` (regressed) → `v0.5.1` (fixed) → `v0.5.2` (panel-driven). `v0.5.3` ships the **durable webhook outbox** (D-013): webhook delivery is no longer synchronous inside a sync run, payloads are persisted to a `webhook_outbox` SQLite table and a dedicated worker retries with exponential backoff (30 s → 8 h, 8 attempts) before escalating. Full health observability with `lastErrors` ring buffer (D-014, complete) lands in `v0.5.4`.
+This runbook defines the live behavior of Plaud Mirror's auth and sync surface. Phase 2 (manual sync/backfill) is fully shipped. Phase 3: the continuous sync scheduler landed in `v0.5.0` (regressed) → `v0.5.1` (fixed) → `v0.5.2` (panel-driven). `v0.5.3` shipped the **durable webhook outbox** (D-013): webhook delivery is no longer synchronous inside a sync run, payloads are persisted to a `webhook_outbox` SQLite table and a dedicated worker retries with exponential backoff (30 s → 8 h, 8 attempts) before escalating. `v0.5.4` is governance-only (Layer-1 doc-drift enforcement, D-016, no runtime change). Full health observability with `lastErrors` ring buffer (D-014, complete) lands next: v0.5.5.
 
 ## Auth Mode
 
@@ -85,7 +85,7 @@ Operational properties:
 
 #### Still later in `0.5.x`
 
-- **`v0.5.4`:** full health observability — `lastErrors` ring buffer (cross-subsystem error history) + extended outbox / sync history through `/api/health` (D-014, full).
+- **next: v0.5.5** — full health observability — `lastErrors` ring buffer (cross-subsystem error history) + extended outbox / sync history through `/api/health` (D-014, full). (`v0.5.4` was governance-only — Layer-1 doc-drift enforcement, D-016 — with no runtime change.)
 - Resumable backfill (no firm release target; deferred within Phase 3).
 
 ## Failure Modes
