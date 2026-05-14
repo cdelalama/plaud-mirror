@@ -1,4 +1,4 @@
-<!-- doc-version: 0.5.5 -->
+<!-- doc-version: 0.5.6 -->
 # Authentication and Sync Operations
 
 This runbook defines the live behavior of Plaud Mirror's auth and sync surface. Phase 2 (manual sync/backfill) is fully shipped. Phase 3: the continuous sync scheduler landed in `v0.5.0` (regressed) → `v0.5.1` (fixed) → `v0.5.2` (panel-driven). `v0.5.3` shipped the **durable webhook outbox** (D-013): webhook delivery is no longer synchronous inside a sync run, payloads are persisted to a `webhook_outbox` SQLite table and a dedicated worker retries with exponential backoff (30 s → 8 h, 8 attempts) before escalating. `v0.5.4` was governance-only (Layer-1 doc-drift enforcement, D-016, no runtime change). `v0.5.5` ships **D-014 full**: `lastErrors` ring buffer (cross-subsystem, in-memory, capped at 20) and `recentSyncRuns` (last 5 finished runs from SQLite) on `/api/health`. The Phase 3 runtime surface is now complete; remaining work (resumable backfill, automatic re-login) is deferred.

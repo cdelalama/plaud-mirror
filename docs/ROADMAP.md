@@ -1,4 +1,4 @@
-<!-- doc-version: 0.5.5 -->
+<!-- doc-version: 0.5.6 -->
 # Plaud Mirror Roadmap
 
 This document is the canonical phase boundary for Plaud Mirror. If implementation scope starts to cross a phase boundary, update this document before claiming the work is part of the current phase.
@@ -12,10 +12,10 @@ This document is the canonical phase boundary for Plaud Mirror. If implementatio
 
 ## Current Target
 
-- Current delivery target: `v0.5.5`
+- Current delivery target: `v0.5.6`
 - Current phase: **Phase 3 - unattended operation (stable since 0.5.1)**
 - Deployment target: `dev-vm` first
-- Phase 3 entry: `v0.5.0` introduced the in-process scheduler (D-012) and partial health observability (D-014, scheduler subset) but shipped two regressions; `v0.5.1` fixed both. `v0.5.2` made the scheduler panel-driven (SQLite-persisted, hot-applied via `SchedulerManager`). `v0.5.3` shipped the **durable webhook outbox** (D-013): every successful sync enqueues the payload, a worker retries with exponential backoff (30s → 8h, 8 attempts), permanently-failed items are surfaced in the panel with a Retry button, counters land on `/api/health.outbox`. `v0.5.4` was governance-only: **Layer-1 doc-drift enforcement** (D-016) — `scripts/check-prose-drift.sh` + `prose-drift` validator check + global meta-rule — no runtime change. `v0.5.5` (current) ships **D-014 full** — `lastErrors` ring buffer (cross-subsystem error history, in-memory, capped at 20) and `recentSyncRuns` (last 5 finished runs from SQLite) on `/api/health` — plus `prose-drift` hardened from `WARN` to `FAIL`, plus the new `check_unabsorbed_artifact()` ninth validator check (D-017). Operators upgrading from `0.4.x` should skip `v0.5.0` and go directly to `v0.5.5`.
+- Phase 3 entry: `v0.5.0` introduced the in-process scheduler (D-012) and partial health observability (D-014, scheduler subset) but shipped two regressions; `v0.5.1` fixed both. `v0.5.2` made the scheduler panel-driven (SQLite-persisted, hot-applied via `SchedulerManager`). `v0.5.3` shipped the **durable webhook outbox** (D-013): every successful sync enqueues the payload, a worker retries with exponential backoff (30s → 8h, 8 attempts), permanently-failed items are surfaced in the panel with a Retry button, counters land on `/api/health.outbox`. `v0.5.4` was governance-only: **Layer-1 doc-drift enforcement** (D-016) — `scripts/check-prose-drift.sh` + `prose-drift` validator check + global meta-rule — no runtime change. `v0.5.5` shipped **D-014 full** — `lastErrors` ring buffer (cross-subsystem error history, in-memory, capped at 20) and `recentSyncRuns` (last 5 finished runs from SQLite) on `/api/health` — plus `prose-drift` hardened from `WARN` to `FAIL`, plus the new `check_unabsorbed_artifact()` ninth validator check (D-017). `v0.5.6` (current) is governance/sync only: it adopts LLM-DocKit 4.8 (new SessionStart hook in `.claude/settings.json`, new `scripts/dockit-bootstrap-context.sh`, extended `scripts/dockit-validate-session.sh`, yaml-merged `docs/version-sync-manifest.yml`, section-merged `LLM_START_HERE.md`) while preserving project-specific guardrails (`json-version`, D-016 `prose-drift`, D-017 `unabsorbed-artifact`); the pre-commit hook required this patch bump because the dockit-sync output touches versioned governance surface. Operators upgrading from `0.4.x` should skip `v0.5.0` and go directly to `v0.5.6`.
 
 ## Phase Table
 

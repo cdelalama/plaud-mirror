@@ -1,4 +1,4 @@
-<!-- doc-version: 0.5.5 -->
+<!-- doc-version: 0.5.6 -->
 # API Contract
 
 This document describes the HTTP and webhook surface that now exists in-repo. The current implementation covers the full Phase 2 slice (manual sync/backfill, local curation routes) plus the Phase 3 scheduler subset (panel-driven from `v0.5.2`) plus the **durable webhook outbox** (D-013) shipped in `v0.5.3` plus **full health observability** (D-014, complete) shipped in `v0.5.5`. From `v0.5.3` onwards webhook delivery is asynchronous: each sync run enqueues the payload, a worker retries it with exponential backoff. From `v0.5.5` onwards `/api/health` also returns `lastErrors` (cross-subsystem ring buffer, capped at 20) and `recentSyncRuns` (last 5 finished runs).

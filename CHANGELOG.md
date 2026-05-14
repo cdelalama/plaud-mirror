@@ -4,6 +4,27 @@ All notable changes to Plaud Mirror are documented in this file.
 
 This project follows Semantic Versioning (SemVer): MAJOR.MINOR.PATCH.
 
+## [0.5.6] - 2026-05-14
+
+Patch governance/sync release. No runtime code or API change; pre-commit hook bumped this because `scripts/*` and `.claude/settings.json` count as versioned governance surface (same pattern as `v0.5.4` and `v0.5.5`).
+
+### Added
+
+- New `scripts/dockit-bootstrap-context.sh` from LLM-DocKit 4.8 sync — companion to the SessionStart hook for orienting a fresh agent into the external `home-infra` context.
+
+### Changed
+
+- `.claude/settings.json` — adopted the LLM-DocKit 4.8 SessionStart hook so new sessions load the external context block automatically.
+- `scripts/dockit-validate-session.sh` — extended with the upstream 4.8 orientation/template-residue checks while preserving the local `prose-drift` (D-016), `unabsorbed-artifact` (D-017), and `json-version` checks.
+- `docs/version-sync-manifest.yml` — yaml-merged with the 4.8 upstream schema; project entries preserved.
+- `LLM_START_HERE.md` — section-merged with the 4.8 upstream templates; project-specific blocks intact.
+- `docs/llm/HANDOFF.md` + `docs/llm/HISTORY.md` — rotated the Session Focus chain so the 2026-05-13 Codex session is preserved as Previous Session Focus, today's entry records the closure, and `Open Work` reflects that the home-infra control-plane exposure landed earlier today as `cdelalama/home-infra` commit `dec374f`.
+
+### Notes
+
+- The 2026-05-13 Codex session prepared the sync + HANDOFF/HISTORY content but did not commit; this release closes that pending work as the proper patch release (the pre-commit hook correctly refused a `Version impact: no` commit that touched governance surface).
+- No `npm` build, no container rebuild, no test changes — `116/116` from v0.5.5 still holds. Validators `scripts/check-version-sync.sh` and `scripts/dockit-validate-session.sh --human` both PASS.
+
 ## [0.5.5] - 2026-04-27
 
 ### Added

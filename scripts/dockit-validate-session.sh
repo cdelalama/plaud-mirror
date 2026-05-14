@@ -62,7 +62,7 @@ while [ $# -gt 0 ]; do
         --help|-h)
             echo "Usage: $0 [--human|--json] [--quiet] [--check NAME]... [--project PATH]"
             echo ""
-            echo "Checks: handoff-date, history-entry, decisions-referenced, version-sync, external-context, external-triggers, handoff-start-here-sync"
+            echo "Checks: handoff-date, history-entry, decisions-referenced, version-sync, external-context, external-triggers, handoff-start-here-sync, orientation, template-residue, prose-drift, unabsorbed-artifact"
             echo ""
             echo "Exit codes: 0=pass, 1=fail, 2=script error"
             exit 0
@@ -243,7 +243,7 @@ check_handoff_start_here_sync() {
     if [ "$ho_val" = "$sh_val" ]; then
         add_result "handoff-start-here-sync" "PASS" "LLM_START_HERE 'Current Focus' Last Updated matches HANDOFF: $ho_val"
     else
-        add_result "handoff-start-here-sync" "FAIL" "Last Updated mismatch — HANDOFF: '$ho_val' vs LLM_START_HERE: '$sh_val'. Update LLM_START_HERE.md 'Current Focus (Snapshot)' to match HANDOFF 'Current Status'."
+        add_result "handoff-start-here-sync" "FAIL" "Last Updated mismatch - HANDOFF: '$ho_val' vs LLM_START_HERE: '$sh_val'. Update LLM_START_HERE.md 'Current Focus (Snapshot)' to match HANDOFF 'Current Status'."
     fi
 }
 
@@ -448,22 +448,139 @@ check_external_triggers() {
     fi
 }
 
-# ── Check: prose-drift (D-016 — Layer-1 wrapper) ───────────────────────────
-# Thin wrapper around scripts/check-prose-drift.sh per the
-# Layer-1/Layer-2 architecture proposed in
-# ~/src/LLM-DocKit/docs/HOOKS_ENFORCEMENT_PROPOSAL.md (RFC, draft). The
-# external script is the validation logic; this function is the driver
-# adapter that translates exit code → add_result.
-#
-# Severity is WARN during v0.5.4 (the calibration window — assume
-# false positives in the first release using the script). Promote to
-# FAIL in v0.5.5 once the baseline is stable.
+# ── Check: orientation (DF-034) ──────────────────────────────────────────────
+# Asserts HANDOFF.md declares the next concrete step in a recognisable section
+# that names at least one in-repo file path, and that each named path exists.
+# Accepted section headings (operator-configurable): "Open work", "Next concrete
+# step", "Next Steps". Paths are detected as backtick-quoted markdown spans
+# matching common source extensions; cross-repo absolute paths (~/, /) are
+# excluded from the existence check.
+
+check_orientation() {
+    if ! should_run "orientation"; then return; fi
+
+    if [ ! -f "$HANDOFF" ]; then
+        add_result "orientation" "FAIL" "HANDOFF.md not found at $HANDOFF"
+        return
+    fi
+
+    section_start=$(grep -nE '^##[[:space:]]+(Open [Ww]ork|Next concrete step|Next [Ss]teps)' "$HANDOFF" | head -1 | cut -d: -f1)
+    if [ -z "$section_start" ]; then
+        add_result "orientation" "FAIL" "No 'Open work' section found in HANDOFF.md (accepted headings: 'Open work', 'Next concrete step', 'Next Steps')"
+        return
+    fi
+
+    section_end=$(awk -v start="$section_start" 'NR>start && /^## / {print NR-1; exit}' "$HANDOFF")
+    if [ -z "$section_end" ]; then
+        section_end=$(wc -l < "$HANDOFF")
+    fi
+
+    paths=$(sed -n "${section_start},${section_end}p" "$HANDOFF" \
+        | grep -oE '`[^`]+\.(md|sh|yml|yaml|json|txt|py|js|ts|toml)`' \
+        | sed 's/`//g' \
+        | grep -vE '^(/|~)' \
+        | sort -u)
+
+    if [ -z "$paths" ]; then
+        add_result "orientation" "FAIL" "Open work section names no in-repo file paths (expected backtick-quoted paths like \`scripts/foo.sh\`)"
+        return
+    fi
+
+    missing=""
+    count=0
+    for p in $paths; do
+        count=$((count + 1))
+        if [ ! -e "$PROJECT_ROOT/$p" ]; then
+            missing="$missing $p"
+        fi
+    done
+
+    if [ -n "$missing" ]; then
+        add_result "orientation" "FAIL" "Open work names $count path(s); missing in repo:$missing"
+    else
+        add_result "orientation" "PASS" "Open work names $count file path(s), all present in repo"
+    fi
+}
+
+# ── Check: template-residue (DF-035 option (a)) ──────────────────────────────
+# Greps canonical scaffold-shipped docs for known author-voice / template
+# placeholder patterns that survive `dockit-init-project.sh` and poison
+# fresh-session orientation. Skips on the LLM-DocKit source repo itself
+# (templates contain placeholders by design — `dockit-sync-manifest.yml` is
+# the source-repo marker, stripped from downstream by `dockit-init-project.sh`).
+# DECISIONS.md emptiness is reported as WARN once the repo crosses a configurable
+# commit threshold (DOCKIT_DECISIONS_EMPTY_THRESHOLD_COMMITS, default 5).
+
+check_template_residue() {
+    if ! should_run "template-residue"; then return; fi
+
+    if [ -f "$PROJECT_ROOT/dockit-sync-manifest.yml" ]; then
+        add_result "template-residue" "PASS" "Skipped (LLM-DocKit source repo; templates carry placeholders by design)"
+        return
+    fi
+
+    _issues=""
+
+    _f="$PROJECT_ROOT/LLM_START_HERE.md"
+    if [ -f "$_f" ]; then
+        for _pat in 'Replace angle-bracket placeholders' 'Customization Notes for Maintainers'; do
+            if grep -qF "$_pat" "$_f"; then
+                _issues="$_issues; LLM_START_HERE.md: '$_pat'"
+            fi
+        done
+        if grep -qE 'Replace [A-Za-z0-9_-]+ with the actual project name' "$_f"; then
+            _issues="$_issues; LLM_START_HERE.md: 'Replace <project> with the actual project name' (scaffold author voice)"
+        fi
+    fi
+
+    _f="$PROJECT_ROOT/docs/STRUCTURE.md"
+    if [ -f "$_f" ]; then
+        for _pat in 'Use this template to document' '<PROJECT_ROOT>'; do
+            if grep -qF "$_pat" "$_f"; then
+                _issues="$_issues; STRUCTURE.md: '$_pat'"
+            fi
+        done
+    fi
+
+    _f="$PROJECT_ROOT/docs/ARCHITECTURE.md"
+    if [ -f "$_f" ]; then
+        for _pat in '<Names>' '<Invariant' '<Step>' '<Phase 0>' 'Authors: <Names>'; do
+            if grep -qF "$_pat" "$_f"; then
+                _issues="$_issues; ARCHITECTURE.md: '$_pat'"
+            fi
+        done
+    fi
+
+    _warn=""
+    _f="$PROJECT_ROOT/docs/llm/DECISIONS.md"
+    if [ -f "$_f" ]; then
+        if ! grep -qE '^## D-[0-9]{3}' "$_f"; then
+            _threshold="${DOCKIT_DECISIONS_EMPTY_THRESHOLD_COMMITS:-5}"
+            _commits=$(cd "$PROJECT_ROOT" && git rev-list --count HEAD 2>/dev/null || echo 0)
+            if [ "$_commits" -ge "$_threshold" ]; then
+                _warn="DECISIONS.md has no D-NNN entry after $_commits commits (threshold: $_threshold). Extract durable decisions from HANDOFF inline accumulation."
+            fi
+        fi
+    fi
+
+    if [ -n "$_issues" ]; then
+        _msg=$(echo "$_issues" | sed 's/^; //')
+        add_result "template-residue" "FAIL" "Template residue: $_msg"
+    elif [ -n "$_warn" ]; then
+        add_result "template-residue" "WARN" "$_warn"
+    else
+        add_result "template-residue" "PASS" "No template residue in canonical scaffold-shipped docs"
+    fi
+}
+
+# -- Check: prose-drift (D-016 local guardrail) -----------------------------
+
 check_prose_drift() {
     if ! should_run "prose-drift"; then return; fi
 
     _script="$PROJECT_ROOT/scripts/check-prose-drift.sh"
     if [ ! -f "$_script" ]; then
-        add_result "prose-drift" "WARN" "scripts/check-prose-drift.sh not found; skipping (D-016 not yet adopted in this project root)"
+        add_result "prose-drift" "WARN" "scripts/check-prose-drift.sh not found; skipping (D-016 not adopted in this project root)"
         return
     fi
     if [ ! -x "$_script" ]; then
@@ -471,18 +588,12 @@ check_prose_drift() {
         return
     fi
 
-    # Run in quiet+strict mode. The script prints findings to stdout when
-    # it fails; capture the first finding line for the result message.
     _output=$("$_script" --strict --quiet 2>&1)
     _exit=$?
     if [ "$_exit" = "0" ]; then
         add_result "prose-drift" "PASS" "No drift detected (regex-based, see D-016 for scope and limits)"
     else
-        # First non-header line of the output is the most informative summary.
         _summary=$(printf '%s' "$_output" | head -3 | tr '\n' ' ' | sed 's/  */ /g; s/^ //; s/ $//')
-        # Hardened from WARN to FAIL in v0.5.5 per D-016 plan. Operators
-        # rephrase to use a recognised planning phrase, or baseline via
-        # `scripts/check-prose-drift.sh --update-baseline --note "<reason>"`.
         add_result "prose-drift" "FAIL" "Drift detected: $_summary | run scripts/check-prose-drift.sh for details"
     fi
 }
@@ -492,7 +603,7 @@ check_unabsorbed_artifact() {
 
     _script="$PROJECT_ROOT/scripts/check-unabsorbed-artifact.sh"
     if [ ! -f "$_script" ]; then
-        add_result "unabsorbed-artifact" "WARN" "scripts/check-unabsorbed-artifact.sh not found; skipping (D-017 not yet adopted in this project root)"
+        add_result "unabsorbed-artifact" "WARN" "scripts/check-unabsorbed-artifact.sh not found; skipping (D-017 not adopted in this project root)"
         return
     fi
     if [ ! -x "$_script" ]; then
@@ -500,9 +611,6 @@ check_unabsorbed_artifact() {
         return
     fi
 
-    # Always WARN-level: this check generates DF-candidate signal, not blocking
-    # gate. Project-specific artifacts get baselined permanently; in-flight
-    # absorption candidates get baselined transiently with df_id.
     _output=$("$_script" --quiet 2>&1)
     _exit=$?
     if [ "$_exit" = "0" ]; then
@@ -517,11 +625,13 @@ check_unabsorbed_artifact() {
 
 check_handoff_date
 check_history_entry
-check_handoff_start_here_sync
 check_decisions_referenced
 check_version_sync
 check_external_context
 check_external_triggers
+check_handoff_start_here_sync
+check_orientation
+check_template_residue
 check_prose_drift
 check_unabsorbed_artifact
 
