@@ -1,13 +1,14 @@
-<!-- doc-version: 0.5.6 -->
+<!-- doc-version: 0.6.0 -->
 # How to Use This Repository
 
 This guide explains how Plaud Mirror is operated end-to-end and how it stays aligned with both `LLM-DocKit` (the governance scaffold it adopts) and the Plaud ecosystem upstreams it watches.
 
 ## Current Reality
 
-`v0.5.5` ships **full health observability** (D-014, complete): `/api/health` now also returns a cross-subsystem `lastErrors` ring buffer (capped at 20, most-recent-first) and `recentSyncRuns` (last 5 finished runs). It builds on the durable webhook outbox (D-013, v0.5.3) and the panel-driven scheduler (v0.5.2). **Operators upgrading from `v0.4.x` should skip `v0.5.0` (default-on regression) and go directly to `v0.5.5`.** Today the repository gives you:
+`v0.6.0` is the **Phase 3 hardening release** (security review 2026-06-10): operator access control on the panel/API (D-018), startup crash recovery for orphaned sync runs and outbox rows, and abort deadlines on every Plaud request and audio download. It builds on `v0.5.5` full health observability (D-014), the durable webhook outbox (D-013, v0.5.3), and the panel-driven scheduler (v0.5.2). **Operators upgrading from any `0.4.x`/`0.5.x` should go directly to `v0.6.0`.** Today the repository gives you:
 
 - a Fastify API and React/Vite panel bundled in a single Docker container;
+- **operator access control** (v0.6.0): set `PLAUD_MIRROR_ADMIN_PASSPHRASE` and the panel asks for the passphrase once per device (30-day session cookie); without it the API runs open and `/api/health` warns;
 - encrypted persisted bearer-token auth against Plaud, surviving restarts;
 - async manual sync and filtered historical backfill with live progress polling and a dry-run preview;
 - **opt-in continuous sync scheduler** — configurable from the Configuration tab of the panel (set the interval in minutes, `0` disables); see "Configuring the scheduler" below;
@@ -28,10 +29,11 @@ For the full feature inventory see [README.md](README.md); for the product inten
 ```bash
 cd ~/src/plaud-mirror
 export PLAUD_MIRROR_MASTER_KEY="<long-random-secret>"
+export PLAUD_MIRROR_ADMIN_PASSPHRASE="<operator-passphrase>"
 docker compose up --build -d
 ```
 
-Then open `http://localhost:3040`, save a Plaud bearer token in the Configuration tab, and trigger a sync from the Main tab.
+Then open `http://localhost:3040`, sign in with the operator passphrase, save a Plaud bearer token in the Configuration tab, and trigger a sync from the Main tab.
 
 For Docker Hub timeout handling and acceptable fallback images, see [docs/operations/DEPLOY_PLAYBOOK.md](docs/operations/DEPLOY_PLAYBOOK.md). Pentesting distributions (e.g. `vxcontrol/kali-linux:latest`) are explicitly rejected as runtime bases.
 

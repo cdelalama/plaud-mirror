@@ -20,6 +20,7 @@ import {
   type RecordingMirror,
   type RuntimeConfig,
   type ServiceHealth,
+  type SessionStatus,
   type SyncRunSummary,
 } from "@plaud-mirror/shared";
 
@@ -46,7 +47,140 @@ const DEFAULT_BACKFILL_DRAFT: BackfillDraft = {
   forceDownload: false,
 };
 
+// Session gate (D-018, v0.6.0). The panel boots by asking the server
+// whether operator auth is required; when it is and there is no valid
+// session cookie, the login screen replaces the panel entirely. The
+// gated <Panel> only mounts after authentication, so none of its
+// mount-time API calls fire as 401 noise.
 export function App() {
+  const [session, setSession] = useState<SessionStatus | null>(null);
+  const [sessionError, setSessionError] = useState<string | null>(null);
+
+  async function loadSession(): Promise<void> {
+    try {
+      setSession(await requestJson<SessionStatus>("/api/session"));
+      setSessionError(null);
+    } catch (error) {
+      setSessionError(toErrorMessage(error));
+    }
+  }
+
+  useEffect(() => {
+    void loadSession();
+  }, []);
+
+  if (sessionError) {
+    return (
+      <div className="shell">
+        <Banner tone="error" message={`Cannot reach the API: ${sessionError}`} />
+      </div>
+    );
+  }
+
+  if (!session) {
+    return (
+      <div className="shell">
+        <p className="muted">Checking session…</p>
+      </div>
+    );
+  }
+
+  if (session.authRequired && !session.authenticated) {
+    return (
+      <LoginGate
+        onAuthenticated={() => setSession({ authRequired: true, authenticated: true })}
+      />
+    );
+  }
+
+  return (
+    <Panel
+      authRequired={session.authRequired}
+      onUnauthorized={() => setSession({ authRequired: true, authenticated: false })}
+    />
+  );
+}
+
+// Minimal, phone-friendly login screen. One field, one button, clear
+// error states (wrong passphrase vs throttled vs network).
+export function LoginGate({ onAuthenticated }: { onAuthenticated: () => void }) {
+  const [passphrase, setPassphrase] = useState("");
+  const [showPassphrase, setShowPassphrase] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
+    event.preventDefault();
+    if (!passphrase.trim()) {
+      setError("Enter the operator passphrase.");
+      return;
+    }
+    setSubmitting(true);
+    setError(null);
+    try {
+      await requestJson<SessionStatus>("/api/session/login", {
+        method: "POST",
+        body: JSON.stringify({ passphrase: passphrase.trim() }),
+      });
+      setPassphrase("");
+      onAuthenticated();
+    } catch (caught) {
+      setError(toErrorMessage(caught));
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div className="shell">
+      <div className="hero">
+        <div>
+          <p className="eyebrow">Plaud Mirror</p>
+          <h1>Operator login</h1>
+          <p className="lede">
+            This panel is protected. Enter the operator passphrase
+            (PLAUD_MIRROR_ADMIN_PASSPHRASE) to continue.
+          </p>
+        </div>
+      </div>
+      {error ? <Banner tone="error" message={error} /> : null}
+      <section className="card">
+        <form className="stack" onSubmit={(event) => void handleSubmit(event)}>
+          <label className="field">
+            <span>Passphrase</span>
+            <input
+              type={showPassphrase ? "text" : "password"}
+              value={passphrase}
+              onChange={(event) => setPassphrase(event.target.value)}
+              placeholder="Operator passphrase"
+              autoComplete="current-password"
+              autoFocus
+            />
+          </label>
+          <label className="checkbox">
+            <input
+              type="checkbox"
+              checked={showPassphrase}
+              onChange={(event) => setShowPassphrase(event.target.checked)}
+            />
+            <span>Show passphrase</span>
+          </label>
+          <button type="submit" disabled={submitting}>
+            {submitting ? "Signing in…" : "Sign in"}
+          </button>
+        </form>
+      </section>
+    </div>
+  );
+}
+
+function Panel({
+  authRequired,
+  onUnauthorized,
+}: {
+  authRequired: boolean;
+  onUnauthorized: () => void;
+}) {
   const [health, setHealth] = useState<ServiceHealth | null>(null);
   const [config, setConfig] = useState<RuntimeConfig | null>(null);
   const [auth, setAuth] = useState<AuthStatus | null>(null);
@@ -165,8 +299,14 @@ export function App() {
           }
         }
       } catch (error) {
-        // Swallow polling errors — the next tick will retry. A persistent
-        // failure surfaces eventually when the operator manually refreshes.
+        if (error instanceof UnauthorizedError) {
+          // Session expired mid-run — hand control back to the login gate.
+          cancelled = true;
+          onUnauthorized();
+          return;
+        }
+        // Swallow other polling errors — the next tick will retry. A
+        // persistent failure surfaces when the operator manually refreshes.
         void error;
       }
     };
@@ -212,10 +352,24 @@ export function App() {
       setDevices(devicesResponse.devices);
       setFailedOutboxItems(outboxResponse.items);
     } catch (error) {
+      if (error instanceof UnauthorizedError) {
+        onUnauthorized();
+        return;
+      }
       setOperationError(toErrorMessage(error));
     } finally {
       setLoading(false);
     }
+  }
+
+  async function handleLogout(): Promise<void> {
+    try {
+      await requestJson<SessionStatus>("/api/session/logout", { method: "POST" });
+    } catch {
+      // Cookie clearing failed server-side is unlikely; fall through to the
+      // gate either way so the operator is not stuck.
+    }
+    onUnauthorized();
   }
 
   async function handleDeleteRecording(recording: RecordingMirror): Promise<void> {
@@ -384,6 +538,10 @@ export function App() {
     try {
       setOperationResult(await operation());
     } catch (error) {
+      if (error instanceof UnauthorizedError) {
+        onUnauthorized();
+        return;
+      }
       setOperationError(toErrorMessage(error));
     } finally {
       setBusy(false);
@@ -411,6 +569,11 @@ export function App() {
               health?.lastSync?.plaudTotal ?? null,
             )}
           />
+          {authRequired ? (
+            <button type="button" className="secondary" onClick={() => void handleLogout()}>
+              Log out
+            </button>
+          ) : null}
         </div>
       </div>
 
@@ -1162,6 +1325,15 @@ function StatusPill({ state }: { state: string }) {
   return <span className={`status-pill status-${state}`}>{state}</span>;
 }
 
+// Thrown by requestJson on HTTP 401 so callers can distinguish "session
+// expired, return to the login gate" from ordinary operation errors.
+export class UnauthorizedError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "UnauthorizedError";
+  }
+}
+
 async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
   const hasBody = init?.body !== undefined && init.body !== null;
   const callerHeaders = (init?.headers as Record<string, string> | undefined) ?? {};
@@ -1180,7 +1352,13 @@ async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
 
   if (!response.ok) {
     const payload = await response.json().catch(() => ({} as ApiErrorResponse));
-    throw new Error(payload.message || `Request failed with HTTP ${response.status}`);
+    const message = payload.message || `Request failed with HTTP ${response.status}`;
+    // 401 on the login route itself means "wrong passphrase" — that is an
+    // ordinary form error, not a session expiry.
+    if (response.status === 401 && !path.startsWith("/api/session")) {
+      throw new UnauthorizedError(message);
+    }
+    throw new Error(message);
   }
 
   return response.json() as Promise<T>;

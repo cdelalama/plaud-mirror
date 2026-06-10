@@ -601,3 +601,68 @@ test("RuntimeStore upsertDevices is a no-op for an empty array", async () => {
   assert.equal(store.listDevices().length, 0);
   store.close();
 });
+
+test("RuntimeStore recovers orphaned sync runs and outbox items left by a dead process", async () => {
+  const root = await mkdtemp(join(tmpdir(), "plaud-mirror-store-recovery-"));
+  const store = new RuntimeStore({
+    dbPath: join(root, "data", "app.db"),
+    dataDir: join(root, "data"),
+    recordingsDir: join(root, "recordings"),
+    defaultSyncLimit: 100,
+  });
+
+  // Simulate a crash mid-sync: the run stays 'running' with no finished_at.
+  store.startSyncRun("sync", { limit: 5, forceDownload: false });
+  assert.ok(store.getActiveSyncRun(), "precondition: the orphan blocks the anti-overlap guard");
+
+  // Simulate a crash mid-delivery: the row stays 'delivering', which
+  // claimOutboxItem never selects.
+  const item = store.enqueueOutboxItem({
+    recordingId: "rec-1",
+    payload: {
+      event: "recording.synced",
+      source: "plaud-mirror",
+      recording: {
+        id: "rec-1",
+        title: "Weekly sync",
+        createdAt: "2026-06-10T08:00:00.000Z",
+        localPath: "recordings/rec-1/audio.mp3",
+        format: "mp3",
+        contentType: "audio/mpeg",
+        bytesWritten: 2048,
+      },
+      sync: { syncedAt: "2026-06-10T08:00:01.000Z", deliveryAttempt: 1, mode: "sync" },
+    },
+  });
+  const claimed = store.claimOutboxItem();
+  assert.equal(claimed?.id, item.id);
+  assert.equal(claimed?.state, "delivering");
+  assert.equal(store.claimOutboxItem(), null, "precondition: a delivering row is unreachable");
+
+  // Sync-side sweep: running → failed with an explicit recovery message.
+  assert.equal(store.recoverOrphanedSyncRuns(), 1);
+  assert.equal(store.getActiveSyncRun(), null, "anti-overlap guard is unblocked");
+  const failedRun = store.getLastSyncRun();
+  assert.equal(failedRun?.status, "failed");
+  assert.match(failedRun?.error ?? "", /recovered after process restart/);
+
+  // Outbox-side sweep: delivering → retry_waiting due immediately,
+  // attempts preserved (the delivery outcome is unknown; the row keeps
+  // its full backoff budget — at-least-once accepted).
+  assert.equal(store.recoverOrphanedOutboxItems(), 1);
+  const recovered = store.getOutboxItem(item.id);
+  assert.equal(recovered?.state, "retry_waiting");
+  assert.equal(recovered?.attempts, 0);
+  assert.match(recovered?.lastError ?? "", /recovered after process restart/);
+  assert.ok(recovered?.nextAttemptAt && new Date(recovered.nextAttemptAt).getTime() <= Date.now());
+
+  // The worker can claim the recovered row on its very next tick.
+  const reclaimed = store.claimOutboxItem();
+  assert.equal(reclaimed?.id, item.id);
+  assert.equal(reclaimed?.state, "delivering");
+
+  // Idempotence: a second sweep finds nothing.
+  assert.equal(store.recoverOrphanedSyncRuns(), 0);
+
+  store.close();
+});

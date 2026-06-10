@@ -323,6 +323,8 @@ The original draft (pre-implementation) specified a 5-attempt schedule (`30s, 2m
 
 The original draft also implied that backoff could include "jitter" — the shipped implementation does NOT add jitter. Single-process, single-tenant home-infra deployment; no thundering-herd risk to mitigate.
 
+**v0.6.0 amendment — startup crash recovery (at-least-once accepted).** The original FSM had a hole: a process that dies between `claimOutboxItem` (state → `delivering`) and the corresponding `markOutbox*` call leaves the row in `delivering` forever, because the claim query only selects `pending`/`retry_waiting` and no sweep existed. The symmetric hole existed on the sync side: a crash mid-run leaves `sync_runs.status = 'running'`, which `getActiveSyncRun()` keeps returning, so the anti-overlap guard blocks every future sync until manual SQLite surgery. From v0.6.0, `service.initialize()` runs two recovery sweeps at boot: `store.recoverOrphanedSyncRuns()` (running → failed, `error_message = 'recovered after process restart: ...'`) and `store.recoverOrphanedOutboxItems()` (delivering → `retry_waiting` with `next_attempt_at = now` and `attempts` UNCHANGED — the delivery outcome is unknown, so the row keeps its full backoff budget). This explicitly accepts **at-least-once** webhook delivery: if the POST landed right before the crash, the downstream sees a duplicate `recording.synced`. A recoverable duplicate beats a silently lost webhook; downstream consumers must treat `recording.id` as the idempotency key (they already should, per the payload contract). Both sweeps surface in `health.lastErrors` (subsystems `sync` / `outbox`) so the operator can see that a recovery happened.
+
 ### Rationale
 
 Separate table because:
@@ -494,3 +496,37 @@ Why filename-only comparison: content matching is a different problem. A local s
 - Future absorption events (DF-XXX upstream → script lands in `~/src/LLM-DocKit/scripts/`) follow the same protocol: delete local file + baseline entry in one commit. The check provides the empirical signal that the absorption is complete (no more "transient" entries for that path).
 - `forge audit` in ForgeOS depends on the baseline file format. Treat `scripts/.unabsorbed-artifact-baseline.json` as a public interface for cross-repo tooling: schema changes require coordinated updates with `~/src/ForgeOS/`. Schema is intentionally minimal (`id`, `path`, `permanent`, `reason`, optional `df_id`, `created_at`) to keep both sides cheap to evolve.
 - The check shares D-016's regex-paliativo posture: it catches mechanical drift (filename presence) but cannot detect semantic divergence (a local script that has drifted in content or intent from its upstream namesake). Layer 2 (Optional Enhancement B of `HOOKS_ENFORCEMENT_PROPOSAL`) is the closure path for the full picture; this check is a thermometer, not a thermostat.
+
+## D-018 - Operator access control is app-level: passphrase plus signed session cookie
+
+**Status:** accepted; **implemented in v0.6.0** (`apps/api/src/runtime/operator-auth.ts`, gate hook + session routes in `apps/api/src/server.ts`, login screen in `apps/web/src/App.tsx`).
+
+### Decision
+
+Plaud Mirror protects its own panel and API instead of relying solely on network position. The model is deliberately minimal for a single-operator service:
+
+- One shared passphrase, supplied via `PLAUD_MIRROR_ADMIN_PASSPHRASE` (same deployment-secret channel as `PLAUD_MIRROR_MASTER_KEY`). No user table, no password hash at rest.
+- `POST /api/session/login` exchanges the passphrase for a **stateless HMAC-signed session cookie** (`plaud_mirror_session`, value `<expiresAtMs>.<base64url HMAC-SHA256>`), HttpOnly, SameSite=Lax, 30-day TTL. The signing key is derived from master key + passphrase, so rotating either invalidates every outstanding session.
+- An `onRequest` hook rejects every `/api/*` request without a valid cookie with 401, except a public allowlist: `/api/health` (status probes) and `/api/session*` (login itself). Static panel assets stay public — the login screen IS the panel; all data lives behind `/api/*`.
+- `/api/health` is **redacted** for unauthenticated callers: `auth.userSummary` (Plaud account email/uid) is stripped.
+- Failed logins are throttled in-memory (5 per minute, global window) with constant-time passphrase comparison over SHA-256 digests.
+- **Backward compatible:** when the env var is unset, the API stays open exactly as pre-0.6.0, but `health.warnings` carries "Operator access control is disabled — set PLAUD_MIRROR_ADMIN_PASSPHRASE..." and the server logs the same at boot. The deployment cannot silently believe it is protected.
+
+### Rationale
+
+The 2026-06-10 review found the panel exposed at `https://plaud.lamanoriega.com/` (edge-caddy → dev-vm `:3040`) with zero authentication: any LAN device could download all mirrored audio, replace the Plaud token, or redirect the webhook (with attacker-chosen secret) via `PUT /api/config` — metadata exfiltration signed by the service itself. The single-operator trust model stopped holding the moment the panel left localhost.
+
+App-level auth was chosen over proxy-only auth (basic auth / forward-auth in Caddy) because `compose.yml` publishes `3040:3040` directly on the LAN — a proxy gate would leave the direct port open, and the repo cannot enforce configuration that lives in another repo's Caddyfile. Proxy auth can still be layered on top later (e.g. ForgeOS's queued `local-auth-better-auth` module or Authentik forward-auth); this decision establishes the in-repo floor.
+
+Cookie sessions were chosen over an API key header because the panel's `<audio>` elements and plain `fetch` calls send cookies automatically; a header scheme would need a token store in the browser and breaks native audio streaming. SameSite=Lax provides the CSRF boundary (cross-site POST/PUT/DELETE never carry the cookie). The `Secure` flag is intentionally NOT set: TLS terminates at edge-caddy and the LAN fallback (`http://10.0.0.110:3040`) must keep working; revisit if the direct-port path is ever closed.
+
+The 30-day TTL is a product decision, not a security compromise: the primary re-auth surface is the operator's phone, and the kill switch is rotating the passphrase (which invalidates all sessions instantly because the signing key derives from it).
+
+### Implications
+
+- `compose.yml` passes `PLAUD_MIRROR_ADMIN_PASSPHRASE` through; the operator must add it to `.env` manually (env policy: agents do not write secrets).
+- New shared schemas `SessionStatusSchema` / `SessionLoginRequestSchema`; new routes `GET /api/session`, `POST /api/session/login`, `POST /api/session/logout`.
+- The web panel boots through a session gate: `GET /api/session` decides between the login screen and the panel; any 401 mid-session returns the operator to the gate (`UnauthorizedError` plumbing in `requestJson`).
+- Phase 4's phone-friendly re-auth UX builds on this: protecting the panel is the precondition for making it MORE reachable (push notifications with deep links, etc.).
+- The login throttle is per-process and global, not per-IP. Good enough for a LAN single-operator surface; revisit if the service is ever exposed beyond the LAN/WireGuard boundary (that would also demand `Secure` cookies and likely real identity, per the D-009 posture).
+- `/api/health` stays consumable by infra-portal and Docker healthchecks without credentials, at the cost of exposing operational metadata (counts, scheduler state, error strings) to the LAN. Error messages must therefore keep honoring the "no secrets in logs/errors" rule (LLM_START_HERE Critical Rules) — they are now visible to unauthenticated LAN callers by design.

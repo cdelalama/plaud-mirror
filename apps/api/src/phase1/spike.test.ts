@@ -169,3 +169,31 @@ test("downloadAudioArtifact measures bytes from the written file instead of cont
     "hello",
   );
 });
+
+test("downloadAudioArtifact passes an abort signal so a stalled download cannot hang forever", async () => {
+  const recordingsDir = await mkdtemp(join(tmpdir(), "plaud-mirror-phase1-signal-"));
+  const client = {
+    async getAudioTempUrl() {
+      return "https://storage.example.com/audio/test";
+    },
+  } as unknown as PlaudClient;
+
+  let receivedSignal: AbortSignal | null | undefined;
+  const artifact = await downloadAudioArtifact(
+    client,
+    "rec-signal",
+    recordingsDir,
+    null,
+    false,
+    (async (_input: unknown, init?: RequestInit) => {
+      receivedSignal = init?.signal;
+      return new Response("audio", {
+        status: 200,
+        headers: { "content-type": "audio/mpeg" },
+      });
+    }) as typeof fetch,
+  );
+
+  assert.ok(artifact);
+  assert.ok(receivedSignal instanceof AbortSignal, "the temp-URL fetch must carry a timeout signal");
+});

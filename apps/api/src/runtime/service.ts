@@ -159,6 +159,29 @@ export class PlaudMirrorService {
     // of truth — operator changes from the panel persist; the env var
     // is irrelevant on subsequent boots.
     this.store.seedSchedulerDefaults(this.environment.schedulerIntervalMs);
+
+    // Startup crash recovery (D-013 amendment, v0.6.0). A process that
+    // died mid-flight can leave two kinds of orphans, both of which are
+    // permanent without this sweep:
+    //   - sync_runs stuck in 'running' block every future sync through
+    //     the getActiveSyncRun anti-overlap guard;
+    //   - webhook_outbox rows stuck in 'delivering' are never reclaimed
+    //     because claimOutboxItem only selects pending/retry_waiting.
+    // Outbox recovery accepts at-least-once delivery: the row may have
+    // been POSTed right before the crash, so the downstream can see a
+    // duplicate. A recoverable duplicate beats a silently lost webhook.
+    const recoveredRuns = this.store.recoverOrphanedSyncRuns();
+    if (recoveredRuns > 0) {
+      const message = `Recovered ${recoveredRuns} sync run(s) left 'running' by a previous process; marked failed`;
+      console.warn(message);
+      this.recordError("sync", message, { recovered: String(recoveredRuns) });
+    }
+    const recoveredOutbox = this.store.recoverOrphanedOutboxItems();
+    if (recoveredOutbox > 0) {
+      const message = `Recovered ${recoveredOutbox} outbox item(s) left 'delivering' by a previous process; re-queued for immediate retry`;
+      console.warn(message);
+      this.recordError("outbox", message, { recovered: String(recoveredOutbox) });
+    }
   }
 
   close(): void {
@@ -221,6 +244,12 @@ export class PlaudMirrorService {
 
     if (config.webhookUrl && !config.hasWebhookSecret) {
       warnings.push("Webhook URL is configured but HMAC secret is missing");
+    }
+
+    if (!this.environment.adminPassphrase) {
+      warnings.push(
+        "Operator access control is disabled — set PLAUD_MIRROR_ADMIN_PASSPHRASE to protect the panel and API",
+      );
     }
 
     return ServiceHealthSchema.parse({
@@ -1056,6 +1085,9 @@ export class PlaudMirrorService {
     const config: ConstructorParameters<typeof PlaudClient>[0] = {
       accessToken,
       fetchImpl: this.plaudFetchImpl,
+      // H3 (v0.6.0): every Plaud API call carries an abort deadline so a
+      // hung connection cannot leave a sync run in 'running' forever.
+      requestTimeoutMs: this.environment.requestTimeoutMs,
     };
 
     if (this.environment.apiBase) {

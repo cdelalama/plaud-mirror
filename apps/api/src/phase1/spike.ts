@@ -286,6 +286,13 @@ export function buildFilterRecommendations(recordings: PlaudRawRecording[]): Pha
   return recommendations;
 }
 
+// Ceiling for one full audio-artifact download (temp-URL fetch + streamed
+// body). Deliberately much longer than the per-request API timeout: audio
+// files run to tens of MB and the dev-vm uplink is modest. The signal also
+// aborts a stalled body stream mid-pipeline, which is the failure mode that
+// used to leave a sync run hung forever (H3, v0.6.0).
+export const AUDIO_DOWNLOAD_TIMEOUT_MS = 10 * 60_000;
+
 export async function downloadAudioArtifact(
   client: PlaudClient,
   recordingId: string | null,
@@ -293,13 +300,14 @@ export async function downloadAudioArtifact(
   detailSnapshot: Record<string, unknown> | null,
   opus: boolean,
   fetchImpl: typeof fetch = fetch,
+  timeoutMs: number = AUDIO_DOWNLOAD_TIMEOUT_MS,
 ): Promise<Phase1DownloadedArtifact | null> {
   if (!recordingId) {
     return null;
   }
 
   const tempUrl = await client.getAudioTempUrl(recordingId, opus);
-  const response = await fetchImpl(tempUrl);
+  const response = await fetchImpl(tempUrl, { signal: AbortSignal.timeout(timeoutMs) });
   if (!response.ok) {
     throw new Error(`Plaud temp URL fetch failed with HTTP ${response.status} for recording ${recordingId}`);
   }

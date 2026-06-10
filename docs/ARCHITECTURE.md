@@ -1,9 +1,9 @@
-<!-- doc-version: 0.5.6 -->
+<!-- doc-version: 0.6.0 -->
 # Plaud Mirror Architecture
 
-> Version: 0.5.5
-> Last Updated: 2026-04-27
-> Status: Phase 3 in progress. `v0.5.0` introduced the in-process continuous sync scheduler (D-012); `v0.5.1` fixed two regressions; `v0.5.2` made the scheduler panel-driven; `v0.5.3` shipped the **durable webhook outbox** (D-013) — webhook delivery is no longer synchronous inside the sync run, payloads are persisted to a `webhook_outbox` SQLite table and delivered by a dedicated worker with exponential backoff (30 s → 8 h, 8 attempts, ~16 h window) and a Retry-from-panel path for permanently-failed rows. `GET /api/health` gained an `outbox` counters block; `SyncRunSummary` gained an `enqueued` counter; `delivered` keeps its original semantic and structurally stays at 0 from now on. `v0.5.4` was governance-only: Layer-1 doc-drift enforcement (D-016) — `scripts/check-prose-drift.sh` + `prose-drift` validator check + global meta-rule — no runtime change. `v0.5.5` (this release) ships **D-014 full**: a `lastErrors` ring buffer (in-memory, capped at 20, cross-subsystem) plus `recentSyncRuns` (last 5 finished runs from SQLite) on `/api/health`; scheduler/outbox-worker/sync error paths feed the ring buffer through `service.recordError`. Also: `prose-drift` validator hardened from `WARN` to `FAIL`; new `check_unabsorbed_artifact()` ninth validator check (D-017) detecting local scripts/rules not present upstream in LLM-DocKit, with a baseline file (`scripts/.unabsorbed-artifact-baseline.json`) classifying `check-prose-drift.sh` as transient (`df_id: DF-028`) and `check-upstreams.sh` plus `external-context-triggers.md` as permanent project-specific. Operators upgrading from `0.4.x` should skip `v0.5.0` and go directly to `v0.5.5`.
+> Version: 0.6.0
+> Last Updated: 2026-06-10
+> Status: Phase 3 in progress, extended through `0.6.x` (see ROADMAP "Why Phase 3 Was Extended Through 0.6.x"). The `0.5.x` line delivered the Phase 3 feature surface: in-process continuous sync scheduler (D-012, panel-driven since `v0.5.2`), durable webhook outbox (D-013, exponential backoff 30 s → 8 h across 8 attempts with Retry-from-panel), and full health observability (D-014: `outbox` counters, `lastErrors` ring buffer, `recentSyncRuns`), plus governance layers D-016/D-017. `v0.6.0` (this release) is the **hardening release** the 2026-06-10 security review forced before any unattended soak: **operator access control** (D-018 — `PLAUD_MIRROR_ADMIN_PASSPHRASE` + signed HttpOnly session cookie gating `/api/*`, login screen, login throttle, health PII redaction), **startup crash recovery** (D-013 amendment — orphaned `running` sync runs failed at boot, orphaned `delivering` outbox rows re-queued with at-least-once semantics), and **Plaud client timeouts** (abort deadline on every API call and audio download). Operators upgrading from any `0.4.x`/`0.5.x` release should go directly to `v0.6.0`.
 
 ## Overview
 
@@ -46,7 +46,8 @@ Phase 3 turns the manual slice into an unattended service. It is being delivered
 - **`v0.5.1` (stable Phase 3 entry):** scheduler is genuinely opt-in (default `0` = disabled); `runScheduledSync()` / `runSync` consult `store.getActiveSyncRun()` before inserting and return the existing run id when one is active; the scheduler tick reports `lastTickStatus = "skipped"` (with reason in `lastTickError`) when the service-layer absorbs the tick, instead of mislabelling it as `completed`. 9 regression tests (env-var matrix, concurrent `runSync` reuse, scheduler `runTick → { skipped: true }` path).
 - **`v0.5.2`:** panel-driven scheduler configuration. New `RuntimeConfig.schedulerIntervalMs` field (persisted in SQLite via the existing `settings` key/value table, same pattern as `webhookUrl`), new `SchedulerManager` (`apps/api/src/runtime/scheduler-manager.ts`) that swaps the underlying `Scheduler` in place when the interval changes, new "Continuous sync scheduler" card on the Configuration tab. `PUT /api/config` accepts an optional `schedulerIntervalMs`; the env var is downgraded to a one-time seed (`RuntimeStore.seedSchedulerDefaults`). 9 tests covering the new path.
 - **`v0.5.3` (this release):** durable webhook outbox (D-013). New SQLite table `webhook_outbox` with FSM `pending → delivering → delivered | retry_waiting → permanently_failed`. New `OutboxWorker` (`apps/api/src/runtime/outbox-worker.ts`, 5-second cadence, reuses the existing `Scheduler` for the timer, recomputes the HMAC at delivery time so a rotated `webhookSecret` is honoured). Exponential backoff `[30s, 2m, 10m, 30m, 1h, 2h, 4h, 8h]` and `OUTBOX_MAX_ATTEMPTS = 8`. `service.processRecording` enqueues instead of POSTing; `lastWebhookStatus` enum gains `"queued"`. New routes `GET /api/outbox` (failed list) and `POST /api/outbox/:id/retry`; new `health.outbox` counters block (`pending` / `retryWaiting` / `permanentlyFailed` / `oldestPendingAgeMs`); new `SyncRunSummary.enqueued` counter. Panel gains a "Webhook outbox" card with counters + failed-list + Retry buttons. 11 new tests covering the FSM, the worker, and the HTTP shape.
-- **`v0.5.5` (this release):** full health observability — `lastErrors` ring buffer (cross-subsystem, in-memory, cap LAST_ERRORS_CAP=20, most-recent-first) + `recentSyncRuns` (last 5 finished runs from SQLite, `finished_at DESC`) on `/api/health` (D-014, full). New `service.recordError(subsystem, message, context?)` wired from the scheduler-manager `onTick` callback (failed ticks only), the outbox-worker `onDeliveryError` callback (both `retry` and `permanent` escalations), and the service `runSync` catch path. Plus governance: `prose-drift` validator wrapper hardened from `WARN` to `FAIL` after one calibration release; new `check_unabsorbed_artifact()` ninth validator check (D-017) with a baseline file mirroring the prose-drift precedent. 3 new tests (ring buffer cap+ordering+cross-subsystem, sync-error feeds lastErrors, recentSyncRuns surfaces last 5).
+- **`v0.5.5`:** full health observability — `lastErrors` ring buffer (cross-subsystem, in-memory, cap LAST_ERRORS_CAP=20, most-recent-first) + `recentSyncRuns` (last 5 finished runs from SQLite, `finished_at DESC`) on `/api/health` (D-014, full). New `service.recordError(subsystem, message, context?)` wired from the scheduler-manager `onTick` callback (failed ticks only), the outbox-worker `onDeliveryError` callback (both `retry` and `permanent` escalations), and the service `runSync` catch path. Plus governance: `prose-drift` validator wrapper hardened from `WARN` to `FAIL` after one calibration release; new `check_unabsorbed_artifact()` ninth validator check (D-017) with a baseline file mirroring the prose-drift precedent. 3 new tests (ring buffer cap+ordering+cross-subsystem, sync-error feeds lastErrors, recentSyncRuns surfaces last 5).
+- **`v0.6.0` (this release, Phase 3 hardening):** three fixes from the 2026-06-10 security review, all prerequisites for the soak exit gate. (1) **Operator access control** (D-018): `PLAUD_MIRROR_ADMIN_PASSPHRASE` env var; when set, an `onRequest` hook returns 401 for every `/api/*` request without a valid `plaud_mirror_session` cookie (HMAC-signed, key derived from master key + passphrase, 30-day TTL, HttpOnly + SameSite=Lax), with a public allowlist (`/api/health` redacting `auth.userSummary`, `/api/session*`); new module `apps/api/src/runtime/operator-auth.ts`; the panel boots through a `LoginGate`. (2) **Startup crash recovery** (D-013 amendment): `service.initialize()` runs `store.recoverOrphanedSyncRuns()` (running → failed) and `store.recoverOrphanedOutboxItems()` (delivering → retry_waiting due now, attempts preserved, at-least-once accepted); both feed `health.lastErrors`. (3) **Plaud client timeouts**: every `PlaudClient` request carries `AbortSignal.timeout(requestTimeoutMs)` (default 30 s) and surfaces a clear `timed out after Nms` error; audio downloads carry a 10-minute ceiling (`AUDIO_DOWNLOAD_TIMEOUT_MS`). Tests: 116 → 130 (116 backend + 14 web).
 
 Still **not** in Phase 3 scope:
 
@@ -57,7 +58,14 @@ Still **not** in Phase 3 scope:
 
 ## Key Flows
 
-### Auth
+### Operator access control (D-018, v0.6.0)
+
+1. The deployment sets `PLAUD_MIRROR_ADMIN_PASSPHRASE` (same channel as the master key). Unset = open API + explicit `health.warnings` entry.
+2. The panel boots via `GET /api/session`; when `authRequired` and not authenticated, a login screen replaces the panel.
+3. `POST /api/session/login` validates the passphrase (constant-time over SHA-256 digests, throttled to 5 failures/minute) and sets a stateless HMAC-signed cookie: `<expiresAtMs>.<HMAC>` keyed by `sha256(context : masterKey : passphrase)` — rotating either secret invalidates all sessions.
+4. An `onRequest` hook rejects unauthenticated `/api/*` requests (401) except `GET /api/health` (redacted: `auth.userSummary` stripped) and `/api/session*`. Static assets stay public; all data lives behind `/api/*`.
+
+### Auth (operator → Plaud)
 
 1. Operator pastes a Plaud bearer token in the web panel.
 2. API validates it with `/user/me`.
@@ -145,13 +153,14 @@ The web panel polls `GET /api/health` every 2 s while a run is active. The healt
 
 - Tokens and webhook secrets are never stored in plaintext.
 - Temporary Plaud download URLs must not be logged in full.
-- This remains a single-operator service; external auth is out of scope for now.
+- This remains a single-operator service, but from v0.6.0 it protects itself: operator access control (D-018) gates the panel/API when `PLAUD_MIRROR_ADMIN_PASSPHRASE` is set. Network position (LAN, edge-caddy) is no longer the only boundary.
+- `/api/health` is public by design (status probes); its `auth.userSummary` is redacted for unauthenticated callers, and error strings surfaced there must never contain secrets.
+- Known hardening debt (deliberately sequenced after v0.6.0): the secrets KDF is single-pass SHA-256 of the master key — fine for a high-entropy random key, weak for a human-chosen one; upgrade to scrypt-with-salt is queued in the 0.6.x line. `webhookUrl` accepts any URL (no private-range allowlist) — acceptable now that only an authenticated operator can set it.
 
 ## Next Architectural Step
 
-Phase 3 is in progress (`v0.5.2` adds panel-driven scheduler config on top of the `v0.5.1` stabilization; `v0.5.0` is broken and superseded). The remaining Phase 3 work and Phase 4 horizon:
+Phase 3 is in progress, extended through `0.6.x` (hardening + soak). The remaining work and Phase 4 horizon:
 
-- **Phase 3 cont.:** resumable backfill (no firm release target) and operator-friendly recovery UX on top of the now-complete observability surface.
-- Resumable backfill (deferred; ROADMAP mentions but no firm release target)
-- **Phase 4:** automatic re-login via a non-browser path if it proves reliable
-- More robust degraded-state handling (incremental, threaded through Phase 3 + 4)
+- **Phase 3 cont. (0.6.x):** surface `health.warnings` / `lastErrors` / `recentSyncRuns` in the panel UI (the backend emits them since v0.5.5; the panel does not render them yet); scrypt KDF upgrade for `data/secrets.enc`; then the multi-day unattended soak that closes the phase. Resumable backfill stays deferred (no firm release target).
+- **Phase 4 (0.7.x):** automatic re-login via a non-browser path if it proves reliable — start with a spike against the login endpoint the `JamesStuder/Plaud_API` upstream exercises (MIT; password-based login without a browser exists there). Plus phone-friendly re-auth UX and auth-failure push notification, building on D-018's session layer.
+- More robust degraded-state handling (incremental, threaded through Phase 3 + 4).

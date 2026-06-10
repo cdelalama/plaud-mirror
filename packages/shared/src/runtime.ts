@@ -45,6 +45,23 @@ export const SaveAccessTokenRequestSchema = z.object({
   accessToken: z.string().trim().min(1),
 }).strict();
 
+/**
+ * Operator access control (D-018, v0.6.0). When the deployment sets
+ * `PLAUD_MIRROR_ADMIN_PASSPHRASE`, every `/api/*` route except the public
+ * allowlist (`/api/health`, `/api/session*`) requires a signed session
+ * cookie obtained via `POST /api/session/login`. `authRequired === false`
+ * means the deployment runs without a passphrase (backward-compatible
+ * mode) and every request is implicitly authenticated.
+ */
+export const SessionStatusSchema = z.object({
+  authRequired: z.boolean(),
+  authenticated: z.boolean(),
+}).strict();
+
+export const SessionLoginRequestSchema = z.object({
+  passphrase: z.string().trim().min(1),
+}).strict();
+
 const isoDateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 
 export const SyncFiltersSchema = z.object({
@@ -400,6 +417,8 @@ export type AuthStatus = z.infer<typeof AuthStatusSchema>;
 export type RuntimeConfig = z.infer<typeof RuntimeConfigSchema>;
 export type UpdateRuntimeConfigRequest = z.infer<typeof UpdateRuntimeConfigRequestSchema>;
 export type SaveAccessTokenRequest = z.infer<typeof SaveAccessTokenRequestSchema>;
+export type SessionStatus = z.infer<typeof SessionStatusSchema>;
+export type SessionLoginRequest = z.infer<typeof SessionLoginRequestSchema>;
 export type SyncFilters = z.infer<typeof SyncFiltersSchema>;
 export type RecordingMirror = z.infer<typeof RecordingMirrorSchema>;
 export type RecordingListResponse = z.infer<typeof RecordingListResponseSchema>;

@@ -14,6 +14,14 @@ export interface ServerEnvironment {
   initialWebhookSecret?: string;
   requestTimeoutMs: number;
   /**
+   * Operator access control passphrase (D-018, v0.6.0). When set, every
+   * `/api/*` route except the public allowlist requires a signed session
+   * cookie obtained by posting this passphrase to `/api/session/login`.
+   * When unset, the API stays open (pre-0.6.0 behavior) and `/api/health`
+   * carries a warning so the gap is visible to the operator.
+   */
+  adminPassphrase?: string;
+  /**
    * Continuous-sync scheduler interval in milliseconds (D-012). When > 0,
    * the runtime ticks `service.runScheduledSync()` on this cadence with
    * anti-overlap protection. When 0, the scheduler is disabled and Phase
@@ -44,6 +52,7 @@ export function loadServerEnvironment(env: NodeJS.ProcessEnv = process.env): Ser
   const initialWebhookUrl = env.PLAUD_MIRROR_WEBHOOK_URL?.trim() || undefined;
   const initialWebhookSecret = env.PLAUD_MIRROR_WEBHOOK_SECRET?.trim() || undefined;
   const requestTimeoutMs = parsePositiveInteger(env.PLAUD_MIRROR_REQUEST_TIMEOUT_MS, 30_000);
+  const adminPassphrase = env.PLAUD_MIRROR_ADMIN_PASSPHRASE?.trim() || undefined;
   // Scheduler accepts 0 (= disabled) explicitly, so we cannot use
   // parsePositiveInteger here — that helper rejects 0. The cadence floor
   // for "enabled" is 60_000ms (1 minute) to prevent accidental
@@ -72,6 +81,9 @@ export function loadServerEnvironment(env: NodeJS.ProcessEnv = process.env): Ser
   }
   if (initialWebhookSecret) {
     resolvedEnvironment.initialWebhookSecret = initialWebhookSecret;
+  }
+  if (adminPassphrase) {
+    resolvedEnvironment.adminPassphrase = adminPassphrase;
   }
 
   return resolvedEnvironment;

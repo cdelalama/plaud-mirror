@@ -1,7 +1,18 @@
-<!-- doc-version: 0.5.6 -->
+<!-- doc-version: 0.6.0 -->
 # Authentication and Sync Operations
 
-This runbook defines the live behavior of Plaud Mirror's auth and sync surface. Phase 2 (manual sync/backfill) is fully shipped. Phase 3: the continuous sync scheduler landed in `v0.5.0` (regressed) → `v0.5.1` (fixed) → `v0.5.2` (panel-driven). `v0.5.3` shipped the **durable webhook outbox** (D-013): webhook delivery is no longer synchronous inside a sync run, payloads are persisted to a `webhook_outbox` SQLite table and a dedicated worker retries with exponential backoff (30 s → 8 h, 8 attempts) before escalating. `v0.5.4` was governance-only (Layer-1 doc-drift enforcement, D-016, no runtime change). `v0.5.5` ships **D-014 full**: `lastErrors` ring buffer (cross-subsystem, in-memory, capped at 20) and `recentSyncRuns` (last 5 finished runs from SQLite) on `/api/health`. The Phase 3 runtime surface is now complete; remaining work (resumable backfill, automatic re-login) is deferred.
+This runbook defines the live behavior of Plaud Mirror's auth and sync surface. Phase 2 (manual sync/backfill) is fully shipped. Phase 3: the continuous sync scheduler landed in `v0.5.0` (regressed) → `v0.5.1` (fixed) → `v0.5.2` (panel-driven). `v0.5.3` shipped the **durable webhook outbox** (D-013). `v0.5.4` was governance-only (D-016). `v0.5.5` shipped **D-014 full**: `lastErrors` ring buffer and `recentSyncRuns` on `/api/health`. `v0.6.0` is the **Phase 3 hardening release**: operator access control on the panel/API (D-018), startup crash recovery for orphaned sync runs and outbox rows (D-013 amendment, at-least-once delivery accepted), and abort deadlines on every Plaud API call and audio download. Remaining Phase 3 work before the soak: panel-side observability UI and the scrypt KDF upgrade; resumable backfill and automatic re-login stay deferred.
+
+## Operator Access Control (D-018, v0.6.0)
+
+Two distinct auth surfaces exist from v0.6.0 — do not conflate them:
+
+1. **Plaud auth** (this service → Plaud): the encrypted bearer token described below.
+2. **Operator auth** (you → this service): `PLAUD_MIRROR_ADMIN_PASSPHRASE`.
+
+When `PLAUD_MIRROR_ADMIN_PASSPHRASE` is set, the panel shows a login screen and every `/api/*` route except `GET /api/health` and `/api/session*` requires the signed session cookie issued by `POST /api/session/login` (HttpOnly, SameSite=Lax, 30-day TTL). Unauthenticated `/api/health` responses redact `auth.userSummary` (the Plaud account email/uid). Failed logins are throttled (5/minute). Rotating the passphrase — or the master key — invalidates every outstanding session immediately.
+
+When the variable is unset, the API runs open (pre-0.6.0 behavior) and `health.warnings` carries "Operator access control is disabled — set PLAUD_MIRROR_ADMIN_PASSPHRASE..." so the gap is never silent. Given the service is published through `edge-caddy` at `https://plaud.lamanoriega.com/` and `compose.yml` binds `3040:3040` on the LAN, running without the passphrase is NOT recommended.
 
 ## Auth Mode
 
@@ -90,6 +101,19 @@ Operational properties:
 - **`lastErrors`** — cross-subsystem ring buffer (capped at 20 entries, most-recent-first, in-memory). Each entry: `occurredAt` (ISO), `subsystem` (`scheduler` | `outbox` | `sync` | `auth`), `message`, `context` (string→string map). Failed scheduler ticks, outbox delivery errors (both retry and permanent escalations), and failed sync runs all feed this buffer through `service.recordError`. The buffer resets per container restart by design — durable failures live in `outbox.permanentlyFailed` or `lastSync.error`.
 - **`recentSyncRuns`** — last 5 finished sync runs (`finished_at DESC`) from SQLite. Distinct from `lastSync` (single most-recent finished run) — this is the operator-facing audit signal for "are recent runs succeeding or failing?". Active runs are intentionally excluded; they remain on `activeRun`.
 
+#### Startup crash recovery — shipped in `v0.6.0` (D-013 amendment)
+
+A process that dies mid-flight (SIGKILL, OOM, host reboot) used to leave two kinds of permanent orphans. From `v0.6.0`, `service.initialize()` sweeps both at every boot:
+
+- **`sync_runs` stuck in `running`** → marked `failed` with `error = "recovered after process restart: ..."`. Without this, `getActiveSyncRun()` kept returning the dead run and the anti-overlap guard blocked every future sync until manual SQLite surgery.
+- **`webhook_outbox` rows stuck in `delivering`** → re-queued as `retry_waiting` due immediately, `attempts` unchanged (full backoff budget preserved). The delivery outcome at crash time is unknown, so this accepts **at-least-once** delivery: the downstream may see a duplicate `recording.synced` and must treat `recording.id` as its idempotency key.
+
+Both sweeps log a warning and surface in `health.lastErrors` (subsystems `sync` / `outbox`).
+
+#### Plaud request timeouts — shipped in `v0.6.0`
+
+Every Plaud API call carries `AbortSignal.timeout(PLAUD_MIRROR_REQUEST_TIMEOUT_MS)` (default 30 s); audio-artifact downloads carry a longer fixed ceiling (10 min, sized for large files on a modest uplink). A hung connection now fails the run with a clear `timed out after Nms` error instead of leaving `activeRun` wedged forever.
+
 Resumable backfill remains deferred (no firm release target).
 
 ## Failure Modes
@@ -99,13 +123,17 @@ Resumable backfill remains deferred (no firm release target).
 | Missing token | UI shows `missing` auth state | Paste and validate a token |
 | Invalid token | UI/API show `invalid` or `degraded` state | Replace token |
 | Plaud download failure | Request fails, sync summary records failure | Re-run after checking logs or upstream drift |
+| Plaud request hangs | Aborted at the timeout; run recorded as failed with a `timed out` error | Re-run; check network/Plaud status if it repeats |
 | Webhook delivery failure | Attempt stored as failed, mirrored file kept locally | Fix webhook target/secret and re-run |
+| Process crash mid-run | Orphaned run/outbox rows recovered at next boot; entries in `health.lastErrors` | None required; review `recentSyncRuns` for the failed run |
+| Lost operator passphrase | Panel/API return 401 | Set a new `PLAUD_MIRROR_ADMIN_PASSPHRASE` and restart the container (old sessions invalidate automatically) |
 
 ## Security Rules
 
 - Never log bearer tokens or webhook secrets.
 - Never log full Plaud temp URLs.
 - `PLAUD_MIRROR_MASTER_KEY` is mandatory for runtime startup.
+- `PLAUD_MIRROR_ADMIN_PASSPHRASE` is strongly recommended on any deployment reachable beyond localhost; error messages remain visible to unauthenticated LAN callers through the public `/api/health`, so they must never carry secrets.
 
 ## Operational Signals
 

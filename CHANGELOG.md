@@ -4,6 +4,27 @@ All notable changes to Plaud Mirror are documented in this file.
 
 This project follows Semantic Versioning (SemVer): MAJOR.MINOR.PATCH.
 
+## [0.6.0] - 2026-06-10
+
+Phase 3 hardening release, forced by the 2026-06-10 full-code security review before any unattended soak. The roadmap was re-cut: Phase 3 now spans `0.5.x`–`0.6.x`, Phase 4 (auto re-login) moves to `0.7.x` (see ROADMAP "Why Phase 3 Was Extended Through 0.6.x").
+
+### Added
+
+- **Operator access control (D-018).** New `PLAUD_MIRROR_ADMIN_PASSPHRASE` env var. When set, every `/api/*` route requires a signed HttpOnly session cookie (`plaud_mirror_session`, SameSite=Lax, 30-day TTL) obtained via the new `POST /api/session/login`; the public allowlist is `GET /api/health` (with `auth.userSummary` redacted for unauthenticated callers) and the `/api/session*` routes. New module `apps/api/src/runtime/operator-auth.ts` (HMAC session tokens keyed by master key + passphrase, constant-time passphrase comparison, in-memory login throttle: 5 failures/minute → 429). New routes `GET /api/session` and `POST /api/session/logout`. The web panel boots through a login gate and gains a Log out button; any mid-session 401 returns to the gate. When the env var is unset the API stays open (pre-0.6.0 behavior) and `health.warnings` + the boot log say so explicitly.
+- **Startup crash recovery (D-013 amendment).** `service.initialize()` now sweeps orphans left by a dead process: `sync_runs` stuck in `running` are marked `failed` (they used to deadlock the anti-overlap guard forever), and `webhook_outbox` rows stuck in `delivering` are re-queued as `retry_waiting` due immediately with `attempts` preserved (at-least-once delivery accepted; downstreams must key idempotency on `recording.id`). Both sweeps surface in `health.lastErrors`.
+- **Plaud request timeouts.** Every `PlaudClient` call carries `AbortSignal.timeout(PLAUD_MIRROR_REQUEST_TIMEOUT_MS)` (default 30 s) and fails with a clear `timed out after Nms` error; audio-artifact downloads carry a 10-minute ceiling (`AUDIO_DOWNLOAD_TIMEOUT_MS`). A hung connection can no longer wedge `activeRun` permanently.
+
+### Changed
+
+- `compose.yml` passes `PLAUD_MIRROR_ADMIN_PASSPHRASE` through to the container (empty = disabled + warning).
+- `GET /api/health` redacts `auth.userSummary` (Plaud account email/uid) for unauthenticated callers when access control is enabled.
+
+### Notes
+
+- Backward compatible: deployments without the new env var behave exactly as v0.5.6, plus a visible warning.
+- Test count: 116 → 130 (116 backend + 14 web). New: operator-auth unit suite, server-level gate/login/throttle/redaction tests, orphan-recovery store + service tests, Plaud client timeout test, download abort-signal test, LoginGate component tests.
+- Known hardening debt deliberately left for the 0.6.x line: scrypt KDF upgrade for `data/secrets.enc` (current: single-pass SHA-256 of the master key), panel UI for `health.warnings` / `lastErrors` / `recentSyncRuns`.
+
 ## [0.5.6] - 2026-05-14
 
 Patch governance/sync release. No runtime code or API change; pre-commit hook bumped this because `scripts/*` and `.claude/settings.json` count as versioned governance surface (same pattern as `v0.5.4` and `v0.5.5`).

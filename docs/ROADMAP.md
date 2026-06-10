@@ -1,4 +1,4 @@
-<!-- doc-version: 0.5.6 -->
+<!-- doc-version: 0.6.0 -->
 # Plaud Mirror Roadmap
 
 This document is the canonical phase boundary for Plaud Mirror. If implementation scope starts to cross a phase boundary, update this document before claiming the work is part of the current phase.
@@ -12,10 +12,10 @@ This document is the canonical phase boundary for Plaud Mirror. If implementatio
 
 ## Current Target
 
-- Current delivery target: `v0.5.6`
-- Current phase: **Phase 3 - unattended operation (stable since 0.5.1)**
+- Current delivery target: `v0.6.0`
+- Current phase: **Phase 3 - unattended operation (extended through `0.6.x`, see below)**
 - Deployment target: `dev-vm` first
-- Phase 3 entry: `v0.5.0` introduced the in-process scheduler (D-012) and partial health observability (D-014, scheduler subset) but shipped two regressions; `v0.5.1` fixed both. `v0.5.2` made the scheduler panel-driven (SQLite-persisted, hot-applied via `SchedulerManager`). `v0.5.3` shipped the **durable webhook outbox** (D-013): every successful sync enqueues the payload, a worker retries with exponential backoff (30s → 8h, 8 attempts), permanently-failed items are surfaced in the panel with a Retry button, counters land on `/api/health.outbox`. `v0.5.4` was governance-only: **Layer-1 doc-drift enforcement** (D-016) — `scripts/check-prose-drift.sh` + `prose-drift` validator check + global meta-rule — no runtime change. `v0.5.5` shipped **D-014 full** — `lastErrors` ring buffer (cross-subsystem error history, in-memory, capped at 20) and `recentSyncRuns` (last 5 finished runs from SQLite) on `/api/health` — plus `prose-drift` hardened from `WARN` to `FAIL`, plus the new `check_unabsorbed_artifact()` ninth validator check (D-017). `v0.5.6` (current) is governance/sync only: it adopts LLM-DocKit 4.8 (new SessionStart hook in `.claude/settings.json`, new `scripts/dockit-bootstrap-context.sh`, extended `scripts/dockit-validate-session.sh`, yaml-merged `docs/version-sync-manifest.yml`, section-merged `LLM_START_HERE.md`) while preserving project-specific guardrails (`json-version`, D-016 `prose-drift`, D-017 `unabsorbed-artifact`); the pre-commit hook required this patch bump because the dockit-sync output touches versioned governance surface. Operators upgrading from `0.4.x` should skip `v0.5.0` and go directly to `v0.5.6`.
+- Phase 3 entry: `v0.5.0` introduced the in-process scheduler (D-012) and partial health observability (D-014, scheduler subset) but shipped two regressions; `v0.5.1` fixed both. `v0.5.2` made the scheduler panel-driven (SQLite-persisted, hot-applied via `SchedulerManager`). `v0.5.3` shipped the **durable webhook outbox** (D-013): every successful sync enqueues the payload, a worker retries with exponential backoff (30s → 8h, 8 attempts), permanently-failed items are surfaced in the panel with a Retry button, counters land on `/api/health.outbox`. `v0.5.4` was governance-only: **Layer-1 doc-drift enforcement** (D-016). `v0.5.5` shipped **D-014 full** — `lastErrors` ring buffer and `recentSyncRuns` on `/api/health` — plus `prose-drift` hardened to `FAIL` and the `check_unabsorbed_artifact()` validator check (D-017). `v0.5.6` was governance/sync only (LLM-DocKit 4.8 adoption). `v0.6.0` (current) is the **Phase 3 hardening release** that the 2026-06-10 security review forced before any unattended soak: **operator access control** (D-018 — `PLAUD_MIRROR_ADMIN_PASSPHRASE` + signed HttpOnly session cookie gating every `/api/*` route, login screen in the panel, login throttle, health PII redaction), **startup crash recovery** (D-013 amendment — orphaned `running` sync runs are failed at boot so the anti-overlap guard cannot deadlock; orphaned `delivering` outbox rows are re-queued, at-least-once delivery accepted), and **Plaud client timeouts** (every Plaud API call and audio download carries an abort deadline so a hung connection cannot wedge a sync run forever). Operators upgrading from `0.4.x`/`0.5.x` should go directly to `v0.6.0`.
 
 ## Phase Table
 
@@ -24,10 +24,10 @@ This document is the canonical phase boundary for Plaud Mirror. If implementatio
 | Phase 0 | `0.1.x` | Repo bootstrap, docs, upstream watch, governance | Runtime code | Stable docs baseline on `main` |
 | Phase 1 | `0.2.x` | Plaud spike CLI, shared schemas, live auth/list/detail/download proof, metadata/filter discovery | Web UI, HTTP API, Docker runtime, encrypted persisted token | Real Plaud flow can be exercised from `dev-vm` |
 | Phase 2 | `0.3.x` – `0.4.x` | Fastify API, React/Vite panel, encrypted persisted bearer token, manual sync, filtered backfill, local recordings index, immediate HMAC-signed webhook delivery with persisted attempt log, Docker runtime for `dev-vm` running as `USER 1000:1000`, local-only curation (inline audio player, dismiss/restore) | Scheduler, resumable backfill, automatic retry queue/outbox, auto re-login, NAS rollout | Operator can open the UI, save a token, run sync/backfill, audition the recordings inline, dismiss or keep each one locally, and receive signed webhook deliveries |
-| Phase 3 | `0.5.x` | Continuous sync scheduler, retry policy, durable webhook outbox, resumable backfill, stronger health/status surfaces | Automatic re-login, NAS rollout, OSS polish | Multi-day unattended run on `dev-vm` with predictable recovery behavior |
-| Phase 4 | `0.6.x` | Optional automatic re-login via a non-browser path if it proves reliable | Browser automation as default or silent fallback | Renewal strategy implemented or explicitly rejected with rationale |
-| Phase 5 | `0.7.x` | Deployment hardening, backups, rollback, NAS validation, infra playbooks | Public OSS polish | Repeatable deployment on both `dev-vm` and NAS |
-| Phase 6 | `0.8.x`+ | Public quickstart, sanitized examples, contributor-facing OSS fit and finish | Hosted or multi-tenant posture | Repo is understandable without private infra context |
+| Phase 3 | `0.5.x` – `0.6.x` | Continuous sync scheduler, retry policy, durable webhook outbox, stronger health/status surfaces, operator access control (panel/API auth), startup crash recovery, Plaud client timeouts, observability surfaced in the panel UI; resumable backfill (deferred, no firm target) | Automatic re-login, NAS rollout, OSS polish | Multi-day unattended run on `dev-vm` with predictable recovery behavior |
+| Phase 4 | `0.7.x` | Optional automatic re-login via a non-browser path if it proves reliable; phone-friendly re-auth UX and auth-failure notification | Browser automation as default or silent fallback | Renewal strategy implemented or explicitly rejected with rationale |
+| Phase 5 | `0.8.x` | Deployment hardening, backups, rollback, NAS validation, infra playbooks | Public OSS polish | Repeatable deployment on both `dev-vm` and NAS |
+| Phase 6 | `0.9.x`+ | Public quickstart, sanitized examples, contributor-facing OSS fit and finish | Hosted or multi-tenant posture | Repo is understandable without private infra context |
 
 ## Beyond Phase 6: Multi-tenant variant (out of scope for this repo)
 
@@ -44,6 +44,17 @@ If a multi-tenant variant is pursued, three viable paths exist (in increasing or
 Recommendation if/when the time comes: **path 1 first** (cheap, fast, no code churn) for early public hosting; migrate to **path 3** if scale or product polish demands it. Avoid path 2.
 
 This section exists so the decision has a place to land when the time comes; it is not a deliverable of this repo.
+
+## Why Phase 3 Was Extended Through 0.6.x
+
+The original re-cut table assigned `0.5.x` to Phase 3 and `0.6.x` to Phase 4 (automatic re-login). Two things changed on 2026-06-10:
+
+1. A full-code security review found three findings that invalidate the Phase 3 exit gate as previously understood: the panel/API had **no operator authentication** while being exposed through `edge-caddy` at `https://plaud.lamanoriega.com/`; a process crash could leave `sync_runs` rows in `running` (deadlocking the anti-overlap guard forever) and `webhook_outbox` rows in `delivering` (unreachable by the worker); and the Plaud client had no request timeouts, so a hung connection produced exactly the same deadlock. "Multi-day unattended run with predictable recovery behavior" cannot be claimed while any of those hold.
+2. Operator access control is a **new backward-compatible auth capability plus a new configuration option** — per `docs/VERSIONING_RULES.md` that is a minor bump, and `0.6.0` was reserved for Phase 4.
+
+Rather than misversion the hardening as a patch or smuggle Phase 4 scope forward, the roadmap was re-cut the same way it was for Phase 2: Phase 3 now covers `0.5.x` (feature delivery) and `0.6.x` (hardening + soak), and every subsequent phase shifts by one minor version. SemVer stays authoritative; phase labels follow. The Plaud re-login spike explicitly stays in Phase 4 (`0.7.x`) — it must not ride along with the hardening release.
+
+Remaining `0.6.x` work before the Phase 3 exit gate: surface `health.warnings` / `lastErrors` / `recentSyncRuns` in the panel UI, upgrade the secrets KDF from single-pass SHA-256 to scrypt-with-salt (H2 from the same review; deprioritized while the master key is strong and random), and then the multi-day soak itself.
 
 ## Why Phase 2 Was Extended Through 0.4.x
 

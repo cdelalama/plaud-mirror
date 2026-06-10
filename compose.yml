@@ -11,6 +11,9 @@ services:
       - "3040:3040"
     environment:
       PLAUD_MIRROR_MASTER_KEY: ${PLAUD_MIRROR_MASTER_KEY:?set PLAUD_MIRROR_MASTER_KEY}
+      # Operator access control (D-018). Empty = auth disabled (open panel,
+      # /api/health carries a warning). Set a passphrase to require login.
+      PLAUD_MIRROR_ADMIN_PASSPHRASE: ${PLAUD_MIRROR_ADMIN_PASSPHRASE:-}
       PLAUD_MIRROR_API_BASE: ${PLAUD_MIRROR_API_BASE:-}
       PLAUD_MIRROR_WEBHOOK_URL: ${PLAUD_MIRROR_WEBHOOK_URL:-}
       PLAUD_MIRROR_WEBHOOK_SECRET: ${PLAUD_MIRROR_WEBHOOK_SECRET:-}

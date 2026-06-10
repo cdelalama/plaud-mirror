@@ -1,12 +1,17 @@
-<!-- doc-version: 0.5.6 -->
+<!-- doc-version: 0.6.0 -->
 # API Contract
 
 This document describes the HTTP and webhook surface that now exists in-repo. The current implementation covers the full Phase 2 slice (manual sync/backfill, local curation routes) plus the Phase 3 scheduler subset (panel-driven from `v0.5.2`) plus the **durable webhook outbox** (D-013) shipped in `v0.5.3` plus **full health observability** (D-014, complete) shipped in `v0.5.5`. From `v0.5.3` onwards webhook delivery is asynchronous: each sync run enqueues the payload, a worker retries it with exponential backoff. From `v0.5.5` onwards `/api/health` also returns `lastErrors` (cross-subsystem ring buffer, capped at 20) and `recentSyncRuns` (last 5 finished runs).
 
 ## Admin API
 
+**Access control (D-018, v0.6.0).** When the deployment sets `PLAUD_MIRROR_ADMIN_PASSPHRASE`, every route below returns `401` without a valid operator session cookie, EXCEPT the public allowlist: `GET /api/health` (status probes; `auth.userSummary` is redacted for unauthenticated callers) and the `/api/session*` routes. Obtain a session with `POST /api/session/login`; the cookie (`plaud_mirror_session`, HttpOnly, SameSite=Lax, 30-day TTL) is sent automatically by browsers. When the env var is unset, all routes stay open and `health.warnings` carries an explicit "access control is disabled" entry.
+
 | Method | Path | Purpose |
 |--------|------|---------|
+| `GET` | `/api/session` | Return `{ authRequired, authenticated }` for the calling client. Public. |
+| `POST` | `/api/session/login` | Exchange `{ passphrase }` for a signed HttpOnly session cookie. `401` on a wrong passphrase; `429` after 5 failed attempts within a minute (in-memory throttle). Public. |
+| `POST` | `/api/session/logout` | Clear the session cookie. Public. |
 | `GET` | `/api/health` | Return version, phase string, auth summary, last completed sync, currently active run (if any), scheduler status, outbox counters, **lastErrors** ring buffer (cross-subsystem error history, capped at 20, most-recent-first), **recentSyncRuns** (last 5 finished runs from SQLite, `finished_at DESC`), recording counts, webhook configuration flag, warning list. D-014 full as of v0.5.5. |
 | `GET` | `/api/config` | Return sanitized runtime config: webhook URL + secret-presence flag, default sync limit, **and the persisted `schedulerIntervalMs`** (the panel reads this on load to populate the scheduler form). |
 | `PUT` | `/api/config` | Update webhook URL, optional webhook secret, **and / or the scheduler interval**. All three fields are optional and independent — omit any to leave it unchanged. `schedulerIntervalMs` must be `0` (disable) or `≥ 60000`; sub-floor positives return HTTP 400. When this field changes, the live `Scheduler` is started / stopped / swapped to the new cadence in place via the `SchedulerManager` reconfigure hook. |
@@ -25,6 +30,23 @@ This document describes the HTTP and webhook surface that now exists in-repo. Th
 | `POST` | `/api/outbox/:id/retry` | Reset a `permanently_failed` outbox row back to `pending` (clears `attempts` and `last_error`); the worker will re-attempt delivery on its next tick. Returns the updated `OutboxItem`. 400 on unsafe id shape, 404 on unknown id, 409 when the row is in any state other than `permanently_failed` (the FSM guard — the panel must not bypass `delivering` or restart `delivered` rows). |
 
 ## Request Shapes
+
+### `POST /api/session/login`
+
+```json
+{
+  "passphrase": "<value of PLAUD_MIRROR_ADMIN_PASSPHRASE>"
+}
+```
+
+Success response (`200`, plus a `set-cookie: plaud_mirror_session=...` header):
+
+```json
+{
+  "authRequired": true,
+  "authenticated": true
+}
+```
 
 ### `POST /api/auth/token`
 

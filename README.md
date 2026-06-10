@@ -1,4 +1,4 @@
-<!-- doc-version: 0.5.6 -->
+<!-- doc-version: 0.6.0 -->
 # Plaud Mirror
 
 Self-hosted Plaud audio mirror with a local web panel, manual sync/backfill controls, and Docker deployment.
@@ -38,12 +38,14 @@ Prerequisites:
 
 - Node `>=20`
 - `PLAUD_MIRROR_MASTER_KEY` set
+- `PLAUD_MIRROR_ADMIN_PASSPHRASE` set (recommended) — the operator passphrase that protects the panel and API. When unset, the API runs open (pre-0.6.0 behavior) and `/api/health` carries a warning.
 
 ```bash
 cd ~/src/plaud-mirror
 npm install
 
 export PLAUD_MIRROR_MASTER_KEY="<long-random-secret>"
+export PLAUD_MIRROR_ADMIN_PASSPHRASE="<operator-passphrase>"
 npm start
 ```
 
@@ -54,6 +56,7 @@ Then open `http://localhost:3040`.
 ```bash
 cd ~/src/plaud-mirror
 export PLAUD_MIRROR_MASTER_KEY="<long-random-secret>"
+export PLAUD_MIRROR_ADMIN_PASSPHRASE="<operator-passphrase>"
 docker compose up --build
 ```
 

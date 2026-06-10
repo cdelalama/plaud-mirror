@@ -3,9 +3,22 @@ import { access } from "node:fs/promises";
 import { join } from "node:path";
 
 import fastifyStatic from "@fastify/static";
-import Fastify from "fastify";
+import Fastify, { type FastifyRequest } from "fastify";
+
+import { SessionLoginRequestSchema } from "@plaud-mirror/shared";
 
 import { loadServerEnvironment, type ServerEnvironment } from "./runtime/environment.js";
+import {
+  LoginThrottle,
+  SESSION_COOKIE_NAME,
+  buildSessionClearCookie,
+  buildSessionCookie,
+  createSessionToken,
+  deriveSessionKey,
+  parseCookies,
+  verifyPassphrase,
+  verifySessionToken,
+} from "./runtime/operator-auth.js";
 import { OutboxWorker } from "./runtime/outbox-worker.js";
 import { SchedulerManager } from "./runtime/scheduler-manager.js";
 import { SecretStore } from "./runtime/secrets.js";
@@ -121,6 +134,63 @@ export async function createApp(options: CreateAppOptions = {}) {
     logger: false,
   });
 
+  // ─── Operator access control (D-018, v0.6.0) ─────────────────────────
+  // When PLAUD_MIRROR_ADMIN_PASSPHRASE is set, every /api/* route except
+  // the public allowlist requires a signed session cookie. When unset,
+  // the API stays open (pre-0.6.0 behavior) and getHealth() surfaces a
+  // warning so the gap is visible instead of silent.
+  const adminPassphrase = environment.adminPassphrase ?? null;
+  const operatorAuthEnabled = adminPassphrase !== null;
+  const sessionKey = adminPassphrase
+    ? deriveSessionKey(environment.masterKey, adminPassphrase)
+    : null;
+  const loginThrottle = new LoginThrottle();
+  // /api/health stays public (infra-portal status probe, docker
+  // healthcheck) but is redacted for unauthenticated callers below.
+  // /api/session* must be public or nobody could ever log in.
+  const publicApiPaths = new Set([
+    "/api/health",
+    "/api/session",
+    "/api/session/login",
+    "/api/session/logout",
+  ]);
+
+  const isAuthenticatedRequest = (request: FastifyRequest): boolean => {
+    if (!operatorAuthEnabled || !sessionKey) {
+      return true;
+    }
+    const cookies = parseCookies(request.headers.cookie);
+    return verifySessionToken(sessionKey, cookies[SESSION_COOKIE_NAME]);
+  };
+
+  if (!operatorAuthEnabled) {
+    console.warn(
+      "Operator access control is DISABLED — set PLAUD_MIRROR_ADMIN_PASSPHRASE to require a passphrase for the panel and API.",
+    );
+  }
+
+  app.addHook("onRequest", async (request, reply) => {
+    if (!operatorAuthEnabled) {
+      return;
+    }
+    const path = request.url.split("?")[0] ?? request.url;
+    // Static panel assets stay public: they carry no operator data and
+    // the login screen IS the panel. All data lives behind /api/*.
+    if (!path.startsWith("/api/")) {
+      return;
+    }
+    if (publicApiPaths.has(path)) {
+      return;
+    }
+    if (isAuthenticatedRequest(request)) {
+      return;
+    }
+    reply.code(401).send({
+      error: "Unauthorized",
+      message: "Operator session required; log in via POST /api/session/login",
+    });
+  });
+
   // Stop the scheduler + outbox worker on shutdown so SIGTERM does not
   // leave half-fired ticks or dangling timers when the process unwinds.
   app.addHook("onClose", async () => {
@@ -140,7 +210,48 @@ export async function createApp(options: CreateAppOptions = {}) {
     });
   });
 
-  app.get("/api/health", async () => service.getHealth());
+  app.get("/api/health", async (request) => {
+    const health = await service.getHealth();
+    if (operatorAuthEnabled && !isAuthenticatedRequest(request)) {
+      // The health endpoint stays public for status probes, but the
+      // operator's Plaud account summary (email, uid) is PII — strip it
+      // for callers without a session.
+      return { ...health, auth: { ...health.auth, userSummary: null } };
+    }
+    return health;
+  });
+
+  app.get("/api/session", async (request) => ({
+    authRequired: operatorAuthEnabled,
+    authenticated: isAuthenticatedRequest(request),
+  }));
+
+  app.post("/api/session/login", async (request, reply) => {
+    if (!operatorAuthEnabled || !adminPassphrase || !sessionKey) {
+      return { authRequired: false, authenticated: true };
+    }
+    if (loginThrottle.isBlocked()) {
+      reply.code(429);
+      return {
+        error: "Too Many Requests",
+        message: "Too many failed login attempts; wait a minute before retrying",
+      };
+    }
+    const parsed = SessionLoginRequestSchema.parse(request.body);
+    if (!verifyPassphrase(adminPassphrase, parsed.passphrase)) {
+      loginThrottle.registerFailure();
+      reply.code(401);
+      return { error: "Unauthorized", message: "Invalid passphrase" };
+    }
+    loginThrottle.reset();
+    reply.header("set-cookie", buildSessionCookie(createSessionToken(sessionKey)));
+    return { authRequired: true, authenticated: true };
+  });
+
+  app.post("/api/session/logout", async (_request, reply) => {
+    reply.header("set-cookie", buildSessionClearCookie());
+    return { authRequired: operatorAuthEnabled, authenticated: false };
+  });
 
   app.get("/api/config", async () => service.getConfig());
 

@@ -267,3 +267,23 @@ test("extractTempUrl accepts nested data.temp_url and rejects missing temp urls"
     (error: unknown) => error instanceof PlaudApiError && error.message.includes("no temp_url"),
   );
 });
+
+test("PlaudClient aborts a hung request after requestTimeoutMs", async () => {
+  const client = new PlaudClient({
+    accessToken: "token-value",
+    requestTimeoutMs: 25,
+    // A fetch that never resolves on its own — it only settles when the
+    // abort signal fires, which is exactly what a hung connection looks
+    // like to the caller.
+    fetchImpl: ((_input: unknown, init?: RequestInit) =>
+      new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener("abort", () => reject(init.signal?.reason));
+      })) as typeof fetch,
+  });
+
+  await assert.rejects(
+    client.getCurrentUser(),
+    (error: unknown) =>
+      error instanceof PlaudApiError && error.message.includes("timed out after 25ms"),
+  );
+});

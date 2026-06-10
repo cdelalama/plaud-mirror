@@ -667,3 +667,132 @@ test("createApp GET /api/backfill/candidates previews recordings with state anno
 
   await app.close();
 });
+
+test("operator auth disabled: routes stay open, session reports authRequired=false, health warns", async () => {
+  const root = await mkdtemp(join(tmpdir(), "plaud-mirror-server-noauth-"));
+  const environment = createEnvironment(root);
+  const app = await createApp({
+    environment,
+    plaudFetchImpl: async () => {
+      throw new Error("Unexpected Plaud fetch in auth-disabled test");
+    },
+  });
+
+  const session = await app.inject({ method: "GET", url: "/api/session" });
+  assert.equal(session.statusCode, 200);
+  assert.deepEqual(session.json(), { authRequired: false, authenticated: true });
+
+  const config = await app.inject({ method: "GET", url: "/api/config" });
+  assert.equal(config.statusCode, 200);
+
+  const health = await app.inject({ method: "GET", url: "/api/health" });
+  assert.equal(health.statusCode, 200);
+  const warnings = (health.json() as { warnings: string[] }).warnings;
+  assert.ok(
+    warnings.some((warning) => warning.includes("PLAUD_MIRROR_ADMIN_PASSPHRASE")),
+    "health must surface the disabled access control so the gap is visible",
+  );
+
+  await app.close();
+});
+
+test("operator auth enabled: gates /api, login issues a session cookie, throttles brute force, redacts health PII", async () => {
+  const root = await mkdtemp(join(tmpdir(), "plaud-mirror-server-auth-"));
+  const environment: ServerEnvironment = {
+    ...createEnvironment(root),
+    adminPassphrase: "correct-horse",
+  };
+  const app = await createApp({
+    environment,
+    plaudFetchImpl: async (input) => {
+      const url = String(input);
+      if (url.endsWith("/user/me")) {
+        return createJsonResponse({ status: 0, data: { uid: "user-1", email: "op@example.com" } });
+      }
+      throw new Error(`Unexpected Plaud fetch: ${url}`);
+    },
+  });
+
+  // Every non-public /api route is gated.
+  const blocked = await app.inject({ method: "GET", url: "/api/config" });
+  assert.equal(blocked.statusCode, 401);
+  const blockedSync = await app.inject({ method: "POST", url: "/api/sync/run", payload: {} });
+  assert.equal(blockedSync.statusCode, 401);
+
+  // Health stays public for status probes, without the disabled-warning.
+  const publicHealth = await app.inject({ method: "GET", url: "/api/health" });
+  assert.equal(publicHealth.statusCode, 200);
+  const publicWarnings = (publicHealth.json() as { warnings: string[] }).warnings;
+  assert.ok(!publicWarnings.some((warning) => warning.includes("PLAUD_MIRROR_ADMIN_PASSPHRASE")));
+
+  // Session status without a cookie.
+  const anonSession = await app.inject({ method: "GET", url: "/api/session" });
+  assert.deepEqual(anonSession.json(), { authRequired: true, authenticated: false });
+
+  // Wrong passphrase is a 401 form error.
+  const badLogin = await app.inject({
+    method: "POST",
+    url: "/api/session/login",
+    payload: { passphrase: "wrong" },
+  });
+  assert.equal(badLogin.statusCode, 401);
+
+  // Right passphrase issues an HttpOnly SameSite=Lax cookie.
+  const goodLogin = await app.inject({
+    method: "POST",
+    url: "/api/session/login",
+    payload: { passphrase: "correct-horse" },
+  });
+  assert.equal(goodLogin.statusCode, 200);
+  const setCookie = String(goodLogin.headers["set-cookie"]);
+  assert.match(setCookie, /plaud_mirror_session=/);
+  assert.match(setCookie, /HttpOnly/);
+  assert.match(setCookie, /SameSite=Lax/);
+  const cookie = setCookie.split(";")[0]!;
+
+  // The cookie unlocks gated routes and the full health payload.
+  const allowed = await app.inject({ method: "GET", url: "/api/config", headers: { cookie } });
+  assert.equal(allowed.statusCode, 200);
+
+  const tokenSave = await app.inject({
+    method: "POST",
+    url: "/api/auth/token",
+    headers: { cookie },
+    payload: { accessToken: "token-value" },
+  });
+  assert.equal(tokenSave.statusCode, 200);
+
+  const authedHealth = await app.inject({ method: "GET", url: "/api/health", headers: { cookie } });
+  const authedSummary = (authedHealth.json() as { auth: { userSummary: unknown } }).auth.userSummary;
+  assert.ok(authedSummary, "authenticated health keeps the Plaud account summary");
+
+  const anonHealth = await app.inject({ method: "GET", url: "/api/health" });
+  const anonSummary = (anonHealth.json() as { auth: { userSummary: unknown } }).auth.userSummary;
+  assert.equal(anonSummary, null, "unauthenticated health must redact the Plaud account summary (PII)");
+
+  const cookieSession = await app.inject({ method: "GET", url: "/api/session", headers: { cookie } });
+  assert.deepEqual(cookieSession.json(), { authRequired: true, authenticated: true });
+
+  // Logout clears the cookie.
+  const logout = await app.inject({ method: "POST", url: "/api/session/logout", headers: { cookie } });
+  assert.match(String(logout.headers["set-cookie"]), /Max-Age=0/);
+
+  // Brute force: five failures inside the window block the sixth attempt
+  // even with the right passphrase.
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const failed = await app.inject({
+      method: "POST",
+      url: "/api/session/login",
+      payload: { passphrase: "nope" },
+    });
+    assert.equal(failed.statusCode, 401);
+  }
+  const throttled = await app.inject({
+    method: "POST",
+    url: "/api/session/login",
+    payload: { passphrase: "correct-horse" },
+  });
+  assert.equal(throttled.statusCode, 429);
+
+  await app.close();
+});

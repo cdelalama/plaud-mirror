@@ -648,6 +648,46 @@ export class RuntimeStore {
     this.db.prepare(`UPDATE sync_runs SET ${sets.join(", ")} WHERE id = ?`).run(...values, id);
   }
 
+  /**
+   * Startup crash recovery, sync side (D-013 amendment, v0.6.0). A run
+   * left in 'running' by a dead process would otherwise satisfy
+   * getActiveSyncRun forever and block every future sync through the
+   * anti-overlap guard. Marks all such rows failed with an explicit
+   * recovery message. Returns the number of rows recovered.
+   */
+  recoverOrphanedSyncRuns(now: Date = new Date()): number {
+    const result = this.db.prepare(`
+      UPDATE sync_runs
+      SET status = 'failed',
+          finished_at = ?,
+          error_message = 'recovered after process restart: run was still marked running at startup'
+      WHERE status = 'running'
+    `).run(now.toISOString());
+    return result.changes;
+  }
+
+  /**
+   * Startup crash recovery, outbox side (D-013 amendment, v0.6.0). Rows
+   * left in 'delivering' by a dead process are unreachable: the worker
+   * only claims pending/retry_waiting. Re-queue them as retry_waiting
+   * due immediately, WITHOUT incrementing attempts — the delivery
+   * outcome is unknown, so the row keeps its full backoff budget.
+   * At-least-once delivery is accepted: the downstream may see a
+   * duplicate if the POST landed right before the crash.
+   */
+  recoverOrphanedOutboxItems(now: Date = new Date()): number {
+    const timestamp = now.toISOString();
+    const result = this.db.prepare(`
+      UPDATE webhook_outbox
+      SET state = 'retry_waiting',
+          next_attempt_at = ?,
+          last_error = 'recovered after process restart: delivery outcome unknown, re-queued',
+          updated_at = ?
+      WHERE state = 'delivering'
+    `).run(timestamp, timestamp);
+    return result.changes;
+  }
+
   recordDeliveryAttempt(attempt: DeliveryAttemptRecord): void {
     this.db.prepare(`
       INSERT INTO webhook_deliveries (

@@ -1213,3 +1213,56 @@ test("PlaudMirrorService rejects audio requests for unsafe recording ids", async
 
   service.close();
 });
+
+test("PlaudMirrorService.initialize recovers orphans and surfaces them in lastErrors", async () => {
+  const root = await mkdtemp(join(tmpdir(), "plaud-mirror-service-recovery-"));
+  const environment = createEnvironment(root);
+  const store = new RuntimeStore({
+    dbPath: join(environment.dataDir, "app.db"),
+    dataDir: environment.dataDir,
+    recordingsDir: environment.recordingsDir,
+    defaultSyncLimit: environment.defaultSyncLimit,
+  });
+
+  // A previous process died mid-sync and mid-delivery.
+  store.startSyncRun("sync", { limit: 1, forceDownload: false });
+  store.enqueueOutboxItem({
+    recordingId: "rec-1",
+    payload: {
+      event: "recording.synced",
+      source: "plaud-mirror",
+      recording: {
+        id: "rec-1",
+        title: "Orphan",
+        createdAt: null,
+        localPath: "recordings/rec-1/audio.mp3",
+        format: "mp3",
+        contentType: "audio/mpeg",
+        bytesWritten: 10,
+      },
+      sync: { syncedAt: "2026-06-10T08:00:01.000Z", deliveryAttempt: 1, mode: "sync" },
+    },
+  });
+  store.claimOutboxItem();
+
+  const secrets = new SecretStore(join(environment.dataDir, "secrets.enc"), environment.masterKey);
+  const sched = createDeterministicScheduler();
+  const service = new PlaudMirrorService(environment, store, secrets, {
+    scheduler: sched.scheduler,
+  });
+  await service.initialize();
+
+  assert.equal(store.getActiveSyncRun(), null, "a fresh boot must never inherit an active run");
+
+  const health = await service.getHealth();
+  const subsystems = health.lastErrors.map((entry) => entry.subsystem);
+  assert.ok(subsystems.includes("sync"), "sync-run recovery lands in the ring buffer");
+  assert.ok(subsystems.includes("outbox"), "outbox recovery lands in the ring buffer");
+  // A new sync can start immediately after recovery (it will fail on the
+  // missing token, but the anti-overlap guard no longer blocks it).
+  const handle = await service.runSync({ limit: 0 });
+  assert.equal(handle.status, "running");
+  await sched.settled();
+
+  service.close();
+});

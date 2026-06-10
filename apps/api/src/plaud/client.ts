@@ -19,11 +19,18 @@ import { API_PACKAGE_VERSION } from "../version.js";
 const DEFAULT_API_BASE = "https://api.plaud.ai";
 const DEFAULT_ORIGIN = "https://app.plaud.ai";
 
+// Per-request ceiling for every Plaud API call (H3, v0.6.0). Without a
+// signal, a hung connection leaves the sync run in 'running' forever and
+// the anti-overlap guard then blocks every future sync. Matches the
+// `PLAUD_MIRROR_REQUEST_TIMEOUT_MS` default in environment.ts.
+export const DEFAULT_PLAUD_REQUEST_TIMEOUT_MS = 30_000;
+
 export interface PlaudClientConfig {
   accessToken: string;
   apiBase?: string;
   fetchImpl?: typeof fetch;
   userAgent?: string;
+  requestTimeoutMs?: number;
 }
 
 export interface PlaudListOptions {
@@ -65,6 +72,7 @@ export class PlaudClient {
   private readonly deviceId: string;
   private readonly fetchImpl: typeof fetch;
   private readonly userAgent: string;
+  private readonly requestTimeoutMs: number;
   private preferredApiBase: string | null = null;
 
   constructor(config: PlaudClientConfig) {
@@ -72,6 +80,7 @@ export class PlaudClient {
     this.apiBase = normalizeApiBase(config.apiBase ?? DEFAULT_API_BASE) ?? DEFAULT_API_BASE;
     this.deviceId = randomUUID().replaceAll("-", "").slice(0, 16);
     this.fetchImpl = config.fetchImpl ?? fetch;
+    this.requestTimeoutMs = config.requestTimeoutMs ?? DEFAULT_PLAUD_REQUEST_TIMEOUT_MS;
     this.userAgent = config.userAgent ?? `plaud-mirror-phase1/${API_PACKAGE_VERSION} (+https://github.com/cdelalama/plaud-mirror)`;
 
     if (!this.accessToken) {
@@ -227,17 +236,31 @@ export class PlaudClient {
   }
 
   private async request(path: string, apiBase: string, options: RequestInit): Promise<PlaudResponseBundle> {
-    const response = await this.fetchImpl(buildPlaudApiUrl(path, apiBase), {
-      ...options,
-      headers: this.buildHeaders(options.headers),
-    });
-    const text = await response.text();
+    try {
+      // The signal covers the whole exchange: connection, headers, and the
+      // body read below (fetch aborts in-flight body streams too).
+      const response = await this.fetchImpl(buildPlaudApiUrl(path, apiBase), {
+        ...options,
+        signal: AbortSignal.timeout(this.requestTimeoutMs),
+        headers: this.buildHeaders(options.headers),
+      });
+      const text = await response.text();
 
-    return {
-      response,
-      payload: safeParseJson(text),
-      text,
-    };
+      return {
+        response,
+        payload: safeParseJson(text),
+        text,
+      };
+    } catch (error) {
+      if (isTimeoutLikeError(error)) {
+        throw new PlaudApiError(
+          `Plaud ${options.method ?? "GET"} ${path} timed out after ${this.requestTimeoutMs}ms`,
+          0,
+          "",
+        );
+      }
+      throw error;
+    }
   }
 
   private buildHeaders(input: HeadersInit | undefined): Record<string, string> {
@@ -349,6 +372,10 @@ export function extractTempUrl(response: PlaudTempUrlResponse, recordingId: stri
   }
 
   return tempUrl;
+}
+
+function isTimeoutLikeError(error: unknown): boolean {
+  return error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError");
 }
 
 function safeParseJson(text: string): unknown {
