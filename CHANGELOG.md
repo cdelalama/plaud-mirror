@@ -4,6 +4,23 @@ All notable changes to Plaud Mirror are documented in this file.
 
 This project follows Semantic Versioning (SemVer): MAJOR.MINOR.PATCH.
 
+## [0.6.1] - 2026-06-10
+
+Patch governance/sync release: adopt LLM-DocKit **4.8.2** (upstream moved past the previously-adopted 4.8.0 on 2026-05-17). No runtime code or API change; the pre-commit hook requires the bump because `scripts/*` is versioned governance surface (same precedent as v0.5.4–v0.5.6).
+
+### Added
+
+- `scripts/test-validator.sh` (upstream 4.8.2): POSIX smoke-test runner for `dockit-validate-session.sh`. Passes 9/9 against the merged local validator.
+
+### Changed
+
+- `scripts/dockit-validate-session.sh`: merged the upstream 4.8.1/4.8.2 refinements — `is_zero_diff_read_only_session()` honoring `DOCKIT_ALLOW_READ_ONLY_SKIP=1` (DF-039: read-only sessions like `/brief` skip handoff-date/history-entry only when the working tree is zero-diff) and the glob-character filter in the orientation path extraction — while preserving the local guardrails the blind template copy had removed (`handoff-start-here-sync`, `prose-drift` D-016, `unabsorbed-artifact` D-017).
+
+### Notes
+
+- The raw `dockit-sync --apply` clobbered three scripts by overwriting local additions (`json-version` support in `bump-version.sh`/`check-version-sync.sh`, the three local checks in the validator); they were restored and hand-merged in the same session. This is the second occurrence of the clobber-on-sync pattern (first: 2026-05-13) — candidate feedback for LLM-DocKit (`merge` strategy for scripts with local extensions).
+- Tests: 130/130 unchanged; validator smoke suite 9/9.
+
 ## [0.6.0] - 2026-06-10
 
 Phase 3 hardening release, forced by the 2026-06-10 full-code security review before any unattended soak. The roadmap was re-cut: Phase 3 now spans `0.5.x`–`0.6.x`, Phase 4 (auto re-login) moves to `0.7.x` (see ROADMAP "Why Phase 3 Was Extended Through 0.6.x").
