@@ -1,4 +1,4 @@
-<!-- doc-version: 0.6.1 -->
+<!-- doc-version: 0.6.2 -->
 # Authentication and Sync Operations
 
 This runbook defines the live behavior of Plaud Mirror's auth and sync surface. Phase 2 (manual sync/backfill) is fully shipped. Phase 3: the continuous sync scheduler landed in `v0.5.0` (regressed) → `v0.5.1` (fixed) → `v0.5.2` (panel-driven). `v0.5.3` shipped the **durable webhook outbox** (D-013). `v0.5.4` was governance-only (D-016). `v0.5.5` shipped **D-014 full**: `lastErrors` ring buffer and `recentSyncRuns` on `/api/health`. `v0.6.0` is the **Phase 3 hardening release**: operator access control on the panel/API (D-018), startup crash recovery for orphaned sync runs and outbox rows (D-013 amendment, at-least-once delivery accepted), and abort deadlines on every Plaud API call and audio download. Remaining Phase 3 work before the soak: panel-side observability UI and the scrypt KDF upgrade; resumable backfill and automatic re-login stay deferred.
@@ -11,6 +11,8 @@ Two distinct auth surfaces exist from v0.6.0 — do not conflate them:
 2. **Operator auth** (you → this service): `PLAUD_MIRROR_ADMIN_PASSPHRASE`.
 
 When `PLAUD_MIRROR_ADMIN_PASSPHRASE` is set, the panel shows a login screen and every `/api/*` route except `GET /api/health` and `/api/session*` requires the signed session cookie issued by `POST /api/session/login` (HttpOnly, SameSite=Lax, 30-day TTL). Unauthenticated `/api/health` responses redact `auth.userSummary` (the Plaud account email/uid). Failed logins are throttled (5/minute). Rotating the passphrase — or the master key — invalidates every outstanding session immediately.
+
+Storage convention (v0.6.2): the passphrase lives in Doppler at `plaud-mirror/dev/PLAUD_MIRROR_ADMIN_PASSPHRASE`, per the home-infra secrets convention. Store or rotate it with `scripts/set-admin-passphrase.sh` (interactive; reads the value silently, double-prompts, pipes it to the Doppler CLI via stdin so it never touches argv, history, or disk). Inject it at launch with `doppler run --project plaud-mirror --config dev -- docker compose up -d` (process env overrides `.env` in compose substitution), or copy it into the gitignored `.env` manually.
 
 When the variable is unset, the API runs open (pre-0.6.0 behavior) and `health.warnings` carries "Operator access control is disabled — set PLAUD_MIRROR_ADMIN_PASSPHRASE..." so the gap is never silent. Given the service is published through `edge-caddy` at `https://plaud.lamanoriega.com/` and `compose.yml` binds `3040:3040` on the LAN, running without the passphrase is NOT recommended.
 

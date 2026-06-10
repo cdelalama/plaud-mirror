@@ -4,6 +4,19 @@ All notable changes to Plaud Mirror are documented in this file.
 
 This project follows Semantic Versioning (SemVer): MAJOR.MINOR.PATCH.
 
+## [0.6.2] - 2026-06-10
+
+Patch: operator tooling for D-018. No runtime change.
+
+### Added
+
+- `scripts/set-admin-passphrase.sh` — interactive helper the operator runs on dev-vm to store `PLAUD_MIRROR_ADMIN_PASSPHRASE` in Doppler (`plaud-mirror/dev`, project auto-created on first run, closing the "create Doppler project plaud-mirror" item open since Phase 2 planning). Silent double prompt, minimum 8 characters, value piped to the Doppler CLI via stdin so it never reaches argv, shell history, or disk. Prints the arm-and-verify steps (`doppler run ... -- docker compose up -d`).
+
+### Changed
+
+- `docs/operations/DEPLOY_PLAYBOOK.md` + `docs/operations/AUTH_AND_SYNC.md` document Doppler as the source of truth for the operator passphrase, with the `doppler run` launch path (process env overrides `.env` in compose substitution).
+- `scripts/.unabsorbed-artifact-baseline.json`: new permanent entry for the helper (D-017 protocol).
+
 ## [0.6.1] - 2026-06-10
 
 Patch governance/sync release: adopt LLM-DocKit **4.8.2** (upstream moved past the previously-adopted 4.8.0 on 2026-05-17). No runtime code or API change; the pre-commit hook requires the bump because `scripts/*` is versioned governance surface (same precedent as v0.5.4–v0.5.6).

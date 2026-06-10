@@ -1,4 +1,4 @@
-<!-- doc-version: 0.6.1 -->
+<!-- doc-version: 0.6.2 -->
 # LLM Work Handoff
 
 This file is the live operational snapshot. Durable rationale lives in `docs/llm/DECISIONS.md`. Phase boundaries live in `docs/ROADMAP.md`.
@@ -83,7 +83,7 @@ This is now verified on the actual `dev-vm`, not assumed.
 
 ## Open Work
 
-- **Operator action required to arm D-018:** add `PLAUD_MIRROR_ADMIN_PASSPHRASE=<value>` to the dev-vm `.env` and `docker compose up -d`. Until then the deployed v0.6.0 runs open with the explicit `health.warnings` entry (and this handoff entry) as the reminder.
+- **Operator action required to arm D-018:** run `scripts/set-admin-passphrase.sh` (interactive; stores the passphrase in Doppler `plaud-mirror/dev` and creates that Doppler project on first run — closing the long-standing "create Doppler project plaud-mirror" priority), then restart with `doppler run --project plaud-mirror --config dev -- docker compose up -d`. Until then the deployed service runs open with the explicit `health.warnings` entry as the reminder. After the first run, add the `plaud-mirror | dev, stg, prd` row to the Doppler Projects table in `~/src/home-infra/docs/CONVENTIONS.md`.
 - File downstream feedback to LLM-DocKit about the clobber-on-sync pattern: `dockit-sync --apply` overwrites scripts that carry local extensions (`copy` strategy), forcing a manual re-merge every sync (happened 2026-05-13 and again 2026-06-10 with v0.6.1). Proposal: a `merge`/`copy-with-markers` strategy for `scripts/dockit-validate-session.sh` and version scripts, or upstream absorption of the local checks (DF-028 already covers `scripts/check-prose-drift.sh`).
 - Observability UI (next 0.6.x increment): render `health.warnings`, `lastErrors`, and `recentSyncRuns` in the panel — the backend emits them since v0.5.5 but the operator can only see them via curl today. Include a prominent auth-failure banner on the Main tab (`auth.state` invalid/degraded) with a direct path to the token form.
 - Scrypt KDF upgrade for `data/secrets.enc` (H2 from the 2026-06-10 review): replace `sha256(masterKey)` with scrypt + persisted salt. Deprioritized behind the items above while the master key is strong/random.
@@ -103,7 +103,7 @@ The six items GPT-5 flagged in the 2026-04-23 review are closed:
 
 ## Top Priorities
 
-0. Arm operator access control: operator adds `PLAUD_MIRROR_ADMIN_PASSPHRASE` to the dev-vm `.env`, `docker compose up -d`, then verify the panel shows the login screen and `/api/config` returns 401 without a session.
+0. Arm operator access control: operator runs `scripts/set-admin-passphrase.sh`, restarts via `doppler run --project plaud-mirror --config dev -- docker compose up -d`, then verifies the panel shows the login screen and `/api/config` returns 401 without a session.
 1. Live-soak the durable outbox: configure a real webhook URL, run sync, watch `/api/health.outbox` counters move from `pending → 0` and the audit-log `webhook_deliveries` rows fill in.
 2. Live-soak the scheduler from the panel: set 15 min, observe `health.scheduler.lastTickAt` advancing for several ticks, confirm a manual sync mid-tick is recorded as `lastTickStatus = "skipped"` with a useful `lastTickError` reason.
 3. Inject a deliberate downstream failure (point the webhook at a 503 endpoint) and verify the backoff schedule + permanent-fail escalation + Retry-from-panel UX all behave as documented.

@@ -1,4 +1,4 @@
-<!-- doc-version: 0.6.1 -->
+<!-- doc-version: 0.6.2 -->
 # Deploy Playbook
 
 This runbook describes the actual Phase 2 Docker deployment path for Plaud Mirror.
@@ -13,7 +13,7 @@ This runbook describes the actual Phase 2 Docker deployment path for Plaud Mirro
 
 - Docker and Docker Compose available
 - `PLAUD_MIRROR_MASTER_KEY` set in the shell or compose environment
-- `PLAUD_MIRROR_ADMIN_PASSPHRASE` set (recommended from v0.6.0) — operator access control for the panel and API (D-018). Add it to the same `.env` that carries the master key. Without it the API runs open and `/api/health` warns.
+- `PLAUD_MIRROR_ADMIN_PASSPHRASE` set (recommended from v0.6.0) — operator access control for the panel and API (D-018). Source of truth: Doppler `plaud-mirror/dev` — store it with `scripts/set-admin-passphrase.sh` (interactive, creates the Doppler project on first run), then launch with `doppler run --project plaud-mirror --config dev -- docker compose up -d`, or copy the value into the local `.env`. Without it the API runs open and `/api/health` warns.
 - Persistent host paths available for:
   - `./runtime/data`
   - `./runtime/recordings`
