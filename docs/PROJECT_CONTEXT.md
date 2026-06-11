@@ -1,4 +1,4 @@
-<!-- doc-version: 0.6.2 -->
+<!-- doc-version: 0.6.3 -->
 # Project Context - Plaud Mirror
 
 ## Vision

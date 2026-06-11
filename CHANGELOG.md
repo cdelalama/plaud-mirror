@@ -4,6 +4,12 @@ All notable changes to Plaud Mirror are documented in this file.
 
 This project follows Semantic Versioning (SemVer): MAJOR.MINOR.PATCH.
 
+## [0.6.3] - 2026-06-11
+
+### Fixed
+
+- `scripts/set-admin-passphrase.sh`: save the terminal state (`stty -g`) and restore it via `trap` on EXIT/INT/TERM, so a Ctrl-C between `stty -echo` and `stty echo` can no longer leave the operator's terminal without echo (low-severity UX finding from the operator's post-release audit of v0.6.2). No runtime change.
+
 ## [0.6.2] - 2026-06-10
 
 Patch: operator tooling for D-018. No runtime change.

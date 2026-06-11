@@ -54,6 +54,17 @@ doppler configs get "$CONFIG" --project "$PROJECT" >/dev/null 2>&1 \
     || fail "config '$CONFIG' not found in project '$PROJECT'"
 
 # Silent double prompt. stty instead of `read -s` so the script stays POSIX sh.
+# Save the terminal state and restore it on ANY exit (including Ctrl-C between
+# `stty -echo` and `stty echo`) so an aborted run cannot leave the terminal
+# without echo.
+STTY_STATE=$(stty -g)
+restore_stty() {
+    stty "$STTY_STATE" 2>/dev/null || stty echo
+}
+trap 'restore_stty' EXIT
+trap 'restore_stty; trap - INT; kill -INT $$' INT
+trap 'restore_stty; exit 143' TERM
+
 printf "New %s (input hidden): " "$SECRET_NAME"
 stty -echo
 read -r PASSPHRASE

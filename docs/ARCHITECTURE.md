@@ -1,4 +1,4 @@
-<!-- doc-version: 0.6.2 -->
+<!-- doc-version: 0.6.3 -->
 # Plaud Mirror Architecture
 
 > Version: 0.6.0
