@@ -1,4 +1,4 @@
-<!-- doc-version: 0.6.3 -->
+<!-- doc-version: 0.7.0 -->
 # Project Context - Plaud Mirror
 
 ## Vision
@@ -22,11 +22,13 @@ Plaud Mirror is a server-first product with two runtime surfaces:
 
 Persistence is split between SQLite for state/indexes and the filesystem for mirrored audio artifacts. Secrets are encrypted at rest with a master key supplied by the surrounding deployment.
 
-## Current Status (2026-06-10)
+## Current Status (2026-06-11)
 
-Plaud Mirror `v0.6.0` is the **Phase 3 hardening release**, forced by a same-day full-code security review before any unattended soak. Three changes: (1) **operator access control** (D-018) — the panel and API, exposed at `https://plaud.lamanoriega.com/` through edge-caddy, previously had no authentication at all; now `PLAUD_MIRROR_ADMIN_PASSPHRASE` gates every `/api/*` route behind a signed HttpOnly session cookie (30-day TTL, login screen in the panel, 5/minute login throttle, `auth.userSummary` redacted on the public `/api/health`); (2) **startup crash recovery** (D-013 amendment) — orphaned `running` sync runs are failed at boot (they used to deadlock the anti-overlap guard forever) and orphaned `delivering` outbox rows are re-queued with their backoff budget intact (at-least-once delivery accepted); (3) **Plaud client timeouts** — every Plaud API call (30 s) and audio download (10 min) carries an abort deadline, so a hung connection can no longer wedge `activeRun` permanently. The roadmap was re-cut: Phase 3 now spans `0.5.x`–`0.6.x`, Phase 4 (auto re-login) moves to `0.7.x`. Test count: 116 → 130 (116 backend + 14 web).
+Plaud Mirror `v0.7.0` opens **Phase 4 (re-auth)** with **browser-assisted Plaud re-auth** (D-019): a panel-initiated single-use capture session plus a bookmarklet (token-extraction adapted from the MIT `iiAtlas` upstream) let the operator refresh the ~300-day Plaud bearer in one tap — no DevTools, no stored password. It was chosen after confirming the operator's account is Google SSO (so it has no password and Plaud forbids adding one, killing credentials-login) and parking the official OAuth/MCP as deferred/watch (not disproven). The manual token paste stays as the fallback; Telegram is explicitly not a capture channel.
 
-The `v0.5.5` baseline this builds on: **D-014 full** health observability (`lastErrors` ring buffer capped at 20, `recentSyncRuns` last 5 finished runs on `/api/health`) plus the D-016/D-017 governance layers (`prose-drift` at FAIL, `unabsorbed-artifact` baseline).
+The `v0.6.x` line this builds on was the **Phase 3 hardening + tooling** sequence, forced by the 2026-06-10 security review: `v0.6.0` operator access control (D-018 — `PLAUD_MIRROR_ADMIN_PASSPHRASE` + signed HttpOnly session cookie gating `/api/*`, login screen, throttle, health PII redaction), startup crash recovery (D-013 amendment — orphaned `running`/`delivering` rows recovered at boot, at-least-once accepted), and Plaud client timeouts; then `v0.6.1` (LLM-DocKit 4.8.2 sync), `v0.6.2` (Doppler passphrase helper `scripts/set-admin-passphrase.sh`), `v0.6.3` (terminal-echo fix). The operator access control is armed in production (passphrase in Doppler, secondary "Startup Embassy" account). Test count: 130 → 141 (121 backend + 20 web).
+
+The `v0.5.5` runtime baseline underneath: **D-014 full** health observability (`lastErrors` ring buffer capped at 20, `recentSyncRuns` last 5 finished runs on `/api/health`) plus the D-016/D-017 governance layers (`prose-drift` at FAIL, `unabsorbed-artifact` baseline).
 
 The runtime baseline carried from `v0.5.3` is the **durable webhook outbox** (D-013): each successfully-mirrored recording pushes its `recording.synced` payload into a `webhook_outbox` SQLite table, a dedicated worker retries with exponential backoff (30 s → 8 h across 8 attempts, ~16 h cumulative window) before escalating to `permanently_failed`. The Configuration tab has a "Webhook outbox" card with live counters (`pending` / `retry_waiting` / `permanently_failed` / `oldestPendingAgeMs`), a list of permanently-failed items, and a per-row Retry button. The HMAC signature is recomputed at delivery time so rotating `webhookSecret` mid-flight is honoured. Routes: `GET /api/outbox` (failed list only) and `POST /api/outbox/:id/retry`.
 

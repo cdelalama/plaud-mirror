@@ -7,6 +7,7 @@ import Fastify, { type FastifyRequest } from "fastify";
 
 import { SessionLoginRequestSchema } from "@plaud-mirror/shared";
 
+import { CaptureSessionStore } from "./runtime/capture-session.js";
 import { loadServerEnvironment, type ServerEnvironment } from "./runtime/environment.js";
 import {
   LoginThrottle,
@@ -251,6 +252,38 @@ export async function createApp(options: CreateAppOptions = {}) {
   app.post("/api/session/logout", async (_request, reply) => {
     reply.header("set-cookie", buildSessionClearCookie());
     return { authRequired: operatorAuthEnabled, authenticated: false };
+  });
+
+  // Browser-assisted Plaud re-auth (D-019, Phase 4 / v0.7.0). The operator
+  // starts a capture from the panel; the /connect page completes it with the
+  // bearer the bookmarklet grabbed from app.plaud.ai. Both routes require an
+  // operator session (NOT in the public allowlist). The capture id binds the
+  // token swap to operator intent (token-fixation defence); the bearer itself
+  // is still validated against Plaud inside service.saveAccessToken.
+  const captureSessions = new CaptureSessionStore();
+
+  app.post("/api/connect/start", async () => {
+    return captureSessions.start();
+  });
+
+  app.post("/api/connect/complete", async (request, reply) => {
+    const body = (request.body ?? {}) as { token?: unknown; captureId?: unknown };
+    const captureId = typeof body.captureId === "string" ? body.captureId : "";
+    const token = typeof body.token === "string" ? body.token.trim() : "";
+    if (!captureId || !captureSessions.consume(captureId)) {
+      reply.code(409);
+      return {
+        error: "Conflict",
+        message: "No live capture session; start one from the panel and retry within 10 minutes",
+      };
+    }
+    if (!token) {
+      reply.code(400);
+      return { error: "Bad Request", message: "No token captured from Plaud" };
+    }
+    // Reuse the same validate-against-Plaud-then-store path as the manual
+    // token paste. Throws (→ error handler) if Plaud rejects the bearer.
+    return service.saveAccessToken({ accessToken: token });
   });
 
   app.get("/api/config", async () => service.getConfig());

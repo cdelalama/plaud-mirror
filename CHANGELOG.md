@@ -4,6 +4,21 @@ All notable changes to Plaud Mirror are documented in this file.
 
 This project follows Semantic Versioning (SemVer): MAJOR.MINOR.PATCH.
 
+## [0.7.0] - 2026-06-11
+
+Opens Phase 4 (re-auth). Browser-assisted Plaud re-auth so the operator refreshes the ~300-day bearer in one tap — no DevTools, no stored password — chosen over credentials-login (not applicable: Google-SSO account) and the official OAuth/MCP (deferred/watch). See D-019.
+
+### Added
+
+- **Browser-assisted Plaud re-auth (D-019).** New panel card "Reconectar Plaud": `POST /api/connect/start` mints a single-use `captureId` (in-memory `CaptureSessionStore`, TTL 10 min); the operator logs into app.plaud.ai (Google) and taps a bookmarklet that reads the bearer from Plaud's `localStorage` (extraction adapted from the MIT `iiAtlas` upstream, with attribution) and bounces it to the mirror's new `/connect` page (`ConnectPlaud`), which completes via `POST /api/connect/complete { token, captureId }`. The captureId binds the swap to operator intent (token-fixation defence); the bearer is validated against Plaud before storing and only ever travels in a URL fragment (never logged) + one same-origin authenticated POST. New module `apps/web/src/plaud-token.ts` (`extractPlaudToken`, `buildBookmarklet`). Both connect routes require the operator session.
+
+### Notes
+
+- The manual token paste (`POST /api/auth/token`) stays as the universal fallback. Telegram is explicitly not a capture channel.
+- Auth-provider evaluation recorded in D-019: official partner API (enterprise-only, rejected), official CLI/MCP (deferred/watch, not disproven — its docs mention `presigned_url`), private email+password login (real endpoint, but not applicable to a Google-SSO account), browser-assisted capture (chosen).
+- Attribution: token-location logic adapted from MIT `iiAtlas/plaud-recording-downloader` (Copyright (c) 2025 Atlas Wegman); see `docs/UPSTREAMS.md` Phase 4 adoption and the header of `apps/web/src/plaud-token.ts`.
+- Tests: 130 → 141 (121 backend + 20 web). New: `capture-session.test.ts`, connect-flow server tests (start/complete/replay/forged), `plaud-token.test.ts` (extraction + bookmarklet shape).
+
 ## [0.6.3] - 2026-06-11
 
 ### Fixed

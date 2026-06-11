@@ -1,7 +1,12 @@
 import { FormEvent, useEffect, useState } from "react";
 
 import { StateBadge } from "./components/StateBadge.js";
+import { buildBookmarklet, PLAUD_WEB_APP_URL } from "./plaud-token.js";
 import { readBackfillExpanded, readTab, STORAGE_KEYS } from "./storage.js";
+
+// localStorage key (mirror origin) where the panel stashes the one-time
+// captureId between "Reconectar Plaud" and the /connect completion (D-019).
+const CAPTURE_ID_KEY = "plaud_mirror_capture_id";
 
 import {
   coerceNonNegativeInteger,
@@ -56,6 +61,24 @@ export function App() {
   const [session, setSession] = useState<SessionStatus | null>(null);
   const [sessionError, setSessionError] = useState<string | null>(null);
 
+  // Assisted-reconnect landing (D-019). The bookmarklet navigates here as
+  // `/connect#token=...`. Capture the token from the fragment ONCE, then strip
+  // it from the URL/history immediately so the bearer never lingers in the
+  // address bar or browser history. Held in state so it survives the login
+  // gate (if the operator must sign in first, the token is not lost).
+  const isConnect = typeof window !== "undefined" && window.location.pathname === "/connect";
+  const [connectToken] = useState<string | null>(() => {
+    if (!isConnect || typeof window === "undefined") {
+      return null;
+    }
+    const match = window.location.hash.match(/(?:^#|&)token=([^&]+)/);
+    const token = match ? decodeURIComponent(match[1]) : null;
+    if (window.location.hash) {
+      window.history.replaceState(null, "", "/connect");
+    }
+    return token;
+  });
+
   async function loadSession(): Promise<void> {
     try {
       setSession(await requestJson<SessionStatus>("/api/session"));
@@ -93,11 +116,93 @@ export function App() {
     );
   }
 
+  if (isConnect) {
+    return <ConnectPlaud token={connectToken} />;
+  }
+
   return (
     <Panel
       authRequired={session.authRequired}
       onUnauthorized={() => setSession({ authRequired: true, authenticated: false })}
     />
+  );
+}
+
+// Landing page for the bookmarklet (D-019). Reads the captureId the panel
+// stashed in localStorage, posts it together with the captured bearer to
+// /api/connect/complete, and reports the outcome. The token arrived in the
+// URL fragment (already stripped by App) and is never sent anywhere except
+// this same-origin, operator-authenticated POST.
+export function ConnectPlaud({ token }: { token: string | null }) {
+  const [state, setState] = useState<"working" | "ok" | "error">("working");
+  const [message, setMessage] = useState<string>("Conectando con Plaud…");
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      if (!token) {
+        setState("error");
+        setMessage("No llegó ningún token. Vuelve al panel y pulsa \"Reconectar Plaud\" para empezar de nuevo.");
+        return;
+      }
+      let captureId = "";
+      try {
+        captureId = window.localStorage?.getItem(CAPTURE_ID_KEY) ?? "";
+      } catch {
+        captureId = "";
+      }
+      try {
+        const auth = await requestJson<AuthStatus>("/api/connect/complete", {
+          method: "POST",
+          body: JSON.stringify({ token, captureId }),
+        });
+        try {
+          window.localStorage?.removeItem(CAPTURE_ID_KEY);
+        } catch {
+          // non-fatal
+        }
+        if (cancelled) {
+          return;
+        }
+        setState("ok");
+        setMessage(`Token de Plaud guardado y validado (estado: ${auth.state}).`);
+      } catch (error) {
+        if (cancelled) {
+          return;
+        }
+        setState("error");
+        setMessage(toErrorMessage(error));
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [token]);
+
+  return (
+    <div className="shell">
+      <div className="hero">
+        <div>
+          <p className="eyebrow">Plaud Mirror</p>
+          <h1>Reconectar Plaud</h1>
+        </div>
+      </div>
+      {state === "working" ? <Banner tone="info" message={message} /> : null}
+      {state === "ok" ? <Banner tone="success" message={message} /> : null}
+      {state === "error" ? <Banner tone="error" message={message} /> : null}
+      <section className="card">
+        <p className="muted">
+          {state === "ok"
+            ? "Listo. Ya puedes volver al panel."
+            : state === "error"
+              ? "No se pudo guardar el token."
+              : "Un momento…"}
+        </p>
+        <a href="/" className="button-row" style={{ textDecoration: "none" }}>
+          <button type="button">Volver al panel</button>
+        </a>
+      </section>
+    </div>
   );
 }
 
@@ -425,6 +530,30 @@ function Panel({
     });
   }
 
+  // Assisted reconnect (D-019): mint a one-time capture id, stash it in
+  // localStorage for the /connect page, and open Plaud's web app so the
+  // operator can tap the bookmarklet there.
+  async function handleReconnectPlaud(): Promise<void> {
+    try {
+      const { captureId } = await requestJson<{ captureId: string }>("/api/connect/start", {
+        method: "POST",
+      });
+      try {
+        window.localStorage?.setItem(CAPTURE_ID_KEY, captureId);
+      } catch {
+        // non-fatal; /connect will report "no live capture session"
+      }
+      window.open(PLAUD_WEB_APP_URL, "_blank", "noopener");
+      setOperationResult("Capture iniciado. En la pestaña de Plaud (ya logueado), pulsa el marcador \"Reconectar Plaud Mirror\".");
+    } catch (error) {
+      if (error instanceof UnauthorizedError) {
+        onUnauthorized();
+        return;
+      }
+      setOperationError(toErrorMessage(error));
+    }
+  }
+
   async function handleSaveConfig(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
 
@@ -634,6 +763,35 @@ function Panel({
               Save and validate token
             </button>
           </form>
+
+          <div className="reconnect-block">
+            <p className="kicker">Reconexión fácil</p>
+            <p className="muted">
+              En vez de pegar el token a mano: pulsa <strong>Reconectar Plaud</strong>,
+              inicia sesión en la pestaña de Plaud que se abre, y allí pulsa el
+              marcador de abajo. El token (dura ~300 días) viaja solo a este panel.
+            </p>
+            <div className="button-row">
+              <button type="button" disabled={busy} onClick={() => void handleReconnectPlaud()}>
+                Reconectar Plaud
+              </button>
+            </div>
+            <p className="muted small">
+              Instalación (una sola vez): arrastra este botón a tu barra de
+              marcadores (escritorio), o crea un marcador y pega su dirección como
+              URL (móvil). Luego solo tienes que pulsarlo estando en app.plaud.ai.
+            </p>
+            <p>
+              <a
+                className="bookmarklet-link"
+                href={buildBookmarklet(window.location.origin)}
+                onClick={(event) => event.preventDefault()}
+                title="Arrástrame a la barra de marcadores"
+              >
+                🔖 Reconectar Plaud Mirror
+              </a>
+            </p>
+          </div>
         </section>
 
         <section className="card">

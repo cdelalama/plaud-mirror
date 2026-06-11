@@ -1,4 +1,4 @@
-<!-- doc-version: 0.6.3 -->
+<!-- doc-version: 0.7.0 -->
 # Repository Structure Guide
 
 This document describes the actual Plaud Mirror repository layout as of the first usable Phase 2 slice.
@@ -80,11 +80,11 @@ These paths are expected at runtime and should remain uncommitted:
 - `apps/api/src/phase1/`
   The original spike utilities (probe CLI). `applyLocalFilters` is reused by both the real sync path and the backfill preview.
 - `apps/api/src/runtime/`
-  SQLite store (recordings, devices, sync_runs, webhook_deliveries, webhook_outbox), encrypted secret storage, sync/backfill service with pluggable scheduler, scheduler + outbox worker, operator access control primitives (`operator-auth.ts`: signed session cookies, login throttle), and runtime tests.
+  SQLite store (recordings, devices, sync_runs, webhook_deliveries, webhook_outbox), encrypted secret storage, sync/backfill service with pluggable scheduler, scheduler + outbox worker, operator access control primitives (`operator-auth.ts`: signed session cookies, login throttle), browser-assisted re-auth capture sessions (`capture-session.ts`, D-019), and runtime tests.
 - `apps/api/src/server.ts`
-  Fastify app factory: operator-session gate on `/api/*` (D-018) + session routes, auth, config, sync (`POST /api/sync/run` returns 202), backfill, `GET /api/sync/runs/:id`, `GET /api/devices`, `GET /api/backfill/candidates`, recordings listing + audio streaming with HTTP Range, delete/restore, outbox admin.
+  Fastify app factory: operator-session gate on `/api/*` (D-018) + session routes, browser-assisted re-auth routes (`/api/connect/start` + `/api/connect/complete`, D-019), auth, config, sync (`POST /api/sync/run` returns 202), backfill, `GET /api/sync/runs/:id`, `GET /api/devices`, `GET /api/backfill/candidates`, recordings listing + audio streaming with HTTP Range, delete/restore, outbox admin.
 - `apps/web/src/App.tsx`
-  Product panel behind a session gate (`LoginGate` when operator auth is enabled). Token setup, webhook config, Manual sync card (incl. "Refresh server stats" button and live progress polling), Historical backfill card (device selector + date range + dry-run preview table), library with pagination, inline audio playback, dismiss/restore, logout.
+  Product panel behind a session gate (`LoginGate` when operator auth is enabled) plus the `/connect` capture landing (`ConnectPlaud`, D-019). Bookmarklet + token-extraction live in `apps/web/src/plaud-token.ts` (adapted from MIT iiAtlas). Token setup, webhook config, Manual sync card (incl. "Refresh server stats" button and live progress polling), Historical backfill card (device selector + date range + dry-run preview table), library with pagination, inline audio playback, dismiss/restore, logout.
 
 ## Onboarding Notes
 

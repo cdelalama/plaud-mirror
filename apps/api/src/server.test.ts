@@ -796,3 +796,90 @@ test("operator auth enabled: gates /api, login issues a session cookie, throttle
 
   await app.close();
 });
+
+test("connect flow: start mints a captureId, complete validates it and stores the captured token", async () => {
+  const root = await mkdtemp(join(tmpdir(), "plaud-mirror-server-connect-"));
+  const environment: ServerEnvironment = {
+    ...createEnvironment(root),
+    adminPassphrase: "correct-horse",
+  };
+  const app = await createApp({
+    environment,
+    plaudFetchImpl: async (input) => {
+      const url = String(input);
+      if (url.endsWith("/user/me")) {
+        return createJsonResponse({ status: 0, data: { uid: "user-1" } });
+      }
+      throw new Error(`Unexpected Plaud fetch: ${url}`);
+    },
+  });
+
+  // Both connect routes are gated by the operator session.
+  const anon = await app.inject({ method: "POST", url: "/api/connect/start" });
+  assert.equal(anon.statusCode, 401);
+
+  const login = await app.inject({
+    method: "POST",
+    url: "/api/session/login",
+    payload: { passphrase: "correct-horse" },
+  });
+  const cookie = String(login.headers["set-cookie"]).split(";")[0]!;
+
+  // Start a capture.
+  const start = await app.inject({ method: "POST", url: "/api/connect/start", headers: { cookie } });
+  assert.equal(start.statusCode, 200);
+  const captureId = start.json().captureId as string;
+  assert.ok(captureId);
+
+  // Complete with the live captureId → token validated against Plaud and stored.
+  const complete = await app.inject({
+    method: "POST",
+    url: "/api/connect/complete",
+    headers: { cookie },
+    payload: { token: "captured-bearer", captureId },
+  });
+  assert.equal(complete.statusCode, 200);
+  assert.equal(complete.json().state, "healthy");
+
+  // The captureId is single-use: replaying it is a 409.
+  const replay = await app.inject({
+    method: "POST",
+    url: "/api/connect/complete",
+    headers: { cookie },
+    payload: { token: "captured-bearer", captureId },
+  });
+  assert.equal(replay.statusCode, 409);
+
+  await app.close();
+});
+
+test("connect flow: complete without a live captureId is rejected (token-fixation defence)", async () => {
+  const root = await mkdtemp(join(tmpdir(), "plaud-mirror-server-connect-nofix-"));
+  const environment: ServerEnvironment = {
+    ...createEnvironment(root),
+    adminPassphrase: "correct-horse",
+  };
+  const app = await createApp({
+    environment,
+    plaudFetchImpl: async () => {
+      throw new Error("Plaud must NOT be called when the captureId is missing/invalid");
+    },
+  });
+
+  const login = await app.inject({
+    method: "POST",
+    url: "/api/session/login",
+    payload: { passphrase: "correct-horse" },
+  });
+  const cookie = String(login.headers["set-cookie"]).split(";")[0]!;
+
+  const forged = await app.inject({
+    method: "POST",
+    url: "/api/connect/complete",
+    headers: { cookie },
+    payload: { token: "someone-elses-valid-token", captureId: "not-a-real-capture" },
+  });
+  assert.equal(forged.statusCode, 409);
+
+  await app.close();
+});

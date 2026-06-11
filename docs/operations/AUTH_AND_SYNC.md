@@ -1,4 +1,4 @@
-<!-- doc-version: 0.6.3 -->
+<!-- doc-version: 0.7.0 -->
 # Authentication and Sync Operations
 
 This runbook defines the live behavior of Plaud Mirror's auth and sync surface. Phase 2 (manual sync/backfill) is fully shipped. Phase 3: the continuous sync scheduler landed in `v0.5.0` (regressed) → `v0.5.1` (fixed) → `v0.5.2` (panel-driven). `v0.5.3` shipped the **durable webhook outbox** (D-013). `v0.5.4` was governance-only (D-016). `v0.5.5` shipped **D-014 full**: `lastErrors` ring buffer and `recentSyncRuns` on `/api/health`. `v0.6.0` is the **Phase 3 hardening release**: operator access control on the panel/API (D-018), startup crash recovery for orphaned sync runs and outbox rows (D-013 amendment, at-least-once delivery accepted), and abort deadlines on every Plaud API call and audio download. Remaining Phase 3 work before the soak: panel-side observability UI and the scrypt KDF upgrade; resumable backfill and automatic re-login stay deferred.
@@ -25,9 +25,19 @@ When the variable is unset, the API runs open (pre-0.6.0 behavior) and `health.w
 - Token is encrypted at rest in `data/secrets.enc`.
 - If Plaud later rejects the token, the service moves into a degraded auth state and requires operator action.
 
-### Later Mode: Automatic Re-login
+### Browser-assisted re-auth (D-019, v0.7.0)
 
-Automatic re-login remains a roadmap item only. It is not part of the current deployment contract.
+Because the operator's Plaud account is Google SSO (no password, and Plaud forbids adding one to an SSO account), and the official OAuth/MCP is deferred, re-auth captures the bearer the browser already holds instead of pasting it by hand:
+
+1. In the panel Configuration tab, **Reconectar Plaud** → the backend mints a one-time `captureId` (TTL 10 min) and the panel opens `app.plaud.ai`.
+2. Log into Plaud normally (Google), then tap the **"Reconectar Plaud Mirror"** bookmarklet (install once: drag to the bookmarks bar on desktop, or save it as a bookmark and paste its address on mobile).
+3. The bookmarklet reads the bearer from Plaud's `localStorage` and bounces it to the mirror's `/connect` page, which completes the capture against the live `captureId`. The token is validated against Plaud and stored.
+
+The Plaud bearer lasts ~300 days, so this is a roughly-once-a-year, no-DevTools, no-password action. Manual paste remains the fallback. Telegram is **not** a capture channel — it cannot read browser storage; it is only a possible future notification surface.
+
+### Later Mode: Fully automatic re-login
+
+Fully unattended re-login (no operator tap at all) remains a roadmap item. For a Google-SSO account it is only reachable via Plaud's official OAuth/MCP, which is deferred/watch (see D-019); for an email+password account the private `POST /auth/access-token` endpoint would enable it (also documented in D-019) but does not apply here. It is not part of the current deployment contract.
 
 ## Auth State
 

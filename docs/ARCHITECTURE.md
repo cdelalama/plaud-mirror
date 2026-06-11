@@ -1,9 +1,9 @@
-<!-- doc-version: 0.6.3 -->
+<!-- doc-version: 0.7.0 -->
 # Plaud Mirror Architecture
 
-> Version: 0.6.0
-> Last Updated: 2026-06-10
-> Status: Phase 3 in progress, extended through `0.6.x` (see ROADMAP "Why Phase 3 Was Extended Through 0.6.x"). The `0.5.x` line delivered the Phase 3 feature surface: in-process continuous sync scheduler (D-012, panel-driven since `v0.5.2`), durable webhook outbox (D-013, exponential backoff 30 s → 8 h across 8 attempts with Retry-from-panel), and full health observability (D-014: `outbox` counters, `lastErrors` ring buffer, `recentSyncRuns`), plus governance layers D-016/D-017. `v0.6.0` (this release) is the **hardening release** the 2026-06-10 security review forced before any unattended soak: **operator access control** (D-018 — `PLAUD_MIRROR_ADMIN_PASSPHRASE` + signed HttpOnly session cookie gating `/api/*`, login screen, login throttle, health PII redaction), **startup crash recovery** (D-013 amendment — orphaned `running` sync runs failed at boot, orphaned `delivering` outbox rows re-queued with at-least-once semantics), and **Plaud client timeouts** (abort deadline on every API call and audio download). Operators upgrading from any `0.4.x`/`0.5.x` release should go directly to `v0.6.0`.
+> Version: 0.7.0
+> Last Updated: 2026-06-11
+> Status: Phase 4 entered at `v0.7.0`; Phase 3 exit gate (multi-day soak) still pending — the two overlap in the `0.7.x` line. The `0.5.x` line delivered the Phase 3 feature surface (scheduler D-012, durable webhook outbox D-013, full health observability D-014, governance D-016/D-017); `v0.6.0`–`v0.6.3` were the hardening + tooling line (operator access control D-018, startup crash recovery, Plaud client timeouts, Doppler passphrase helper, LLM-DocKit 4.8.2 sync). `v0.7.0` (this release) opens **Phase 4** with **browser-assisted Plaud re-auth** (D-019): a panel-initiated single-use capture session plus a bookmarklet (token-extraction adapted from the MIT `iiAtlas` upstream) refresh the ~300-day Plaud bearer in one tap, with no DevTools and no stored password. Chosen over credentials-login (not applicable — the operator's account is Google SSO and Plaud forbids adding a password to an SSO account) and over the official OAuth/MCP (deferred/watch, not disproven). Operators upgrading from any `0.4.x`/`0.5.x` release should go directly to `v0.7.0`.
 
 ## Overview
 
@@ -67,10 +67,23 @@ Still **not** in Phase 3 scope:
 
 ### Auth (operator → Plaud)
 
-1. Operator pastes a Plaud bearer token in the web panel.
-2. API validates it with `/user/me`.
+1. The operator provides a Plaud bearer token one of two ways:
+   - **Manual paste** (fallback): paste the bearer in the panel → `POST /api/auth/token`.
+   - **Browser-assisted capture** (D-019, v0.7.0, the for-dummies path): see "Plaud re-auth capture" below.
+2. API validates it with `/user/me` (both paths converge on `service.saveAccessToken`).
 3. Token is encrypted with `PLAUD_MIRROR_MASTER_KEY` and stored at rest.
 4. Auth status is exposed through `/api/auth/status` and `/api/health`.
+
+### Plaud re-auth capture (D-019, v0.7.0)
+
+The operator's account is Google SSO, so there is no Plaud password to store and credentials-login is unavailable; the official OAuth/MCP is deferred. Re-auth therefore captures the bearer the browser already holds, via a panel-initiated handshake that binds the token swap to operator intent (token-fixation defence):
+
+1. Panel "Reconectar Plaud" → `POST /api/connect/start` (operator-session-gated) mints a single-use `captureId` (`CaptureSessionStore`, in-memory, TTL 10 min). The panel stashes it in the mirror's own `localStorage` and opens `app.plaud.ai`.
+2. On the Plaud tab (logged in via Google), the operator taps the bookmarklet. It extracts the bearer from Plaud's `localStorage` (`extractPlaudToken`: workspace-token → priority-keys → full-scan → cookie; adapted from MIT `iiAtlas`) and navigates to `<mirror>/connect#token=…`. The bookmarklet carries no `captureId` — Plaud's origin never sees it.
+3. `/connect` (served by the SPA; public path, but its POST is gated) strips the fragment with `history.replaceState`, reads the `captureId` from mirror `localStorage`, and `POST /api/connect/complete { token, captureId }`.
+4. The backend consumes the `captureId` (single-use, must be live → else 409), then validates the bearer against Plaud and stores it via `service.saveAccessToken`.
+
+The bearer travels only in a URL fragment (never sent to a server, never logged) and one same-origin authenticated POST. The ~300-day TTL means this is a roughly-once-a-year interaction.
 
 ### Sync / Backfill (Mode B — download up to N missing, async)
 

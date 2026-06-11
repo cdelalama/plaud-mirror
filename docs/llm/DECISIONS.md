@@ -530,3 +530,40 @@ The 30-day TTL is a product decision, not a security compromise: the primary re-
 - Phase 4's phone-friendly re-auth UX builds on this: protecting the panel is the precondition for making it MORE reachable (push notifications with deep links, etc.).
 - The login throttle is per-process and global, not per-IP. Good enough for a LAN single-operator surface; revisit if the service is ever exposed beyond the LAN/WireGuard boundary (that would also demand `Secure` cookies and likely real identity, per the D-009 posture).
 - `/api/health` stays consumable by infra-portal and Docker healthchecks without credentials, at the cost of exposing operational metadata (counts, scheduler state, error strings) to the LAN. Error messages must therefore keep honoring the "no secrets in logs/errors" rule (LLM_START_HERE Critical Rules) — they are now visible to unauthenticated LAN callers by design.
+
+## D-019 - Phase 4 auth: browser-assisted bearer capture (provider selection)
+
+**Status:** accepted; **implemented in v0.7.0** (`apps/web/src/plaud-token.ts`, `apps/api/src/runtime/capture-session.ts`, `/api/connect/start` + `/api/connect/complete` in `apps/api/src/server.ts`, `ConnectPlaud` + "Reconectar Plaud" card in `apps/web/src/App.tsx`).
+
+### Decision
+
+Phase 4's re-auth UX is **browser-assisted capture of the existing Plaud bearer**, not credentials-login and not the official OAuth/MCP. The operator clicks "Reconectar Plaud" in the panel, logs into app.plaud.ai normally (Google SSO), taps a bookmarklet that reads the bearer from Plaud's `localStorage`, and the token lands in the mirror via a one-time, panel-initiated capture session. The bearer lasts ~300 days, so this is a roughly-once-a-year, no-DevTools, no-password interaction.
+
+This is framed as a **provider selection**, with the candidates evaluated as follows:
+
+1. **Official partner/developer API** (`platform.plaud.ai`, `client_id`/`secret_key`): enterprise/partner only, not available to an individual account. Rejected.
+2. **Official CLI/MCP** (`@plaud-ai/mcp`, OAuth browser sign-in): genuinely new in 2026 and *not disproven* — its docs mention `presigned_url`, so it may expose raw audio. **Deferred / watch**, NOT discarded on a transcript/proxy assumption. Not chosen now because: it routes through Plaud's MCP server (a different model than mirroring the original artifact to local disk), it is undocumented enough that adopting it would be a spike rather than a doc-read, and it would replace the working private-API client wholesale. Re-evaluate if the private API breaks or if unattended raw-audio export through MCP is confirmed.
+3. **Private API email+password login** (`POST /auth/access-token`): a real endpoint (confirmed reachable from dev-vm; returns `access_token` + `refresh_token`, ~300-day TTL, rate limit 10 logins/hour). **Not applicable to this operator's account**: the account was created with Google SSO, Plaud does not allow adding a password to an SSO-origin account, and the password-reset flow returns "Account not found". For an email+password Plaud account this would be the cleanest auto-login path; it stays documented as the option for that case (and would make the scrypt KDF upgrade mandatory, since storing a password is more sensitive than storing a bearer).
+4. **Browser-assisted capture** (chosen): works regardless of SSO (it captures whatever token the browser already holds), needs no password stored, reuses the entire existing private-API client, and is buildable today. The token-location logic is adapted from the MIT `iiAtlas/plaud-recording-downloader` extension (see `docs/UPSTREAMS.md` Phase 4 adoption + D-005/D-007).
+
+### Rationale
+
+The operator's account is Google SSO, which removes credentials-login from the table for *this* deployment. Between "evaluate an undocumented official MCP" and "capture the bearer the browser already has", the latter is lower-risk, compatible with the audio-first private-API client already built and verified, and stores no new secret. The official MCP is the strategically cleaner long-term path *if* it can deliver unattended raw-audio export, so it is parked as watch rather than killed — avoiding the over-claim that it was "discarded".
+
+### Capture-session design (token-fixation defence)
+
+The naive flow (`/connect#token=...` → `POST /api/auth/token`) is safe against garbage tokens (the bearer is validated against Plaud `/user/me` before storing) but not against *token fixation*: a crafted `/connect#token=<attacker's-valid-token>` link opened by a logged-in operator would silently repoint the mirror at the attacker's account. So capture is a **panel-initiated handshake**:
+
+1. Panel `POST /api/connect/start` → `CaptureSessionStore` mints a single-use `captureId` (in-memory, TTL 10 min). Panel stashes it in the mirror's own `localStorage` and opens app.plaud.ai.
+2. Bookmarklet (runs on app.plaud.ai, carries NO captureId) reads the bearer and navigates to `<mirror>/connect#token=...`.
+3. `/connect` strips the fragment immediately (`history.replaceState`), reads the `captureId` from mirror `localStorage`, and `POST /api/connect/complete { token, captureId }`.
+4. Backend consumes the `captureId` (single-use, must be live), then validates the bearer against Plaud and stores it via the same path as the manual paste.
+
+Both connect routes require the operator session (D-018); neither is in the public allowlist. The token only ever travels in a URL fragment (never sent to a server, never logged) and one same-origin authenticated POST.
+
+### Implications
+
+- The manual paste path (`POST /api/auth/token`) stays as the universal fallback.
+- Telegram is explicitly NOT a capture channel (it cannot read browser storage); it remains a possible future notification/deep-link surface only.
+- Storing a Plaud password is avoided entirely for this account, so the scrypt KDF debt (H2) stays "should do" rather than "must do for this feature".
+- If Plaud changes its `localStorage` token shape, the bookmarklet's extraction (workspace-token → priority-keys → full-scan → cookie cascade) is the maintenance surface; the `iiAtlas` upstream is the reference to re-sync against.
