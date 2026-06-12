@@ -4,6 +4,18 @@ All notable changes to Plaud Mirror are documented in this file.
 
 This project follows Semantic Versioning (SemVer): MAJOR.MINOR.PATCH.
 
+## [0.7.1] - 2026-06-12
+
+UX fixes to the v0.7.0 browser-assisted re-auth (D-019), from the operator's post-release audit. No security-model change.
+
+### Fixed
+
+- **Reconnect popup-blocker (medium).** "Reconectar Plaud" now opens the app.plaud.ai tab synchronously inside the click handler and mints the `captureId` in parallel, instead of opening it after `await`. Opening a tab after an await loses the user-gesture context and mobile/popup blockers reject it — exactly the "from the phone" path this feature targets. The captureId only needs to reach mirror localStorage before the operator taps the bookmarklet (seconds later), so the parallel mint is race-free.
+
+### Added
+
+- **"Copiar marcador (móvil)" button.** Copies the bookmarklet to the clipboard via the Clipboard API (with a `window.prompt` fallback in insecure contexts), since dragging to a bookmarks bar is unavailable on mobile and long-pressing a `javascript:` link is unreliable.
+
 ## [0.7.0] - 2026-06-11
 
 Opens Phase 4 (re-auth). Browser-assisted Plaud re-auth so the operator refreshes the ~300-day bearer in one tap — no DevTools, no stored password — chosen over credentials-login (not applicable: Google-SSO account) and the official OAuth/MCP (deferred/watch). See D-019.

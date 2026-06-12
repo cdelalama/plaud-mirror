@@ -300,6 +300,7 @@ function Panel({
   // The pending / retry_waiting counters live in `health.outbox` and do
   // not need a separate state slot.
   const [failedOutboxItems, setFailedOutboxItems] = useState<OutboxItem[]>([]);
+  const [bookmarkletCopied, setBookmarkletCopied] = useState(false);
   const [backfill, setBackfill] = useState<BackfillDraft>(DEFAULT_BACKFILL_DRAFT);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -530,28 +531,46 @@ function Panel({
     });
   }
 
-  // Assisted reconnect (D-019): mint a one-time capture id, stash it in
-  // localStorage for the /connect page, and open Plaud's web app so the
-  // operator can tap the bookmarklet there.
-  async function handleReconnectPlaud(): Promise<void> {
+  // Assisted reconnect (D-019): open Plaud's web app and mint a one-time
+  // capture id in parallel. The window.open MUST run synchronously inside the
+  // click handler — opening a tab after an `await` loses the user-gesture
+  // context and mobile/popup blockers reject it. The captureId only needs to
+  // reach the mirror's localStorage before the operator taps the bookmarklet
+  // (seconds/minutes later), so minting it in the background is race-free.
+  // Copy the bookmarklet to the clipboard — the only reliable install path on
+  // mobile, where dragging to a bookmarks bar is not available and long-press
+  // on a javascript: link is inconsistent.
+  async function handleCopyBookmarklet(): Promise<void> {
+    const bookmarklet = buildBookmarklet(window.location.origin);
     try {
-      const { captureId } = await requestJson<{ captureId: string }>("/api/connect/start", {
-        method: "POST",
-      });
-      try {
-        window.localStorage?.setItem(CAPTURE_ID_KEY, captureId);
-      } catch {
-        // non-fatal; /connect will report "no live capture session"
-      }
-      window.open(PLAUD_WEB_APP_URL, "_blank", "noopener");
-      setOperationResult("Capture iniciado. En la pestaña de Plaud (ya logueado), pulsa el marcador \"Reconectar Plaud Mirror\".");
-    } catch (error) {
-      if (error instanceof UnauthorizedError) {
-        onUnauthorized();
-        return;
-      }
-      setOperationError(toErrorMessage(error));
+      await navigator.clipboard.writeText(bookmarklet);
+      setBookmarkletCopied(true);
+      window.setTimeout(() => setBookmarkletCopied(false), 2500);
+    } catch {
+      // Clipboard API unavailable (insecure context / old browser): fall back
+      // to a prompt the operator can copy from manually.
+      window.prompt("Copia esta dirección y pégala como URL de un marcador nuevo:", bookmarklet);
     }
+  }
+
+  function handleReconnectPlaud(): void {
+    window.open(PLAUD_WEB_APP_URL, "_blank", "noopener");
+    setOperationResult("Pestaña de Plaud abierta. Inicia sesión si hace falta y pulsa allí el marcador \"Reconectar Plaud Mirror\".");
+    void requestJson<{ captureId: string }>("/api/connect/start", { method: "POST" })
+      .then(({ captureId }) => {
+        try {
+          window.localStorage?.setItem(CAPTURE_ID_KEY, captureId);
+        } catch {
+          // non-fatal; /connect will report "no live capture session"
+        }
+      })
+      .catch((error) => {
+        if (error instanceof UnauthorizedError) {
+          onUnauthorized();
+          return;
+        }
+        setOperationError(toErrorMessage(error));
+      });
   }
 
   async function handleSaveConfig(event: FormEvent<HTMLFormElement>): Promise<void> {
@@ -790,6 +809,15 @@ function Panel({
               >
                 🔖 Reconectar Plaud Mirror
               </a>
+            </p>
+            <div className="button-row">
+              <button type="button" className="secondary" onClick={() => void handleCopyBookmarklet()}>
+                {bookmarkletCopied ? "¡Copiado!" : "Copiar marcador (móvil)"}
+              </button>
+            </div>
+            <p className="muted small">
+              Móvil: pulsa "Copiar marcador", crea un marcador nuevo en tu
+              navegador y pega esto como su dirección/URL.
             </p>
           </div>
         </section>
