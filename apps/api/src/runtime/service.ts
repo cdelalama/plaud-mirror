@@ -328,12 +328,21 @@ export class PlaudMirrorService {
 
   async saveAccessToken(input: unknown): Promise<AuthStatus> {
     const parsed = SaveAccessTokenRequestSchema.parse(input);
+    // Normalize a possibly-messy paste: strip surrounding quotes and a leading
+    // "Bearer "/"bearer " prefix. Plaud stores the token in localStorage as a
+    // JSON string sometimes shaped like `"bearer eyJ..."`, and operators paste
+    // it verbatim; without this, the client would send `Bearer "bearer eyJ..."`
+    // and Plaud answers 403. (v0.7.3.)
+    const accessToken = parsed.accessToken
+      .replace(/^"|"$/g, "")
+      .replace(/^bearer\s+/i, "")
+      .trim();
     const existingSecrets = await this.secrets.load();
-    const client = this.createPlaudClient(parsed.accessToken);
+    const client = this.createPlaudClient(accessToken);
 
     try {
       const user = await client.getCurrentUser();
-      await this.secrets.update({ accessToken: parsed.accessToken });
+      await this.secrets.update({ accessToken });
 
       return this.store.saveAuthStatus(AuthStatusSchema.parse({
         mode: "manual-token",

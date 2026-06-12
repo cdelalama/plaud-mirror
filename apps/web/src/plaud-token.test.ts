@@ -33,31 +33,34 @@ describe("extractJwt", () => {
 });
 
 describe("extractPlaudToken", () => {
-  it("prefers the active workspace token over raw token keys", () => {
+  it("prefers the user token (pld_tokenstr) over the workspace token", () => {
+    // v0.7.3: /user/me (the mirror's validation endpoint) accepts the global
+    // USER token, not the per-workspace token, so pld_tokenstr must win.
+    const userId = "user-abc";
+    const userToken = jwt(userId);
+    const wsToken = jwt("ws");
+    const ls = store({
+      pld_tokenstr: JSON.stringify(userToken),
+      [`pld_${userId}:currentWorkspaceId`]: JSON.stringify("w1"),
+      [`pld_${userId}:workspaceList`]: JSON.stringify([
+        { workspaceId: "w1", workspaceToken: `Bearer ${wsToken}`, expiresAt: 9_999_999_999_999 },
+      ]),
+    });
+    expect(extractPlaudToken([ls], "", 1_000)).toBe(userToken);
+  });
+
+  it("falls back to the workspace token only when no priority key holds a JWT", () => {
     const userId = "user-abc";
     const wsToken = jwt("ws");
     const ls = store({
-      pld_tokenstr: JSON.stringify(jwt(userId)),
+      // pld_tokenstr present but NOT a JWT → priority keys yield nothing.
+      pld_tokenstr: JSON.stringify("not-a-jwt"),
       [`pld_${userId}:currentWorkspaceId`]: JSON.stringify("w1"),
       [`pld_${userId}:workspaceList`]: JSON.stringify([
         { workspaceId: "w1", workspaceToken: `Bearer ${wsToken}`, expiresAt: 9_999_999_999_999 },
       ]),
     });
     expect(extractPlaudToken([ls], "", 1_000)).toBe(wsToken);
-  });
-
-  it("skips an expired workspace token and falls back to a priority key", () => {
-    const userId = "user-abc";
-    const fallback = jwt("fallback");
-    const ls = store({
-      pld_tokenstr: fallback,
-      [`pld_${userId}:currentWorkspaceId`]: JSON.stringify("w1"),
-      [`pld_${userId}:workspaceList`]: JSON.stringify([
-        { workspaceId: "w1", workspaceToken: `Bearer ${jwt("stale")}`, expiresAt: 1 },
-      ]),
-    });
-    // jwtSubject(pld_tokenstr) = "fallback" → no matching workspace → priority key wins.
-    expect(extractPlaudToken([ls], "", 1_000)).toBe(fallback);
   });
 
   it("falls back to a full scan, then to cookies, then null", () => {

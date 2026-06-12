@@ -217,8 +217,12 @@ export class PlaudClient {
     }
 
     if (!bundle.response.ok) {
+      // Surface a short slice of Plaud's response body in the message so a
+      // rejection (e.g. 403) shows the operator WHY in the panel instead of a
+      // bare HTTP code — no more console archaeology to read the reason.
+      const reason = bundle.text ? `: ${bundle.text.slice(0, 200)}` : "";
       throw new PlaudApiError(
-        `Plaud ${options.method ?? "GET"} ${path} failed with HTTP ${bundle.response.status}`,
+        `Plaud ${options.method ?? "GET"} ${path} failed with HTTP ${bundle.response.status}${reason}`,
         bundle.response.status,
         snippet(bundle.text),
       );

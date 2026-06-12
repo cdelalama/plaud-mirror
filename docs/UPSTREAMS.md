@@ -1,4 +1,4 @@
-<!-- doc-version: 0.7.2 -->
+<!-- doc-version: 0.7.3 -->
 # Upstream Strategy
 
 Last verified against GitHub: 2026-04-22
@@ -43,7 +43,7 @@ Phase 2 adoption now landed in-repo:
 - the `/device/list` endpoint (wire shape: `{ status, data_devices: [{ sn, name, model, version_number }] }`) was discovered only in `openplaud/openplaud` (AGPL-3.0); the endpoint existence and field names are unprotectable facts about Plaud's server, so Plaud Mirror reuses the API shape but reimplements the client, store, and UI from scratch in this MIT codebase. No openplaud code is copied. See D-011.
 
 Phase 4 adoption now landed in-repo (v0.7.0, D-019):
-- the browser-side bearer-extraction logic (workspace-token → priority-keys → full-scan → cookie cascade, reading `localStorage.pld_tokenstr` and the `pld_<userId>:workspaceList` workspace tokens) is **adapted from the MIT-licensed `iiAtlas/plaud-recording-downloader`** (`extension/lib/auth-probe.js`, Copyright (c) 2025 Atlas Wegman). Reused **with attribution** per D-005 (MIT, attribution preserved) and D-007 (iiAtlas is the token-storage-keys reference). It is reimplemented in TypeScript (`apps/web/src/plaud-token.ts`), not copied verbatim. The MIT licence header attribution lives in that file.
+- the browser-side bearer-extraction logic (priority-keys → workspace-token → full-scan → cookie cascade, reading `localStorage.pld_tokenstr` and the `pld_<userId>:workspaceList` workspace tokens) is **adapted from the MIT-licensed `iiAtlas/plaud-recording-downloader`** (`extension/lib/auth-probe.js`, Copyright (c) 2025 Atlas Wegman). Reused **with attribution** per D-005 (MIT, attribution preserved) and D-007 (iiAtlas is the token-storage-keys reference). It is reimplemented in TypeScript (`apps/web/src/plaud-token.ts`), not copied verbatim, **with one deliberate divergence (v0.7.3):** iiAtlas prioritizes the per-workspace token (it targets file ops); Plaud Mirror prioritizes the global user token (`pld_tokenstr`) because it validates against `/user/me`, which rejects the workspace token with 403. The MIT licence header attribution lives in that file.
 - the email+password login endpoint (`POST /auth/access-token`, body `username`/`password`, returns `access_token`+`refresh_token`, ~300-day TTL, 10 logins/hour) was confirmed from the MIT-stack toolkits and a no-credential reachability probe; it is documented in D-019 as the path for email+password accounts but is **not used** here because the operator's account is Google SSO. Endpoint facts only; no client code copied.
 - Plaud's official CLI/MCP (`@plaud-ai/mcp`, OAuth) is recorded as **deferred/watch** in D-019, not adopted and not disproven.
 

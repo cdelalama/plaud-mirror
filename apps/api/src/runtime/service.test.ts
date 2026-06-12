@@ -1266,3 +1266,36 @@ test("PlaudMirrorService.initialize recovers orphans and surfaces them in lastEr
 
   service.close();
 });
+
+test("PlaudMirrorService.saveAccessToken normalizes a messy paste (quotes + bearer prefix)", async () => {
+  const root = await mkdtemp(join(tmpdir(), "plaud-mirror-service-normalize-"));
+  const environment = createEnvironment(root);
+  const store = new RuntimeStore({
+    dbPath: join(environment.dataDir, "app.db"),
+    dataDir: environment.dataDir,
+    recordingsDir: environment.recordingsDir,
+    defaultSyncLimit: environment.defaultSyncLimit,
+  });
+  const secrets = new SecretStore(join(environment.dataDir, "secrets.enc"), environment.masterKey);
+  let sentAuthHeader: string | null = null;
+  const service = new PlaudMirrorService(environment, store, secrets, {
+    plaudFetchImpl: async (input, init) => {
+      assert.match(String(input), /\/user\/me$/);
+      const headers = new Headers(init?.headers);
+      sentAuthHeader = headers.get("authorization");
+      return createJsonResponse({ status: 0, data: { uid: "user-1" } });
+    },
+  });
+  await service.initialize();
+
+  // Operator pastes the raw localStorage value: JSON quotes + a "bearer " prefix.
+  const auth = await service.saveAccessToken({ accessToken: '"bearer eyJabc.def.ghi"' });
+
+  assert.equal(auth.state, "healthy");
+  // Stored clean (no quotes, no prefix) ...
+  assert.equal((await secrets.load()).accessToken, "eyJabc.def.ghi");
+  // ... and sent to Plaud as a single, correct Bearer header.
+  assert.equal(sentAuthHeader, "Bearer eyJabc.def.ghi");
+
+  service.close();
+});

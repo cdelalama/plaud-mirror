@@ -4,6 +4,21 @@ All notable changes to Plaud Mirror are documented in this file.
 
 This project follows Semantic Versioning (SemVer): MAJOR.MINOR.PATCH.
 
+## [0.7.3] - 2026-06-12
+
+Fixes the persistent 403 when validating a captured Plaud token: it was the wrong token type, on top of a region mismatch.
+
+### Fixed
+
+- **403 on token validation — wrong token type.** The extractor (and bookmarklet) inherited iiAtlas's "workspace token first" priority, but Plaud Mirror validates against `/user/me`, a user-scoped endpoint that rejects the per-workspace token with 403. `extractPlaudToken` / the bookmarklet now prefer the global **user token** (`pld_tokenstr`) first and use the workspace token only as a fallback.
+- **Region:** the operator's account is EU, so `PLAUD_MIRROR_API_BASE=https://api-euc1.plaud.ai` is now set (in Doppler `plaud-mirror/dev`). A US base returned a hard 403 that the `-302` regional-retry path did not catch.
+- **Messy paste tolerated.** `saveAccessToken` strips surrounding quotes and a leading `Bearer `/`bearer ` prefix before validating/storing, so pasting the raw localStorage value (`"bearer eyJ..."`) works instead of becoming `Bearer "bearer eyJ..."` → 403.
+- **Plaud rejection reason surfaced.** `PlaudApiError` now includes a short slice of Plaud's response body in its message, so a 403/4xx shows the operator *why* in the panel instead of a bare HTTP code.
+
+### Notes
+
+- Tests 141 → 142 (122 backend + 20 web): extractor priority flipped (user token wins; workspace fallback), `saveAccessToken` normalization test.
+
 ## [0.7.2] - 2026-06-12
 
 Fixes the v0.7.0/v0.7.1 browser-assisted re-auth (D-019) so the bookmarklet actually runs, after the operator reported "I drag it, tap it on Plaud, and nothing happens".

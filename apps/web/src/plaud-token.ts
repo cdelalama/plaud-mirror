@@ -106,14 +106,12 @@ export function extractPlaudToken(
   cookie = "",
   now: number = Date.now(),
 ): string | null {
-  for (const store of stores) {
-    if (store) {
-      const token = activeWorkspaceToken(store, now);
-      if (token) {
-        return token;
-      }
-    }
-  }
+  // Priority keys FIRST (pld_tokenstr is the global USER token). Plaud Mirror
+  // validates with /user/me — a user endpoint — and then lists/downloads with
+  // the same bearer; the user token works for all of that, which is what the
+  // mirror used successfully before. The per-workspace token (iiAtlas's first
+  // choice, because it targets file ops) is REJECTED by /user/me with 403, so
+  // it is only a fallback here. Reordered in v0.7.3 after exactly that 403.
   for (const store of stores) {
     if (!store) {
       continue;
@@ -122,6 +120,14 @@ export function extractPlaudToken(
       const extracted = extractJwt(store.getItem(key));
       if (extracted) {
         return extracted;
+      }
+    }
+  }
+  for (const store of stores) {
+    if (store) {
+      const token = activeWorkspaceToken(store, now);
+      if (token) {
+        return token;
       }
     }
   }
@@ -171,7 +177,7 @@ function xj(v){if(typeof v!=='string')return null;var c=v.replace(/^"|"$/g,'').t
 function pj(v){if(v==null)return null;try{return JSON.parse(v);}catch(e){return v;}}
 function sb(v){var j=xj(v);if(!j)return null;try{return(JSON.parse(atob(j.split('.')[1].replace(/-/g,'+').replace(/_/g,'/'))).sub)||null;}catch(e){return null;}}
 function ws(s,n){if(!s)return null;var ids=[],t=sb(pj(s.getItem('pld_tokenstr')));if(t)ids.push(t);for(var i=0;i<s.length;i++){var mm=/^pld_(.+):currentWorkspaceId$/.exec(s.key(i)||'');if(mm&&mm[1]&&ids.indexOf(mm[1])<0)ids.push(mm[1]);}for(var x=0;x<ids.length;x++){var u=ids[x],w=pj(s.getItem('pld_'+u+':currentWorkspaceId')),l=pj(s.getItem('pld_'+u+':workspaceList'));if(!w||!Array.isArray(l))continue;var f=l.find(function(it){return it&&it.workspaceId===w;});if(!f||!f.workspaceToken)continue;if(f.expiresAt&&Number(f.expiresAt)<=n)continue;var k=xj(f.workspaceToken);if(k)return k;}return null;}
-function find(){var ss=[window.localStorage,window.sessionStorage],n=Date.now(),i,s,j;for(i=0;i<ss.length;i++){var w=ws(ss[i],n);if(w)return w;}var pk=['pld_tokenstr','tokenstr','token','access_token','plaud_token','auth_token'];for(i=0;i<ss.length;i++){s=ss[i];if(!s)continue;for(j=0;j<pk.length;j++){var e=xj(s.getItem(pk[j]));if(e)return e;}}for(i=0;i<ss.length;i++){s=ss[i];if(!s)continue;for(j=0;j<s.length;j++){var e2=xj(s.getItem(s.key(j)));if(e2)return e2;}}var cm=document.cookie.match(/(?:^|; )(?:(?:token|access_token|jwt)=)([^;]+)/i);if(cm&&cm[1]){var ce=xj(decodeURIComponent(cm[1]));if(ce)return ce;}return null;}
+function find(){var ss=[window.localStorage,window.sessionStorage],n=Date.now(),i,s,j;var pk=['pld_tokenstr','tokenstr','token','access_token','plaud_token','auth_token'];for(i=0;i<ss.length;i++){s=ss[i];if(!s)continue;for(j=0;j<pk.length;j++){var e=xj(s.getItem(pk[j]));if(e)return e;}}for(i=0;i<ss.length;i++){var w=ws(ss[i],n);if(w)return w;}for(i=0;i<ss.length;i++){s=ss[i];if(!s)continue;for(j=0;j<s.length;j++){var e2=xj(s.getItem(s.key(j)));if(e2)return e2;}}var cm=document.cookie.match(/(?:^|; )(?:(?:token|access_token|jwt)=)([^;]+)/i);if(cm&&cm[1]){var ce=xj(decodeURIComponent(cm[1]));if(ce)return ce;}return null;}
 try{if(location.host.indexOf('plaud.ai')<0){alert('Abre primero app.plaud.ai (con tu sesion iniciada) y pulsa este marcador alli.');return;}var tk=find();if(!tk){alert('No encontre el token de Plaud. Confirma que has iniciado sesion en app.plaud.ai.');return;}location.href=${origin}+'/connect#token='+encodeURIComponent(tk);}catch(e){alert('Error capturando el token: '+(e&&e.message?e.message:e));}
 })();`;
   return "javascript:" + body.replace(/\n/g, "");
