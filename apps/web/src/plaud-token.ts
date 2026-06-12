@@ -158,7 +158,13 @@ export const PLAUD_WEB_APP_URL = "https://app.plaud.ai/";
  * added by the /connect page, so Plaud's origin never sees it.
  */
 export function buildBookmarklet(mirrorOrigin: string): string {
-  const origin = JSON.stringify(mirrorOrigin);
+  // Single-quote the origin so the body contains no double quotes (keeps the
+  // href attribute clean) and — critically — DO NOT percent-encode the body.
+  // A bookmarklet is executed as-is after `javascript:`; percent-encoding the
+  // whole script makes the browser run encoded text → silent syntax error
+  // ("nothing happens"). React sets the href as a property, so raw characters
+  // in the value are fine for dragging to the bookmarks bar.
+  const origin = "'" + mirrorOrigin.replace(/'/g, "%27") + "'";
   const body = `(function(){
 var J=/eyJ[A-Za-z0-9_\\-=]{5,}\\.[A-Za-z0-9_\\-=]+\\.[A-Za-z0-9_\\-=]+/;
 function xj(v){if(typeof v!=='string')return null;var c=v.replace(/^"|"$/g,'').trim();if(!c)return null;var b=c.match(/Bearer\\s+(.+)/i);if(b&&b[1]&&J.test(b[1].trim()))return b[1].trim();var m=c.match(J);return m?m[0]:null;}
@@ -168,5 +174,5 @@ function ws(s,n){if(!s)return null;var ids=[],t=sb(pj(s.getItem('pld_tokenstr'))
 function find(){var ss=[window.localStorage,window.sessionStorage],n=Date.now(),i,s,j;for(i=0;i<ss.length;i++){var w=ws(ss[i],n);if(w)return w;}var pk=['pld_tokenstr','tokenstr','token','access_token','plaud_token','auth_token'];for(i=0;i<ss.length;i++){s=ss[i];if(!s)continue;for(j=0;j<pk.length;j++){var e=xj(s.getItem(pk[j]));if(e)return e;}}for(i=0;i<ss.length;i++){s=ss[i];if(!s)continue;for(j=0;j<s.length;j++){var e2=xj(s.getItem(s.key(j)));if(e2)return e2;}}var cm=document.cookie.match(/(?:^|; )(?:(?:token|access_token|jwt)=)([^;]+)/i);if(cm&&cm[1]){var ce=xj(decodeURIComponent(cm[1]));if(ce)return ce;}return null;}
 try{if(location.host.indexOf('plaud.ai')<0){alert('Abre primero app.plaud.ai (con tu sesion iniciada) y pulsa este marcador alli.');return;}var tk=find();if(!tk){alert('No encontre el token de Plaud. Confirma que has iniciado sesion en app.plaud.ai.');return;}location.href=${origin}+'/connect#token='+encodeURIComponent(tk);}catch(e){alert('Error capturando el token: '+(e&&e.message?e.message:e));}
 })();`;
-  return "javascript:" + encodeURIComponent(body.replace(/\n/g, ""));
+  return "javascript:" + body.replace(/\n/g, "");
 }

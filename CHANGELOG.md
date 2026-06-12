@@ -4,6 +4,19 @@ All notable changes to Plaud Mirror are documented in this file.
 
 This project follows Semantic Versioning (SemVer): MAJOR.MINOR.PATCH.
 
+## [0.7.2] - 2026-06-12
+
+Fixes the v0.7.0/v0.7.1 browser-assisted re-auth (D-019) so the bookmarklet actually runs, after the operator reported "I drag it, tap it on Plaud, and nothing happens".
+
+### Fixed
+
+- **Bookmarklet did nothing (the real blocker).** `buildBookmarklet` wrapped the whole script body in `encodeURIComponent`, so the browser executed percent-encoded text (`%7B`, `%28`, …) → a silent syntax error. The bookmarklet now emits the raw, executable `javascript:` source (origin single-quoted to keep the href clean; no whole-body encoding). Regression-guarded in `plaud-token.test.ts` (asserts no `%7B`/`%28`).
+- **"Reconectar Plaud" popup not null-checked.** If the browser blocks the tab, the panel now shows "abre app.plaud.ai manualmente …" instead of falsely reporting success; the capture session is still minted so a manual open works.
+
+### Changed
+
+- **Reconnect card rewritten** for clarity: numbered "Paso 1 — instalar (una vez)" vs "Paso 2 — usarlo", explicit desktop (`Ctrl+Shift+B` + drag) vs mobile (copy) install, and clarifying that the purple link is dragged (not clicked) while "Reconectar Plaud" is the button pressed in the panel. Clicking the link now shows a friendly "arrástrame, no me pulses" hint instead of Chrome's scary `javascript:`-blocked error.
+
 ## [0.7.1] - 2026-06-12
 
 UX fixes to the v0.7.0 browser-assisted re-auth (D-019), from the operator's post-release audit. No security-model change.

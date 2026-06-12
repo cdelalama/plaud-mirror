@@ -1,4 +1,4 @@
-<!-- doc-version: 0.7.1 -->
+<!-- doc-version: 0.7.2 -->
 # Project Context - Plaud Mirror
 
 ## Vision
@@ -22,9 +22,9 @@ Plaud Mirror is a server-first product with two runtime surfaces:
 
 Persistence is split between SQLite for state/indexes and the filesystem for mirrored audio artifacts. Secrets are encrypted at rest with a master key supplied by the surrounding deployment.
 
-## Current Status (2026-06-12)
+## Current Status (2026-06-12, v0.7.2)
 
-Plaud Mirror `v0.7.0` opens **Phase 4 (re-auth)** with **browser-assisted Plaud re-auth** (D-019): a panel-initiated single-use capture session plus a bookmarklet (token-extraction adapted from the MIT `iiAtlas` upstream) let the operator refresh the ~300-day Plaud bearer in one tap — no DevTools, no stored password. It was chosen after confirming the operator's account is Google SSO (so it has no password and Plaud forbids adding one, killing credentials-login) and parking the official OAuth/MCP as deferred/watch (not disproven). `v0.7.1` (current) adds two UX fixes to that flow: the panel opens the Plaud tab synchronously so mobile popup blockers do not reject it, and a "Copiar marcador" button for mobile bookmarklet install. The manual token paste stays as the fallback; Telegram is explicitly not a capture channel.
+Plaud Mirror `v0.7.0` opens **Phase 4 (re-auth)** with **browser-assisted Plaud re-auth** (D-019): a panel-initiated single-use capture session plus a bookmarklet (token-extraction adapted from the MIT `iiAtlas` upstream) let the operator refresh the ~300-day Plaud bearer in one tap — no DevTools, no stored password. It was chosen after confirming the operator's account is Google SSO (so it has no password and Plaud forbids adding one, killing credentials-login) and parking the official OAuth/MCP as deferred/watch (not disproven). `v0.7.1` added two UX fixes (synchronous tab-open against mobile popup blockers; a "Copiar marcador" button) and `v0.7.2` (current) fixes the bookmarklet itself — it was percent-encoded and silently syntax-errored — plus a popup null-check and a clearer numbered reconnect card. The manual token paste stays as the fallback; Telegram is explicitly not a capture channel.
 
 The `v0.6.x` line this builds on was the **Phase 3 hardening + tooling** sequence, forced by the 2026-06-10 security review: `v0.6.0` operator access control (D-018 — `PLAUD_MIRROR_ADMIN_PASSPHRASE` + signed HttpOnly session cookie gating `/api/*`, login screen, throttle, health PII redaction), startup crash recovery (D-013 amendment — orphaned `running`/`delivering` rows recovered at boot, at-least-once accepted), and Plaud client timeouts; then `v0.6.1` (LLM-DocKit 4.8.2 sync), `v0.6.2` (Doppler passphrase helper `scripts/set-admin-passphrase.sh`), `v0.6.3` (terminal-echo fix). The operator access control is armed in production (passphrase in Doppler, secondary "Startup Embassy" account). Test count: 130 → 141 (121 backend + 20 web).
 

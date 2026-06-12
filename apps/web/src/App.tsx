@@ -554,8 +554,14 @@ function Panel({
   }
 
   function handleReconnectPlaud(): void {
-    window.open(PLAUD_WEB_APP_URL, "_blank", "noopener");
-    setOperationResult("Pestaña de Plaud abierta. Inicia sesión si hace falta y pulsa allí el marcador \"Reconectar Plaud Mirror\".");
+    const opened = window.open(PLAUD_WEB_APP_URL, "_blank", "noopener");
+    if (opened) {
+      setOperationResult("Pestaña de Plaud abierta. Inicia sesión si hace falta y pulsa allí el marcador \"Reconectar Plaud Mirror\".");
+    } else {
+      // Some browsers still block the popup; the capture session is minted
+      // anyway, so the operator can open Plaud by hand and tap the bookmarklet.
+      setOperationError("Tu navegador bloqueó la pestaña. Abre app.plaud.ai manualmente, inicia sesión y pulsa allí el marcador \"Reconectar Plaud Mirror\".");
+    }
     void requestJson<{ captureId: string }>("/api/connect/start", { method: "POST" })
       .then(({ captureId }) => {
         try {
@@ -784,30 +790,37 @@ function Panel({
           </form>
 
           <div className="reconnect-block">
-            <p className="kicker">Reconexión fácil</p>
+            <p className="kicker">Reconexión fácil (recomendado)</p>
             <p className="muted">
-              En vez de pegar el token a mano: pulsa <strong>Reconectar Plaud</strong>,
-              inicia sesión en la pestaña de Plaud que se abre, y allí pulsa el
-              marcador de abajo. El token (dura ~300 días) viaja solo a este panel.
+              En vez de pegar el token a mano. Son dos pasos: primero instalas un
+              "marcador" en tu navegador (una sola vez), luego lo usas cuando haga
+              falta. El token de Plaud dura ~300 días, así que esto es ~1 vez al año.
             </p>
-            <div className="button-row">
-              <button type="button" disabled={busy} onClick={() => void handleReconnectPlaud()}>
-                Reconectar Plaud
-              </button>
-            </div>
-            <p className="muted small">
-              Instalación (una sola vez): arrastra este botón a tu barra de
-              marcadores (escritorio), o crea un marcador y pega su dirección como
-              URL (móvil). Luego solo tienes que pulsarlo estando en app.plaud.ai.
-            </p>
+
+            <p className="muted small"><strong>Paso 1 — instalar el marcador (una sola vez):</strong></p>
+            <ul className="muted small" style={{ marginTop: 0 }}>
+              <li>
+                <strong>Escritorio:</strong> muestra la barra de marcadores con
+                <code> Ctrl+Shift+B</code> (la tira bajo la barra de direcciones) y
+                <strong> arrastra</strong> el botón morado de abajo hasta ella. No lo
+                pulses aquí — solo arrástralo.
+              </li>
+              <li>
+                <strong>Móvil:</strong> pulsa "Copiar marcador", crea un marcador
+                nuevo en tu navegador y pega lo copiado como su dirección/URL.
+              </li>
+            </ul>
             <p>
               <a
                 className="bookmarklet-link"
                 href={buildBookmarklet(window.location.origin)}
-                onClick={(event) => event.preventDefault()}
-                title="Arrástrame a la barra de marcadores"
+                onClick={(event) => {
+                  event.preventDefault();
+                  setOperationResult("No me pulses aquí — arrástrame a la barra de marcadores (Ctrl+Shift+B). Solo funciono cuando me pulsas estando en app.plaud.ai.");
+                }}
+                title="Arrástrame a la barra de marcadores (no me pulses)"
               >
-                🔖 Reconectar Plaud Mirror
+                🔖 Reconectar Plaud Mirror — arrástrame
               </a>
             </p>
             <div className="button-row">
@@ -815,10 +828,16 @@ function Panel({
                 {bookmarkletCopied ? "¡Copiado!" : "Copiar marcador (móvil)"}
               </button>
             </div>
-            <p className="muted small">
-              Móvil: pulsa "Copiar marcador", crea un marcador nuevo en tu
-              navegador y pega esto como su dirección/URL.
-            </p>
+
+            <p className="muted small"><strong>Paso 2 — usarlo:</strong> pulsa
+              "Reconectar Plaud" (abre la web de Plaud) → inicia sesión si hace falta
+              → y <strong>en la pestaña de Plaud</strong> pulsa el marcador que
+              instalaste en el paso 1. El token viaja solo a este panel.</p>
+            <div className="button-row">
+              <button type="button" disabled={busy} onClick={() => handleReconnectPlaud()}>
+                Reconectar Plaud
+              </button>
+            </div>
           </div>
         </section>
 

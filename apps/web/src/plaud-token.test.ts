@@ -68,13 +68,24 @@ describe("extractPlaudToken", () => {
 });
 
 describe("buildBookmarklet", () => {
-  it("produces a javascript: URL that targets the given mirror origin's /connect", () => {
+  it("produces a runnable (NOT percent-encoded) javascript: URL targeting /connect", () => {
     const bm = buildBookmarklet("https://plaud.example.com");
     expect(bm.startsWith("javascript:")).toBe(true);
-    const decoded = decodeURIComponent(bm.slice("javascript:".length));
-    expect(decoded).toContain("https://plaud.example.com");
-    expect(decoded).toContain("/connect#token=");
-    expect(decoded).toContain("pld_tokenstr");
-    expect(decoded).toContain("plaud.ai");
+    const src = bm.slice("javascript:".length);
+    // The body must be raw, executable JS — NOT percent-encoded. Encoding the
+    // whole body was the v0.7.1 bug: the browser ran encoded text and silently
+    // syntax-errored ("nothing happens"). Guard against the regression.
+    expect(src).toContain("function");
+    expect(src).toContain("(function(){");
+    expect(src).not.toContain("%7B"); // would be an encoded "{"
+    expect(src).not.toContain("%28"); // would be an encoded "("
+    expect(src).toContain("https://plaud.example.com");
+    expect(src).toContain("/connect#token=");
+    expect(src).toContain("pld_tokenstr");
+    expect(src).toContain("plaud.ai");
+    // The origin is single-quoted (no double quotes added around it); any
+    // double quote present comes only from the quote-stripping regex /^"|"$/,
+    // which is valid inside a javascript: URL.
+    expect(src).toContain("'https://plaud.example.com'");
   });
 });
