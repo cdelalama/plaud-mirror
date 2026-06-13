@@ -4,7 +4,7 @@ All notable changes to Plaud Mirror are documented in this file.
 
 This project follows Semantic Versioning (SemVer): MAJOR.MINOR.PATCH.
 
-## [0.7.4] - 2026-06-16
+## [0.7.4] - 2026-06-13
 
 Closes the PII/info-leak introduced by v0.7.3 and fixes stale comments. No new feature.
 

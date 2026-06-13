@@ -22,7 +22,7 @@ Plaud Mirror is a server-first product with two runtime surfaces:
 
 Persistence is split between SQLite for state/indexes and the filesystem for mirrored audio artifacts. Secrets are encrypted at rest with a master key supplied by the surrounding deployment.
 
-## Current Status (2026-06-16, v0.7.4)
+## Current Status (2026-06-13, v0.7.4)
 
 Plaud Mirror `v0.7.0` opens **Phase 4 (re-auth)** with **browser-assisted Plaud re-auth** (D-019): a panel-initiated single-use capture session plus a bookmarklet (token-extraction adapted from the MIT `iiAtlas` upstream) let the operator refresh the ~300-day Plaud bearer in one tap — no DevTools, no stored password. It was chosen after confirming the operator's account is Google SSO (so it has no password and Plaud forbids adding one, killing credentials-login) and parking the official OAuth/MCP as deferred/watch (not disproven). `v0.7.1`/`v0.7.2` fixed mobile/popup and bookmarklet-encoding UX bugs; `v0.7.3` fixed the validation 403 (user token over workspace token; EU `PLAUD_MIRROR_API_BASE`; messy-paste tolerance). `v0.7.4` (current) closes the PII/info-leak v0.7.3 introduced: Plaud's raw error body was reaching the public `/api/health` (`auth.lastError`/`lastSync.error`/`lastErrors`); it is now generic there and detailed only on the authenticated token-save response. The manual token paste stays as the fallback; Telegram is explicitly not a capture channel.
 
