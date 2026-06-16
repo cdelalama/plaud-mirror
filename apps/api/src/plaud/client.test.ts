@@ -58,6 +58,35 @@ test("buildPlaudApiUrl keeps slash handling stable", () => {
   );
 });
 
+test("PlaudClient sends Plaud Web browser-aligned headers", async () => {
+  const capturedHeaders: Headers[] = [];
+  const client = new PlaudClient({
+    accessToken: "token-value",
+    fetchImpl: async (_input, init) => {
+      capturedHeaders.push(new Headers(init?.headers));
+      return createJsonResponse({
+        status: 0,
+        data: {
+          uid: "user-1",
+          email: "operator@example.com",
+        },
+      });
+    },
+  });
+
+  await client.getCurrentUser();
+
+  const headers = capturedHeaders[0];
+  assert.ok(headers);
+  assert.equal(headers.get("authorization"), "Bearer token-value");
+  assert.equal(headers.get("origin"), "https://web.plaud.ai");
+  assert.equal(headers.get("referer"), "https://web.plaud.ai/");
+  assert.match(headers.get("user-agent") ?? "", /^Mozilla\/5\.0 .*Chrome\//);
+  assert.equal(headers.get("sec-fetch-dest"), "empty");
+  assert.equal(headers.get("sec-fetch-mode"), "cors");
+  assert.equal(headers.get("sec-fetch-site"), "same-site");
+});
+
 test("listEverything paginates until the final page arrives partial and reports the real total", async () => {
   const makePage = (count: number, offset: number): unknown => ({
     status: 0,

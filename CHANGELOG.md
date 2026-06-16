@@ -4,6 +4,17 @@ All notable changes to Plaud Mirror are documented in this file.
 
 This project follows Semantic Versioning (SemVer): MAJOR.MINOR.PATCH.
 
+## [0.8.1] - 2026-06-16
+
+### Changed
+
+- **Plaud API requests now mimic Plaud Web's request context.** The backend now validates and syncs with `Origin`/`Referer: https://web.plaud.ai`, a browser-like Chrome user agent, and the browser `sec-fetch-*` headers instead of the old custom `plaud-mirror-phase1/...` user agent and `app.plaud.ai` origin.
+
+### Fixed
+
+- **Extension-captured tokens no longer fail backend validation because of the backend request fingerprint.** The operator proved the captured EU user token returns `200` from Plaud Web's own console, while the backend received an HTML `403` from Plaud/Cloudflare. The token and region were correct; the stale server-side Plaud request context was the remaining mismatch.
+- Tests: 147 -> 148 (new Plaud client header-regression test).
+
 ## [0.8.0] - 2026-06-16
 
 ### Added

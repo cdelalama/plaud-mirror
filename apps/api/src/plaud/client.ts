@@ -14,10 +14,10 @@ import {
   type PlaudUserResponse,
 } from "@plaud-mirror/shared";
 
-import { API_PACKAGE_VERSION } from "../version.js";
-
 const DEFAULT_API_BASE = "https://api.plaud.ai";
-const DEFAULT_ORIGIN = "https://app.plaud.ai";
+const DEFAULT_WEB_ORIGIN = "https://web.plaud.ai";
+const DEFAULT_BROWSER_USER_AGENT =
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36";
 
 // Per-request ceiling for every Plaud API call (H3, v0.6.0). Without a
 // signal, a hung connection leaves the sync run in 'running' forever and
@@ -81,7 +81,7 @@ export class PlaudClient {
     this.deviceId = randomUUID().replaceAll("-", "").slice(0, 16);
     this.fetchImpl = config.fetchImpl ?? fetch;
     this.requestTimeoutMs = config.requestTimeoutMs ?? DEFAULT_PLAUD_REQUEST_TIMEOUT_MS;
-    this.userAgent = config.userAgent ?? `plaud-mirror-phase1/${API_PACKAGE_VERSION} (+https://github.com/cdelalama/plaud-mirror)`;
+    this.userAgent = config.userAgent ?? DEFAULT_BROWSER_USER_AGENT;
 
     if (!this.accessToken) {
       throw new PlaudAuthError("PLAUD_MIRROR_ACCESS_TOKEN is empty");
@@ -278,8 +278,14 @@ export class PlaudClient {
     headers.set("app-language", "en");
     headers.set("app-platform", "web");
     headers.set("edit-from", "web");
-    headers.set("origin", DEFAULT_ORIGIN);
-    headers.set("referer", `${DEFAULT_ORIGIN}/`);
+    // Plaud now accepts the same bearer from Plaud Web but rejects the old
+    // app-origin/custom-UA server fingerprint with an HTML 403. Keep the
+    // backend aligned with the browser context that minted the bearer.
+    headers.set("origin", DEFAULT_WEB_ORIGIN);
+    headers.set("referer", `${DEFAULT_WEB_ORIGIN}/`);
+    headers.set("sec-fetch-dest", "empty");
+    headers.set("sec-fetch-mode", "cors");
+    headers.set("sec-fetch-site", "same-site");
     headers.set("x-request-id", randomUUID().replaceAll("-", "").slice(0, 10));
     headers.set("x-device-id", this.deviceId);
     headers.set("x-pld-tag", this.deviceId);

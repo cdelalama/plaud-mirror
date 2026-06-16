@@ -1,4 +1,4 @@
-<!-- doc-version: 0.8.0 -->
+<!-- doc-version: 0.8.1 -->
 # Upstream Strategy
 
 Last verified against GitHub: 2026-04-22
@@ -32,7 +32,7 @@ The result is deliberate:
 - licensing and product-scope discipline keep Plaud Mirror independent
 
 Phase 1 adoption now landed in-repo:
-- browser-aligned request headers and pseudo device/request IDs are informed by `JamesStuder/Plaud_API`
+- browser-aligned request headers and pseudo device/request IDs are informed by `JamesStuder/Plaud_API`; `v0.8.1` updates that alignment to Plaud Web's current browser context (`https://web.plaud.ai`, browser-like UA, `sec-fetch-*`) after the old `app.plaud.ai` + custom-user-agent fingerprint started returning HTML 403 for a valid browser-captured token
 - regional API retry on `status = -302` / region mismatch payloads is informed by `iiAtlas/plaud-recording-downloader`
 - the `/user/me`, `/file/simple/web`, `/file/detail/<id>`, and `/file/temp-url/<id>` sequence was cross-checked against `Applaud` and the Studer client before implementation
 

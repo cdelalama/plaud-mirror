@@ -1,9 +1,9 @@
-<!-- doc-version: 0.8.0 -->
+<!-- doc-version: 0.8.1 -->
 # Plaud Mirror Architecture
 
-> Version: 0.8.0
+> Version: 0.8.1
 > Last Updated: 2026-06-16
-> Status: Phase 4 entered at `v0.7.0` and now spans `0.7.x`-`0.8.x`; Phase 3 exit gate (multi-day soak) still pending. The `0.5.x` line delivered the Phase 3 feature surface (scheduler D-012, durable webhook outbox D-013, full health observability D-014, governance D-016/D-017); `v0.6.0`-`v0.6.3` were the hardening + tooling line (operator access control D-018, startup crash recovery, Plaud client timeouts, Doppler passphrase helper, LLM-DocKit 4.8.2 sync). `v0.7.0` opened **Phase 4** with **browser-assisted Plaud re-auth** (D-019): a panel-initiated single-use capture session plus bookmarklet refreshed the ~300-day Plaud bearer without DevTools or stored password. `v0.7.1`-`v0.7.6` hardened that path, but the final browser finding was decisive: React-rendered `javascript:` hrefs are not a reliable bookmarklet distribution mechanism. `v0.8.0` keeps the same `/connect` capture handshake and adds a local Chrome companion extension as the recommended delivery surface. Operators upgrading from any `0.4.x`/`0.5.x` release should go directly to `v0.8.0`.
+> Status: Phase 4 entered at `v0.7.0` and now spans `0.7.x`-`0.8.x`; Phase 3 exit gate (multi-day soak) still pending. The `0.5.x` line delivered the Phase 3 feature surface (scheduler D-012, durable webhook outbox D-013, full health observability D-014, governance D-016/D-017); `v0.6.0`-`v0.6.3` were the hardening + tooling line (operator access control D-018, startup crash recovery, Plaud client timeouts, Doppler passphrase helper, LLM-DocKit 4.8.2 sync). `v0.7.0` opened **Phase 4** with **browser-assisted Plaud re-auth** (D-019): a panel-initiated single-use capture session plus bookmarklet refreshed the ~300-day Plaud bearer without DevTools or stored password. `v0.7.1`-`v0.7.6` hardened that path, but the final browser finding was decisive: React-rendered `javascript:` hrefs are not a reliable bookmarklet distribution mechanism. `v0.8.0` keeps the same `/connect` capture handshake and adds a local Chrome companion extension as the recommended delivery surface. `v0.8.1` aligns server-side Plaud validation with Plaud Web's browser request fingerprint after the operator proved the captured token is valid in-browser but rejected from the backend with an HTML 403. Operators upgrading from any `0.4.x`/`0.5.x` release should go directly to `v0.8.1`.
 
 ## Overview
 
@@ -71,7 +71,7 @@ Still **not** in Phase 3 scope:
 1. The operator provides a Plaud bearer token one of two ways:
    - **Manual paste** (fallback): paste the bearer in the panel → `POST /api/auth/token`.
    - **Browser-assisted capture** (D-019, v0.7.0, the for-dummies path): see "Plaud re-auth capture" below.
-2. API validates it with `/user/me` (both paths converge on `service.saveAccessToken`).
+2. API validates it with `/user/me` (both paths converge on `service.saveAccessToken`). Since `v0.8.1`, Plaud API calls use Plaud Web's browser context (`Origin` / `Referer` `https://web.plaud.ai`, browser-like user agent, and browser `sec-fetch-*` headers); the operator confirmed the same captured token returns `200` from Plaud Web while the old custom server fingerprint returned an HTML 403.
 3. Token is encrypted with `PLAUD_MIRROR_MASTER_KEY` and stored at rest.
 4. Auth status is exposed through `/api/auth/status` and `/api/health`.
 

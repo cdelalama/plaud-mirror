@@ -1,11 +1,11 @@
-<!-- doc-version: 0.8.0 -->
+<!-- doc-version: 0.8.1 -->
 # How to Use This Repository
 
 This guide explains how Plaud Mirror is operated end-to-end and how it stays aligned with both `LLM-DocKit` (the governance scaffold it adopts) and the Plaud ecosystem upstreams it watches.
 
 ## Current Reality
 
-`v0.8.0` is the current **Phase 4 re-auth release**: it keeps the hardened `v0.6.x` runtime, the `v0.7.x` `/connect` capture handshake, and adds a local Chrome companion extension as the recommended no-DevTools way to refresh the Plaud bearer from a Google-SSO browser session. **Operators upgrading from any `0.4.x`/`0.5.x` should go directly to `v0.8.0`.** Today the repository gives you:
+`v0.8.1` is the current **Phase 4 re-auth release**: it keeps the hardened `v0.6.x` runtime, the `v0.7.x` `/connect` capture handshake, the local Chrome companion extension from `v0.8.0`, and a Plaud Web-aligned backend validation fingerprint for browser-captured bearers. **Operators upgrading from any `0.4.x`/`0.5.x` should go directly to `v0.8.1`.** Today the repository gives you:
 
 - a Fastify API and React/Vite panel bundled in a single Docker container;
 - **operator access control** (v0.6.0): set `PLAUD_MIRROR_ADMIN_PASSPHRASE` and the panel asks for the passphrase once per device (30-day session cookie); without it the API runs open and `/api/health` warns;
@@ -160,7 +160,7 @@ Useful for live Plaud flow checks and metadata discovery without booting the pan
 npm test
 ```
 
-147 tests at `v0.8.0`: 126 Node tests (shared schemas/formatting, Plaud client, runtime service/store/scheduler/outbox/auth/capture-session, server routes, integration smoke for built API/web, Chrome extension contract) + 21 web tests under Vitest+jsdom+@testing-library/react (D-015). The root `npm test` runs both the Node test runner and `npm run test:web`.
+148 tests at `v0.8.1`: 127 Node tests (shared schemas/formatting, Plaud client, runtime service/store/scheduler/outbox/auth/capture-session, server routes, integration smoke for built API/web, Chrome extension contract) + 21 web tests under Vitest+jsdom+@testing-library/react (D-015). The root `npm test` runs both the Node test runner and `npm run test:web`.
 
 ## Working With LLM-DocKit Upstream
 

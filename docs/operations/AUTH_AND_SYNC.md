@@ -1,4 +1,4 @@
-<!-- doc-version: 0.8.0 -->
+<!-- doc-version: 0.8.1 -->
 # Authentication and Sync Operations
 
 This runbook defines the live behavior of Plaud Mirror's auth and sync surface. Phase 2 (manual sync/backfill) is fully shipped. Phase 3: the continuous sync scheduler landed in `v0.5.0` (regressed) → `v0.5.1` (fixed) → `v0.5.2` (panel-driven). `v0.5.3` shipped the **durable webhook outbox** (D-013). `v0.5.4` was governance-only (D-016). `v0.5.5` shipped **D-014 full**: `lastErrors` ring buffer and `recentSyncRuns` on `/api/health`. `v0.6.0` is the **Phase 3 hardening release**: operator access control on the panel/API (D-018), startup crash recovery for orphaned sync runs and outbox rows (D-013 amendment, at-least-once delivery accepted), and abort deadlines on every Plaud API call and audio download. Remaining Phase 3 work before the soak: panel-side observability UI and the scrypt KDF upgrade; resumable backfill and automatic re-login stay deferred.
@@ -40,6 +40,7 @@ Two things the capture must get right (both fixed in v0.7.3):
 
 - **Token type:** the captured token must be the global **user token** (`localStorage.pld_tokenstr`), not Plaud's per-workspace token. `/user/me` (the validation endpoint) rejects the workspace token with 403. The Chrome extension prefers `pld_tokenstr` and scans storage as a fallback.
 - **Region:** the bearer is region-bound. Set `PLAUD_MIRROR_API_BASE` to the account's regional API domain (`https://api-euc1.plaud.ai` for EU, `https://api.plaud.ai` for US). A wrong region returns a hard 403 that the `-302` regional-retry path does not catch. This deployment is EU (set in Doppler `plaud-mirror/dev`).
+- **Request fingerprint:** from `v0.8.1`, Plaud API calls use Plaud Web's browser context (`Origin` / `Referer` `https://web.plaud.ai`, browser-like Chrome user agent, and browser `sec-fetch-*` headers). This was required after the operator proved the captured EU user token returned `200` from Plaud Web's own console while the backend's old `app.plaud.ai` + custom-user-agent request received an HTML 403 from Plaud/Cloudflare.
 - The panel normalizes a pasted token (strips surrounding quotes and a leading `Bearer ` prefix). Plaud rejection details are surfaced only on authenticated token-save/connect responses; the public `/api/health` keeps generic error strings.
 
 ### Later Mode: Fully automatic re-login
