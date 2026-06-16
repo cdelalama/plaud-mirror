@@ -1299,3 +1299,34 @@ test("PlaudMirrorService.saveAccessToken normalizes a messy paste (quotes + bear
 
   service.close();
 });
+
+test("saveAccessToken keeps auth.lastError generic (public health) but enriches the thrown error (authenticated)", async () => {
+  const root = await mkdtemp(join(tmpdir(), "plaud-mirror-service-leak-"));
+  const environment = createEnvironment(root);
+  const store = new RuntimeStore({
+    dbPath: join(environment.dataDir, "app.db"),
+    dataDir: environment.dataDir,
+    recordingsDir: environment.recordingsDir,
+    defaultSyncLimit: environment.defaultSyncLimit,
+  });
+  const secrets = new SecretStore(join(environment.dataDir, "secrets.enc"), environment.masterKey);
+  const service = new PlaudMirrorService(environment, store, secrets, {
+    // /user/me rejects with a 403 whose body carries a sensitive-looking reason.
+    plaudFetchImpl: async () => createJsonResponse({ status: -3, msg: "SECRET-REASON-XYZ" }, 403),
+  });
+  await service.initialize();
+
+  // The authenticated caller (token-save) SEES the reason ...
+  await assert.rejects(
+    service.saveAccessToken({ accessToken: "some-token" }),
+    (error: unknown) => error instanceof Error && error.message.includes("SECRET-REASON-XYZ"),
+  );
+
+  // ... but the stored auth.lastError (exposed on the PUBLIC /api/health) does NOT.
+  const auth = await service.getAuthStatus();
+  assert.ok(auth.lastError, "lastError should be set");
+  assert.ok(!auth.lastError!.includes("SECRET-REASON-XYZ"), "public health must not leak Plaud's response body");
+  assert.match(auth.lastError!, /HTTP 403/);
+
+  service.close();
+});

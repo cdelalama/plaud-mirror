@@ -4,6 +4,19 @@ All notable changes to Plaud Mirror are documented in this file.
 
 This project follows Semantic Versioning (SemVer): MAJOR.MINOR.PATCH.
 
+## [0.7.4] - 2026-06-13
+
+Closes the PII/info-leak introduced by v0.7.3 and fixes stale comments. No new feature.
+
+### Fixed
+
+- **Plaud's raw error body no longer leaks to public `/api/health` (medium).** v0.7.3 put a slice of Plaud's response body into `PlaudApiError.message`, which flows into `auth.lastError`, `lastSync.error`, and `lastErrors` — all exposed on the unauthenticated `/api/health`. The message is now generic again (`... failed with HTTP <code>`); the body stays in `bodySnippet` and is surfaced **only** on the authenticated `POST /api/auth/token` / `/api/connect/complete` response (so the operator still sees *why* a token was rejected, in the panel, without exposing it publicly).
+- **Stale comments in `apps/web/src/plaud-token.ts`** still said "workspace token first" / "Prefer it", contradicting the v0.7.3 priority change. Updated to "user token (`pld_tokenstr`) first; workspace token is the fallback", with the iiAtlas divergence noted.
+
+### Notes
+
+- Tests 142 → 143 (new: `saveAccessToken` keeps `auth.lastError` generic for public health but enriches the thrown, authenticated error with Plaud's reason).
+
 ## [0.7.3] - 2026-06-12
 
 Fixes the persistent 403 when validating a captured Plaud token: it was the wrong token type, on top of a region mismatch.

@@ -217,12 +217,13 @@ export class PlaudClient {
     }
 
     if (!bundle.response.ok) {
-      // Surface a short slice of Plaud's response body in the message so a
-      // rejection (e.g. 403) shows the operator WHY in the panel instead of a
-      // bare HTTP code — no more console archaeology to read the reason.
-      const reason = bundle.text ? `: ${bundle.text.slice(0, 200)}` : "";
+      // Keep `message` GENERIC: it flows into auth.lastError / lastSync.error /
+      // lastErrors, all exposed on the PUBLIC /api/health, so Plaud's raw
+      // response body must not land there (PII / info-leak). The body is kept
+      // in `bodySnippet` and surfaced only on the authenticated token-save
+      // response by service.saveAccessToken (v0.7.4, reverting the v0.7.3 leak).
       throw new PlaudApiError(
-        `Plaud ${options.method ?? "GET"} ${path} failed with HTTP ${bundle.response.status}${reason}`,
+        `Plaud ${options.method ?? "GET"} ${path} failed with HTTP ${bundle.response.status}`,
         bundle.response.status,
         snippet(bundle.text),
       );

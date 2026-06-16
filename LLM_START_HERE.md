@@ -1,4 +1,4 @@
-<!-- doc-version: 0.7.3 -->
+<!-- doc-version: 0.7.4 -->
 # LLM Start Guide - Plaud Mirror
 
 ## Read This First (Mandatory)
@@ -85,8 +85,9 @@ Recommended reading order:
 ## Current Focus (Snapshot)
 
 Source of truth: docs/llm/HANDOFF.md.
-- Last Updated: 2026-06-12 - Claude Fable 5
-- Working on: **v0.7.3 (patch) — fixed the 403 on token validation**: root cause was wrong token type (the capture grabbed the per-workspace token, but `/user/me` wants the global user token `pld_tokenstr`) on top of a region mismatch (account is EU → `PLAUD_MIRROR_API_BASE=https://api-euc1.plaud.ai` in Doppler). Extractor now prefers `pld_tokenstr`; `saveAccessToken` normalizes messy pastes; Plaud's rejection body is surfaced. Tests 142. Operator still needs to re-run reconnect to validate. v0.7.2 (bookmarklet encoding fix) below.
+- Last Updated: 2026-06-13 - Claude Fable 5
+- Working on: **v0.7.4 (patch) — closed the PII/info-leak from v0.7.3**: Plaud's raw error body was reaching the public `/api/health` via `auth.lastError`/`lastSync.error`/`lastErrors`; the `PlaudApiError.message` is generic again and the body is surfaced only on the authenticated token-save response. Also fixed stale `plaud-token.ts` comments. Dated 2026-06-13 per operator request. Tests 143. v0.7.3 (validation 403 fix) below.
+- Previous (v0.7.3): fixed the 403 on token validation: root cause was wrong token type (the capture grabbed the per-workspace token, but `/user/me` wants the global user token `pld_tokenstr`) on top of a region mismatch (account is EU → `PLAUD_MIRROR_API_BASE=https://api-euc1.plaud.ai` in Doppler). Extractor now prefers `pld_tokenstr`; `saveAccessToken` normalizes messy pastes; Plaud's rejection body is surfaced. Tests 142. Operator still needs to re-run reconnect to validate. v0.7.2 (bookmarklet encoding fix) below.
 - Previous (v0.7.2): fixed the bookmarklet that silently did nothing (`buildBookmarklet` was percent-encoding the whole body → browser ran encoded text → syntax error; now raw executable `javascript:`, regression-guarded). Plus `window.open` null-check and a rewritten, numbered reconnect card (the operator didn't know the bookmarks bar and clicked instead of dragging). 141 tests. Operator still needs to run the now-working reconnect to fix the Plaud token (degraded since 2026-05-13). Earlier patch (v0.7.1) below.
 - Previous focus (v0.7.0): **Phase 4 entered: browser-assisted Plaud re-auth (D-019).** Google-SSO account = no password possible (credentials-login out); official OAuth/MCP deferred-watch. Chosen: capture the browser's existing bearer via a panel-initiated single-use capture session + a bookmarklet (extraction adapted from MIT `iiAtlas`, attributed). Routes `/api/connect/start` + `/api/connect/complete`; `/connect` landing (`ConnectPlaud`); `apps/web/src/plaud-token.ts`. ~300-day token → ~once-a-year tap. Manual paste stays fallback; Telegram is NOT a capture channel. Tests 130 → 141. Next: re-validate the Plaud token (degraded since 2026-05-13) via the new flow; observability UI + soak still pending. Earlier patch (v0.6.3) below.
 - Previous focus (v0.6.3 patch): trap-based terminal-state restore in `scripts/set-admin-passphrase.sh` (low finding from the operator's audit of v0.6.2; Ctrl-C mid-prompt could leave the terminal without echo). No runtime change. Residual operativo: armar D-018 ejecutando el helper + `doppler run -- docker compose up -d`, luego verificar 401 en `/api/config` sin cookie. Previous day below.

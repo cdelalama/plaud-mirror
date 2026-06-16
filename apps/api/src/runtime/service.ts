@@ -36,7 +36,7 @@ import {
 } from "@plaud-mirror/shared";
 
 import { applyLocalFilters, downloadAudioArtifact } from "../phase1/spike.js";
-import { PlaudAuthError, PlaudClient } from "../plaud/client.js";
+import { PlaudApiError, PlaudAuthError, PlaudClient } from "../plaud/client.js";
 import { API_PACKAGE_VERSION } from "../version.js";
 import { type ServerEnvironment } from "./environment.js";
 import { SecretStore, type StoredSecrets } from "./secrets.js";
@@ -361,9 +361,21 @@ export class PlaudMirrorService {
           state: "invalid",
           resolvedApiBase: client.getResolvedApiBase(),
           lastValidatedAt: null,
+          // Generic only — this is read by the PUBLIC /api/health.
           lastError: toErrorMessage(error),
           userSummary: null,
         }));
+      }
+
+      // This throw returns to the AUTHENTICATED caller (POST /api/auth/token,
+      // /api/connect/complete are operator-session-gated), so it is safe to
+      // enrich it with Plaud's rejection body — the operator sees *why* in the
+      // panel while public health stays generic (v0.7.4).
+      if (error instanceof PlaudApiError && error.bodySnippet) {
+        throw createHttpError(
+          error.status || 502,
+          `${toErrorMessage(error)} — Plaud: ${error.bodySnippet.slice(0, 200)}`,
+        );
       }
 
       throw error;

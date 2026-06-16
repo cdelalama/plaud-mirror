@@ -1,12 +1,17 @@
 // Browser-side Plaud bearer extraction for the assisted re-auth flow
 // (D-019, Phase 4 / v0.7.0).
 //
-// The token-location algorithm (workspace token first, then priority keys,
-// then a full storage scan, then cookies) is adapted from:
+// The token-location algorithm (priority keys / pld_tokenstr first, then the
+// per-workspace token, then a full storage scan, then cookies) is adapted from:
 //
 //   iiAtlas/plaud-recording-downloader — extension/lib/auth-probe.js
 //   MIT License, Copyright (c) 2025 Atlas Wegman
 //   https://github.com/iiAtlas/plaud-recording-downloader
+//
+// Deliberate divergence from iiAtlas (v0.7.3): iiAtlas prioritizes the
+// per-workspace token (it targets file ops); Plaud Mirror prioritizes the
+// global user token (pld_tokenstr) because it validates against /user/me,
+// which rejects the workspace token with 403. See UPSTREAMS Phase 4 / D-019.
 //
 // Reused with attribution per D-005 (MIT, attribution preserved) and D-007
 // (iiAtlas is the token-storage-keys reference). Reimplemented in TypeScript,
@@ -66,8 +71,10 @@ function jwtSubject(value: unknown): string | null {
   }
 }
 
-// The active token for current Plaud is the per-workspace token, keyed by the
-// logged-in user id. Prefer it (and honour its expiry) over the raw token keys.
+// Resolve the per-workspace token, keyed by the logged-in user id, honouring
+// its expiry. This is the FALLBACK in extractPlaudToken (v0.7.3): Plaud Mirror
+// prefers the user token from the priority keys because /user/me rejects the
+// workspace token; this is only used when no priority key holds a JWT.
 function activeWorkspaceToken(storage: StorageLike, now: number): string | null {
   const userIds: string[] = [];
   const subject = jwtSubject(parseJsonValue(storage.getItem("pld_tokenstr")));
