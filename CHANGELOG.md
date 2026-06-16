@@ -4,6 +4,25 @@ All notable changes to Plaud Mirror are documented in this file.
 
 This project follows Semantic Versioning (SemVer): MAJOR.MINOR.PATCH.
 
+## [0.9.0] - 2026-06-16
+
+### Added
+
+- **Reference-driven operator panel redesign.** The React/Vite panel now absorbs the visual and interaction direction from `docs/design/reference/plaud-mirror-panel-standalone.html`: 212px operator rail, dense light-console layout, five real screens (Main, Library, Backfill, Configuration, Operations), status strip, next-action card, KPI coverage, recent errors, recent runs, outbox retry surface, and a mobile-aware reconnect flow.
+- **Operator language toggle.** The panel chrome now switches live between Spanish and English and persists the chosen language in local storage. Raw log content, recording titles, and Plaud/backend error text stay verbatim.
+- **Library controls.** Recordings now have live search, compact/full player modes, 50/100/150 pagination, and dismissed-recording visibility integrated into the new Library screen.
+
+### Changed
+
+- **Panel visual system.** Replaced the previous card-heavy UI with the reference design system: Archivo UI type, Space Grotesk headings, JetBrains Mono labels/data, green accent `#0f7a5a`, light page surface `#d7d9dd`, tight status tones, and responsive rail-to-mobile navigation. Backend routes and data contracts are unchanged.
+- **Backfill preview and Operations are first-class.** Existing endpoints are reorganized into dedicated screens: Backfill recalculates the dry-run preview as filters change, while Operations surfaces recent sync runs, outbox counters/retry, and `health.lastErrors` without needing curl.
+- **Configuration keeps the current auth model.** Operator login, Chrome extension reconnect, copy-only bookmarklet fallback, manual token paste, webhook settings, scheduler settings, and read-only technical state remain wired to the existing API. No secrets or `.env` files are touched.
+
+### Fixed
+
+- **Observability gap.** `health.warnings`, `lastErrors`, `recentSyncRuns`, scheduler state, and outbox state are now visible in the panel's Main/Operations surfaces instead of existing only in `/api/health`.
+- Tests: 148 -> 150 (127 Node tests + 23 web tests). New web coverage validates the expanded tab model and persisted ES/EN language preference.
+
 ## [0.8.1] - 2026-06-16
 
 ### Changed

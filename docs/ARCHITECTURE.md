@@ -1,9 +1,9 @@
-<!-- doc-version: 0.8.1 -->
+<!-- doc-version: 0.9.0 -->
 # Plaud Mirror Architecture
 
-> Version: 0.8.1
+> Version: 0.9.0
 > Last Updated: 2026-06-16
-> Status: Phase 4 entered at `v0.7.0` and now spans `0.7.x`-`0.8.x`; Phase 3 exit gate (multi-day soak) still pending. The `0.5.x` line delivered the Phase 3 feature surface (scheduler D-012, durable webhook outbox D-013, full health observability D-014, governance D-016/D-017); `v0.6.0`-`v0.6.3` were the hardening + tooling line (operator access control D-018, startup crash recovery, Plaud client timeouts, Doppler passphrase helper, LLM-DocKit 4.8.2 sync). `v0.7.0` opened **Phase 4** with **browser-assisted Plaud re-auth** (D-019): a panel-initiated single-use capture session plus bookmarklet refreshed the ~300-day Plaud bearer without DevTools or stored password. `v0.7.1`-`v0.7.6` hardened that path, but the final browser finding was decisive: React-rendered `javascript:` hrefs are not a reliable bookmarklet distribution mechanism. `v0.8.0` keeps the same `/connect` capture handshake and adds a local Chrome companion extension as the recommended delivery surface. `v0.8.1` aligns server-side Plaud validation with Plaud Web's browser request fingerprint after the operator proved the captured token is valid in-browser but rejected from the backend with an HTML 403. Operators upgrading from any `0.4.x`/`0.5.x` release should go directly to `v0.8.1`.
+> Status: Phase 4 entered at `v0.7.0` and now spans `0.7.x`-`0.9.x`; Phase 3 exit gate (multi-day soak) still pending. The `0.5.x` line delivered the Phase 3 feature surface (scheduler D-012, durable webhook outbox D-013, full health observability D-014, governance D-016/D-017); `v0.6.0`-`v0.6.3` were the hardening + tooling line (operator access control D-018, startup crash recovery, Plaud client timeouts, Doppler passphrase helper, LLM-DocKit 4.8.2 sync). `v0.7.0` opened **Phase 4** with **browser-assisted Plaud re-auth** (D-019): a panel-initiated single-use capture session plus bookmarklet refreshed the ~300-day Plaud bearer without DevTools or stored password. `v0.7.1`-`v0.7.6` hardened that path, but the final browser finding was decisive: React-rendered `javascript:` hrefs are not a reliable bookmarklet distribution mechanism. `v0.8.0` keeps the same `/connect` capture handshake and adds a local Chrome companion extension as the recommended delivery surface. `v0.8.1` aligns server-side Plaud validation with Plaud Web's browser request fingerprint after the operator proved the captured token is valid in-browser but rejected from the backend with an HTML 403. `v0.9.0` absorbs the standalone operator-panel reference into the real React/Vite panel with a five-screen rail UI, ES/EN chrome, and first-class observability surfaces, without backend API changes. Operators upgrading from any `0.4.x`/`0.5.x` release should go directly to `v0.9.0`.
 
 ## Overview
 
@@ -19,7 +19,7 @@ Plaud Mirror is a single-operator, server-first service that:
 ## Runtime Shape
 
 - **Backend:** Fastify in `apps/api`
-- **Panel:** React + Vite in `apps/web`
+- **Panel:** React + Vite in `apps/web`; as of `v0.9.0` it uses a reference-driven five-screen operator shell (Main, Library, Backfill, Configuration, Operations) with ES/EN chrome persisted in browser storage
 - **Plaud connector:** local unpacked Chrome extension in `apps/chrome-extension`
 - **Shared contracts:** Zod schemas in `packages/shared`
 - **State store:** SQLite at `data/app.db`
@@ -39,9 +39,9 @@ Phase 2 was the first usable manual slice. It included:
 - HMAC-signed delivery attempts
 - Docker launch on `dev-vm`
 
-## What Phase 3 Adds (in progress)
+## Runtime Evolution Since Phase 3
 
-Phase 3 turns the manual slice into an unattended service. It is being delivered across the `0.5.x` line:
+Phase 3 turns the manual slice into an unattended service. The later `0.7.x`-`0.9.x` line builds the operator re-auth and panel UX around that runtime:
 
 - **`v0.5.0` (regressed, do not deploy):** introduced the scheduler module and the partial `health.scheduler` block, but with two bugs — the scheduler arranged a 15-minute default when `PLAUD_MIRROR_SCHEDULER_INTERVAL_MS` was unset (silently turning on for upgrading operators), and the documented service-level anti-overlap was missing in code (`startMirror` inserted a new `sync_runs` row on every call without consulting `getActiveSyncRun`). See CHANGELOG `[0.5.1]` for the post-mortem.
 - **`v0.5.1` (stable Phase 3 entry):** scheduler is genuinely opt-in (default `0` = disabled); `runScheduledSync()` / `runSync` consult `store.getActiveSyncRun()` before inserting and return the existing run id when one is active; the scheduler tick reports `lastTickStatus = "skipped"` (with reason in `lastTickError`) when the service-layer absorbs the tick, instead of mislabelling it as `completed`. 9 regression tests (env-var matrix, concurrent `runSync` reuse, scheduler `runTick → { skipped: true }` path).
@@ -49,6 +49,7 @@ Phase 3 turns the manual slice into an unattended service. It is being delivered
 - **`v0.5.3` (this release):** durable webhook outbox (D-013). New SQLite table `webhook_outbox` with FSM `pending → delivering → delivered | retry_waiting → permanently_failed`. New `OutboxWorker` (`apps/api/src/runtime/outbox-worker.ts`, 5-second cadence, reuses the existing `Scheduler` for the timer, recomputes the HMAC at delivery time so a rotated `webhookSecret` is honoured). Exponential backoff `[30s, 2m, 10m, 30m, 1h, 2h, 4h, 8h]` and `OUTBOX_MAX_ATTEMPTS = 8`. `service.processRecording` enqueues instead of POSTing; `lastWebhookStatus` enum gains `"queued"`. New routes `GET /api/outbox` (failed list) and `POST /api/outbox/:id/retry`; new `health.outbox` counters block (`pending` / `retryWaiting` / `permanentlyFailed` / `oldestPendingAgeMs`); new `SyncRunSummary.enqueued` counter. Panel gains a "Webhook outbox" card with counters + failed-list + Retry buttons. 11 new tests covering the FSM, the worker, and the HTTP shape.
 - **`v0.5.5`:** full health observability — `lastErrors` ring buffer (cross-subsystem, in-memory, cap LAST_ERRORS_CAP=20, most-recent-first) + `recentSyncRuns` (last 5 finished runs from SQLite, `finished_at DESC`) on `/api/health` (D-014, full). New `service.recordError(subsystem, message, context?)` wired from the scheduler-manager `onTick` callback (failed ticks only), the outbox-worker `onDeliveryError` callback (both `retry` and `permanent` escalations), and the service `runSync` catch path. Plus governance: `prose-drift` validator wrapper hardened from `WARN` to `FAIL` after one calibration release; new `check_unabsorbed_artifact()` ninth validator check (D-017) with a baseline file mirroring the prose-drift precedent. 3 new tests (ring buffer cap+ordering+cross-subsystem, sync-error feeds lastErrors, recentSyncRuns surfaces last 5).
 - **`v0.6.0` (this release, Phase 3 hardening):** three fixes from the 2026-06-10 security review, all prerequisites for the soak exit gate. (1) **Operator access control** (D-018): `PLAUD_MIRROR_ADMIN_PASSPHRASE` env var; when set, an `onRequest` hook returns 401 for every `/api/*` request without a valid `plaud_mirror_session` cookie (HMAC-signed, key derived from master key + passphrase, 30-day TTL, HttpOnly + SameSite=Lax), with a public allowlist (`/api/health` redacting `auth.userSummary`, `/api/session*`); new module `apps/api/src/runtime/operator-auth.ts`; the panel boots through a `LoginGate`. (2) **Startup crash recovery** (D-013 amendment): `service.initialize()` runs `store.recoverOrphanedSyncRuns()` (running → failed) and `store.recoverOrphanedOutboxItems()` (delivering → retry_waiting due now, attempts preserved, at-least-once accepted); both feed `health.lastErrors`. (3) **Plaud client timeouts**: every `PlaudClient` request carries `AbortSignal.timeout(requestTimeoutMs)` (default 30 s) and surfaces a clear `timed out after Nms` error; audio downloads carry a 10-minute ceiling (`AUDIO_DOWNLOAD_TIMEOUT_MS`). Tests: 116 → 130 (116 backend + 14 web).
+- **`v0.9.0`:** reference-driven operator panel redesign. No backend routes or shared runtime schemas changed; the React panel reorganizes the existing contract surface into Main (health/status, next action, KPIs, coverage, latest sync, recent errors), Library (search, compact/full playback controls, dismiss/restore, pagination), Backfill (filters + live dry-run preview), Configuration (operator re-auth, manual token fallback, webhook, scheduler, technical read-only state), and Operations (recent sync runs, outbox retry, error log). The UI chrome supports Spanish/English switching and persists the operator preference in local storage. Tests: 148 → 150.
 
 Still **not** in Phase 3 scope:
 
@@ -86,6 +87,18 @@ The operator's account is Google SSO, so there is no Plaud password to store and
 
 The bearer travels only in a URL fragment (never sent to a server, never logged) and one same-origin authenticated POST. The ~300-day TTL means this is a roughly-once-a-year interaction.
 
+### Operator panel shell (v0.9.0)
+
+The `apps/web` panel is intentionally a single-operator cockpit, not a SaaS dashboard. It absorbs `docs/design/reference/plaud-mirror-panel-standalone.html` as the visual source of truth while keeping the existing React/Vite runtime and API contracts:
+
+1. **Main** reads `GET /api/health` for auth/sync/scheduler/outbox status, Plaud/local counts, coverage, warnings, latest sync, and recent errors. Status segments jump to Operations or Configuration as appropriate.
+2. **Library** reads `GET /api/recordings` and `GET /api/recordings/:id/audio`, then calls existing dismiss/restore routes. Search, dismissed visibility, page size, and compact/full player state are local UI concerns.
+3. **Backfill** uses `GET /api/devices`, `GET /api/backfill/candidates`, and `POST /api/backfill/run`. The preview recalculates when filters change and shares the server's `BackfillCandidate` states (`missing`, `mirrored`, `dismissed`).
+4. **Configuration** uses the existing session-gated auth/config/connect routes: `/api/connect/start`, `/api/auth/token`, `PUT /api/config`, plus the current Chrome extension and copy-only bookmarklet fallback.
+5. **Operations** uses `/api/health`, `GET /api/outbox`, `POST /api/outbox/:id/retry`, and `GET /api/sync/runs/:id` polling through the same helpers as Main.
+
+The language selector only translates operator chrome. Recording titles, raw error strings, and log-like content stay verbatim so diagnostics are not rewritten.
+
 ### Sync / Backfill (Mode B — download up to N missing, async)
 
 1. Operator triggers `POST /api/sync/run` or `POST /api/backfill/run` with a `limit` (0–1000). The API returns `202 Accepted` with `{ id, status: "running" }` immediately — it does **not** wait for the download work.
@@ -109,7 +122,7 @@ The web panel polls `GET /api/health` every 2 s while a run is active. The healt
 3. The worker recomputes the HMAC signature at delivery time using the current `webhookSecret` (so an operator-rotated secret is honoured for items already in the queue) and stamps `sync.deliveryAttempt` to the current attempt number. POSTs to the configured `webhookUrl` with `AbortSignal.timeout(requestTimeoutMs)`.
 4. On a 2xx response: `markOutboxDelivered` (state → `delivered`, attempts++) plus a `webhook_deliveries` audit row with status `success`.
 5. On a non-2xx response or thrown error: a `webhook_deliveries` row with status `failed` is recorded, then either `markOutboxRetry(id, nextAttemptAt, error)` (state → `retry_waiting`, attempts++, `next_attempt_at = now + backoff[attempts]`) or `markOutboxPermanentlyFailed(id, error)` (state → `permanently_failed`, attempts++) when `attempts >= OUTBOX_MAX_ATTEMPTS`. Backoff schedule: `[30s, 2m, 10m, 30m, 1h, 2h, 4h, 8h]` — cumulative ~16 h before escalating.
-6. The panel polls `health.outbox` (`pending` / `retryWaiting` / `permanentlyFailed` / `oldestPendingAgeMs`) and `GET /api/outbox` (the list of `permanently_failed` rows) to render the Webhook outbox card on the Configuration tab. `POST /api/outbox/:id/retry` resets a `permanently_failed` row to `pending` (`attempts = 0`, `last_error = null`) so the worker re-attempts on its next tick.
+6. The panel polls `health.outbox` (`pending` / `retryWaiting` / `permanentlyFailed` / `oldestPendingAgeMs`) and `GET /api/outbox` (the list of `permanently_failed` rows) to render the outbox section in Operations. `POST /api/outbox/:id/retry` resets a `permanently_failed` row to `pending` (`attempts = 0`, `last_error = null`) so the worker re-attempts on its next tick.
 7. The legacy `webhook_deliveries` table stays as-is (append-only audit log; every attempt records a row regardless of success/failure). The new `webhook_outbox` table holds live retry state — once a row reaches `delivered` or `permanently_failed`, the worker never touches it again.
 
 ### Local curation (audition then dismiss)
@@ -169,13 +182,13 @@ The web panel polls `GET /api/health` every 2 s while a run is active. The healt
 - Temporary Plaud download URLs must not be logged in full.
 - This remains a single-operator service, but from v0.6.0 it protects itself: operator access control (D-018) gates the panel/API when `PLAUD_MIRROR_ADMIN_PASSPHRASE` is set. Network position (LAN, edge-caddy) is no longer the only boundary.
 - `/api/health` is public by design (status probes); its `auth.userSummary` is redacted for unauthenticated callers, and error strings surfaced there must never contain secrets.
-- Known hardening debt (deliberately sequenced after v0.6.0): the secrets KDF is single-pass SHA-256 of the master key — fine for a high-entropy random key, weak for a human-chosen one; upgrade to scrypt-with-salt is queued in the 0.6.x line. `webhookUrl` accepts any URL (no private-range allowlist) — acceptable now that only an authenticated operator can set it.
+- Known hardening debt (deliberately sequenced after v0.6.0): the secrets KDF is single-pass SHA-256 of the master key — fine for a high-entropy random key, weak for a human-chosen one; upgrade to scrypt-with-salt remains queued before the unattended-soak exit gate. `webhookUrl` accepts any URL (no private-range allowlist) — acceptable now that only an authenticated operator can set it.
 
 ## Next Architectural Step
 
-Phase 4 is in progress, extended through `0.8.x` for the Chrome extension while the Phase 3 soak remains pending. The remaining work:
+Phase 4 is in progress, extended through `0.9.x` for the Chrome extension plus operator-panel redesign while the Phase 3 soak remains pending. The remaining work:
 
-- **Phase 3 cont. (0.6.x):** surface `health.warnings` / `lastErrors` / `recentSyncRuns` in the panel UI (the backend emits them since v0.5.5; the panel does not render them yet); scrypt KDF upgrade for `data/secrets.enc`; then the multi-day unattended soak that closes the phase. Resumable backfill stays deferred (no firm release target).
-- **Phase 4 (0.7.x-0.8.x):** browser-assisted re-auth is implemented through `/connect` and the Chrome extension. Fully unattended SSO renewal remains deferred/watch behind the official OAuth/MCP path; email+password login is not applicable to this operator account.
-- **Phase 5 (0.9.x):** deployment hardening, backups, rollback, NAS validation, infra playbooks.
+- **Phase 3 cont.:** `v0.9.0` now surfaces `health.warnings` / `lastErrors` / `recentSyncRuns` in the panel UI. Remaining hardening before the soak: scrypt KDF upgrade for `data/secrets.enc`, then the multi-day unattended run that closes the phase. Resumable backfill stays deferred (no firm release target).
+- **Phase 4 (0.7.x-0.9.x):** browser-assisted re-auth is implemented through `/connect` and the Chrome extension; `v0.9.0` finishes the operator-facing cockpit around that flow. Fully unattended SSO renewal remains deferred/watch behind the official OAuth/MCP path; email+password login is not applicable to this operator account.
+- **Phase 5 (0.10.x):** deployment hardening, backups, rollback, NAS validation, infra playbooks.
 - More robust degraded-state handling (incremental, threaded through Phase 3 + 4).

@@ -1,7 +1,7 @@
-<!-- doc-version: 0.8.1 -->
+<!-- doc-version: 0.9.0 -->
 # Authentication and Sync Operations
 
-This runbook defines the live behavior of Plaud Mirror's auth and sync surface. Phase 2 (manual sync/backfill) is fully shipped. Phase 3: the continuous sync scheduler landed in `v0.5.0` (regressed) → `v0.5.1` (fixed) → `v0.5.2` (panel-driven). `v0.5.3` shipped the **durable webhook outbox** (D-013). `v0.5.4` was governance-only (D-016). `v0.5.5` shipped **D-014 full**: `lastErrors` ring buffer and `recentSyncRuns` on `/api/health`. `v0.6.0` is the **Phase 3 hardening release**: operator access control on the panel/API (D-018), startup crash recovery for orphaned sync runs and outbox rows (D-013 amendment, at-least-once delivery accepted), and abort deadlines on every Plaud API call and audio download. Remaining Phase 3 work before the soak: panel-side observability UI and the scrypt KDF upgrade; resumable backfill and automatic re-login stay deferred.
+This runbook defines the live behavior of Plaud Mirror's auth and sync surface. Phase 2 (manual sync/backfill) is fully shipped. Phase 3: the continuous sync scheduler landed in `v0.5.0` (regressed) → `v0.5.1` (fixed) → `v0.5.2` (panel-driven). `v0.5.3` shipped the **durable webhook outbox** (D-013). `v0.5.4` was governance-only (D-016). `v0.5.5` shipped **D-014 full**: `lastErrors` ring buffer and `recentSyncRuns` on `/api/health`. `v0.6.0` is the **Phase 3 hardening release**: operator access control on the panel/API (D-018), startup crash recovery for orphaned sync runs and outbox rows (D-013 amendment, at-least-once delivery accepted), and abort deadlines on every Plaud API call and audio download. `v0.9.0` surfaces the auth/sync/outbox observability in the real panel's Main and Operations screens. Remaining Phase 3 work before the soak: the scrypt KDF upgrade, then the soak itself; resumable backfill and fully unattended re-login stay deferred.
 
 ## Operator Access Control (D-018, v0.6.0)
 
@@ -30,7 +30,7 @@ When the variable is unset, the API runs open (pre-0.6.0 behavior) and `health.w
 Because the operator's Plaud account is Google SSO (no password, and Plaud forbids adding one to an SSO account), and the official OAuth/MCP is deferred, re-auth captures the bearer the browser already holds instead of pasting it by hand:
 
 1. Install the local Chrome extension once: open `chrome://extensions`, enable Developer mode, choose **Load unpacked**, and select `apps/chrome-extension`. Pin **Plaud Mirror Connector** in the toolbar.
-2. In the panel Configuration tab, **Reconectar Plaud** → the backend mints a one-time `captureId` (TTL 10 min), the panel stores it in mirror `localStorage`, and the panel opens `app.plaud.ai`.
+2. In the panel Configuration screen, **Reconectar Plaud** → the backend mints a one-time `captureId` (TTL 10 min), the panel stores it in mirror `localStorage`, and the panel opens `app.plaud.ai`.
 3. Log into Plaud normally (Google). In that Plaud tab, press **Plaud Mirror Connector** → **Send token to mirror**.
 4. The extension reads the bearer from Plaud's browser storage and navigates the tab to the mirror's `/connect#token=...` page, which completes the capture against the live `captureId`. The token is validated against Plaud and stored.
 
@@ -75,7 +75,7 @@ The service exposes:
 
 #### Continuous sync scheduler — introduced in `v0.5.0`, stabilized in `v0.5.1`, panel-driven from `v0.5.2`
 
-The live source of truth for the scheduler interval is **the SQLite `config.schedulerIntervalMs` row**, set from the Configuration tab of the web panel (`PUT /api/config { schedulerIntervalMs }`). The same rules apply regardless of whether the value comes from the panel or the env-var seed:
+The live source of truth for the scheduler interval is **the SQLite `config.schedulerIntervalMs` row**, set from the Configuration screen of the web panel (`PUT /api/config { schedulerIntervalMs }`). The same rules apply regardless of whether the value comes from the panel or the env-var seed:
 
 | Value                          | Behavior                                                                                                       |
 |--------------------------------|----------------------------------------------------------------------------------------------------------------|

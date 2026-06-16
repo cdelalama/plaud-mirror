@@ -1,8 +1,7 @@
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState, type ReactNode } from "react";
 
-import { StateBadge } from "./components/StateBadge.js";
 import { buildBookmarklet, PLAUD_WEB_APP_URL } from "./plaud-token.js";
-import { readBackfillExpanded, readTab, STORAGE_KEYS } from "./storage.js";
+import { readLanguage, readTab, STORAGE_KEYS, type ActiveTab, type OperatorLanguage } from "./storage.js";
 
 // localStorage key (mirror origin) where the panel stashes the one-time
 // captureId between "Reconectar Plaud" and the /connect completion (D-019).
@@ -19,6 +18,7 @@ import {
   formatRecordingsMetric,
   summarizeRun,
   type AuthStatus,
+  type BackfillCandidateState,
   type BackfillPreviewResponse,
   type Device,
   type OutboxItem,
@@ -52,6 +52,370 @@ const DEFAULT_BACKFILL_DRAFT: BackfillDraft = {
   forceDownload: false,
 };
 
+const TAB_ORDER: ActiveTab[] = ["main", "library", "backfill", "config", "ops"];
+
+const COPY = {
+  es: {
+    loadingSession: "Comprobando sesión…",
+    apiUnreachable: "No se puede alcanzar la API",
+    operatorLogin: "Login de operador",
+    loginBody: "Este panel está protegido. Introduce la passphrase de operador para continuar.",
+    passphrase: "Passphrase",
+    passphrasePlaceholder: "Passphrase de operador",
+    showPassphrase: "Mostrar passphrase",
+    enterPassphrase: "Introduce la passphrase de operador.",
+    signingIn: "Entrando…",
+    signIn: "Entrar",
+    connectTitle: "Reconectar Plaud",
+    connectWorking: "Conectando con Plaud…",
+    connectNoToken: "No llegó ningún token. Vuelve al panel y pulsa \"Reconectar Plaud\" para empezar de nuevo.",
+    connectOkPrefix: "Token de Plaud guardado y validado",
+    connectOk: "Listo. Ya puedes volver al panel.",
+    connectError: "No se pudo guardar el token.",
+    connectWait: "Un momento…",
+    backToPanel: "Volver al panel",
+    navMain: "Main",
+    navLibrary: "Library",
+    navBackfill: "Backfill",
+    navConfig: "Configuration",
+    navOps: "Operations",
+    selfHosted: "self-hosted",
+    logout: "Salir",
+    statusAuth: "Auth",
+    statusSync: "Sync",
+    statusScheduler: "Scheduler",
+    statusOutbox: "Outbox",
+    statusErrors: "Errores",
+    healthy: "Healthy",
+    invalid: "Invalid",
+    degraded: "Degraded",
+    noToken: "Sin token",
+    idle: "Reposo",
+    running: "Corriendo…",
+    off: "Off",
+    on: "ON",
+    authBannerTitle: "Plaud rechazó el token — la sincronización está parada",
+    authBannerBody: "Reconecta para reanudar. No se ha perdido nada local.",
+    reconnect: "Reconectar Plaud",
+    resultReady: "Sesión de captura lista. En la pestaña de Plaud, inicia sesión si hace falta y pulsa la extensión \"Plaud Mirror Connector\".",
+    resultReadyManual: "Sesión de captura lista. Abre app.plaud.ai manualmente, inicia sesión si hace falta y pulsa la extensión \"Plaud Mirror Connector\".",
+    popupBlocked: "Tu navegador bloqueó la pestaña. Preparando la sesión de captura para que abras app.plaud.ai manualmente.",
+    tabOpened: "Pestaña de Plaud abierta. Preparando la sesión de captura...",
+    copyPrompt: "Copia esta dirección y pégala como URL de un marcador nuevo:",
+    copied: "Copiado",
+    mainSubtitleLive: "Estados en vivo · auto-refresh cada 2 s",
+    mainSubtitleEmpty: "Sin conexión con Plaud todavía",
+    refreshStats: "Refrescar stats",
+    refreshTitle: "Re-cuenta el catálogo de Plaud · no descarga audio",
+    syncing: "Sincronizando…",
+    nextAction: "Siguiente acción",
+    missingAction: "grabaciones están en Plaud pero aún no en tu espejo local.",
+    syncMissing: "Sincronizar faltantes",
+    connectPlaud: "Conectar Plaud",
+    emptyTitle: "Aún no hay nada espejado",
+    emptyBody: "Conecta tu cuenta de Plaud para empezar a guardar el audio original localmente, de forma fiable y auditable.",
+    emptyMeta: "0 grabaciones locales · sin token configurado",
+    inPlaud: "En Plaud",
+    local: "Local",
+    missing: "Faltan",
+    dismissed: "Descartadas",
+    coverage: "Cobertura del espejo local",
+    lastSync: "Último sync",
+    completed: "completado",
+    noneYet: "ninguno todavía",
+    examined: "examinadas",
+    downloaded: "bajadas",
+    skipped: "saltadas",
+    queued: "en cola",
+    recentErrors: "Errores recientes",
+    noRecentErrors: "Sin errores recientes.",
+    librarySubtitle: "grabaciones locales",
+    searchPlaceholder: "Buscar por título o id…",
+    scanPlaud: "Escanear Plaud",
+    showDismissed: "Ver descartadas",
+    perPage: "por página",
+    of: "de",
+    play: "Reproducir",
+    pause: "Pausar",
+    localBadge: "local",
+    dismissedBadge: "descartada",
+    noLocalCopy: "sin copia local",
+    noResults: "Sin resultados para esta búsqueda.",
+    restore: "Restaurar",
+    dismiss: "Descartar",
+    pagePrev: "Anterior",
+    pageNext: "Siguiente",
+    playerCompact: "compacto",
+    playerFull: "completo",
+    backfillTitle: "Backfill histórico",
+    backfillIntro: "Elige un rango y dispositivo, previsualiza lo que se descargaría y ejecútalo. Mismo comportamiento que el sync: baja las que faltan, salta las ya espejadas o descartadas.",
+    filters: "Filtros",
+    from: "Desde",
+    to: "Hasta",
+    device: "Dispositivo",
+    anyDevice: "Cualquier dispositivo",
+    downloadLimit: "Límite de descarga",
+    forceDownload: "Forzar descarga aunque exista",
+    runBackfill: "Ejecutar backfill filtrado",
+    preview: "Previsualización",
+    wouldDownload: "se bajarían",
+    match: "coinciden",
+    missingCol: "faltan",
+    alreadyLocal: "ya local",
+    tableTitle: "Título",
+    tableDate: "Fecha",
+    tableState: "Estado",
+    stateMissing: "falta",
+    stateMirrored: "ya local",
+    stateDismissed: "descartada",
+    showing: "mostrando",
+    noBackfillMatch: "Ninguna grabación coincide con estos filtros.",
+    previewUnavailable: "Previsualización no disponible",
+    loadingPreview: "Cargando previsualización…",
+    configTitle: "Configuration",
+    reconnectTitle: "Reconectar Plaud",
+    authPlaudToken: "Auth · Plaud token",
+    step1: "Instala el marcador o extensión (una vez)",
+    step2: "Pulsa «Reconectar Plaud»",
+    step3: "Inicia sesión en Plaud (Google)",
+    step4: "En la pestaña de Plaud, pulsa la extensión o el marcador",
+    step5: "Vuelve: estado healthy",
+    connectorPrimary: "Plaud Mirror Connector",
+    connectorBody: "La extensión local es el camino recomendado. El bookmarklet queda como fallback para móvil o navegadores sin extensión.",
+    dragBookmarklet: "Reconectar Plaud Mirror",
+    dragHint: "arrástrame",
+    copyMobile: "Copiar marcador",
+    pasteManual: "Pegar token a mano (avanzado)",
+    pastePlaceholder: "Pega el bearer token de Plaud",
+    saveValidate: "Guardar y validar",
+    configured: "configurado",
+    missingConfig: "sin configurar",
+    targetUrl: "URL destino",
+    hmacSecret: "Secreto HMAC",
+    saveWebhook: "Guardar webhook",
+    schedulerContinuous: "Scheduler continuo",
+    intervalLabel: "Intervalo (min · 0 desactiva)",
+    save: "Guardar",
+    schedulerInfo: "ticks concurrentes → «skipped»",
+    technical: "Ajustes técnicos (solo lectura)",
+    versionRow: "versión",
+    dataDir: "data dir",
+    recordingsDir: "recordings dir",
+    secrets: "secrets",
+    apiBase: "api base",
+    defaultSyncLimit: "default sync limit",
+    recentRuns: "Sync runs recientes",
+    mode: "Modo",
+    duration: "Duración",
+    when: "Cuándo",
+    attempts: "intentos",
+    retry: "Reintentar",
+    lastErrorsTitle: "Últimos errores",
+    noFailedOutbox: "No hay filas permanentemente fallidas.",
+    noRuns: "Sin runs recientes.",
+    pendingShort: "pend",
+    retryShort: "retry",
+    failShort: "fail",
+    tokenRequired: "Pega un bearer token de Plaud antes de guardar.",
+    tokenSaved: "Bearer token guardado y validado.",
+    webhookUpdated: "Configuración de webhook actualizada.",
+    schedulerDisabled: "Scheduler continuo desactivado.",
+    schedulerSet: "Scheduler continuo configurado a",
+    syncNow: "Run sync now",
+    forceFresh: "Forzar descarga fresca aunque el archivo ya exista",
+    syncLimit: "Sync limit (0 = refrescar stats, no descarga)",
+    refreshOnlyHint: "0 refresca el catálogo de Plaud sin descargar audio.",
+    loadingState: "Cargando estado actual…",
+    noRecordings: "No hay grabaciones locales todavía.",
+    noRecordingsView: "No hay grabaciones en esta vista.",
+    deleteConfirmPrefix: "¿Eliminar el espejo local de",
+    deleteConfirmBody: "Esto borra el archivo de audio local y marca la grabación como descartada. Plaud mantiene la grabación en tu cuenta.",
+    dismissedResult: "Descartada",
+    restoredResult: "Restaurada y re-descargada",
+  },
+  en: {
+    loadingSession: "Checking session…",
+    apiUnreachable: "Cannot reach the API",
+    operatorLogin: "Operator login",
+    loginBody: "This panel is protected. Enter the operator passphrase to continue.",
+    passphrase: "Passphrase",
+    passphrasePlaceholder: "Operator passphrase",
+    showPassphrase: "Show passphrase",
+    enterPassphrase: "Enter the operator passphrase.",
+    signingIn: "Signing in…",
+    signIn: "Sign in",
+    connectTitle: "Reconnect Plaud",
+    connectWorking: "Connecting to Plaud…",
+    connectNoToken: "No token arrived. Return to the panel and press \"Reconnect Plaud\" to start again.",
+    connectOkPrefix: "Plaud token saved and validated",
+    connectOk: "Done. You can return to the panel.",
+    connectError: "The token could not be saved.",
+    connectWait: "One moment…",
+    backToPanel: "Back to panel",
+    navMain: "Main",
+    navLibrary: "Library",
+    navBackfill: "Backfill",
+    navConfig: "Configuration",
+    navOps: "Operations",
+    selfHosted: "self-hosted",
+    logout: "Log out",
+    statusAuth: "Auth",
+    statusSync: "Sync",
+    statusScheduler: "Scheduler",
+    statusOutbox: "Outbox",
+    statusErrors: "Errors",
+    healthy: "Healthy",
+    invalid: "Invalid",
+    degraded: "Degraded",
+    noToken: "No token",
+    idle: "Idle",
+    running: "Running…",
+    off: "Off",
+    on: "ON",
+    authBannerTitle: "Plaud rejected the token — sync is stopped",
+    authBannerBody: "Reconnect to resume. Nothing local was lost.",
+    reconnect: "Reconnect Plaud",
+    resultReady: "Capture session ready. In the Plaud tab, sign in if needed and press the \"Plaud Mirror Connector\" extension.",
+    resultReadyManual: "Capture session ready. Open app.plaud.ai manually, sign in if needed and press the \"Plaud Mirror Connector\" extension.",
+    popupBlocked: "Your browser blocked the tab. Preparing the capture session so you can open app.plaud.ai manually.",
+    tabOpened: "Plaud tab opened. Preparing the capture session...",
+    copyPrompt: "Copy this address and paste it as the URL of a new bookmark:",
+    copied: "Copied",
+    mainSubtitleLive: "Live status · auto-refresh every 2 s",
+    mainSubtitleEmpty: "Not connected to Plaud yet",
+    refreshStats: "Refresh stats",
+    refreshTitle: "Re-counts the Plaud catalog · no audio download",
+    syncing: "Syncing…",
+    nextAction: "Next action",
+    missingAction: "recordings are in Plaud but not yet in your local mirror.",
+    syncMissing: "Sync missing",
+    connectPlaud: "Connect Plaud",
+    emptyTitle: "Nothing mirrored yet",
+    emptyBody: "Connect your Plaud account to start saving the original audio locally, reliably and auditably.",
+    emptyMeta: "0 local recordings · no token configured",
+    inPlaud: "In Plaud",
+    local: "Local",
+    missing: "Missing",
+    dismissed: "Dismissed",
+    coverage: "Local mirror coverage",
+    lastSync: "Last sync",
+    completed: "completed",
+    noneYet: "none yet",
+    examined: "examined",
+    downloaded: "downloaded",
+    skipped: "skipped",
+    queued: "queued",
+    recentErrors: "Recent errors",
+    noRecentErrors: "No recent errors.",
+    librarySubtitle: "local recordings",
+    searchPlaceholder: "Search by title or id…",
+    scanPlaud: "Scan Plaud",
+    showDismissed: "Show dismissed",
+    perPage: "per page",
+    of: "of",
+    play: "Play",
+    pause: "Pause",
+    localBadge: "local",
+    dismissedBadge: "dismissed",
+    noLocalCopy: "no local copy",
+    noResults: "No results for this search.",
+    restore: "Restore",
+    dismiss: "Dismiss",
+    pagePrev: "Previous",
+    pageNext: "Next",
+    playerCompact: "compact",
+    playerFull: "full",
+    backfillTitle: "Historical backfill",
+    backfillIntro: "Pick a range and device, preview what would be downloaded, and run it. Same behavior as sync: downloads what's missing, skips already-mirrored or dismissed ones.",
+    filters: "Filters",
+    from: "From",
+    to: "To",
+    device: "Device",
+    anyDevice: "Any device",
+    downloadLimit: "Download limit",
+    forceDownload: "Force download even if it exists",
+    runBackfill: "Run filtered backfill",
+    preview: "Preview",
+    wouldDownload: "would download",
+    match: "match",
+    missingCol: "missing",
+    alreadyLocal: "already local",
+    tableTitle: "Title",
+    tableDate: "Date",
+    tableState: "State",
+    stateMissing: "missing",
+    stateMirrored: "already local",
+    stateDismissed: "dismissed",
+    showing: "showing",
+    noBackfillMatch: "No recordings match these filters.",
+    previewUnavailable: "Preview unavailable",
+    loadingPreview: "Loading preview…",
+    configTitle: "Configuration",
+    reconnectTitle: "Reconnect Plaud",
+    authPlaudToken: "Auth · Plaud token",
+    step1: "Install the bookmarklet or extension (once)",
+    step2: "Tap “Reconnect Plaud”",
+    step3: "Sign in to Plaud (Google)",
+    step4: "In the Plaud tab, press the extension or bookmarklet",
+    step5: "Come back: status healthy",
+    connectorPrimary: "Plaud Mirror Connector",
+    connectorBody: "The local extension is the recommended path. The bookmarklet remains a fallback for mobile or browsers without extensions.",
+    dragBookmarklet: "Reconnect Plaud Mirror",
+    dragHint: "drag me",
+    copyMobile: "Copy bookmarklet",
+    pasteManual: "Paste token manually (advanced)",
+    pastePlaceholder: "Paste the Plaud bearer token",
+    saveValidate: "Save and validate",
+    configured: "configured",
+    missingConfig: "missing",
+    targetUrl: "Target URL",
+    hmacSecret: "HMAC secret",
+    saveWebhook: "Save webhook",
+    schedulerContinuous: "Continuous scheduler",
+    intervalLabel: "Interval (min · 0 disables)",
+    save: "Save",
+    schedulerInfo: "concurrent ticks → “skipped”",
+    technical: "Technical settings (read-only)",
+    versionRow: "version",
+    dataDir: "data dir",
+    recordingsDir: "recordings dir",
+    secrets: "secrets",
+    apiBase: "api base",
+    defaultSyncLimit: "default sync limit",
+    recentRuns: "Recent sync runs",
+    mode: "Mode",
+    duration: "Duration",
+    when: "When",
+    attempts: "attempts",
+    retry: "Retry",
+    lastErrorsTitle: "Last errors",
+    noFailedOutbox: "No permanently-failed items.",
+    noRuns: "No recent runs.",
+    pendingShort: "pend",
+    retryShort: "retry",
+    failShort: "fail",
+    tokenRequired: "Paste a Plaud bearer token before saving.",
+    tokenSaved: "Bearer token saved and validated.",
+    webhookUpdated: "Webhook configuration updated.",
+    schedulerDisabled: "Continuous sync scheduler disabled.",
+    schedulerSet: "Continuous sync scheduler set to",
+    syncNow: "Run sync now",
+    forceFresh: "Force a fresh download even if the file already exists",
+    syncLimit: "Sync limit (0 = refresh stats only, no download)",
+    refreshOnlyHint: "0 refreshes the Plaud catalog without downloading audio.",
+    loadingState: "Loading current state…",
+    noRecordings: "No local recordings yet.",
+    noRecordingsView: "No recordings match the current view.",
+    deleteConfirmPrefix: "Delete local mirror of",
+    deleteConfirmBody: "This removes the local audio file and marks the recording as dismissed. Plaud keeps the recording in your account.",
+    dismissedResult: "Dismissed",
+    restoredResult: "Restored and re-downloaded",
+  },
+} satisfies Record<OperatorLanguage, Record<string, string>>;
+
+type Copy = typeof COPY.es;
+type Tone = "good" | "warn" | "bad" | "muted" | "info";
+
 // Session gate (D-018, v0.6.0). The panel boots by asking the server
 // whether operator auth is required; when it is and there is no valid
 // session cookie, the login screen replaces the panel entirely. The
@@ -60,6 +424,7 @@ const DEFAULT_BACKFILL_DRAFT: BackfillDraft = {
 export function App() {
   const [session, setSession] = useState<SessionStatus | null>(null);
   const [sessionError, setSessionError] = useState<string | null>(null);
+  const t = COPY[readLanguage()];
 
   // Assisted-reconnect landing (D-019). The Chrome extension and fallback
   // bookmarklet navigate here as `/connect#token=...`. Capture the token from
@@ -73,7 +438,7 @@ export function App() {
       return null;
     }
     const match = window.location.hash.match(/(?:^#|&)token=([^&]+)/);
-    const token = match ? decodeURIComponent(match[1]) : null;
+    const token = match?.[1] ? decodeURIComponent(match[1]) : null;
     if (window.location.hash) {
       window.history.replaceState(null, "", "/connect");
     }
@@ -96,7 +461,7 @@ export function App() {
   if (sessionError) {
     return (
       <div className="shell">
-        <Banner tone="error" message={`Cannot reach the API: ${sessionError}`} />
+        <Banner tone="error" message={`${t.apiUnreachable}: ${sessionError}`} />
       </div>
     );
   }
@@ -104,7 +469,7 @@ export function App() {
   if (!session) {
     return (
       <div className="shell">
-        <p className="muted">Checking session…</p>
+        <p className="muted">{t.loadingSession}</p>
       </div>
     );
   }
@@ -136,14 +501,15 @@ export function App() {
 // same-origin, operator-authenticated POST.
 export function ConnectPlaud({ token }: { token: string | null }) {
   const [state, setState] = useState<"working" | "ok" | "error">("working");
-  const [message, setMessage] = useState<string>("Conectando con Plaud…");
+  const t = COPY[readLanguage()];
+  const [message, setMessage] = useState<string>(t.connectWorking);
 
   useEffect(() => {
     let cancelled = false;
     void (async () => {
       if (!token) {
         setState("error");
-        setMessage("No llegó ningún token. Vuelve al panel y pulsa \"Reconectar Plaud\" para empezar de nuevo.");
+        setMessage(t.connectNoToken);
         return;
       }
       let captureId = "";
@@ -166,7 +532,7 @@ export function ConnectPlaud({ token }: { token: string | null }) {
           return;
         }
         setState("ok");
-        setMessage(`Token de Plaud guardado y validado (estado: ${auth.state}).`);
+        setMessage(`${t.connectOkPrefix} (estado: ${auth.state}).`);
       } catch (error) {
         if (cancelled) {
           return;
@@ -185,7 +551,7 @@ export function ConnectPlaud({ token }: { token: string | null }) {
       <div className="hero">
         <div>
           <p className="eyebrow">Plaud Mirror</p>
-          <h1>Reconectar Plaud</h1>
+          <h1>{t.connectTitle}</h1>
         </div>
       </div>
       {state === "working" ? <Banner tone="info" message={message} /> : null}
@@ -194,13 +560,13 @@ export function ConnectPlaud({ token }: { token: string | null }) {
       <section className="card">
         <p className="muted">
           {state === "ok"
-            ? "Listo. Ya puedes volver al panel."
+            ? t.connectOk
             : state === "error"
-              ? "No se pudo guardar el token."
-              : "Un momento…"}
+              ? t.connectError
+              : t.connectWait}
         </p>
         <a href="/" className="button-row" style={{ textDecoration: "none" }}>
-          <button type="button">Volver al panel</button>
+          <button type="button">{t.backToPanel}</button>
         </a>
       </section>
     </div>
@@ -214,11 +580,12 @@ export function LoginGate({ onAuthenticated }: { onAuthenticated: () => void }) 
   const [showPassphrase, setShowPassphrase] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const t = COPY[readLanguage()];
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
     if (!passphrase.trim()) {
-      setError("Enter the operator passphrase.");
+      setError(t.enterPassphrase);
       return;
     }
     setSubmitting(true);
@@ -242,23 +609,20 @@ export function LoginGate({ onAuthenticated }: { onAuthenticated: () => void }) 
       <div className="hero">
         <div>
           <p className="eyebrow">Plaud Mirror</p>
-          <h1>Operator login</h1>
-          <p className="lede">
-            This panel is protected. Enter the operator passphrase
-            (PLAUD_MIRROR_ADMIN_PASSPHRASE) to continue.
-          </p>
+          <h1>{t.operatorLogin}</h1>
+          <p className="lede">{t.loginBody}</p>
         </div>
       </div>
       {error ? <Banner tone="error" message={error} /> : null}
       <section className="card">
         <form className="stack" onSubmit={(event) => void handleSubmit(event)}>
           <label className="field">
-            <span>Passphrase</span>
+            <span>{t.passphrase}</span>
             <input
               type={showPassphrase ? "text" : "password"}
               value={passphrase}
               onChange={(event) => setPassphrase(event.target.value)}
-              placeholder="Operator passphrase"
+              placeholder={t.passphrasePlaceholder}
               autoComplete="current-password"
               autoFocus
             />
@@ -269,10 +633,10 @@ export function LoginGate({ onAuthenticated }: { onAuthenticated: () => void }) 
               checked={showPassphrase}
               onChange={(event) => setShowPassphrase(event.target.checked)}
             />
-            <span>Show passphrase</span>
+            <span>{t.showPassphrase}</span>
           </label>
           <button type="submit" disabled={submitting}>
-            {submitting ? "Signing in…" : "Sign in"}
+            {submitting ? t.signingIn : t.signIn}
           </button>
         </form>
       </section>
@@ -316,11 +680,12 @@ function Panel({
   const [devices, setDevices] = useState<Device[]>([]);
   // Tab state persists so a page refresh keeps the operator in whichever
   // surface they were using. Default "main" on first load.
-  const [activeTab, setActiveTab] = useState<"main" | "config">(() => readTab());
-  // Historical backfill defaults COLLAPSED because expanding triggers a
-  // /api/backfill/candidates call against Plaud; a fresh page load should
-  // not hit the wire until the operator asks for the backfill surface.
-  const [backfillExpanded, setBackfillExpanded] = useState<boolean>(() => readBackfillExpanded());
+  const [activeTab, setActiveTab] = useState<ActiveTab>(() => readTab());
+  const [language, setLanguage] = useState<OperatorLanguage>(() => readLanguage());
+  const t = COPY[language];
+  const [libraryQuery, setLibraryQuery] = useState("");
+  const [playerMode, setPlayerMode] = useState<"compact" | "full">("compact");
+  const [playingRecordingId, setPlayingRecordingId] = useState<string | null>(null);
 
   useEffect(() => {
     try {
@@ -332,11 +697,11 @@ function Panel({
 
   useEffect(() => {
     try {
-      window.localStorage?.setItem(STORAGE_KEYS.BACKFILL_EXPANDED, String(backfillExpanded));
+      window.localStorage?.setItem(STORAGE_KEYS.LANGUAGE, language);
     } catch {
       // same
     }
-  }, [backfillExpanded]);
+  }, [language]);
 
   useEffect(() => {
     void refreshSnapshot();
@@ -482,10 +847,8 @@ function Panel({
   async function handleDeleteRecording(recording: RecordingMirror): Promise<void> {
     const sizeMb = (recording.bytesWritten / (1024 * 1024)).toFixed(1);
     const confirmed = window.confirm(
-      `Delete local mirror of "${recording.title}"?\n\n` +
-      `This removes the audio file (${sizeMb} MB) and marks the recording as dismissed, ` +
-      `so future syncs will not re-download it. Plaud keeps the recording in your account. ` +
-      `You can restore it later from the "Show dismissed" view.`,
+      `${t.deleteConfirmPrefix} "${recording.title}"?\n\n` +
+      `${t.deleteConfirmBody} (${sizeMb} MB)`,
     );
     if (!confirmed) {
       return;
@@ -496,7 +859,7 @@ function Panel({
         method: "DELETE",
       });
       await refreshSnapshot();
-      return `Dismissed "${recording.title}". Local file removed.`;
+      return `${t.dismissedResult} "${recording.title}".`;
     });
   }
 
@@ -506,14 +869,14 @@ function Panel({
         method: "POST",
       });
       await refreshSnapshot();
-      return `Restored and re-downloaded "${recording.title}".`;
+      return `${t.restoredResult} "${recording.title}".`;
     });
   }
 
   async function handleSaveToken(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
     if (!tokenInput.trim()) {
-      setOperationError("Paste a Plaud bearer token before saving.");
+      setOperationError(t.tokenRequired);
       return;
     }
 
@@ -528,7 +891,7 @@ function Panel({
       setAuth(nextAuth);
       setTokenInput("");
       await refreshSnapshot();
-      return "Bearer token saved and validated.";
+      return t.tokenSaved;
     });
   }
 
@@ -550,18 +913,18 @@ function Panel({
     } catch {
       // Clipboard API unavailable (insecure context / old browser): fall back
       // to a prompt the operator can copy from manually.
-      window.prompt("Copia esta dirección y pégala como URL de un marcador nuevo:", bookmarklet);
+      window.prompt(t.copyPrompt, bookmarklet);
     }
   }
 
   function handleReconnectPlaud(): void {
     const opened = window.open(PLAUD_WEB_APP_URL, "_blank", "noopener");
     if (opened) {
-      setOperationResult("Pestaña de Plaud abierta. Preparando la sesión de captura...");
+      setOperationResult(t.tabOpened);
     } else {
       // Some browsers still block the popup; the capture session is minted
       // anyway, so the operator can open Plaud by hand and press the extension.
-      setOperationError("Tu navegador bloqueó la pestaña. Preparando la sesión de captura para que abras app.plaud.ai manualmente.");
+      setOperationError(t.popupBlocked);
     }
     void requestJson<{ captureId: string }>("/api/connect/start", { method: "POST" })
       .then(({ captureId }) => {
@@ -572,8 +935,8 @@ function Panel({
         }
         setOperationResult(
           opened
-            ? "Sesión de captura lista. En la pestaña de Plaud, inicia sesión si hace falta y pulsa la extensión \"Plaud Mirror Connector\"."
-            : "Sesión de captura lista. Abre app.plaud.ai manualmente, inicia sesión si hace falta y pulsa la extensión \"Plaud Mirror Connector\".",
+            ? t.resultReady
+            : t.resultReadyManual,
         );
       })
       .catch((error) => {
@@ -600,7 +963,7 @@ function Panel({
       setConfig(nextConfig);
       setWebhookSecretInput("");
       await refreshSnapshot();
-      return "Webhook configuration updated.";
+      return t.webhookUpdated;
     });
   }
 
@@ -636,8 +999,8 @@ function Panel({
       setSchedulerMinutesInput(formatSchedulerInput(nextConfig.schedulerIntervalMs));
       await refreshSnapshot();
       return intervalMs === 0
-        ? "Continuous sync scheduler disabled."
-        : `Continuous sync scheduler set to ${intervalMs / 60_000} min.`;
+        ? t.schedulerDisabled
+        : `${t.schedulerSet} ${intervalMs / 60_000} min.`;
     });
   }
 
@@ -708,604 +1071,700 @@ function Panel({
     }
   }
 
+  const activeRun = health?.activeRun ?? null;
+  const syncRunning = Boolean(activeRun && activeRun.status === "running");
+  const authState = auth?.state ?? health?.auth.state ?? "missing";
+  const authConfigured = auth?.configured ?? health?.auth.configured ?? false;
+  const authInvalid = authState === "invalid" || authState === "degraded";
+  const authMissing = !authConfigured || authState === "missing";
+  const localCount = health?.recordingsCount ?? recordings.length;
+  const dismissedCount = health?.dismissedCount ?? 0;
+  const plaudTotal = health?.lastSync?.plaudTotal ?? null;
+  const missingCount = plaudTotal == null ? null : Math.max(0, plaudTotal - localCount - dismissedCount);
+  const coverage = plaudTotal && plaudTotal > 0 ? Math.max(0, Math.min(100, (localCount / plaudTotal) * 100)) : 0;
+  const coverageLabel = plaudTotal == null ? "--" : coverage.toFixed(1) + "%";
+  const outboxTotal = (health?.outbox.pending ?? 0) + (health?.outbox.retryWaiting ?? 0) + (health?.outbox.permanentlyFailed ?? 0);
+  const outboxProblem = (health?.outbox.permanentlyFailed ?? 0) > 0 || (health?.outbox.retryWaiting ?? 0) > 0;
+  const recentErrors = health?.lastErrors ?? [];
+  const recentRuns = health?.recentSyncRuns ?? (lastRun ? [lastRun] : []);
+  const firstRunEmpty = !loading && localCount === 0 && !authConfigured;
+  const deviceCatalog = useMemo(() => new Map(devices.map((device) => [device.serialNumber, device])), [devices]);
+  const filteredRecordings = useMemo(() => {
+    const query = libraryQuery.trim().toLowerCase().replace(/^#/, "");
+    if (!query) {
+      return recordings;
+    }
+    return recordings.filter((recording) => {
+      const sequence = recording.sequenceNumber == null ? "" : String(recording.sequenceNumber);
+      return recording.title.toLowerCase().includes(query) || recording.id.toLowerCase().includes(query) || sequence.includes(query);
+    });
+  }, [libraryQuery, recordings]);
+  const pageStart = totalRecordings === 0 ? 0 : page * pageSize + 1;
+  const pageEnd = page * pageSize + recordings.length;
+  const totalPages = Math.max(1, Math.ceil(totalRecordings / pageSize));
+
   return (
-    <div className={`shell${busy ? " working" : ""}`}>
-      <div className="hero">
-        <div>
-          <p className="eyebrow">Plaud Mirror</p>
-          <h1>Manual-token sync panel</h1>
-          <p className="lede">
-            This is the first usable slice: bearer-token auth, manual sync and
-            filtered backfill, local mirroring, and signed webhook delivery.
-          </p>
-        </div>
-        <div className="hero-status">
-          <Metric label="Version" value={health?.version ?? "loading"} />
-          <Metric label="Auth" value={auth?.state ?? "unknown"} />
-          <Metric
-            label="Recordings"
-            value={formatRecordingsMetric(
-              health?.recordingsCount ?? recordings.length,
-              health?.lastSync?.plaudTotal ?? null,
-            )}
-          />
-          {authRequired ? (
-            <button type="button" className="secondary" onClick={() => void handleLogout()}>
-              Log out
-            </button>
-          ) : null}
-        </div>
-      </div>
-
-      <div className="tab-bar" role="tablist">
-        <button
-          type="button"
-          role="tab"
-          aria-selected={activeTab === "main"}
-          className={activeTab === "main" ? "tab tab-active" : "tab"}
-          onClick={() => setActiveTab("main")}
-        >
-          Main
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={activeTab === "config"}
-          className={activeTab === "config" ? "tab tab-active" : "tab"}
-          onClick={() => setActiveTab("config")}
-        >
-          Configuration
-        </button>
-      </div>
-
-      {busy ? <Banner tone="info" message={describeBusy(activeRunId, health?.activeRun ?? null)} /> : null}
-      {operationError ? <Banner tone="error" message={operationError} /> : null}
-      {operationResult ? <Banner tone="success" message={operationResult} /> : null}
-
-      {activeTab === "config" ? (
-      <div className="grid two-up">
-        <section className="card">
-          <header className="card-header">
+    <div className={"operator-page" + (busy ? " working" : "")}>
+      <div className="operator-frame">
+        <aside className="operator-rail">
+          <div className="rail-brand">
+            <span className="rail-logo" aria-hidden="true">↻</span>
             <div>
-              <p className="kicker">Auth</p>
-              <h2>Plaud token</h2>
-            </div>
-            <StatusPill state={auth?.state ?? "missing"} />
-          </header>
-
-          <dl className="details">
-            <Detail label="Configured" value={auth?.configured ? "yes" : "no"} />
-            <Detail label="Resolved API" value={auth?.resolvedApiBase ?? "not validated yet"} />
-            <Detail label="Last validated" value={formatDateTime(auth?.lastValidatedAt)} />
-          </dl>
-
-          <form className="stack" onSubmit={(event) => void handleSaveToken(event)}>
-            <label className="field">
-              <span>Bearer token</span>
-              <input
-                type="password"
-                value={tokenInput}
-                onChange={(event) => setTokenInput(event.target.value)}
-                placeholder="Paste the Plaud bearer token"
-                autoComplete="off"
-              />
-            </label>
-            <button type="submit" disabled={busy}>
-              Save and validate token
-            </button>
-          </form>
-
-          <div className="reconnect-block">
-            <p className="kicker">Extensión Chrome (recomendado)</p>
-            <p className="muted">
-              La extensión local evita DevTools, copiar tokens y marcadores
-              javascript. Se instala una vez desde el repo y después captura el
-              token desde la pestaña de Plaud con un botón del navegador.
-            </p>
-
-            <p className="muted small"><strong>Paso 1 — instalar la extensión una vez:</strong></p>
-            <ul className="muted small" style={{ marginTop: 0 }}>
-              <li>Abre <code>chrome://extensions</code> y activa Developer mode.</li>
-              <li>Load unpacked → <code>apps/chrome-extension</code>.</li>
-              <li>Fija "Plaud Mirror Connector" en la barra de Chrome.</li>
-            </ul>
-
-            <p className="muted small"><strong>Paso 2 — usarlo:</strong> pulsa
-              "Reconectar Plaud" (abre la web de Plaud) → inicia sesión si hace falta
-              → y <strong>en la pestaña de Plaud</strong> pulsa la extensión
-              "Plaud Mirror Connector" → Send token to mirror.</p>
-            <div className="button-row">
-              <button type="button" disabled={busy} onClick={() => handleReconnectPlaud()}>
-                Reconectar Plaud
-              </button>
-            </div>
-
-            <p className="muted small"><strong>Fallback bookmarklet:</strong> si no quieres usar la extensión, copia el marcador y créalo manualmente. No lo arrastres desde un enlace: React bloquea los <code>javascript:</code> en <code>href</code>.</p>
-            <div className="button-row">
-              <button type="button" className="secondary" onClick={() => void handleCopyBookmarklet()}>
-                {bookmarkletCopied ? "¡Copiado!" : "Copiar bookmarklet"}
-              </button>
+              <div className="rail-title">Plaud Mirror</div>
+              <div className="rail-subtitle mono">{t.selfHosted} · v{health?.version ?? "..."}</div>
             </div>
           </div>
-        </section>
 
-        <section className="card">
-          <header className="card-header">
-            <div>
-              <p className="kicker">Delivery</p>
-              <h2>Webhook</h2>
-            </div>
-            <StatusPill state={config?.webhookUrl ? "healthy" : "missing"} />
-          </header>
-
-          <dl className="details">
-            <Detail label="Target" value={config?.webhookUrl ?? "disabled"} />
-            <Detail label="HMAC secret" value={config?.hasWebhookSecret ? "configured" : "missing"} />
-            <Detail label="Last run" value={lastRun ? summarizeRun("Last run", lastRun) : "none yet"} />
-          </dl>
-
-          <form className="stack" onSubmit={(event) => void handleSaveConfig(event)}>
-            <label className="field">
-              <span>Webhook URL</span>
-              <input
-                type="url"
-                value={webhookUrlInput}
-                onChange={(event) => setWebhookUrlInput(event.target.value)}
-                placeholder="https://example.internal/hooks/plaud"
-              />
-            </label>
-            <label className="field">
-              <span>Webhook HMAC secret</span>
-              <input
-                type="password"
-                value={webhookSecretInput}
-                onChange={(event) => setWebhookSecretInput(event.target.value)}
-                placeholder="Only sent when you update it"
-                autoComplete="off"
-              />
-            </label>
-            <button type="submit" disabled={busy}>
-              Save webhook settings
-            </button>
-          </form>
-        </section>
-
-        <section className="card">
-          <header className="card-header">
-            <div>
-              <p className="kicker">Automation</p>
-              <h2>Continuous sync scheduler</h2>
-            </div>
-            <StatusPill state={health?.scheduler.enabled ? "healthy" : "missing"} />
-          </header>
-
-          <p className="muted">
-            When enabled, the service runs a sync automatically every N
-            minutes. Concurrent runs are absorbed (a tick that fires while
-            a manual or scheduled run is still in flight is recorded as
-            <code>skipped</code>). 0 disables the scheduler; the floor when
-            enabled is 1 minute.
-          </p>
-
-          <dl className="details">
-            <Detail
-              label="State"
-              value={health?.scheduler.enabled ? "enabled" : "disabled"}
-            />
-            <Detail
-              label="Interval"
-              value={
-                health?.scheduler.enabled
-                  ? `${(health.scheduler.intervalMs / 60_000).toString()} min`
-                  : "—"
-              }
-            />
-            <Detail
-              label="Next tick"
-              value={formatDateTime(health?.scheduler.nextTickAt)}
-            />
-            <Detail
-              label="Last tick"
-              value={
-                health?.scheduler.lastTickStatus
-                  ? `${health.scheduler.lastTickStatus} (${formatDateTime(health.scheduler.lastTickAt)})`
-                  : "no ticks yet"
-              }
-            />
-            {health?.scheduler.lastTickError ? (
-              <Detail label="Last tick reason" value={health.scheduler.lastTickError} />
-            ) : null}
-          </dl>
-
-          <form className="stack" onSubmit={(event) => void handleSaveScheduler(event)}>
-            <label className="field">
-              <span>Interval (minutes, 0 disables)</span>
-              <input
-                type="number"
-                min={0}
-                step={1}
-                value={schedulerMinutesInput}
-                onChange={(event) => setSchedulerMinutesInput(event.target.value)}
-                placeholder="0 = disabled · 15 = every 15 min"
-              />
-            </label>
-            <button type="submit" disabled={busy}>
-              Save scheduler settings
-            </button>
-          </form>
-        </section>
-
-        <section className="card">
-          <header className="card-header">
-            <div>
-              <p className="kicker">Delivery queue</p>
-              <h2>Webhook outbox</h2>
-            </div>
-            <StatusPill state={outboxPillState(health, failedOutboxItems.length)} />
-          </header>
-
-          <p className="muted">
-            Each successful sync enqueues one webhook payload here. The
-            worker retries with exponential backoff (30s, 2m, 10m, 30m, 1h,
-            2h, 4h, 8h) and escalates to <code>permanently_failed</code>
-            after 8 attempts. Failed items are listed below with a Retry
-            button — Retry resets the row to <code>pending</code>; the
-            worker picks it up on its next tick.
-          </p>
-
-          <dl className="details">
-            <Detail label="Pending" value={String(health?.outbox.pending ?? 0)} />
-            <Detail label="Retry waiting" value={String(health?.outbox.retryWaiting ?? 0)} />
-            <Detail label="Permanently failed" value={String(health?.outbox.permanentlyFailed ?? 0)} />
-            <Detail
-              label="Oldest pending age"
-              value={
-                health?.outbox.oldestPendingAgeMs != null
-                  ? formatDuration(Math.round(health.outbox.oldestPendingAgeMs / 1000))
-                  : "—"
-              }
-            />
-          </dl>
-
-          {failedOutboxItems.length === 0 ? (
-            <p className="muted">No permanently-failed items.</p>
-          ) : (
-            <ul className="stack" style={{ listStyle: "none", padding: 0 }}>
-              {failedOutboxItems.map((item) => (
-                <li
-                  key={item.id}
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    gap: "0.75rem",
-                    padding: "0.5rem 0",
-                    borderTop: "1px solid var(--border-color, #ddd)",
-                  }}
-                >
-                  <div style={{ minWidth: 0, flex: 1 }}>
-                    <div><strong>{item.recordingId}</strong> · {item.attempts} attempts</div>
-                    <div className="muted" style={{ fontSize: "0.85em", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {item.lastError ?? "no error message"}
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={() => void handleRetryOutboxItem(item)}
-                  >
-                    Retry
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
-      </div>
-      ) : null}
-
-      {activeTab === "main" ? (
-      <>
-      <div className="stack-sections">
-        <section className="card">
-          <header className="card-header">
-            <div>
-              <p className="kicker">Controls</p>
-              <h2>Manual sync</h2>
-            </div>
-          </header>
-          <p className="muted">
-            Download up to N recordings that are missing from your local mirror,
-            newest first. Skips recordings that are already mirrored or that
-            you&apos;ve dismissed. Force download overrides the "already
-            mirrored" check.
-          </p>
-          <dl className="details">
-            <Detail
-              label="Last run"
-              value={lastRun ? summarizeRun("", lastRun).trim().replace(/^:\s*/, "") : "none yet"}
-            />
-            <Detail
-              label="Plaud total"
-              value={lastRun?.plaudTotal != null ? String(lastRun.plaudTotal) : "unknown until first sync"}
-            />
-            <Detail
-              label="Mirrored locally"
-              value={String(health?.recordingsCount ?? recordings.length)}
-            />
-            <Detail
-              label="Dismissed"
-              value={String(health?.dismissedCount ?? 0)}
-            />
-            <Detail
-              label="Missing"
-              value={computeMissing(health)}
-            />
-          </dl>
-          <div className="stack">
-            <label className="field">
-              <span>Sync limit (0 = refresh stats only, no download)</span>
-              <input
-                type="number"
-                min="0"
-                max="1000"
-                value={backfill.limit}
-                onChange={(event) =>
-                  setBackfill((current) => ({ ...current, limit: event.target.value }))
-                }
-              />
-            </label>
-            <p className="muted small">
-              Default is 1 recording per click to avoid accidental bulk downloads. Raise this
-              value deliberately before running a larger sync. Set to 0 (or use the dedicated
-              button below) to refresh Plaud counts without downloading anything.
-            </p>
-            <label className="checkbox">
-              <input
-                type="checkbox"
-                checked={backfill.forceDownload}
-                onChange={(event) =>
-                  setBackfill((current) => ({ ...current, forceDownload: event.target.checked }))
-                }
-              />
-              <span>Force a fresh download even if the file already exists</span>
-            </label>
-            <div className="button-row">
-              <button type="button" disabled={busy} onClick={() => void handleRunSync()}>
-                {busy ? "Running…" : "Run sync now"}
-              </button>
-              <button type="button" className="secondary" disabled={busy} onClick={() => void handleRefreshServerStats()}>
-                Refresh server stats
-              </button>
-            </div>
-            {activeRunId && health?.activeRun?.id === activeRunId ? (
-              <p className="inline-status">{describeBusy(activeRunId, health.activeRun)}</p>
-            ) : null}
-          </div>
-        </section>
-
-        <section className={`card${backfillExpanded ? "" : " card-collapsed"}`}>
-          <header
-            className="card-header card-header-collapsible"
-            role="button"
-            tabIndex={0}
-            aria-expanded={backfillExpanded}
-            onClick={() => setBackfillExpanded((v) => !v)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" || event.key === " ") {
-                event.preventDefault();
-                setBackfillExpanded((v) => !v);
-              }
-            }}
-          >
-            <div>
-              <p className="kicker">Controls</p>
-              <h2>Historical backfill</h2>
-            </div>
-            <span className="collapse-caret" aria-hidden="true">
-              {backfillExpanded ? "▼" : "▶"}
-            </span>
-          </header>
-          {backfillExpanded ? (
-          <>
-          <p className="muted">
-            Same behavior as Manual sync (download up to N missing, newest
-            first), but only from recordings that match the filters below.
-          </p>
-
-          <form className="stack" onSubmit={(event) => void handleRunBackfill(event)}>
-            <div className="grid compact-grid">
-              <label className="field">
-                <span>From</span>
-                <input
-                  type="date"
-                  value={backfill.from}
-                  onChange={(event) =>
-                    setBackfill((current) => ({ ...current, from: event.target.value }))
-                  }
-                />
-              </label>
-              <label className="field">
-                <span>To</span>
-                <input
-                  type="date"
-                  value={backfill.to}
-                  onChange={(event) =>
-                    setBackfill((current) => ({ ...current, to: event.target.value }))
-                  }
-                />
-              </label>
-            </div>
-
-            <label className="field">
-              <span>Device</span>
-              <select
-                value={backfill.serialNumber}
-                onChange={(event) =>
-                  setBackfill((current) => ({ ...current, serialNumber: event.target.value }))
-                }
+          <nav className="rail-nav" aria-label="Plaud Mirror">
+            {TAB_ORDER.map((tab) => (
+              <button
+                key={tab}
+                type="button"
+                className={"rail-link" + (activeTab === tab ? " rail-link-active" : "")}
+                onClick={() => setActiveTab(tab)}
               >
-                <option value="">Any device</option>
-                {devices.map((device) => (
-                  <option key={device.serialNumber} value={device.serialNumber}>
-                    {formatDeviceLabel(device)}
-                  </option>
-                ))}
-              </select>
-              {devices.length === 0 ? (
-                <span className="muted small">
-                  No devices detected yet — run a sync to populate this list.
-                </span>
-              ) : null}
-            </label>
-
-            <BackfillPreview
-              filters={{
-                from: backfill.from,
-                to: backfill.to,
-                serialNumber: backfill.serialNumber,
-              }}
-              devices={devices}
-            />
-
-            <button type="submit" disabled={busy}>
-              Run filtered backfill
-            </button>
-            {activeRunId && health?.activeRun?.id === activeRunId ? (
-              <p className="inline-status">{describeBusy(activeRunId, health.activeRun)}</p>
-            ) : null}
-          </form>
-          </>
-          ) : null}
-        </section>
-      </div>
-
-      <section className="card">
-        <header className="card-header">
-          <div>
-            <p className="kicker">Library</p>
-            <h2>Mirrored recordings</h2>
-          </div>
-          <div className="library-actions">
-            <label className="checkbox">
-              <input
-                type="checkbox"
-                checked={showDismissed}
-                onChange={(event) => {
-                  setShowDismissed(event.target.checked);
-                  setPage(0);
-                }}
-              />
-              <span>Show dismissed</span>
-            </label>
-            <label className="checkbox">
-              <span>Per page</span>
-              <select
-                value={pageSize}
-                onChange={(event) => {
-                  setPageSize(Number(event.target.value));
-                  setPage(0);
-                }}
-              >
-                <option value={25}>25</option>
-                <option value={50}>50</option>
-                <option value={100}>100</option>
-                <option value={200}>200</option>
-              </select>
-            </label>
-            <button type="button" className="secondary" disabled={busy || loading} onClick={() => void refreshSnapshot()}>
-              Refresh
-            </button>
-          </div>
-        </header>
-
-        <PageBar
-          page={page}
-          pageSize={pageSize}
-          total={totalRecordings}
-          shown={recordings.length}
-          onPrev={() => setPage((current) => Math.max(0, current - 1))}
-          onNext={() => setPage((current) => current + 1)}
-          disabled={loading || busy}
-        />
-
-        {loading ? <p className="muted">Loading current state…</p> : null}
-        {!loading && recordings.length === 0 ? (
-          <p className="muted">
-            {showDismissed ? "No recordings match the current view." : "No local recordings yet."}
-          </p>
-        ) : null}
-
-        {recordings.length > 0 ? (
-          <div className="recordings-list">
-            {recordings.map((recording, index) => (
-              <article
-                className={`recording-row${recording.dismissed ? " recording-row-dismissed" : ""}`}
-                key={recording.id}
-              >
-                <div className="recording-main">
-                  <p className="recording-title">
-                    <span className="recording-index">
-                      #{recording.sequenceNumber ?? "?"}
-                    </span>
-                    {recording.title}
-                  </p>
-                  <p className="recording-meta">
-                    {formatDateTime(recording.createdAt)} · {formatDuration(recording.durationSeconds)}
-                  </p>
-                  {recording.dismissed ? (
-                    <p className="recording-meta">
-                      Dismissed {formatDateTime(recording.dismissedAt)}
-                    </p>
-                  ) : recording.localPath ? (
-                    <audio
-                      controls
-                      preload="none"
-                      className="recording-audio"
-                      src={`/api/recordings/${encodeURIComponent(recording.id)}/audio`}
-                    />
-                  ) : null}
-                </div>
-                <div className="recording-side">
-                  <div className="recording-badges">
-                    <span className="badge">{recording.contentType ?? "unknown"}</span>
-                    <span className="badge">{formatBytes(recording.bytesWritten)}</span>
-                    <span className={`badge badge-${recording.lastWebhookStatus ?? "neutral"}`}>
-                      webhook {recording.lastWebhookStatus ?? "pending"}
-                    </span>
-                    {recording.dismissed ? <span className="badge badge-dismissed">dismissed</span> : null}
-                  </div>
-                  <div className="recording-controls">
-                    {recording.dismissed ? (
-                      <button
-                        type="button"
-                        className="secondary"
-                        disabled={busy}
-                        onClick={() => void handleRestoreRecording(recording)}
-                      >
-                        Restore (re-download now)
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        className="danger"
-                        disabled={busy || !recording.localPath}
-                        onClick={() => void handleDeleteRecording(recording)}
-                      >
-                        Delete local mirror
-                      </button>
-                    )}
-                  </div>
-                </div>
-              </article>
+                <span className="nav-glyph" aria-hidden="true">{tabGlyph(tab)}</span>
+                <span>{tabLabel(tab, t)}</span>
+              </button>
             ))}
+          </nav>
+
+          <div className="rail-footer">
+            <div className="language-toggle" aria-label="Language">
+              <button
+                type="button"
+                className={language === "es" ? "active" : ""}
+                onClick={() => setLanguage("es")}
+              >ES</button>
+              <button
+                type="button"
+                className={language === "en" ? "active" : ""}
+                onClick={() => setLanguage("en")}
+              >EN</button>
+            </div>
+            {authRequired ? (
+              <button type="button" className="rail-logout" onClick={() => void handleLogout()}>
+                <span className="nav-glyph" aria-hidden="true">⇥</span>
+                <span>{t.logout}</span>
+              </button>
+            ) : null}
           </div>
-        ) : null}
-      </section>
-      </>
-      ) : null}
+        </aside>
+
+        <main className="operator-main">
+          <section className="status-strip" aria-label="Runtime status">
+            <StatusSegment
+              label={t.statusAuth}
+              value={authMissing ? t.noToken : authState === "healthy" ? t.healthy : authState === "degraded" ? t.degraded : t.invalid}
+              tone={authMissing ? "muted" : authInvalid ? "bad" : "good"}
+              onClick={() => setActiveTab("config")}
+            />
+            <StatusSegment
+              label={t.statusSync}
+              value={syncRunning ? t.running : t.idle}
+              tone={syncRunning ? "info" : "muted"}
+              spinning={syncRunning}
+            />
+            <StatusSegment
+              label={t.statusScheduler}
+              value={health?.scheduler.enabled ? schedulerStatusLabel(health.scheduler, t) : t.off}
+              tone={health?.scheduler.enabled ? "good" : "muted"}
+            />
+            <StatusSegment
+              label={t.statusOutbox}
+              value={String(outboxTotal)}
+              tone={outboxProblem ? "warn" : outboxTotal > 0 ? "info" : "muted"}
+              onClick={() => setActiveTab("ops")}
+            />
+            <StatusSegment
+              label={t.statusErrors}
+              value={String(recentErrors.length)}
+              tone={recentErrors.length > 0 ? "warn" : "muted"}
+              onClick={() => setActiveTab("ops")}
+            />
+          </section>
+
+          {authInvalid && !firstRunEmpty ? (
+            <section className="auth-banner">
+              <span className="banner-icon" aria-hidden="true">!</span>
+              <div>
+                <h2>{t.authBannerTitle}</h2>
+                <p>{auth?.lastError ?? health?.auth.lastError ?? t.authBannerBody}</p>
+              </div>
+              <button type="button" className="danger-button" onClick={() => setActiveTab("config")}>{t.reconnect}</button>
+            </section>
+          ) : null}
+
+          <div className="feedback-stack">
+            {busy ? <Banner tone="info" message={describeBusy(activeRunId, activeRun)} /> : null}
+            {operationError ? <Banner tone="error" message={operationError} /> : null}
+            {operationResult ? <Banner tone="success" message={operationResult} /> : null}
+          </div>
+
+          <div className="operator-content">
+            {activeTab === "main" ? (
+              <section>
+                <HeaderRow
+                  title={t.navMain}
+                  subtitle={firstRunEmpty ? t.mainSubtitleEmpty : t.mainSubtitleLive}
+                  action={syncRunning ? (
+                    <button type="button" className="ghost-button info" disabled>{t.syncing}</button>
+                  ) : (
+                    <button type="button" className="ghost-button" title={t.refreshTitle} disabled={busy} onClick={() => void handleRefreshServerStats()}>{t.refreshStats}</button>
+                  )}
+                />
+
+                {firstRunEmpty ? (
+                  <section className="empty-panel">
+                    <span className="empty-icon" aria-hidden="true">♪</span>
+                    <h2>{t.emptyTitle}</h2>
+                    <p>{t.emptyBody}</p>
+                    <button type="button" onClick={() => setActiveTab("config")}>{t.connectPlaud}</button>
+                    <span className="mono empty-meta">{t.emptyMeta}</span>
+                  </section>
+                ) : (
+                  <>
+                    {syncRunning ? (
+                      <section className="next-card sync-running-card">
+                        <div className="spinner" aria-hidden="true" />
+                        <div>
+                          <strong>{describeBusy(activeRunId, activeRun)}</strong>
+                          <span className="mono">{runMeta(activeRun, t)}</span>
+                        </div>
+                        <ProgressBar value={progressForRun(activeRun)} tone="info" />
+                      </section>
+                    ) : missingCount != null && missingCount > 0 && !authInvalid ? (
+                      <section className="next-card">
+                        <span className="next-icon" aria-hidden="true">↓</span>
+                        <div>
+                          <span className="mono next-label">{t.nextAction}</span>
+                          <strong>{missingCount} {t.missingAction}</strong>
+                        </div>
+                        <button type="button" disabled={busy} onClick={() => void handleRunSync()}>{t.syncMissing}</button>
+                      </section>
+                    ) : null}
+
+                    <div className="metric-grid">
+                      <MetricTile label={t.inPlaud} value={plaudTotal == null ? "--" : formatInteger(plaudTotal)} />
+                      <MetricTile label={t.local} value={formatInteger(localCount)} tone="good" />
+                      <MetricTile label={t.missing} value={missingCount == null ? "--" : formatInteger(missingCount)} tone="warn" />
+                      <MetricTile label={t.dismissed} value={formatInteger(dismissedCount)} tone="muted" />
+                    </div>
+
+                    <section className="panel-card coverage-card">
+                      <div className="split-row">
+                        <strong>{t.coverage}</strong>
+                        <span className="mono">{coverageLabel} · {formatRecordingsMetric(localCount, plaudTotal)}</span>
+                      </div>
+                      <ProgressBar value={coverage} />
+                    </section>
+
+                    <div className="main-lower-grid">
+                      <section className="panel-card table-card">
+                        <div className="card-title-row">
+                          <strong>{t.lastSync}</strong>
+                          <StatePill tone={lastRun?.status === "failed" ? "bad" : "good"} label={lastRun?.status ?? t.noneYet} />
+                        </div>
+                        <p className="mono subdued">{lastRun ? formatRunLine(lastRun) : t.noneYet}</p>
+                        <RunStats run={lastRun} t={t} />
+                      </section>
+                      <section className="panel-card">
+                        <div className="card-title-row"><strong>{t.recentErrors}</strong></div>
+                        <ErrorList errors={recentErrors.slice(0, 3)} emptyLabel={t.noRecentErrors} />
+                      </section>
+                    </div>
+                  </>
+                )}
+              </section>
+            ) : null}
+
+            {activeTab === "library" ? (
+              <section>
+                <HeaderRow
+                  title={t.navLibrary}
+                  subtitle={formatInteger(totalRecordings) + " " + t.librarySubtitle + " · " + formatInteger(dismissedCount) + " " + t.dismissed.toLowerCase()}
+                  action={<button type="button" className="ghost-button" disabled={busy} onClick={() => void handleRefreshServerStats()}>{t.scanPlaud}</button>}
+                />
+                <div className="library-toolbar">
+                  <label className="search-field">
+                    <span aria-hidden="true">⌕</span>
+                    <input value={libraryQuery} onChange={(event) => setLibraryQuery(event.target.value)} placeholder={t.searchPlaceholder} />
+                  </label>
+                  <label className="inline-control"><input type="checkbox" checked={showDismissed} onChange={(event) => { setShowDismissed(event.target.checked); setPage(0); }} /> {t.showDismissed}</label>
+                  <label className="inline-control mono">{t.perPage}
+                    <select value={pageSize} onChange={(event) => { setPageSize(Number(event.target.value)); setPage(0); }}>
+                      <option value={50}>50</option>
+                      <option value={100}>100</option>
+                      <option value={150}>150</option>
+                    </select>
+                  </label>
+                  <div className="segmented-control" aria-label="Player mode">
+                    <button type="button" className={playerMode === "compact" ? "active" : ""} onClick={() => setPlayerMode("compact")}>{t.playerCompact}</button>
+                    <button type="button" className={playerMode === "full" ? "active" : ""} onClick={() => setPlayerMode("full")}>{t.playerFull}</button>
+                  </div>
+                  <span className="mono toolbar-count">{filteredRecordings.length} {t.of} {recordings.length}</span>
+                </div>
+                <div className="library-pagebar">
+                  <span className="mono">{pageStart}-{pageEnd} {t.of} {totalRecordings}</span>
+                  <div className="page-buttons">
+                    <button type="button" className="icon-button" disabled={loading || busy || page === 0} onClick={() => setPage((current) => Math.max(0, current - 1))} aria-label={t.pagePrev}>‹</button>
+                    <span className="mono">{page + 1} / {totalPages}</span>
+                    <button type="button" className="icon-button" disabled={loading || busy || pageEnd >= totalRecordings} onClick={() => setPage((current) => current + 1)} aria-label={t.pageNext}>›</button>
+                  </div>
+                </div>
+                {loading ? <p className="muted small">{t.loadingState}</p> : null}
+                {!loading && filteredRecordings.length === 0 ? <div className="empty-list mono">{libraryQuery ? t.noResults : showDismissed ? t.noRecordingsView : t.noRecordings}</div> : null}
+                <div className="recording-table">
+                  {filteredRecordings.map((recording) => (
+                    <RecordingRow
+                      key={recording.id}
+                      recording={recording}
+                      deviceLabel={formatDeviceShortName(recording.serialNumber, deviceCatalog)}
+                      playerMode={playerMode}
+                      isPlaying={playingRecordingId === recording.id}
+                      onPlay={() => setPlayingRecordingId((current) => current === recording.id ? null : recording.id)}
+                      onDismiss={() => void handleDeleteRecording(recording)}
+                      onRestore={() => void handleRestoreRecording(recording)}
+                      busy={busy}
+                      t={t}
+                    />
+                  ))}
+                </div>
+              </section>
+            ) : null}
+
+            {activeTab === "backfill" ? (
+              <section>
+                <HeaderRow title={t.backfillTitle} subtitle={t.backfillIntro} />
+                <div className="backfill-grid">
+                  <form className="panel-card backfill-filters" onSubmit={(event) => void handleRunBackfill(event)}>
+                    <div className="mono form-kicker">{t.filters}</div>
+                    <div className="field-grid two">
+                      <label className="field compact"><span>{t.from}</span><input type="date" value={backfill.from} onChange={(event) => setBackfill((current) => ({ ...current, from: event.target.value }))} /></label>
+                      <label className="field compact"><span>{t.to}</span><input type="date" value={backfill.to} onChange={(event) => setBackfill((current) => ({ ...current, to: event.target.value }))} /></label>
+                    </div>
+                    <label className="field compact"><span>{t.device}</span><select value={backfill.serialNumber} onChange={(event) => setBackfill((current) => ({ ...current, serialNumber: event.target.value }))}><option value="">{t.anyDevice}</option>{devices.map((device) => <option key={device.serialNumber} value={device.serialNumber}>{formatDeviceLabel(device)}</option>)}</select></label>
+                    <label className="field compact"><span>{t.downloadLimit}</span><input type="number" min="0" max="1000" value={backfill.limit} onChange={(event) => setBackfill((current) => ({ ...current, limit: event.target.value }))} /></label>
+                    <label className="inline-control"><input type="checkbox" checked={backfill.forceDownload} onChange={(event) => setBackfill((current) => ({ ...current, forceDownload: event.target.checked }))} /> {t.forceDownload}</label>
+                    <button type="submit" disabled={busy}>{t.runBackfill}</button>
+                  </form>
+                  <BackfillPreview
+                    filters={{ from: backfill.from, to: backfill.to, serialNumber: backfill.serialNumber }}
+                    devices={devices}
+                    t={t}
+                  />
+                </div>
+              </section>
+            ) : null}
+
+            {activeTab === "config" ? (
+              <section>
+                <HeaderRow title={t.configTitle} />
+                <section className="panel-card reconnect-card">
+                  <div className="card-title-row">
+                    <div><div className="mono form-kicker">{t.authPlaudToken}</div><strong>{t.reconnectTitle}</strong></div>
+                    <StatePill tone={authState === "healthy" ? "good" : authInvalid ? "bad" : "muted"} label={authState === "healthy" ? t.healthy : authMissing ? t.noToken : t.invalid} />
+                  </div>
+                  <div className="step-grid">
+                    {[t.step1, t.step2, t.step3, t.step4, t.step5].map((step, index) => <StepBox key={step} number={index + 1} label={step} />)}
+                  </div>
+                  <p className="muted small">{t.connectorBody}</p>
+                  <div className="reconnect-actions">
+                    <button type="button" disabled={busy} onClick={() => handleReconnectPlaud()}>{t.reconnect}</button>
+                    <span className="connector-pill">{t.connectorPrimary}</span>
+                    <button type="button" className="bookmarklet-chip" onClick={() => void handleCopyBookmarklet()}>🔖 {t.dragBookmarklet} <span>{bookmarkletCopied ? t.copied : t.copyMobile}</span></button>
+                  </div>
+                  <details className="manual-token-details">
+                    <summary>{t.pasteManual}</summary>
+                    <form className="token-form" onSubmit={(event) => void handleSaveToken(event)}>
+                      <input type="password" value={tokenInput} onChange={(event) => setTokenInput(event.target.value)} placeholder={t.pastePlaceholder} autoComplete="off" />
+                      <button type="submit" className="ghost-button" disabled={busy}>{t.saveValidate}</button>
+                    </form>
+                  </details>
+                </section>
+
+                <div className="config-grid">
+                  <section className="panel-card">
+                    <div className="card-title-row"><div><div className="mono form-kicker">Delivery</div><strong>Webhook</strong></div><StatePill tone={config?.webhookUrl ? "good" : "muted"} label={config?.webhookUrl ? t.configured : t.missingConfig} /></div>
+                    <form className="stack compact" onSubmit={(event) => void handleSaveConfig(event)}>
+                      <label className="field compact"><span>{t.targetUrl}</span><input type="url" value={webhookUrlInput} onChange={(event) => setWebhookUrlInput(event.target.value)} placeholder="https://example.internal/hooks/plaud" /></label>
+                      <label className="field compact"><span>{t.hmacSecret}</span><input type="password" value={webhookSecretInput} onChange={(event) => setWebhookSecretInput(event.target.value)} placeholder="••••••••••••" autoComplete="off" /></label>
+                      <button type="submit" className="ghost-button" disabled={busy}>{t.saveWebhook}</button>
+                    </form>
+                  </section>
+                  <section className="panel-card">
+                    <div className="card-title-row"><div><div className="mono form-kicker">Automation</div><strong>{t.schedulerContinuous}</strong></div><StatePill tone={health?.scheduler.enabled ? "good" : "muted"} label={health?.scheduler.enabled ? t.on : t.off} /></div>
+                    <form className="scheduler-form" onSubmit={(event) => void handleSaveScheduler(event)}>
+                      <label className="field compact"><span>{t.intervalLabel}</span><input type="number" min={0} step={1} value={schedulerMinutesInput} onChange={(event) => setSchedulerMinutesInput(event.target.value)} /></label>
+                      <button type="submit" className="ghost-button" disabled={busy}>{t.save}</button>
+                    </form>
+                    <p className="mono subdued">{schedulerDetail(health?.scheduler ?? null, t)}</p>
+                  </section>
+                  <section className="panel-card technical-card">
+                    <div className="mono form-kicker">{t.technical}</div>
+                    <TechnicalGrid config={config} health={health} auth={auth} t={t} />
+                  </section>
+                </div>
+              </section>
+            ) : null}
+
+            {activeTab === "ops" ? (
+              <section>
+                <HeaderRow title={t.navOps} />
+                <OperationsRuns runs={recentRuns} t={t} />
+                <div className="ops-grid">
+                  <OperationsOutbox items={failedOutboxItems} health={health} busy={busy} onRetry={(item) => void handleRetryOutboxItem(item)} t={t} />
+                  <section className="panel-card">
+                    <div className="card-title-row"><strong>{t.lastErrorsTitle}</strong></div>
+                    <ErrorList errors={recentErrors} emptyLabel={t.noRecentErrors} />
+                  </section>
+                </div>
+              </section>
+            ) : null}
+          </div>
+        </main>
+      </div>
     </div>
   );
+}
+
+function tabLabel(tab: ActiveTab, t: Copy): string {
+  switch (tab) {
+    case "main": return t.navMain;
+    case "library": return t.navLibrary;
+    case "backfill": return t.navBackfill;
+    case "config": return t.navConfig;
+    case "ops": return t.navOps;
+  }
+}
+
+function tabGlyph(tab: ActiveTab): string {
+  switch (tab) {
+    case "main": return "▦";
+    case "library": return "♪";
+    case "backfill": return "⌗";
+    case "config": return "⚙";
+    case "ops": return "⌁";
+  }
+}
+
+function HeaderRow({ title, subtitle, action }: { title: string; subtitle?: string; action?: ReactNode }) {
+  return (
+    <div className="view-header">
+      <div>
+        <h1>{title}</h1>
+        {subtitle ? <p className="mono">{subtitle}</p> : null}
+      </div>
+      {action ? <div className="view-actions">{action}</div> : null}
+    </div>
+  );
+}
+
+function StatusSegment({
+  label,
+  value,
+  tone,
+  spinning = false,
+  onClick,
+}: {
+  label: string;
+  value: string;
+  tone: Tone;
+  spinning?: boolean;
+  onClick?: () => void;
+}) {
+  const content = (
+    <>
+      <span className={"status-dot tone-" + tone + (spinning ? " spinning" : "")} aria-hidden="true" />
+      <span>
+        <span className="mono status-label">{label}</span>
+        <strong>{value}</strong>
+      </span>
+    </>
+  );
+  return onClick ? (
+    <button type="button" className={"status-segment tone-" + tone} onClick={onClick}>{content}</button>
+  ) : (
+    <div className={"status-segment tone-" + tone}>{content}</div>
+  );
+}
+
+function StatePill({ tone, label }: { tone: Tone; label: string }) {
+  return <span className={"state-pill tone-" + tone}>{label}</span>;
+}
+
+function MetricTile({ label, value, tone = "muted" }: { label: string; value: string; tone?: Tone }) {
+  return (
+    <section className="metric-tile">
+      <span className="mono">{label}</span>
+      <strong className={"tone-text-" + tone}>{value}</strong>
+    </section>
+  );
+}
+
+function ProgressBar({ value, tone = "good" }: { value: number; tone?: Tone }) {
+  const clamped = Math.max(0, Math.min(100, Number.isFinite(value) ? value : 0));
+  return (
+    <div className="progress-track" aria-hidden="true">
+      <div className={"progress-fill tone-" + tone} style={{ width: `${clamped}%` }} />
+    </div>
+  );
+}
+
+function StepBox({ number, label }: { number: number; label: string }) {
+  return (
+    <div className="step-box">
+      <span>{number}</span>
+      <p>{label}</p>
+    </div>
+  );
+}
+
+function RunStats({ run, t }: { run: SyncRunSummary | null; t: Copy }) {
+  const values = run
+    ? [
+        [t.examined, run.examined],
+        [t.downloaded, run.downloaded],
+        [t.skipped, run.skipped],
+        [t.queued, run.enqueued],
+      ]
+    : [
+        [t.examined, 0],
+        [t.downloaded, 0],
+        [t.skipped, 0],
+        [t.queued, 0],
+      ];
+  return (
+    <div className="run-stats">
+      {values.map(([label, value]) => (
+        <div key={label}>
+          <strong className="mono">{formatInteger(Number(value))}</strong>
+          <span className="mono">{label}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ErrorList({ errors, emptyLabel }: { errors: ServiceHealth["lastErrors"]; emptyLabel: string }) {
+  if (errors.length === 0) {
+    return <p className="mono empty-list compact">{emptyLabel}</p>;
+  }
+  return (
+    <div className="error-list">
+      {errors.map((error, index) => (
+        <div key={`${error.occurredAt}-${error.subsystem}-${index}`} className="error-row">
+          <span className={"error-subsystem subsystem-" + error.subsystem}>{error.subsystem}</span>
+          <div>
+            <p className="mono">{error.message}</p>
+            <span className="mono">{formatDateTime(error.occurredAt)}</span>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function RecordingRow({
+  recording,
+  deviceLabel,
+  playerMode,
+  isPlaying,
+  onPlay,
+  onDismiss,
+  onRestore,
+  busy,
+  t,
+}: {
+  recording: RecordingMirror;
+  deviceLabel: string;
+  playerMode: "compact" | "full";
+  isPlaying: boolean;
+  onPlay: () => void;
+  onDismiss: () => void;
+  onRestore: () => void;
+  busy: boolean;
+  t: Copy;
+}) {
+  const canPlay = Boolean(recording.localPath) && !recording.dismissed;
+  return (
+    <article className={"recording-line" + (recording.dismissed ? " dismissed" : "")}>
+      <span className="mono recording-sequence">#{recording.sequenceNumber ?? "?"}</span>
+      <div className="recording-copy">
+        <strong>{recording.title}</strong>
+        <span className="mono">
+          {formatDateTime(recording.createdAt)} · {formatDuration(recording.durationSeconds)} · {deviceLabel} · {formatBytes(recording.bytesWritten)}
+        </span>
+      </div>
+      <div className="recording-player">
+        {canPlay ? (
+          playerMode === "full" || isPlaying ? (
+            <audio
+              controls
+              preload="none"
+              className="recording-audio-inline"
+              src={`/api/recordings/${encodeURIComponent(recording.id)}/audio`}
+              onPlay={onPlay}
+            />
+          ) : (
+            <button type="button" className="play-button" onClick={onPlay} title={t.play}>▶ <span className="mono">{formatDuration(recording.durationSeconds)}</span></button>
+          )
+        ) : (
+          <span className="mono no-copy">{t.noLocalCopy}</span>
+        )}
+      </div>
+      <StatePill tone={recording.dismissed ? "warn" : "good"} label={recording.dismissed ? t.dismissedBadge : t.localBadge} />
+      {recording.dismissed ? (
+        <button type="button" className="icon-button good" disabled={busy} onClick={onRestore} title={t.restore}>↻</button>
+      ) : (
+        <button type="button" className="icon-button danger" disabled={busy || !recording.localPath} onClick={onDismiss} title={t.dismiss}>×</button>
+      )}
+    </article>
+  );
+}
+
+function OperationsRuns({ runs, t }: { runs: SyncRunSummary[]; t: Copy }) {
+  return (
+    <section className="panel-card table-card">
+      <div className="card-title-row"><strong>{t.recentRuns}</strong></div>
+      {runs.length === 0 ? <p className="mono empty-list compact">{t.noRuns}</p> : (
+        <table className="ops-table">
+          <thead>
+            <tr>
+              <th>{t.tableState}</th>
+              <th>{t.mode}</th>
+              <th>{t.examined}</th>
+              <th>{t.downloaded}</th>
+              <th>{t.duration}</th>
+              <th>{t.when}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {runs.map((run) => (
+              <tr key={run.id}>
+                <td><StatePill tone={run.status === "failed" ? "bad" : run.status === "running" ? "info" : "good"} label={run.status} /></td>
+                <td className="mono">{run.mode}</td>
+                <td className="mono">{formatInteger(run.examined)}</td>
+                <td className="mono tone-text-good">{formatInteger(run.downloaded)}</td>
+                <td className="mono">{formatRunDuration(run)}</td>
+                <td className="mono muted-cell">{formatDateTime(run.finishedAt ?? run.startedAt)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </section>
+  );
+}
+
+function OperationsOutbox({
+  items,
+  health,
+  busy,
+  onRetry,
+  t,
+}: {
+  items: OutboxItem[];
+  health: ServiceHealth | null;
+  busy: boolean;
+  onRetry: (item: OutboxItem) => void;
+  t: Copy;
+}) {
+  return (
+    <section className="panel-card outbox-card">
+      <div className="card-title-row">
+        <strong>Webhook outbox</strong>
+        <span className="mono subdued">
+          {health?.outbox.pending ?? 0} {t.pendingShort} · {health?.outbox.retryWaiting ?? 0} {t.retryShort} · {health?.outbox.permanentlyFailed ?? 0} {t.failShort}
+        </span>
+      </div>
+      {items.length === 0 ? <p className="mono empty-list compact">{t.noFailedOutbox}</p> : (
+        <div className="outbox-list">
+          {items.map((item) => (
+            <div key={item.id} className="outbox-row">
+              <div>
+                <strong className="mono">{item.recordingId} · {item.attempts} {t.attempts}</strong>
+                <span className="mono">{item.lastError ?? "no error message"}</span>
+              </div>
+              <button type="button" className="ghost-button compact" disabled={busy} onClick={() => onRetry(item)}>{t.retry}</button>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function TechnicalGrid({ config, health, auth, t }: { config: RuntimeConfig | null; health: ServiceHealth | null; auth: AuthStatus | null; t: Copy }) {
+  const rows = [
+    [t.dataDir, config?.dataDir ?? "--"],
+    [t.recordingsDir, config?.recordingsDir ?? "--"],
+    [t.secrets, "data/secrets.enc"],
+    [t.apiBase, auth?.resolvedApiBase ?? health?.auth.resolvedApiBase ?? "--"],
+    [t.defaultSyncLimit, String(config?.defaultSyncLimit ?? "--")],
+    [t.versionRow, `${health?.version ?? "--"} · ${health?.phase ?? "Phase"}`],
+  ];
+  return (
+    <div className="technical-grid">
+      {rows.map(([label, value]) => (
+        <div key={label}>
+          <span>{label}</span>
+          <strong className="mono">{value}</strong>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function schedulerStatusLabel(scheduler: ServiceHealth["scheduler"], t: Copy): string {
+  if (!scheduler.enabled) {
+    return t.off;
+  }
+  const minutes = scheduler.intervalMs / 60_000;
+  return `${t.on} · ${Number.isInteger(minutes) ? minutes : minutes.toFixed(1)}m`;
+}
+
+function schedulerDetail(scheduler: ServiceHealth["scheduler"] | null, t: Copy): string {
+  if (!scheduler?.enabled) {
+    return t.off;
+  }
+  const next = scheduler.nextTickAt ? formatDateTime(scheduler.nextTickAt) : "--";
+  const last = scheduler.lastTickStatus ? `${scheduler.lastTickStatus} · ${formatDateTime(scheduler.lastTickAt)}` : "--";
+  return `next: ${next} · last: ${last} · ${t.schedulerInfo}`;
+}
+
+function runMeta(run: SyncRunSummary | null, t: Copy): string {
+  if (!run) {
+    return "";
+  }
+  return `${run.mode} · ${t.examined} ${run.examined} · ${t.downloaded} ${run.downloaded} · ${t.skipped} ${run.skipped}`;
+}
+
+function progressForRun(run: SyncRunSummary | null): number {
+  if (!run || run.matched <= 0) {
+    return 0;
+  }
+  return (run.downloaded / run.matched) * 100;
+}
+
+function formatRunLine(run: SyncRunSummary): string {
+  return `${run.mode} · ${formatDateTime(run.finishedAt ?? run.startedAt)} · ${formatRunDuration(run)}`;
+}
+
+function formatRunDuration(run: SyncRunSummary): string {
+  if (!run.finishedAt) {
+    return "--";
+  }
+  const start = Date.parse(run.startedAt);
+  const end = Date.parse(run.finishedAt);
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end < start) {
+    return "--";
+  }
+  return formatDuration(Math.round((end - start) / 1000));
+}
+
+function formatInteger(value: number): string {
+  return new Intl.NumberFormat("en-US").format(value).replace(/,/g, " ");
 }
 
 interface BackfillPreviewFilters {
@@ -1323,9 +1782,11 @@ interface BackfillPreviewFilters {
 function BackfillPreview({
   filters,
   devices,
+  t,
 }: {
   filters: BackfillPreviewFilters;
   devices: Device[];
+  t: Copy;
 }) {
   // Map once per render. Cheap and the catalog rarely exceeds a handful.
   const deviceBySerial = new Map(devices.map((device) => [device.serialNumber, device]));
@@ -1371,16 +1832,16 @@ function BackfillPreview({
 
   if (error) {
     return (
-      <div className="preview-panel">
-        <p className="muted small">Preview unavailable: {error}</p>
+      <div className="panel-card preview-card">
+        <p className="muted small">{t.previewUnavailable}: {error}</p>
       </div>
     );
   }
 
   if (loading && !preview) {
     return (
-      <div className="preview-panel">
-        <p className="muted small">Loading preview…</p>
+      <div className="panel-card preview-card">
+        <p className="muted small">{t.loadingPreview}</p>
       </div>
     );
   }
@@ -1391,17 +1852,21 @@ function BackfillPreview({
 
   const shown = preview.recordings.length;
   const truncated = preview.matched > shown;
+  const localCount = preview.matched - preview.missing;
 
   return (
-    <div className="preview-panel">
-      <p className="preview-summary">
-        <strong>{preview.matched}</strong> recording{preview.matched === 1 ? "" : "s"} match —{" "}
-        <strong>{preview.missing}</strong> would be downloaded{" "}
-        <span className="muted">(of {preview.plaudTotal} total in Plaud)</span>
-        {loading ? <span className="muted small"> · refreshing…</span> : null}
-      </p>
+    <div className="panel-card preview-card">
+      <div className="card-title-row">
+        <strong>{t.preview}</strong>
+        <span className="mono subdued">{preview.matched} {t.match} · <span className="tone-text-warn">{preview.missing} {t.wouldDownload}</span>{loading ? " · ..." : ""}</span>
+      </div>
+      <div className="preview-metrics">
+        <MetricTile label={t.match} value={formatInteger(preview.matched)} />
+        <MetricTile label={t.missingCol} value={formatInteger(preview.missing)} tone="warn" />
+        <MetricTile label={t.alreadyLocal} value={formatInteger(localCount)} tone="muted" />
+      </div>
       {preview.recordings.length === 0 ? (
-        <p className="muted small">No recordings match these filters.</p>
+        <p className="muted small">{t.noBackfillMatch}</p>
       ) : (
         <>
           <div className="preview-table-wrap">
@@ -1410,18 +1875,14 @@ function BackfillPreview({
                 <col className="col-rank" />
                 <col />
                 <col className="col-date" />
-                <col className="col-duration" />
-                <col className="col-device" />
                 <col className="col-state" />
               </colgroup>
               <thead>
                 <tr>
                   <th>#</th>
-                  <th>Title</th>
-                  <th>Date</th>
-                  <th>Duration</th>
-                  <th>Device</th>
-                  <th>State</th>
+                  <th>{t.tableTitle}</th>
+                  <th>{t.tableDate}</th>
+                  <th>{t.tableState}</th>
                 </tr>
               </thead>
               <tbody>
@@ -1429,12 +1890,10 @@ function BackfillPreview({
                   <tr key={row.id}>
                     <td className="preview-rank">#{row.sequenceNumber ?? "?"}</td>
                     <td className="preview-title">{row.title}</td>
-                    <td>{formatDateTime(row.createdAt)}</td>
-                    <td>{formatDuration(row.durationSeconds)}</td>
-                    <td className="preview-device">
-                      {formatDeviceShortName(row.serialNumber, deviceBySerial)}
+                    <td className="mono">
+                      {formatDateTime(row.createdAt)} · {formatDuration(row.durationSeconds)} · {formatDeviceShortName(row.serialNumber, deviceBySerial)}
                     </td>
-                    <td><StateBadge state={row.state} /></td>
+                    <td><BackfillStatePill state={row.state} t={t} /></td>
                   </tr>
                 ))}
               </tbody>
@@ -1442,7 +1901,7 @@ function BackfillPreview({
           </div>
           {truncated ? (
             <p className="muted small">
-              Showing first {shown} of {preview.matched}. Narrow the filters to see more detail.
+              {t.showing} {shown} {t.of} {preview.matched}.
             </p>
           ) : null}
         </>
@@ -1451,71 +1910,14 @@ function BackfillPreview({
   );
 }
 
-function Metric({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="metric">
-      <span>{label}</span>
-      <strong>{value}</strong>
-    </div>
-  );
+function BackfillStatePill({ state, t }: { state: BackfillCandidateState; t: Copy }) {
+  const label = state === "missing" ? t.stateMissing : state === "mirrored" ? t.stateMirrored : t.stateDismissed;
+  const tone: Tone = state === "missing" ? "warn" : state === "mirrored" ? "muted" : "warn";
+  return <StatePill tone={tone} label={label} />;
 }
 
 function Banner({ tone, message }: { tone: "success" | "error" | "info"; message: string }) {
   return <div className={`banner banner-${tone}`}>{message}</div>;
-}
-
-function PageBar({
-  page,
-  pageSize,
-  total,
-  shown,
-  onPrev,
-  onNext,
-  disabled,
-}: {
-  page: number;
-  pageSize: number;
-  total: number;
-  shown: number;
-  onPrev: () => void;
-  onNext: () => void;
-  disabled: boolean;
-}) {
-  if (total === 0 && shown === 0) {
-    return null;
-  }
-  const start = total === 0 ? 0 : page * pageSize + 1;
-  const end = page * pageSize + shown;
-  const totalPages = Math.max(1, Math.ceil(total / pageSize));
-  const currentPage = page + 1;
-  return (
-    <div className="page-bar">
-      <span className="muted small">
-        Showing {start}–{end} of {total} (page {currentPage} of {totalPages})
-      </span>
-      <div className="page-bar-controls">
-        <button type="button" className="secondary" disabled={disabled || page === 0} onClick={onPrev}>
-          ← Prev
-        </button>
-        <button type="button" className="secondary" disabled={disabled || end >= total} onClick={onNext}>
-          Next →
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function Detail({ label, value }: { label: string; value: string }) {
-  return (
-    <>
-      <dt>{label}</dt>
-      <dd>{value}</dd>
-    </>
-  );
-}
-
-function StatusPill({ state }: { state: string }) {
-  return <span className={`status-pill status-${state}`}>{state}</span>;
 }
 
 // Thrown by requestJson on HTTP 401 so callers can distinguish "session

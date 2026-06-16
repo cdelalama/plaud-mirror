@@ -1,7 +1,7 @@
-<!-- doc-version: 0.8.1 -->
+<!-- doc-version: 0.9.0 -->
 # Plaud Mirror
 
-Self-hosted Plaud audio mirror with a local web panel, manual sync/backfill controls, and Docker deployment.
+Self-hosted Plaud audio mirror with a local operator panel, manual sync/backfill controls, and Docker deployment.
 
 **Version:** see [VERSION](VERSION) | [CHANGELOG](CHANGELOG.md)
 
@@ -9,23 +9,24 @@ Self-hosted Plaud audio mirror with a local web panel, manual sync/backfill cont
 
 Plaud Mirror is an operator-run service for mirroring Plaud recordings into local storage and notifying downstream systems through a generic webhook. It is intentionally audio-first: it validates auth, lists recordings, downloads the original artifact, stores it in a predictable layout, and hands off the result.
 
-The repository now contains the full Phase 2 slice plus the complete Phase 3 runtime: operator-controllable scheduler (since v0.5.2), durable webhook outbox (since v0.5.3), and full health observability with cross-subsystem `lastErrors` ring buffer + `recentSyncRuns` history (since v0.5.5):
+The repository now contains the full Phase 2 slice plus the complete Phase 3 runtime and the Phase 4 operator UX: operator-controllable scheduler (since v0.5.2), durable webhook outbox (since v0.5.3), full health observability with cross-subsystem `lastErrors` ring buffer + `recentSyncRuns` history (since v0.5.5), browser-assisted re-auth (since v0.7.0/v0.8.0), and a reference-driven five-screen panel (since v0.9.0):
 
 - Fastify admin API
-- React/Vite web panel
+- React/Vite web panel with Main, Library, Backfill, Configuration, and Operations screens
 - local Chrome companion extension for no-DevTools Plaud re-auth
 - encrypted persisted bearer-token auth
 - **async** manual sync and filtered historical backfill (returns `202` with a run id, UI polls for live progress)
 - backfill dry-run preview: see exactly which recordings would be downloaded before clicking "Run backfill"
 - cached device catalog populated from Plaud's `/device/list`, feeding a real device selector in the backfill form
 - local recording index in SQLite with stable `#N` ranks anchored to Plaud's full timeline
-- classic pagination and inline audio player with HTTP Range support
+- search, 50/100/150 pagination, and compact/full inline audio playback with HTTP Range support
 - local-only dismiss and restore (Plaud itself is never mutated)
-- HMAC-signed webhook delivery via a **durable outbox** (v0.5.3+): each successful sync enqueues the payload, a worker retries with exponential backoff (30s → 8h, 8 attempts, ~16h total window), and the panel surfaces permanently-failed items with a Retry button. Counters on `/api/health.outbox`.
-- **opt-in continuous sync scheduler** configured from the Configuration tab of the panel (interval in minutes, `0` disables, hot-applied without container restart); status surfaced via the `scheduler` block on `/api/health`
+- HMAC-signed webhook delivery via a **durable outbox** (v0.5.3+): each successful sync enqueues the payload, a worker retries with exponential backoff (30s → 8h, 8 attempts, ~16h total window), and the Operations screen surfaces permanently-failed items with a Retry button. Counters on `/api/health.outbox`.
+- **opt-in continuous sync scheduler** configured from the Configuration screen of the panel (interval in minutes, `0` disables, hot-applied without container restart); status surfaced via the `scheduler` block on `/api/health`
+- Spanish/English operator chrome persisted in browser storage
 - Docker packaging for `dev-vm`, running as non-root `USER 1000:1000`
 
-The current re-auth path is browser-assisted: the panel starts a one-time capture session and the local Chrome extension sends the Plaud browser token back through `/connect`. Resumable backfill, fully unattended re-login, and NAS rollout remain later phases.
+The current re-auth path is browser-assisted: the panel starts a one-time capture session and the local Chrome extension sends the Plaud browser token back through `/connect`. The v0.9.0 panel absorbs `docs/design/reference/plaud-mirror-panel-standalone.html` as its visual source reference. Resumable backfill, fully unattended re-login, and NAS rollout remain later phases.
 
 ## Operator Posture
 

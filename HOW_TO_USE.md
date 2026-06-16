@@ -1,22 +1,23 @@
-<!-- doc-version: 0.8.1 -->
+<!-- doc-version: 0.9.0 -->
 # How to Use This Repository
 
 This guide explains how Plaud Mirror is operated end-to-end and how it stays aligned with both `LLM-DocKit` (the governance scaffold it adopts) and the Plaud ecosystem upstreams it watches.
 
 ## Current Reality
 
-`v0.8.1` is the current **Phase 4 re-auth release**: it keeps the hardened `v0.6.x` runtime, the `v0.7.x` `/connect` capture handshake, the local Chrome companion extension from `v0.8.0`, and a Plaud Web-aligned backend validation fingerprint for browser-captured bearers. **Operators upgrading from any `0.4.x`/`0.5.x` should go directly to `v0.8.1`.** Today the repository gives you:
+`v0.9.0` is the current **Phase 4 operator UX release**: it keeps the hardened `v0.6.x` runtime, the `v0.7.x` `/connect` capture handshake, the local Chrome companion extension from `v0.8.0`, the Plaud Web-aligned backend validation fingerprint from `v0.8.1`, and a reference-driven five-screen operator panel. **Operators upgrading from any `0.4.x`/`0.5.x` should go directly to `v0.9.0`.** Today the repository gives you:
 
 - a Fastify API and React/Vite panel bundled in a single Docker container;
 - **operator access control** (v0.6.0): set `PLAUD_MIRROR_ADMIN_PASSPHRASE` and the panel asks for the passphrase once per device (30-day session cookie); without it the API runs open and `/api/health` warns;
 - encrypted persisted bearer-token auth against Plaud, surviving restarts;
-- browser-assisted Plaud re-auth through the local Chrome extension (`apps/chrome-extension`), with manual paste and copy-only bookmarklet fallback;
+- browser-assisted Plaud re-auth through the local Chrome extension (`apps/chrome-extension`), with manual paste and copy-only bookmarklet fallback, surfaced in the Configuration screen;
 - async manual sync and filtered historical backfill with live progress polling and a dry-run preview;
-- **opt-in continuous sync scheduler** — configurable from the Configuration tab of the panel (set the interval in minutes, `0` disables); see "Configuring the scheduler" below;
+- **opt-in continuous sync scheduler** — configurable from the Configuration screen of the panel (set the interval in minutes, `0` disables); see "Configuring the scheduler" below;
 - a cached device catalog that feeds a real device selector in the backfill form;
-- local recording index in SQLite with stable `#N` ranks, classic pagination, inline audio playback with HTTP Range support, and local-only dismiss/restore;
+- local recording index in SQLite with stable `#N` ranks, search, 50/100/150 pagination, compact/full inline audio playback with HTTP Range support, and local-only dismiss/restore;
 - HMAC-signed webhook delivery via a **durable outbox**: every sync enqueues, the worker retries failures with exponential backoff, the panel exposes counters and a Retry button for permanently-failed items;
-- a `scheduler` block, an `outbox` counters block, plus the `lastErrors` ring buffer and `recentSyncRuns` list on `/api/health` (D-014 full from v0.5.5);
+- a `scheduler` block, an `outbox` counters block, plus the `lastErrors` ring buffer and `recentSyncRuns` list on `/api/health` (D-014 full from v0.5.5), now visible in the Main and Operations screens;
+- a Spanish/English operator-chrome toggle persisted in browser storage;
 - upstream-watch tooling plus the full LLM-DocKit governance circuit (HANDOFF, HISTORY, DECISIONS, REVIEWS, version-sync manifest, validator, pre-commit hook).
 
 What it deliberately does **not** give you yet: resumable backfill, fully unattended re-login, NAS rollout. Those are remaining Phase 3+ work per `docs/ROADMAP.md`.
@@ -34,7 +35,7 @@ export PLAUD_MIRROR_ADMIN_PASSPHRASE="<operator-passphrase>"
 docker compose up --build -d
 ```
 
-Then open `http://localhost:3040`, sign in with the operator passphrase, reconnect Plaud from the Configuration tab (Chrome extension recommended, manual paste fallback), and trigger a sync from the Main tab.
+Then open `http://localhost:3040`, sign in with the operator passphrase, reconnect Plaud from the Configuration screen (Chrome extension recommended, manual paste fallback), and trigger a sync from the Main screen.
 
 For Docker Hub timeout handling and acceptable fallback images, see [docs/operations/DEPLOY_PLAYBOOK.md](docs/operations/DEPLOY_PLAYBOOK.md). Pentesting distributions (e.g. `vxcontrol/kali-linux:latest`) are explicitly rejected as runtime bases.
 
@@ -54,16 +55,16 @@ The recommended no-DevTools path is the local Chrome extension:
 1. Open `chrome://extensions`, enable **Developer mode**, and choose **Load unpacked**.
 2. Select `~/src/plaud-mirror/apps/chrome-extension`.
 3. Pin **Plaud Mirror Connector** in the Chrome toolbar.
-4. In the Plaud Mirror panel, Configuration tab, press **Reconectar Plaud**. This starts the 10-minute capture session and opens Plaud.
+4. In the Plaud Mirror panel, Configuration screen, press **Reconectar Plaud**. This starts the 10-minute capture session and opens Plaud.
 5. In the Plaud tab, sign in with Google if needed, press the extension, then **Send token to mirror**.
 
-The extension reads the token from the active Plaud tab and sends it through the same `/connect` fragment handshake as v0.7.0. It stores only the mirror origin, never the Plaud token. Manual paste remains available in the token form. The bookmarklet is now copy-only fallback; do not drag a `javascript:` link from React-rendered UI.
+The extension reads the token from the active Plaud tab and sends it through the same `/connect` fragment handshake as v0.7.0. It stores only the mirror origin, never the Plaud token. Manual paste remains available in the token form. The bookmarklet is copy-only fallback; do not drag a `javascript:` link from React-rendered UI.
 
 ### Configuring the scheduler (Phase 3, opt-in)
 
-The continuous sync scheduler is **disabled by default** to preserve Phase 2 manual-only behavior for existing operators. From `v0.5.2` onwards, you configure it from the **Configuration tab of the web panel**:
+The continuous sync scheduler is **disabled by default** to preserve Phase 2 manual-only behavior for existing operators. From `v0.5.2` onwards, you configure it from the **Configuration screen of the web panel**:
 
-1. Open the panel at `http://localhost:3040`, switch to the Configuration tab.
+1. Open the panel at `http://localhost:3040`, switch to Configuration.
 2. Find the **Continuous sync scheduler** card. The status block shows whether it is enabled, the current interval, the next tick, the last tick result, and (when applicable) the reason a tick was skipped.
 3. In the form, type the desired interval in **minutes** (e.g. `15`) and click "Save scheduler settings". The change persists in SQLite and is hot-applied — no container restart, no `.env` edit.
 4. To disable, set the field to `0` and save.
@@ -108,7 +109,7 @@ Backoff schedule (per-attempt wait):
 
 Cumulative window before escalation: ~16 hours. Tuned for home infra: long enough to ride out an overnight downstream outage without paging the operator, short enough that a permanently-broken downstream doesn't accumulate weeks of retry attempts.
 
-In the panel, open the Configuration tab and find the **Webhook outbox** card:
+In the panel, open Operations for live outbox counters or Configuration for webhook settings:
 
 - **Counters** — `pending`, `retry_waiting`, `permanently_failed`, plus the age of the oldest queued/retrying row. Live from `/api/health.outbox`.
 - **Permanently-failed list** — every row that exhausted its retries shows up here with the recording id, attempt count, and last error message. Press **Retry** to reset that row to `pending` (the worker re-attempts on its next tick).
@@ -160,7 +161,7 @@ Useful for live Plaud flow checks and metadata discovery without booting the pan
 npm test
 ```
 
-148 tests at `v0.8.1`: 127 Node tests (shared schemas/formatting, Plaud client, runtime service/store/scheduler/outbox/auth/capture-session, server routes, integration smoke for built API/web, Chrome extension contract) + 21 web tests under Vitest+jsdom+@testing-library/react (D-015). The root `npm test` runs both the Node test runner and `npm run test:web`.
+150 tests at `v0.9.0`: 127 Node tests (shared schemas/formatting, Plaud client, runtime service/store/scheduler/outbox/auth/capture-session, server routes, integration smoke for built API/web, Chrome extension contract) + 23 web tests under Vitest+jsdom+@testing-library/react (D-015). The root `npm test` runs both the Node test runner and `npm run test:web`.
 
 ## Working With LLM-DocKit Upstream
 
@@ -229,7 +230,7 @@ Per D-005 + D-011, AGPL upstreams (`openplaud/openplaud`) may be referenced for 
 The runtime is already in place. High-level module boundaries:
 
 - `apps/api/src/` — Fastify admin API, auth handler, sync/backfill service with pluggable scheduler, SQLite store, encrypted secret store, Plaud client with regional retry.
-- `apps/web/src/` — React/Vite panel with Main / Configuration tabs, Manual sync + Historical backfill cards, library with pagination + inline audio player.
+- `apps/web/src/` — React/Vite panel with the v0.9.0 operator rail: Main, Library, Backfill, Configuration, and Operations screens.
 - `packages/shared/src/` — Zod schemas: `plaud.ts` holds wire-level Plaud response shapes, `runtime.ts` holds domain types shared across API/store/web.
 
 Before changing auth, download, sync cadence, or storage layout, read:

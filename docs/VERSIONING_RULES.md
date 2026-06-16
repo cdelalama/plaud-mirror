@@ -1,4 +1,4 @@
-<!-- doc-version: 0.8.1 -->
+<!-- doc-version: 0.9.0 -->
 # Versioning Rules
 
 ## Version Format
@@ -15,6 +15,7 @@ Current version sources:
 - `package.json`: root workspace manifest
 - `apps/api/package.json`: API workspace manifest
 - `apps/web/package.json`: web workspace manifest
+- `apps/chrome-extension/manifest.json`: local Chrome companion extension manifest
 - `packages/shared/package.json`: shared-schema workspace manifest
 
 ## Impact Guidelines For This Project

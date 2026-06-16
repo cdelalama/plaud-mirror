@@ -17,7 +17,7 @@ function jsonResponse(payload: unknown, status = 200): Response {
 
 describe("<LoginGate>", () => {
   it("posts the passphrase to /api/session/login and reports success", async () => {
-    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, _init?: RequestInit) => {
       expect(String(input)).toBe("/api/session/login");
       return jsonResponse({ authRequired: true, authenticated: true });
     });
@@ -26,10 +26,10 @@ describe("<LoginGate>", () => {
 
     render(<LoginGate onAuthenticated={onAuthenticated} />);
 
-    fireEvent.change(screen.getByPlaceholderText("Operator passphrase"), {
+    fireEvent.change(screen.getByPlaceholderText("Passphrase de operador"), {
       target: { value: "correct-horse" },
     });
-    fireEvent.click(screen.getByRole("button", { name: /sign in/i }));
+    fireEvent.click(screen.getByRole("button", { name: /entrar/i }));
 
     await waitFor(() => expect(onAuthenticated).toHaveBeenCalledOnce());
     expect(fetchMock).toHaveBeenCalledOnce();
@@ -46,10 +46,10 @@ describe("<LoginGate>", () => {
 
     render(<LoginGate onAuthenticated={onAuthenticated} />);
 
-    fireEvent.change(screen.getByPlaceholderText("Operator passphrase"), {
+    fireEvent.change(screen.getByPlaceholderText("Passphrase de operador"), {
       target: { value: "wrong" },
     });
-    fireEvent.click(screen.getByRole("button", { name: /sign in/i }));
+    fireEvent.click(screen.getByRole("button", { name: /entrar/i }));
 
     await waitFor(() => expect(screen.getByText("Invalid passphrase")).toBeInTheDocument());
     expect(onAuthenticated).not.toHaveBeenCalled();
@@ -60,9 +60,9 @@ describe("<LoginGate>", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     render(<LoginGate onAuthenticated={vi.fn()} />);
-    fireEvent.click(screen.getByRole("button", { name: /sign in/i }));
+    fireEvent.click(screen.getByRole("button", { name: /entrar/i }));
 
-    expect(screen.getByText("Enter the operator passphrase.")).toBeInTheDocument();
+    expect(screen.getByText("Introduce la passphrase de operador.")).toBeInTheDocument();
     expect(fetchMock).not.toHaveBeenCalled();
   });
 });

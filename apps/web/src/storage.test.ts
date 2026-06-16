@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 
-import { readBackfillExpanded, readTab, STORAGE_KEYS } from "./storage.js";
+import { readBackfillExpanded, readLanguage, readTab, STORAGE_KEYS } from "./storage.js";
 
 // Vitest under jsdom gives us a real `window.localStorage`. Each test
 // clears it on exit so cross-test bleed is impossible — the helpers'
@@ -15,21 +15,36 @@ describe("readTab", () => {
     expect(readTab()).toBe("main");
   });
 
-  it("returns 'config' only when the stored value is exactly 'config'", () => {
-    window.localStorage.setItem(STORAGE_KEYS.ACTIVE_TAB, "config");
-    expect(readTab()).toBe("config");
-  });
-
-  it("returns 'main' when the stored value is the literal 'main'", () => {
-    window.localStorage.setItem(STORAGE_KEYS.ACTIVE_TAB, "main");
-    expect(readTab()).toBe("main");
+  it("returns the persisted rail tab when it is known", () => {
+    for (const tab of ["main", "library", "backfill", "config", "ops"] as const) {
+      window.localStorage.setItem(STORAGE_KEYS.ACTIVE_TAB, tab);
+      expect(readTab()).toBe(tab);
+    }
   });
 
   it("falls back to 'main' on any unrecognised value", () => {
     // legacy value, typo, future-feature value — all collapse to default.
-    for (const corrupt of ["", "Config", "settings", "MAIN", "1", "true"]) {
+    for (const corrupt of ["", "Config", "settings", "MAIN", "1", "true", "recordings"]) {
       window.localStorage.setItem(STORAGE_KEYS.ACTIVE_TAB, corrupt);
       expect(readTab()).toBe("main");
+    }
+  });
+});
+
+describe("readLanguage", () => {
+  it("defaults to Spanish when nothing is stored", () => {
+    expect(readLanguage()).toBe("es");
+  });
+
+  it("returns English only when the stored value is exactly 'en'", () => {
+    window.localStorage.setItem(STORAGE_KEYS.LANGUAGE, "en");
+    expect(readLanguage()).toBe("en");
+  });
+
+  it("falls back to Spanish on unsupported locale values", () => {
+    for (const corrupt of ["", "ES", "english", "fr", "1"]) {
+      window.localStorage.setItem(STORAGE_KEYS.LANGUAGE, corrupt);
+      expect(readLanguage()).toBe("es");
     }
   });
 });
@@ -60,5 +75,6 @@ describe("STORAGE_KEYS", () => {
     // this assertion fails loudly.
     expect(STORAGE_KEYS.ACTIVE_TAB).toBe("plaud-mirror:active-tab");
     expect(STORAGE_KEYS.BACKFILL_EXPANDED).toBe("plaud-mirror:backfill-expanded");
+    expect(STORAGE_KEYS.LANGUAGE).toBe("plaud-mirror:language");
   });
 });

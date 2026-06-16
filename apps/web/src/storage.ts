@@ -6,25 +6,49 @@
 // the panel still works in environments where localStorage is unavailable
 // (private browsing, sandboxed iframes).
 
-export type ActiveTab = "main" | "config";
+export type ActiveTab = "main" | "library" | "backfill" | "config" | "ops";
+export type OperatorLanguage = "es" | "en";
 
 const ACTIVE_TAB_KEY = "plaud-mirror:active-tab";
 const BACKFILL_EXPANDED_KEY = "plaud-mirror:backfill-expanded";
+const LANGUAGE_KEY = "plaud-mirror:language";
 
 /**
  * Read the persisted active-tab value from `localStorage`.
  *
  * - Default is `"main"`.
- * - Only the literal string `"config"` opts into the configuration tab; any
- *   other value (missing, corrupt, legacy) falls back to `"main"` so the
- *   operator lands on the day-to-day surface by default.
+ * - Only one of the known rail tabs is accepted; any other value (missing,
+ *   corrupt, legacy) falls back to `"main"` so the operator lands on the
+ *   day-to-day surface by default.
  */
 export function readTab(): ActiveTab {
   try {
     const saved = window.localStorage?.getItem(ACTIVE_TAB_KEY);
-    return saved === "config" ? "config" : "main";
+    return saved === "main" ||
+      saved === "library" ||
+      saved === "backfill" ||
+      saved === "config" ||
+      saved === "ops"
+      ? saved
+      : "main";
   } catch {
     return "main";
+  }
+}
+
+/**
+ * Read the persisted operator UI language.
+ *
+ * - Default is Spanish because this is a single-operator local panel and the
+ *   operator runs it in Spanish today.
+ * - Only `"es"` and `"en"` are accepted; anything else falls back to `"es"`.
+ */
+export function readLanguage(): OperatorLanguage {
+  try {
+    const saved = window.localStorage?.getItem(LANGUAGE_KEY);
+    return saved === "en" ? "en" : "es";
+  } catch {
+    return "es";
   }
 }
 
@@ -53,4 +77,5 @@ export function readBackfillExpanded(): boolean {
 export const STORAGE_KEYS = {
   ACTIVE_TAB: ACTIVE_TAB_KEY,
   BACKFILL_EXPANDED: BACKFILL_EXPANDED_KEY,
+  LANGUAGE: LANGUAGE_KEY,
 } as const;
