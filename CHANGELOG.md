@@ -4,6 +4,23 @@ All notable changes to Plaud Mirror are documented in this file.
 
 This project follows Semantic Versioning (SemVer): MAJOR.MINOR.PATCH.
 
+## [0.8.0] - 2026-06-16
+
+### Added
+
+- **Local Chrome companion extension for Plaud re-auth.** `apps/chrome-extension/` now ships an unpacked Manifest V3 extension ("Plaud Mirror Connector") that reads the active `app.plaud.ai` / `web.plaud.ai` tab's user bearer (`pld_tokenstr` first, storage scan fallback) and redirects that tab to Plaud Mirror's `/connect#token=...` handshake. It uses only `activeTab` + `scripting`, injects in Chrome's `MAIN` world, stores only the mirror origin, and never stores or logs the Plaud token.
+- **Extension contract tests.** New integration smoke test verifies the extension manifest permissions, Plaud/mirror host coverage, `/connect#token=` redirect, `MAIN`-world script injection, and no token-material persistence in extension `localStorage`.
+
+### Changed
+
+- **Reconnect UX is extension-first.** The Configuration tab now presents the Chrome extension as the recommended path and demotes the bookmarklet to a copy-only fallback. This resolves the React/Chrome failure mode where a draggable `javascript:` `href` rendered by React becomes `javascript:throw new Error('React has blocked...')`, so the installed bookmarklet contains no real capture code.
+- **Phase 4 remains active through `0.8.x`.** `v0.8.0` is a SemVer minor because it adds a new operator-facing re-auth delivery mechanism. It is still Phase 4 scope, so Phase 5 shifts to `0.9.x` and Phase 6 to `0.10.x+`.
+
+### Fixed
+
+- **Reconnect ready-state copy.** "Reconectar Plaud" now opens Plaud synchronously for popup-blocker compatibility, then only tells the operator to use the connector once `/api/connect/start` has returned and the `captureId` is stored in mirror `localStorage`.
+- Tests: 145 → 147 (126 Node tests + 21 web tests). New: Chrome extension manifest/contract smoke tests.
+
 ## [0.7.6] - 2026-06-16
 
 ### Changed

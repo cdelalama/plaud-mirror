@@ -61,11 +61,12 @@ export function App() {
   const [session, setSession] = useState<SessionStatus | null>(null);
   const [sessionError, setSessionError] = useState<string | null>(null);
 
-  // Assisted-reconnect landing (D-019). The bookmarklet navigates here as
-  // `/connect#token=...`. Capture the token from the fragment ONCE, then strip
-  // it from the URL/history immediately so the bearer never lingers in the
-  // address bar or browser history. Held in state so it survives the login
-  // gate (if the operator must sign in first, the token is not lost).
+  // Assisted-reconnect landing (D-019). The Chrome extension and fallback
+  // bookmarklet navigate here as `/connect#token=...`. Capture the token from
+  // the fragment ONCE, then strip it from the URL/history immediately so the
+  // bearer never lingers in the address bar or browser history. Held in state
+  // so it survives the login gate (if the operator must sign in first, the
+  // token is not lost).
   const isConnect = typeof window !== "undefined" && window.location.pathname === "/connect";
   const [connectToken] = useState<string | null>(() => {
     if (!isConnect || typeof window === "undefined") {
@@ -128,11 +129,11 @@ export function App() {
   );
 }
 
-// Landing page for the bookmarklet (D-019). Reads the captureId the panel
-// stashed in localStorage, posts it together with the captured bearer to
-// /api/connect/complete, and reports the outcome. The token arrived in the
-// URL fragment (already stripped by App) and is never sent anywhere except
-// this same-origin, operator-authenticated POST.
+// Landing page for browser-assisted re-auth (D-019). Reads the captureId the
+// panel stashed in localStorage, posts it together with the captured bearer to
+// /api/connect/complete, and reports the outcome. The token arrived in the URL
+// fragment (already stripped by App) and is never sent anywhere except this
+// same-origin, operator-authenticated POST.
 export function ConnectPlaud({ token }: { token: string | null }) {
   const [state, setState] = useState<"working" | "ok" | "error">("working");
   const [message, setMessage] = useState<string>("Conectando con Plaud…");
@@ -533,10 +534,10 @@ function Panel({
 
   // Assisted reconnect (D-019): open Plaud's web app and mint a one-time
   // capture id in parallel. The window.open MUST run synchronously inside the
-  // click handler — opening a tab after an `await` loses the user-gesture
+  // click handler; opening a tab after an `await` loses the user-gesture
   // context and mobile/popup blockers reject it. The captureId only needs to
-  // reach the mirror's localStorage before the operator taps the bookmarklet
-  // (seconds/minutes later), so minting it in the background is race-free.
+  // reach the mirror's localStorage before the operator presses the connector
+  // extension in the Plaud tab, so minting it in the background is race-free.
   // Copy the bookmarklet to the clipboard — the only reliable install path on
   // mobile, where dragging to a bookmarks bar is not available and long-press
   // on a javascript: link is inconsistent.
@@ -556,11 +557,11 @@ function Panel({
   function handleReconnectPlaud(): void {
     const opened = window.open(PLAUD_WEB_APP_URL, "_blank", "noopener");
     if (opened) {
-      setOperationResult("Pestaña de Plaud abierta. Inicia sesión si hace falta y pulsa allí el marcador \"Reconectar Plaud Mirror\".");
+      setOperationResult("Pestaña de Plaud abierta. Preparando la sesión de captura...");
     } else {
       // Some browsers still block the popup; the capture session is minted
-      // anyway, so the operator can open Plaud by hand and tap the bookmarklet.
-      setOperationError("Tu navegador bloqueó la pestaña. Abre app.plaud.ai manualmente, inicia sesión y pulsa allí el marcador \"Reconectar Plaud Mirror\".");
+      // anyway, so the operator can open Plaud by hand and press the extension.
+      setOperationError("Tu navegador bloqueó la pestaña. Preparando la sesión de captura para que abras app.plaud.ai manualmente.");
     }
     void requestJson<{ captureId: string }>("/api/connect/start", { method: "POST" })
       .then(({ captureId }) => {
@@ -569,6 +570,11 @@ function Panel({
         } catch {
           // non-fatal; /connect will report "no live capture session"
         }
+        setOperationResult(
+          opened
+            ? "Sesión de captura lista. En la pestaña de Plaud, inicia sesión si hace falta y pulsa la extensión \"Plaud Mirror Connector\"."
+            : "Sesión de captura lista. Abre app.plaud.ai manualmente, inicia sesión si hace falta y pulsa la extensión \"Plaud Mirror Connector\".",
+        );
       })
       .catch((error) => {
         if (error instanceof UnauthorizedError) {
@@ -790,55 +796,34 @@ function Panel({
           </form>
 
           <div className="reconnect-block">
-            <p className="kicker">Reconexión fácil (recomendado)</p>
+            <p className="kicker">Extensión Chrome (recomendado)</p>
             <p className="muted">
-              En vez de pegar el token a mano. Son dos pasos: primero instalas un
-              "marcador" en tu navegador (una sola vez), luego lo usas cuando haga
-              falta. El token de Plaud dura ~300 días, así que esto es ~1 vez al año.
+              La extensión local evita DevTools, copiar tokens y marcadores
+              javascript. Se instala una vez desde el repo y después captura el
+              token desde la pestaña de Plaud con un botón del navegador.
             </p>
 
-            <p className="muted small"><strong>Paso 1 — instalar el marcador (una sola vez):</strong></p>
+            <p className="muted small"><strong>Paso 1 — instalar la extensión una vez:</strong></p>
             <ul className="muted small" style={{ marginTop: 0 }}>
-              <li>
-                <strong>Escritorio:</strong> muestra la barra de marcadores con
-                <code> Ctrl+Shift+B</code> (la tira bajo la barra de direcciones) y
-                <strong> arrastra</strong> el botón morado de abajo hasta ella. No lo
-                pulses aquí — solo arrástralo.
-              </li>
-              <li>
-                <strong>Móvil:</strong> pulsa "Copiar marcador", crea un marcador
-                nuevo en tu navegador y pega lo copiado como su dirección/URL.
-              </li>
+              <li>Abre <code>chrome://extensions</code> y activa Developer mode.</li>
+              <li>Load unpacked → <code>apps/chrome-extension</code>.</li>
+              <li>Fija "Plaud Mirror Connector" en la barra de Chrome.</li>
             </ul>
-            <p>
-              <a
-                className="bookmarklet-link"
-                href={buildBookmarklet(window.location.origin)}
-                onClick={(event) => {
-                  event.preventDefault();
-                  setOperationResult("No me pulses aquí — arrástrame a la barra de marcadores (Ctrl+Shift+B). Solo funciono cuando me pulsas estando en app.plaud.ai.");
-                }}
-                title="Arrástrame a la barra de marcadores (no me pulses)"
-              >
-                🔖 Reconectar Plaud Mirror — arrástrame
-              </a>
-            </p>
-            <div className="button-row">
-              <button type="button" className="secondary" onClick={() => void handleCopyBookmarklet()}>
-                {bookmarkletCopied ? "¡Copiado!" : "Copiar marcador (móvil)"}
-              </button>
-            </div>
 
             <p className="muted small"><strong>Paso 2 — usarlo:</strong> pulsa
               "Reconectar Plaud" (abre la web de Plaud) → inicia sesión si hace falta
-              → y <strong>en la pestaña de Plaud</strong> pulsa el marcador que
-              instalaste en el paso 1. Debe aparecer un aviso de Plaud Mirror; al
-              cerrarlo volverás al panel y el token se guardará solo. Si no aparece
-              ningún aviso, el marcador no quedó bien instalado: bórralo e instala
-              de nuevo el de esta pantalla.</p>
+              → y <strong>en la pestaña de Plaud</strong> pulsa la extensión
+              "Plaud Mirror Connector" → Send token to mirror.</p>
             <div className="button-row">
               <button type="button" disabled={busy} onClick={() => handleReconnectPlaud()}>
                 Reconectar Plaud
+              </button>
+            </div>
+
+            <p className="muted small"><strong>Fallback bookmarklet:</strong> si no quieres usar la extensión, copia el marcador y créalo manualmente. No lo arrastres desde un enlace: React bloquea los <code>javascript:</code> en <code>href</code>.</p>
+            <div className="button-row">
+              <button type="button" className="secondary" onClick={() => void handleCopyBookmarklet()}>
+                {bookmarkletCopied ? "¡Copiado!" : "Copiar bookmarklet"}
               </button>
             </div>
           </div>

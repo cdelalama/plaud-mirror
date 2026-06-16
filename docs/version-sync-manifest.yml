@@ -20,6 +20,7 @@ targets:
 - path: package.json               marker: json-version
 - path: apps/api/package.json      marker: json-version
 - path: apps/web/package.json      marker: json-version
+- path: apps/chrome-extension/manifest.json marker: json-version
 - path: packages/shared/package.json marker: json-version
 - path: HOW_TO_USE.md              marker: html-comment
 - path: docs/ROADMAP.md            marker: html-comment

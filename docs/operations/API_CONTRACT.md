@@ -1,4 +1,4 @@
-<!-- doc-version: 0.7.6 -->
+<!-- doc-version: 0.8.0 -->
 # API Contract
 
 This document describes the HTTP and webhook surface that now exists in-repo. The current implementation covers the full Phase 2 slice (manual sync/backfill, local curation routes) plus the Phase 3 scheduler subset (panel-driven from `v0.5.2`) plus the **durable webhook outbox** (D-013) shipped in `v0.5.3` plus **full health observability** (D-014, complete) shipped in `v0.5.5`. From `v0.5.3` onwards webhook delivery is asynchronous: each sync run enqueues the payload, a worker retries it with exponential backoff. From `v0.5.5` onwards `/api/health` also returns `lastErrors` (cross-subsystem ring buffer, capped at 20) and `recentSyncRuns` (last 5 finished runs).
@@ -12,7 +12,7 @@ This document describes the HTTP and webhook surface that now exists in-repo. Th
 | `GET` | `/api/session` | Return `{ authRequired, authenticated }` for the calling client. Public. |
 | `POST` | `/api/session/login` | Exchange `{ passphrase }` for a signed HttpOnly session cookie. `401` on a wrong passphrase; `429` after 5 failed attempts within a minute (in-memory throttle). Public. |
 | `POST` | `/api/session/logout` | Clear the session cookie. Public. |
-| `POST` | `/api/connect/start` | Browser-assisted re-auth (D-019). Mints a single-use `captureId` (TTL 10 min) → `{ captureId, expiresAt }`. Operator-session-gated. |
+| `POST` | `/api/connect/start` | Browser-assisted re-auth (D-019). Mints a single-use `captureId` (TTL 10 min) → `{ captureId, expiresAt }`. Used by the panel before the Chrome extension or fallback bookmarklet returns a Plaud bearer. Operator-session-gated. |
 | `POST` | `/api/connect/complete` | Complete a capture: body `{ token, captureId }`. Consumes the `captureId` (single-use; `409` if missing/expired/reused — token-fixation defence), then validates `token` against Plaud and stores it (same path as `/api/auth/token`). Returns the resulting `AuthStatus`; `400` if no token. Operator-session-gated. |
 | `GET` | `/api/health` | Return version, phase string, auth summary, last completed sync, currently active run (if any), scheduler status, outbox counters, **lastErrors** ring buffer (cross-subsystem error history, capped at 20, most-recent-first), **recentSyncRuns** (last 5 finished runs from SQLite, `finished_at DESC`), recording counts, webhook configuration flag, warning list. D-014 full as of v0.5.5. |
 | `GET` | `/api/config` | Return sanitized runtime config: webhook URL + secret-presence flag, default sync limit, **and the persisted `schedulerIntervalMs`** (the panel reads this on load to populate the scheduler form). |

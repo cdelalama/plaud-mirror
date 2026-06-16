@@ -1,15 +1,16 @@
-<!-- doc-version: 0.7.6 -->
+<!-- doc-version: 0.8.0 -->
 # How to Use This Repository
 
 This guide explains how Plaud Mirror is operated end-to-end and how it stays aligned with both `LLM-DocKit` (the governance scaffold it adopts) and the Plaud ecosystem upstreams it watches.
 
 ## Current Reality
 
-`v0.6.0` is the **Phase 3 hardening release** (security review 2026-06-10): operator access control on the panel/API (D-018), startup crash recovery for orphaned sync runs and outbox rows, and abort deadlines on every Plaud request and audio download. It builds on `v0.5.5` full health observability (D-014), the durable webhook outbox (D-013, v0.5.3), and the panel-driven scheduler (v0.5.2). **Operators upgrading from any `0.4.x`/`0.5.x` should go directly to `v0.6.0`.** Today the repository gives you:
+`v0.8.0` is the current **Phase 4 re-auth release**: it keeps the hardened `v0.6.x` runtime, the `v0.7.x` `/connect` capture handshake, and adds a local Chrome companion extension as the recommended no-DevTools way to refresh the Plaud bearer from a Google-SSO browser session. **Operators upgrading from any `0.4.x`/`0.5.x` should go directly to `v0.8.0`.** Today the repository gives you:
 
 - a Fastify API and React/Vite panel bundled in a single Docker container;
 - **operator access control** (v0.6.0): set `PLAUD_MIRROR_ADMIN_PASSPHRASE` and the panel asks for the passphrase once per device (30-day session cookie); without it the API runs open and `/api/health` warns;
 - encrypted persisted bearer-token auth against Plaud, surviving restarts;
+- browser-assisted Plaud re-auth through the local Chrome extension (`apps/chrome-extension`), with manual paste and copy-only bookmarklet fallback;
 - async manual sync and filtered historical backfill with live progress polling and a dry-run preview;
 - **opt-in continuous sync scheduler** — configurable from the Configuration tab of the panel (set the interval in minutes, `0` disables); see "Configuring the scheduler" below;
 - a cached device catalog that feeds a real device selector in the backfill form;
@@ -18,7 +19,7 @@ This guide explains how Plaud Mirror is operated end-to-end and how it stays ali
 - a `scheduler` block, an `outbox` counters block, plus the `lastErrors` ring buffer and `recentSyncRuns` list on `/api/health` (D-014 full from v0.5.5);
 - upstream-watch tooling plus the full LLM-DocKit governance circuit (HANDOFF, HISTORY, DECISIONS, REVIEWS, version-sync manifest, validator, pre-commit hook).
 
-What it deliberately does **not** give you yet: resumable backfill, automatic re-login, NAS rollout. Those are remaining Phase 3+ work per `docs/ROADMAP.md`.
+What it deliberately does **not** give you yet: resumable backfill, fully unattended re-login, NAS rollout. Those are remaining Phase 3+ work per `docs/ROADMAP.md`.
 
 For the full feature inventory see [README.md](README.md); for the product intent see [docs/PROJECT_CONTEXT.md](docs/PROJECT_CONTEXT.md); for current work state see [docs/llm/HANDOFF.md](docs/llm/HANDOFF.md).
 
@@ -33,7 +34,7 @@ export PLAUD_MIRROR_ADMIN_PASSPHRASE="<operator-passphrase>"
 docker compose up --build -d
 ```
 
-Then open `http://localhost:3040`, sign in with the operator passphrase, save a Plaud bearer token in the Configuration tab, and trigger a sync from the Main tab.
+Then open `http://localhost:3040`, sign in with the operator passphrase, reconnect Plaud from the Configuration tab (Chrome extension recommended, manual paste fallback), and trigger a sync from the Main tab.
 
 For Docker Hub timeout handling and acceptable fallback images, see [docs/operations/DEPLOY_PLAYBOOK.md](docs/operations/DEPLOY_PLAYBOOK.md). Pentesting distributions (e.g. `vxcontrol/kali-linux:latest`) are explicitly rejected as runtime bases.
 
@@ -45,6 +46,18 @@ npm install
 export PLAUD_MIRROR_MASTER_KEY="<long-random-secret>"
 npm start
 ```
+
+### Reconnecting Plaud (Chrome extension, Phase 4)
+
+The recommended no-DevTools path is the local Chrome extension:
+
+1. Open `chrome://extensions`, enable **Developer mode**, and choose **Load unpacked**.
+2. Select `~/src/plaud-mirror/apps/chrome-extension`.
+3. Pin **Plaud Mirror Connector** in the Chrome toolbar.
+4. In the Plaud Mirror panel, Configuration tab, press **Reconectar Plaud**. This starts the 10-minute capture session and opens Plaud.
+5. In the Plaud tab, sign in with Google if needed, press the extension, then **Send token to mirror**.
+
+The extension reads the token from the active Plaud tab and sends it through the same `/connect` fragment handshake as v0.7.0. It stores only the mirror origin, never the Plaud token. Manual paste remains available in the token form. The bookmarklet is now copy-only fallback; do not drag a `javascript:` link from React-rendered UI.
 
 ### Configuring the scheduler (Phase 3, opt-in)
 
@@ -147,7 +160,7 @@ Useful for live Plaud flow checks and metadata discovery without booting the pan
 npm test
 ```
 
-113 tests at `v0.5.3`: 102 backend (Plaud client, runtime service, store, server routes, shared schemas, built-api smoke, web-build smoke, scheduler + manager + environment tests, **plus 11 new tests for the durable outbox: 4 store-level (`enqueue → claim → markDelivered`, `markRetry` with backoff deadline, `markPermanentlyFailed` + `forceRetry` round-trip, `forceRetry` rejection from non-failed states), 6 worker-level in `outbox-worker.test.js` (empty-queue skip, success path, transient-failure retry with backoff, monotonic `deliveryAttempt` across retries, `MAX_ATTEMPTS` escalation, unconfigured-webhook escalation), 1 server-level (HTTP shape: empty list, list, retry success, 409 / 404 / 400)**) + 11 web (`storage` localStorage helpers, `<StateBadge>` component rendering). The web side runs under Vitest+jsdom+@testing-library/react (D-015) and is hooked into the root `npm test` via `npm run test:web`.
+147 tests at `v0.8.0`: 126 Node tests (shared schemas/formatting, Plaud client, runtime service/store/scheduler/outbox/auth/capture-session, server routes, integration smoke for built API/web, Chrome extension contract) + 21 web tests under Vitest+jsdom+@testing-library/react (D-015). The root `npm test` runs both the Node test runner and `npm run test:web`.
 
 ## Working With LLM-DocKit Upstream
 

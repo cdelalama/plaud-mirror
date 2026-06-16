@@ -1,0 +1,21 @@
+{
+  "manifest_version": 3,
+  "name": "Plaud Mirror Connector",
+  "version": "0.8.0",
+  "description": "Send the active Plaud browser session token to Plaud Mirror.",
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Send token to Plaud Mirror"
+  },
+  "permissions": [
+    "activeTab",
+    "scripting"
+  ],
+  "host_permissions": [
+    "https://app.plaud.ai/*",
+    "https://web.plaud.ai/*",
+    "https://plaud.lamanoriega.com/*",
+    "http://127.0.0.1:3040/*",
+    "http://localhost:3040/*"
+  ]
+}

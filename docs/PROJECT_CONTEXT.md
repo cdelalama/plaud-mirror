@@ -1,4 +1,4 @@
-<!-- doc-version: 0.7.6 -->
+<!-- doc-version: 0.8.0 -->
 # Project Context - Plaud Mirror
 
 ## Vision
@@ -22,11 +22,11 @@ Plaud Mirror is a server-first product with two runtime surfaces:
 
 Persistence is split between SQLite for state/indexes and the filesystem for mirrored audio artifacts. Secrets are encrypted at rest with a master key supplied by the surrounding deployment.
 
-## Current Status (2026-06-16, v0.7.6)
+## Current Status (2026-06-16, v0.8.0)
 
-Plaud Mirror `v0.7.0` opens **Phase 4 (re-auth)** with **browser-assisted Plaud re-auth** (D-019): a panel-initiated single-use capture session plus a bookmarklet (token-extraction adapted from the MIT `iiAtlas` upstream) let the operator refresh the ~300-day Plaud bearer in one tap — no DevTools, no stored password. It was chosen after confirming the operator's account is Google SSO (so it has no password and Plaud forbids adding one, killing credentials-login) and parking the official OAuth/MCP as deferred/watch (not disproven). `v0.7.1`/`v0.7.2` fixed mobile/popup and bookmarklet-encoding UX bugs; `v0.7.3` fixed the validation 403 (user token over workspace token; EU `PLAUD_MIRROR_API_BASE`; messy-paste tolerance). `v0.7.4` closed the PII/info-leak v0.7.3 introduced: Plaud's raw error body was reaching the public `/api/health` (`auth.lastError`/`lastSync.error`/`lastErrors`); it is now generic there and detailed only on the authenticated token-save response. `v0.7.5` added a guard for masked/redacted token pastes (`Bearer ●●●...`), returning a clear 400 before any illegal `Authorization` header is built. `v0.7.6` (current) makes the bookmarklet shorter and visible: it focuses on `pld_tokenstr`, stays under 2 KB, and shows an alert for every outcome so a failed reconnect is no longer silent. The manual token paste stays as the fallback; Telegram is explicitly not a capture channel.
+Plaud Mirror `v0.8.0` is the current **Phase 4 (re-auth)** release. `v0.7.0` introduced the browser-assisted `/connect` handshake (D-019): a panel-initiated single-use `captureId` lets the operator refresh the ~300-day Plaud bearer with no DevTools and no stored password. It was chosen after confirming the operator's account is Google SSO (so it has no password and Plaud forbids adding one, killing credentials-login) and parking the official OAuth/MCP as deferred/watch (not disproven). `v0.7.1`-`v0.7.6` patched the bookmarklet delivery path (popup timing, copy install, encoding, token type/region, public-error hygiene, masked-token guard, shorter visible marker). The final finding was decisive: React-rendered `javascript:` links are not a reliable way to install a bookmarklet, because React replaces the `href` with a defensive throw before Chrome stores it. `v0.8.0` therefore adds a local Chrome companion extension as the recommended capture surface. The extension reads the active Plaud tab's browser storage (`pld_tokenstr` first, scan fallback), redirects that tab to `/connect#token=...`, stores only the mirror origin, and never stores or logs the token. Manual token paste and copy-only bookmarklet remain fallback paths; Telegram is explicitly not a capture channel.
 
-The `v0.6.x` line this builds on was the **Phase 3 hardening + tooling** sequence, forced by the 2026-06-10 security review: `v0.6.0` operator access control (D-018 — `PLAUD_MIRROR_ADMIN_PASSPHRASE` + signed HttpOnly session cookie gating `/api/*`, login screen, throttle, health PII redaction), startup crash recovery (D-013 amendment — orphaned `running`/`delivering` rows recovered at boot, at-least-once accepted), and Plaud client timeouts; then `v0.6.1` (LLM-DocKit 4.8.2 sync), `v0.6.2` (Doppler passphrase helper `scripts/set-admin-passphrase.sh`), `v0.6.3` (terminal-echo fix). The operator access control is armed in production (passphrase in Doppler, secondary "Startup Embassy" account). Test count: 145 (124 backend + 21 web).
+The `v0.6.x` line this builds on was the **Phase 3 hardening + tooling** sequence, forced by the 2026-06-10 security review: `v0.6.0` operator access control (D-018 — `PLAUD_MIRROR_ADMIN_PASSPHRASE` + signed HttpOnly session cookie gating `/api/*`, login screen, throttle, health PII redaction), startup crash recovery (D-013 amendment — orphaned `running`/`delivering` rows recovered at boot, at-least-once accepted), and Plaud client timeouts; then `v0.6.1` (LLM-DocKit 4.8.2 sync), `v0.6.2` (Doppler passphrase helper `scripts/set-admin-passphrase.sh`), `v0.6.3` (terminal-echo fix). The operator access control is armed in production (passphrase in Doppler, secondary "Startup Embassy" account). Test count: 147 (126 Node + 21 web).
 
 The `v0.5.5` runtime baseline underneath: **D-014 full** health observability (`lastErrors` ring buffer capped at 20, `recentSyncRuns` last 5 finished runs on `/api/health`) plus the D-016/D-017 governance layers (`prose-drift` at FAIL, `unabsorbed-artifact` baseline).
 
@@ -51,7 +51,7 @@ The Phase 2 slice it inherits: a live Fastify API, a web panel for token setup, 
 What it still does not have:
 
 - resumable backfill
-- automatic re-login
+- fully unattended re-login
 - NAS validation
 
 ## Phase Boundaries
@@ -63,7 +63,7 @@ Short version:
 1. Phase 1 proved the Plaud path.
 2. Phase 2 ships the first manual usable product slice.
 3. Phase 3 adds unattended operation and resilience.
-4. Phase 4 revisits automatic re-login.
+4. Phase 4 revisits re-auth and renewal strategy.
 5. Phase 5 hardens deployment and validates NAS.
 6. Phase 6 prepares public OSS fit and finish.
 

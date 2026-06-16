@@ -1,9 +1,9 @@
-<!-- doc-version: 0.7.6 -->
+<!-- doc-version: 0.8.0 -->
 # Plaud Mirror Architecture
 
-> Version: 0.7.6
+> Version: 0.8.0
 > Last Updated: 2026-06-16
-> Status: Phase 4 entered at `v0.7.0`; Phase 3 exit gate (multi-day soak) still pending — the two overlap in the `0.7.x` line. The `0.5.x` line delivered the Phase 3 feature surface (scheduler D-012, durable webhook outbox D-013, full health observability D-014, governance D-016/D-017); `v0.6.0`–`v0.6.3` were the hardening + tooling line (operator access control D-018, startup crash recovery, Plaud client timeouts, Doppler passphrase helper, LLM-DocKit 4.8.2 sync). `v0.7.0` opens **Phase 4** with **browser-assisted Plaud re-auth** (D-019): a panel-initiated single-use capture session plus a bookmarklet (token-extraction adapted from the MIT `iiAtlas` upstream) refresh the ~300-day Plaud bearer in one tap, with no DevTools and no stored password. Chosen over credentials-login (not applicable — the operator's account is Google SSO and Plaud forbids adding a password to an SSO account) and over the official OAuth/MCP (deferred/watch, not disproven). `v0.7.1` was a UX patch (synchronous tab-open; copy-bookmarklet button), `v0.7.2` fixed the bookmarklet encoding, `v0.7.3` fixed the validation 403, `v0.7.4` closed the PII/info-leak it introduced (Plaud's raw error body reached the public `/api/health`; now generic there, detailed only on the authenticated token-save response), `v0.7.5` rejects masked/redacted token pastes before an illegal `Authorization` header can be built, and `v0.7.6` (current) makes the bookmarklet shorter and visible (known user-token key first, under 2 KB, alert on success/error) so the reconnect flow no longer fails silently. Operators upgrading from any `0.4.x`/`0.5.x` release should go directly to `v0.7.6`.
+> Status: Phase 4 entered at `v0.7.0` and now spans `0.7.x`-`0.8.x`; Phase 3 exit gate (multi-day soak) still pending. The `0.5.x` line delivered the Phase 3 feature surface (scheduler D-012, durable webhook outbox D-013, full health observability D-014, governance D-016/D-017); `v0.6.0`-`v0.6.3` were the hardening + tooling line (operator access control D-018, startup crash recovery, Plaud client timeouts, Doppler passphrase helper, LLM-DocKit 4.8.2 sync). `v0.7.0` opened **Phase 4** with **browser-assisted Plaud re-auth** (D-019): a panel-initiated single-use capture session plus bookmarklet refreshed the ~300-day Plaud bearer without DevTools or stored password. `v0.7.1`-`v0.7.6` hardened that path, but the final browser finding was decisive: React-rendered `javascript:` hrefs are not a reliable bookmarklet distribution mechanism. `v0.8.0` keeps the same `/connect` capture handshake and adds a local Chrome companion extension as the recommended delivery surface. Operators upgrading from any `0.4.x`/`0.5.x` release should go directly to `v0.8.0`.
 
 ## Overview
 
@@ -20,6 +20,7 @@ Plaud Mirror is a single-operator, server-first service that:
 
 - **Backend:** Fastify in `apps/api`
 - **Panel:** React + Vite in `apps/web`
+- **Plaud connector:** local unpacked Chrome extension in `apps/chrome-extension`
 - **Shared contracts:** Zod schemas in `packages/shared`
 - **State store:** SQLite at `data/app.db`
 - **Secrets:** encrypted JSON blob at `data/secrets.enc`
@@ -74,12 +75,12 @@ Still **not** in Phase 3 scope:
 3. Token is encrypted with `PLAUD_MIRROR_MASTER_KEY` and stored at rest.
 4. Auth status is exposed through `/api/auth/status` and `/api/health`.
 
-### Plaud re-auth capture (D-019, v0.7.0)
+### Plaud re-auth capture (D-019, v0.7.0; extension in v0.8.0)
 
 The operator's account is Google SSO, so there is no Plaud password to store and credentials-login is unavailable; the official OAuth/MCP is deferred. Re-auth therefore captures the bearer the browser already holds, via a panel-initiated handshake that binds the token swap to operator intent (token-fixation defence):
 
 1. Panel "Reconectar Plaud" → `POST /api/connect/start` (operator-session-gated) mints a single-use `captureId` (`CaptureSessionStore`, in-memory, TTL 10 min). The panel stashes it in the mirror's own `localStorage` and opens `app.plaud.ai`.
-2. On the Plaud tab (logged in via Google), the operator taps the bookmarklet. It extracts the bearer from Plaud's `localStorage` (current bookmarklet: `pld_tokenstr` first, full storage scan fallback; adapted from MIT `iiAtlas`) and navigates to `<mirror>/connect#token=…`. From `v0.7.6`, every bookmarklet outcome is visible via a browser alert (wrong page, token not found, token found, or capture error), because a silent marker is not acceptable for the operator flow. The bookmarklet carries no `captureId` — Plaud's origin never sees it.
+2. On the Plaud tab (logged in via Google), the operator presses the local **Plaud Mirror Connector** Chrome extension. The extension injects a small storage reader into Chrome's `MAIN` world, extracts the user bearer from Plaud's browser storage (`pld_tokenstr` first, full storage scan fallback), and navigates that tab to `<mirror>/connect#token=...`. The extension uses `activeTab` + `scripting`, stores only the mirror origin, and never stores or logs the Plaud token. The bookmarklet remains copy-only fallback because React/Chrome made a draggable `javascript:` link unreliable.
 3. `/connect` (served by the SPA; public path, but its POST is gated) strips the fragment with `history.replaceState`, reads the `captureId` from mirror `localStorage`, and `POST /api/connect/complete { token, captureId }`.
 4. The backend consumes the `captureId` (single-use, must be live → else 409), then validates the bearer against Plaud and stores it via `service.saveAccessToken`.
 
@@ -172,8 +173,9 @@ The web panel polls `GET /api/health` every 2 s while a run is active. The healt
 
 ## Next Architectural Step
 
-Phase 3 is in progress, extended through `0.6.x` (hardening + soak). The remaining work and Phase 4 horizon:
+Phase 4 is in progress, extended through `0.8.x` for the Chrome extension while the Phase 3 soak remains pending. The remaining work:
 
 - **Phase 3 cont. (0.6.x):** surface `health.warnings` / `lastErrors` / `recentSyncRuns` in the panel UI (the backend emits them since v0.5.5; the panel does not render them yet); scrypt KDF upgrade for `data/secrets.enc`; then the multi-day unattended soak that closes the phase. Resumable backfill stays deferred (no firm release target).
-- **Phase 4 (0.7.x):** automatic re-login via a non-browser path if it proves reliable — start with a spike against the login endpoint the `JamesStuder/Plaud_API` upstream exercises (MIT; password-based login without a browser exists there). Plus phone-friendly re-auth UX and auth-failure push notification, building on D-018's session layer.
+- **Phase 4 (0.7.x-0.8.x):** browser-assisted re-auth is implemented through `/connect` and the Chrome extension. Fully unattended SSO renewal remains deferred/watch behind the official OAuth/MCP path; email+password login is not applicable to this operator account.
+- **Phase 5 (0.9.x):** deployment hardening, backups, rollback, NAS validation, infra playbooks.
 - More robust degraded-state handling (incremental, threaded through Phase 3 + 4).

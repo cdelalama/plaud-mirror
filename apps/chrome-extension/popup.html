@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Plaud Mirror Connector</title>
+    <link rel="stylesheet" href="popup.css">
+  </head>
+  <body>
+    <main class="panel">
+      <header>
+        <p class="eyebrow">Plaud Mirror</p>
+        <h1>Reconnect Plaud</h1>
+      </header>
+
+      <label class="field">
+        <span>Mirror URL</span>
+        <input id="mirror-origin" type="url" spellcheck="false" autocomplete="off">
+      </label>
+
+      <button id="send-token" type="button">Send token to mirror</button>
+      <p id="status" class="status" role="status">Open app.plaud.ai, sign in with Google, then press this button.</p>
+    </main>
+    <script src="popup.js"></script>
+  </body>
+</html>

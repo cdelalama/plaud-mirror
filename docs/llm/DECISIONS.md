@@ -533,18 +533,18 @@ The 30-day TTL is a product decision, not a security compromise: the primary re-
 
 ## D-019 - Phase 4 auth: browser-assisted bearer capture (provider selection)
 
-**Status:** accepted; **implemented in v0.7.0** (`apps/web/src/plaud-token.ts`, `apps/api/src/runtime/capture-session.ts`, `/api/connect/start` + `/api/connect/complete` in `apps/api/src/server.ts`, `ConnectPlaud` + "Reconectar Plaud" card in `apps/web/src/App.tsx`).
+**Status:** accepted; **implemented in v0.7.0**, with Chrome-extension delivery added in **v0.8.0** (`apps/web/src/plaud-token.ts`, `apps/api/src/runtime/capture-session.ts`, `/api/connect/start` + `/api/connect/complete` in `apps/api/src/server.ts`, `ConnectPlaud` + "Reconectar Plaud" card in `apps/web/src/App.tsx`, `apps/chrome-extension/`).
 
 ### Decision
 
-Phase 4's re-auth UX is **browser-assisted capture of the existing Plaud bearer**, not credentials-login and not the official OAuth/MCP. The operator clicks "Reconectar Plaud" in the panel, logs into app.plaud.ai normally (Google SSO), taps a bookmarklet that reads the bearer from Plaud's `localStorage`, and the token lands in the mirror via a one-time, panel-initiated capture session. The bearer lasts ~300 days, so this is a roughly-once-a-year, no-DevTools, no-password interaction.
+Phase 4's re-auth UX is **browser-assisted capture of the existing Plaud bearer**, not credentials-login and not the official OAuth/MCP. The operator clicks "Reconectar Plaud" in the panel, logs into app.plaud.ai normally (Google SSO), then uses a local Chrome companion extension to read the bearer from the active Plaud tab's browser storage and return it to the mirror via a one-time, panel-initiated capture session. The bearer lasts ~300 days, so this is a roughly-once-a-year, no-DevTools, no-password interaction. The original v0.7.x bookmarklet remains copy-only fallback; it is no longer the recommended delivery mechanism.
 
 This is framed as a **provider selection**, with the candidates evaluated as follows:
 
 1. **Official partner/developer API** (`platform.plaud.ai`, `client_id`/`secret_key`): enterprise/partner only, not available to an individual account. Rejected.
 2. **Official CLI/MCP** (`@plaud-ai/mcp`, OAuth browser sign-in): genuinely new in 2026 and *not disproven* — its docs mention `presigned_url`, so it may expose raw audio. **Deferred / watch**, NOT discarded on a transcript/proxy assumption. Not chosen now because: it routes through Plaud's MCP server (a different model than mirroring the original artifact to local disk), it is undocumented enough that adopting it would be a spike rather than a doc-read, and it would replace the working private-API client wholesale. Re-evaluate if the private API breaks or if unattended raw-audio export through MCP is confirmed.
 3. **Private API email+password login** (`POST /auth/access-token`): a real endpoint (confirmed reachable from dev-vm; returns `access_token` + `refresh_token`, ~300-day TTL, rate limit 10 logins/hour). **Not applicable to this operator's account**: the account was created with Google SSO, Plaud does not allow adding a password to an SSO-origin account, and the password-reset flow returns "Account not found". For an email+password Plaud account this would be the cleanest auto-login path; it stays documented as the option for that case (and would make the scrypt KDF upgrade mandatory, since storing a password is more sensitive than storing a bearer).
-4. **Browser-assisted capture** (chosen): works regardless of SSO (it captures whatever token the browser already holds), needs no password stored, reuses the entire existing private-API client, and is buildable today. The token-location logic is adapted from the MIT `iiAtlas/plaud-recording-downloader` extension (see `docs/UPSTREAMS.md` Phase 4 adoption + D-005/D-007).
+4. **Browser-assisted capture** (chosen): works regardless of SSO (it captures whatever token the browser already holds), needs no password stored, reuses the entire existing private-API client, and is buildable today. The token-location logic is adapted from the MIT `iiAtlas/plaud-recording-downloader` extension (see `docs/UPSTREAMS.md` Phase 4 adoption + D-005/D-007). v0.8.0 adds Plaud Mirror's own minimal Chrome companion extension because a React-rendered draggable `javascript:` link proved unreliable as a bookmarklet distribution channel.
 
 ### Rationale
 
@@ -555,7 +555,7 @@ The operator's account is Google SSO, which removes credentials-login from the t
 The naive flow (`/connect#token=...` → `POST /api/auth/token`) is safe against garbage tokens (the bearer is validated against Plaud `/user/me` before storing) but not against *token fixation*: a crafted `/connect#token=<attacker's-valid-token>` link opened by a logged-in operator would silently repoint the mirror at the attacker's account. So capture is a **panel-initiated handshake**:
 
 1. Panel `POST /api/connect/start` → `CaptureSessionStore` mints a single-use `captureId` (in-memory, TTL 10 min). Panel stashes it in the mirror's own `localStorage` and opens app.plaud.ai.
-2. Bookmarklet (runs on app.plaud.ai, carries NO captureId) reads the bearer and navigates to `<mirror>/connect#token=...`.
+2. Chrome extension (runs only after the operator presses it on app.plaud.ai / web.plaud.ai, carries NO captureId) reads the bearer and navigates to `<mirror>/connect#token=...`. Copy-only bookmarklet fallback uses the same redirect shape.
 3. `/connect` strips the fragment immediately (`history.replaceState`), reads the `captureId` from mirror `localStorage`, and `POST /api/connect/complete { token, captureId }`.
 4. Backend consumes the `captureId` (single-use, must be live), then validates the bearer against Plaud and stores it via the same path as the manual paste.
 
@@ -566,4 +566,5 @@ Both connect routes require the operator session (D-018); neither is in the publ
 - The manual paste path (`POST /api/auth/token`) stays as the universal fallback.
 - Telegram is explicitly NOT a capture channel (it cannot read browser storage); it remains a possible future notification/deep-link surface only.
 - Storing a Plaud password is avoided entirely for this account, so the scrypt KDF debt (H2) stays "should do" rather than "must do for this feature".
-- If Plaud changes its `localStorage` token shape, the bookmarklet's extraction (workspace-token → priority-keys → full-scan → cookie cascade) is the maintenance surface; the `iiAtlas` upstream is the reference to re-sync against.
+- If Plaud changes its browser token shape, the Chrome extension and fallback bookmarklet extraction are the maintenance surface; the `iiAtlas` upstream is the reference to re-sync against.
+- The extension does not overturn D-002's server-first architecture. It is a local capture adapter only: no syncing, storage, listing, or download logic moves into the browser.

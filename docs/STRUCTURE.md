@@ -1,4 +1,4 @@
-<!-- doc-version: 0.7.6 -->
+<!-- doc-version: 0.8.0 -->
 # Repository Structure Guide
 
 This document describes the actual Plaud Mirror repository layout as of the first usable Phase 2 slice.
@@ -30,6 +30,11 @@ plaud-mirror/
 |     +- package.json
 |     +- index.html
 |     +- src/
+|  +- chrome-extension/
+|     +- manifest.json
+|     +- popup.html
+|     +- popup.css
+|     +- popup.js
 +- packages/
 |  +- shared/
 +- docs/
@@ -54,6 +59,7 @@ plaud-mirror/
 |------|---------|-------|
 | `apps/api/` | Fastify API, Plaud adapter, encrypted secret handling, manual sync/backfill orchestration | Phase 2 runtime backend |
 | `apps/web/` | React + Vite operator panel | Served by the API container |
+| `apps/chrome-extension/` | Local Chrome companion extension for Plaud re-auth capture | Unpacked extension; sends the active Plaud tab's bearer through `/connect` |
 | `packages/shared/` | Shared Zod schemas and TypeScript contracts | Source of truth for Plaud and runtime payloads |
 | `tests/integration/` | Post-build integration smoke tests | Exercises built API and web artifacts |
 | `docs/ROADMAP.md` | Canonical phase boundary document | Use this when scope questions appear |
@@ -84,7 +90,9 @@ These paths are expected at runtime and should remain uncommitted:
 - `apps/api/src/server.ts`
   Fastify app factory: operator-session gate on `/api/*` (D-018) + session routes, browser-assisted re-auth routes (`/api/connect/start` + `/api/connect/complete`, D-019), auth, config, sync (`POST /api/sync/run` returns 202), backfill, `GET /api/sync/runs/:id`, `GET /api/devices`, `GET /api/backfill/candidates`, recordings listing + audio streaming with HTTP Range, delete/restore, outbox admin.
 - `apps/web/src/App.tsx`
-  Product panel behind a session gate (`LoginGate` when operator auth is enabled) plus the `/connect` capture landing (`ConnectPlaud`, D-019). Bookmarklet + token-extraction live in `apps/web/src/plaud-token.ts` (adapted from MIT iiAtlas). Token setup, webhook config, Manual sync card (incl. "Refresh server stats" button and live progress polling), Historical backfill card (device selector + date range + dry-run preview table), library with pagination, inline audio playback, dismiss/restore, logout.
+  Product panel behind a session gate (`LoginGate` when operator auth is enabled) plus the `/connect` capture landing (`ConnectPlaud`, D-019). The Configuration tab starts the re-auth capture session and points the operator at the local Chrome extension; copy-only bookmarklet fallback + token-extraction live in `apps/web/src/plaud-token.ts` (adapted from MIT iiAtlas). Token setup, webhook config, Manual sync card (incl. "Refresh server stats" button and live progress polling), Historical backfill card (device selector + date range + dry-run preview table), library with pagination, inline audio playback, dismiss/restore, logout.
+- `apps/chrome-extension/`
+  Manifest V3 local extension ("Plaud Mirror Connector"). It injects a storage reader into the active Plaud tab, extracts the user bearer, and redirects to the mirror's `/connect#token=...` page. It stores only the mirror origin, not the token.
 
 ## Onboarding Notes
 

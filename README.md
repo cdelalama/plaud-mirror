@@ -1,4 +1,4 @@
-<!-- doc-version: 0.7.6 -->
+<!-- doc-version: 0.8.0 -->
 # Plaud Mirror
 
 Self-hosted Plaud audio mirror with a local web panel, manual sync/backfill controls, and Docker deployment.
@@ -13,6 +13,7 @@ The repository now contains the full Phase 2 slice plus the complete Phase 3 run
 
 - Fastify admin API
 - React/Vite web panel
+- local Chrome companion extension for no-DevTools Plaud re-auth
 - encrypted persisted bearer-token auth
 - **async** manual sync and filtered historical backfill (returns `202` with a run id, UI polls for live progress)
 - backfill dry-run preview: see exactly which recordings would be downloaded before clicking "Run backfill"
@@ -24,7 +25,7 @@ The repository now contains the full Phase 2 slice plus the complete Phase 3 run
 - **opt-in continuous sync scheduler** configured from the Configuration tab of the panel (interval in minutes, `0` disables, hot-applied without container restart); status surfaced via the `scheduler` block on `/api/health`
 - Docker packaging for `dev-vm`, running as non-root `USER 1000:1000`
 
-Resumable backfill and automatic re-login are explicitly later phases.
+The current re-auth path is browser-assisted: the panel starts a one-time capture session and the local Chrome extension sends the Plaud browser token back through `/connect`. Resumable backfill, fully unattended re-login, and NAS rollout remain later phases.
 
 ## Operator Posture
 

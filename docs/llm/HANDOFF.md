@@ -1,4 +1,4 @@
-<!-- doc-version: 0.7.6 -->
+<!-- doc-version: 0.8.0 -->
 # LLM Work Handoff
 
 This file is the live operational snapshot. Durable rationale lives in `docs/llm/DECISIONS.md`. Phase boundaries live in `docs/ROADMAP.md`.
@@ -6,7 +6,8 @@ This file is the live operational snapshot. Durable rationale lives in `docs/llm
 ## Current Status
 
 - Last Updated: 2026-06-16 - Codex GPT-5
-- Session Focus: **v0.7.6 (patch) — bookmarklet no longer fails silently.** Operator tried the v0.7.5/v0.7.x flow and reported the installed "Reconectar Plaud Mirror" bookmarklet did nothing visible on app.plaud.ai ("no me copia nada"). Product conclusion: even if browser security or bookmark installation is the root cause, a silent marker is not "para tontos." Fix: `buildBookmarklet` is now short (<2 KB), focuses on the known user-token key (`pld_tokenstr`) with a full storage scan fallback, and shows a Plaud Mirror alert for every outcome (wrong page, token not found, token found, or capture error) before returning to `/connect`. The panel copy now tells the operator that an alert must appear; if no alert appears, the marker did not install/execute. Tests 144 → 145 (new bookmarklet size guard; web tests 20 → 21). Earlier v0.7.5 below.
+- Session Focus: **v0.8.0 (minor) — definitive Phase 4 delivery path: local Chrome extension.** Post-diagnosis confirmed the v0.7.x bookmarklet was not merely flaky: React-rendered `javascript:` hrefs are replaced with `javascript:throw new Error('React has blocked...')`, so Chrome can install a bookmark that contains no Plaud Mirror capture code. Product decision: stop patching draggable bookmarklets as the recommended path. v0.8.0 adds `apps/chrome-extension/` ("Plaud Mirror Connector"), a local unpacked Manifest V3 extension that reads the active Plaud tab's user bearer (`pld_tokenstr` first, storage scan fallback), injects in Chrome's `MAIN` world, stores only the mirror origin, and redirects to the existing `/connect#token=...` capture handshake. Panel UX is now extension-first; bookmarklet is copy-only fallback. Phase 4 spans `0.7.x`-`0.8.x`; Phase 5 shifts to `0.9.x`, Phase 6 to `0.10.x+`. Tests 145 → 147 (126 Node + 21 web). Earlier v0.7.6 below.
+- Previous Session Focus (v0.7.6 patch): bookmarklet no longer fails silently. Operator tried the v0.7.5/v0.7.x flow and reported the installed "Reconectar Plaud Mirror" bookmarklet did nothing visible on app.plaud.ai ("no me copia nada"). Fix: `buildBookmarklet` is short (<2 KB), focuses on `pld_tokenstr`, scans storage as fallback, and shows a Plaud Mirror alert for every outcome. Tests 144 → 145. This is now fallback only; v0.8.0 supersedes it as the recommended path.
 - Previous Session Focus (v0.7.5 patch): friendly rejection for masked/redacted token pastes. Operator hit `Cannot convert argument to a ByteString because the character at index 7 has a value of 9679` while trying to save a Plaud token. Diagnosis: `9679` is `●`; index 7 is the first character after `Bearer `, so the pasted value was a masked/redacted token (`Bearer ●●●...`), not the real bearer. Fix: `saveAccessToken` now rejects mask characters and other header-unsafe token characters before constructing `PlaudClient` / the `Authorization` header, returning a clear 400 that tells the operator to copy the real Plaud `localStorage` token instead of a hidden/redacted field. Deploy follow-up: the Docker build hung in `npm prune --omit=dev`, so the Dockerfile now uses a separate `prod-deps` stage (`npm ci --omit=dev`) and copies production dependencies into the runtime image. Tests 143 → 144. Live dev-vm verified: container and `/api/health` report `0.7.5`, operator auth is armed, and `PLAUD_MIRROR_API_BASE=https://api-euc1.plaud.ai`. Earlier v0.7.4 below.
 - Previous Session Focus (v0.7.4 patch): closed the PII/info-leak that v0.7.3 introduced, fixed stale comments. v0.7.3 put a slice of Plaud's response body into `PlaudApiError.message`, which flows into `auth.lastError` / `lastSync.error` / `lastErrors` — all on the PUBLIC `/api/health`. Reverted the message to generic (`... failed with HTTP <code>`); the body stays in `bodySnippet` and is surfaced ONLY on the authenticated `POST /api/auth/token` / `/api/connect/complete` response (operator still sees why a token was rejected, in the panel, without public exposure). Also fixed `plaud-token.ts` comments that still said "workspace token first". Tests 142 → 143. Dated 2026-06-13 per explicit operator request (commit + docs). Earlier v0.7.3 below.
 - Previous Session Focus (v0.7.3 patch): fixed the persistent 403 on token validation (root cause: wrong token type + region). After the bookmarklet was fixed (v0.7.2), validating a captured token still 403'd. Diagnosis with the operator: (1) the account is **EU** — set `PLAUD_MIRROR_API_BASE=https://api-euc1.plaud.ai` (in Doppler `plaud-mirror/dev`); a US base 403s and the `-302` retry doesn't catch it. (2) the captured token was the **per-workspace token**, but `/user/me` (the mirror's validation endpoint) wants the **global user token** (`pld_tokenstr`) — 403 otherwise. Fix: `extractPlaudToken`/bookmarklet now prefer `pld_tokenstr` first, workspace token only as fallback (deliberate divergence from iiAtlas, documented in UPSTREAMS). Also: `saveAccessToken` strips quotes + `Bearer ` prefix from messy pastes, and `PlaudApiError` now includes Plaud's response body so a 403 explains itself in the panel (no more console archaeology). Tests 141 → 142. **Operator still needs to re-run the reconnect (or paste the clean `pld_tokenstr`) to finally validate** — the stored token is still the old degraded one. Earlier v0.7.2 below.
@@ -80,13 +81,14 @@ This is now verified on the actual `dev-vm`, not assumed.
 - **Multi-day scheduler-driven unattended behavior.** The scheduler ships in `v0.5.0` (regressed), `v0.5.1` (regressions fixed), and `v0.5.2` (panel-driven config). Backed by 18 deterministic tests across `scheduler.test.ts`, `scheduler-manager.test.ts`, `environment.test.ts`, and the relevant `service.test.ts` cases, but no live multi-day soak run has been measured yet. Once an operator sets a non-zero interval from the panel, observe the `health.scheduler` block over several ticks before declaring "unattended on `dev-vm` works."
 - **Durable webhook outbox.** Shipped in `v0.5.3` with 11 deterministic tests (FSM transitions, atomic claim, exponential backoff, monotonic `deliveryAttempt`, `MAX_ATTEMPTS` escalation, unconfigured-webhook escalation, HTTP shape including 400 / 404 / 409 guards). Pending: a live multi-day soak run that exercises a real downstream — every test path uses an injected `webhookFetchImpl`.
 - **Full health observability — shipped in v0.5.5.** `/api/health` returns `lastErrors` (cross-subsystem ring buffer, capped at 20) and `recentSyncRuns` (last 5 finished runs). Pending: a live multi-subsystem failure exercise to verify all three error sources (scheduler tick failure, outbox delivery escalation, sync run failure) feed the buffer in production.
-- **Automatic re-login.** Phase 4. No code yet.
+- **Fully unattended SSO renewal.** Browser-assisted re-auth exists, but no background OAuth/MCP auto-renewal has been implemented.
+- **Real Chrome extension capture against the operator's Plaud session.** Tests cover the extension contract, but only the operator's browser can prove the final live path: panel "Reconectar Plaud" → Plaud login → extension button → `/connect` → `auth.state: healthy`.
 - **Multi-day stability.** The service has been restarted many times across sessions; no long uninterrupted run has been measured.
 
 ## Roadmap Boundary
 
-- The project is in **Phase 3, extended through `0.6.x`** per [docs/ROADMAP.md](../ROADMAP.md) ("Why Phase 3 Was Extended Through 0.6.x"). The `0.5.x` line delivered the feature surface (scheduler D-012, outbox D-013, health D-014, governance D-016/D-017); `v0.6.0` (this release) delivers the hardening the security review demanded (operator auth D-018, crash recovery, timeouts). Remaining Phase 3: observability UI in the panel, scrypt KDF upgrade, then the multi-day soak that closes the phase.
-- Phase 4 (`0.7.x`) scope is still untouched: no automatic re-login, no resumable backfill, no NAS validation, no public OSS polish. The Plaud-login spike must NOT ride along with 0.6.x work (operator decision 2026-06-10).
+- The project has entered **Phase 4, extended through `0.8.x`** per [docs/ROADMAP.md](../ROADMAP.md). The `0.7.x` line implemented and hardened browser-assisted capture; `v0.8.0` replaces bookmarklet-first delivery with a local Chrome extension. Remaining Phase 3 exit work still exists in parallel: observability UI in the panel, scrypt KDF upgrade, then the multi-day soak that closes the phase.
+- Phase 5 is now `0.9.x` (deployment hardening / NAS validation). Phase 6 is `0.10.x+` (public OSS polish). Do not treat `0.8.x` as NAS scope; it is still re-auth scope.
 - Working-tree cleanliness and validator status are not asserted here — they age badly. Run `git status` and `scripts/dockit-validate-session.sh --human` for the current fact.
 
 ## Open Work
@@ -95,7 +97,7 @@ This is now verified on the actual `dev-vm`, not assumed.
 - File downstream feedback to LLM-DocKit about the clobber-on-sync pattern: `dockit-sync --apply` overwrites scripts that carry local extensions (`copy` strategy), forcing a manual re-merge every sync (happened 2026-05-13 and again 2026-06-10 with v0.6.1). Proposal: a `merge`/`copy-with-markers` strategy for `scripts/dockit-validate-session.sh` and version scripts, or upstream absorption of the local checks (DF-028 already covers `scripts/check-prose-drift.sh`).
 - Observability UI (next 0.6.x increment): render `health.warnings`, `lastErrors`, and `recentSyncRuns` in the panel — the backend emits them since v0.5.5 but the operator can only see them via curl today. Include a prominent auth-failure banner on the Main tab (`auth.state` invalid/degraded) with a direct path to the token form.
 - Scrypt KDF upgrade for `data/secrets.enc` (H2 from the 2026-06-10 review): replace `sha256(masterKey)` with scrypt + persisted salt. Deprioritized behind the items above while the master key is strong/random.
-- Phase 4 spike (own session, `0.7.x`): Plaud credentials login without a browser. Evidence it exists: `JamesStuder/Plaud_API` / `Plaud_BulkDownloader` (MIT) authenticate with username+password directly — read their login route, test against the operator's account, then implement-or-reject per D-003.
+- Operator validation of v0.8.0 extension: after deploy, install `apps/chrome-extension` via `chrome://extensions` → Developer mode → Load unpacked, press panel **Reconectar Plaud**, sign into Plaud, press **Plaud Mirror Connector** → **Send token to mirror**, then verify `auth.state` becomes `healthy`.
 - Phase 3 exit remains a live soak, not documentation: configure the scheduler from the panel, observe `/api/health`, and record the result in `docs/llm/HISTORY.md`.
 
 ## Governance Cleanup Landed in 0.4.1
@@ -111,7 +113,7 @@ The six items GPT-5 flagged in the 2026-04-23 review are closed:
 
 ## Top Priorities
 
-0. ~~Arm operator access control~~ — DONE 2026-06-11. **Re-validate the Plaud bearer token** — `auth.state` has been `degraded` (HTTP 403) since 2026-05-13; nothing syncs until it is replaced. Easiest path now (v0.7.6): Configuration tab → install the new "Reconectar Plaud Mirror" bookmarklet once (drag to bookmarks bar / mobile: save bookmark + paste its address), then "Reconectar Plaud" → log into Plaud (Google) → tap the bookmarklet. Expected behavior: a Plaud Mirror alert appears first, then the browser returns to `/connect`; if no alert appears, the bookmarklet did not install/execute. Verify `auth.state` flips to `healthy`. (Manual paste still works as fallback.)
+0. ~~Arm operator access control~~ — DONE 2026-06-11. **Re-validate the Plaud bearer token** — `auth.state` has been `degraded` (HTTP 403) since 2026-05-13; nothing syncs until it is replaced. Easiest path now (v0.8.0): install the local Chrome extension once (`chrome://extensions` → Developer mode → Load unpacked → `apps/chrome-extension`), then Configuration tab → **Reconectar Plaud** → log into Plaud (Google) → press **Plaud Mirror Connector** in the Plaud tab → **Send token to mirror**. Verify `auth.state` flips to `healthy`. Manual paste and copy-only bookmarklet remain fallback paths.
 1. Live-soak the durable outbox: configure a real webhook URL, run sync, watch `/api/health.outbox` counters move from `pending → 0` and the audit-log `webhook_deliveries` rows fill in.
 2. Live-soak the scheduler from the panel: set 15 min, observe `health.scheduler.lastTickAt` advancing for several ticks, confirm a manual sync mid-tick is recorded as `lastTickStatus = "skipped"` with a useful `lastTickError` reason.
 3. Inject a deliberate downstream failure (point the webhook at a 503 endpoint) and verify the backoff schedule + permanent-fail escalation + Retry-from-panel UX all behave as documented.
@@ -121,7 +123,7 @@ The six items GPT-5 flagged in the 2026-04-23 review are closed:
 ## Open Questions
 
 - What retry and scheduler defaults are safe enough for Phase 3?
-- Can automatic re-login be implemented without browser automation?
+- Can fully unattended Google-SSO renewal be implemented through Plaud's official OAuth/MCP without losing audio-first local mirroring?
 - If `scene` filtering turns out to be useful with real operator experience, how would we surface it? A smart dropdown of scene values observed in the account (via `SELECT DISTINCT scene FROM recordings`) is one option; another is discovering a Plaud-provided mapping of scene numbers to human labels.
 
 ## Confirmed Product Direction
@@ -131,7 +133,7 @@ The six items GPT-5 flagged in the 2026-04-23 review are closed:
 - Manual bearer-token auth is acceptable first, but it must be encrypted at rest and survive restarts.
 - Historical backfill is required from day 1.
 - Downstream delivery stays generic webhook-first.
-- Automatic re-login stays on the roadmap but is not a Phase 2 gate.
+- Fully unattended re-login stays on the roadmap, but v0.8.0 deliberately solves the operator-facing refresh path through browser-assisted capture.
 
 ## Roadmap Pointer
 
@@ -147,7 +149,7 @@ Do not collapse those phases casually.
 - If the stack is not already running, start it with:
   `docker compose up --build -d`
 - If Docker Hub pulls time out on `dev-vm`, the Dockerfile still accepts `PLAUD_MIRROR_DOCKER_BUILD_IMAGE` and `PLAUD_MIRROR_DOCKER_RUNTIME_IMAGE` build-arg overrides. Valid fallbacks: a locally cached Node slim/alpine image from another project, a home-infra-local registry mirror (see the open registry-mirror item in `~/src/home-infra/docs/PROJECTS.md`), or a side-loaded `node:20-bookworm-slim` via `docker save`/`docker load`. Do **not** substitute a pentesting distribution such as `vxcontrol/kali-linux:latest` — it inflates the attack surface, bloats the image, and ships tooling that has no place in a Plaud mirror's runtime.
-- Open the UI and save a fresh Plaud bearer token.
+- Open the UI and refresh the Plaud bearer token through the Chrome extension (manual paste fallback).
 - Run a filtered backfill from the panel.
 - Inspect:
   - `/api/health`
@@ -164,7 +166,7 @@ Do not collapse those phases casually.
   - encrypted-secret/store/service/server tests
   - built API/web integration smoke tests
 - Docker packaging now includes a local-base fallback for this `dev-vm`; `docker compose up --build -d` has been verified locally and `/api/health` responds with the expected "missing token" payload.
-- Live Plaud validation still has not happened in-session because no real token was available.
+- Live Plaud re-auth through the Chrome extension still requires the operator's Chrome/Plaud session and cannot be completed by an agent without those browser credentials.
 
 ## Key Decisions (Links)
 

@@ -163,20 +163,21 @@ export function extractPlaudToken(
 export const PLAUD_WEB_APP_URL = "https://app.plaud.ai/";
 
 /**
- * Build the bookmarklet (`javascript:` URL) the operator drags to their
- * bookmarks bar. It runs on app.plaud.ai, extracts the bearer with the same
- * algorithm as `extractPlaudToken`, and navigates to `<mirrorOrigin>/connect`
- * with the token in the URL fragment (fragment never reaches any server). It
- * carries NO captureId — that lives in the mirror's own localStorage and is
- * added by the /connect page, so Plaud's origin never sees it.
+ * Build the fallback bookmarklet (`javascript:` URL) the operator can copy
+ * into a bookmark manually. It runs on app.plaud.ai, extracts the bearer, and
+ * navigates to `<mirrorOrigin>/connect` with the token in the URL fragment
+ * (fragment never reaches any server). It carries NO captureId — that lives
+ * in the mirror's own localStorage and is added by the /connect page, so
+ * Plaud's origin never sees it.
  */
 export function buildBookmarklet(mirrorOrigin: string): string {
   // Single-quote the origin so the body contains no double quotes (keeps the
   // href attribute clean) and — critically — DO NOT percent-encode the body.
   // A bookmarklet is executed as-is after `javascript:`; percent-encoding the
   // whole script makes the browser run encoded text → silent syntax error
-  // ("nothing happens"). React sets the href as a property, so raw characters
-  // in the value are fine for dragging to the bookmarks bar.
+  // ("nothing happens"). The panel copies this value as text. Do not expose it
+  // as a React href: React deliberately replaces javascript: URLs with a
+  // defensive throw.
   const origin = "'" + mirrorOrigin.replace(/'/g, "%27") + "'";
   const body = `(function(){
 var R=/eyJ[A-Za-z0-9_\\-=]{5,}\\.[A-Za-z0-9_\\-=]+\\.[A-Za-z0-9_\\-=]+/;
