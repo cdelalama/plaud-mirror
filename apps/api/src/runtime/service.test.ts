@@ -1330,3 +1330,35 @@ test("saveAccessToken keeps auth.lastError generic (public health) but enriches 
 
   service.close();
 });
+
+test("saveAccessToken rejects masked token bullets before building the Authorization header", async () => {
+  const root = await mkdtemp(join(tmpdir(), "plaud-mirror-service-masked-token-"));
+  const environment = createEnvironment(root);
+  const store = new RuntimeStore({
+    dbPath: join(environment.dataDir, "app.db"),
+    dataDir: environment.dataDir,
+    recordingsDir: environment.recordingsDir,
+    defaultSyncLimit: environment.defaultSyncLimit,
+  });
+  const secrets = new SecretStore(join(environment.dataDir, "secrets.enc"), environment.masterKey);
+  let plaudFetchCalls = 0;
+  const service = new PlaudMirrorService(environment, store, secrets, {
+    plaudFetchImpl: async () => {
+      plaudFetchCalls += 1;
+      return createJsonResponse({ status: 0, data: { uid: "user-1" } });
+    },
+  });
+  await service.initialize();
+
+  await assert.rejects(
+    service.saveAccessToken({ accessToken: "Bearer ●●●●●●" }),
+    (error: unknown) =>
+      error instanceof Error &&
+      "statusCode" in error &&
+      error.statusCode === 400 &&
+      error.message.includes("mask characters"),
+  );
+  assert.equal(plaudFetchCalls, 0, "masked token must be rejected before any Plaud request is built");
+
+  service.close();
+});

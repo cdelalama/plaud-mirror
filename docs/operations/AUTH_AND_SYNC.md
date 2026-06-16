@@ -1,4 +1,4 @@
-<!-- doc-version: 0.7.4 -->
+<!-- doc-version: 0.7.6 -->
 # Authentication and Sync Operations
 
 This runbook defines the live behavior of Plaud Mirror's auth and sync surface. Phase 2 (manual sync/backfill) is fully shipped. Phase 3: the continuous sync scheduler landed in `v0.5.0` (regressed) → `v0.5.1` (fixed) → `v0.5.2` (panel-driven). `v0.5.3` shipped the **durable webhook outbox** (D-013). `v0.5.4` was governance-only (D-016). `v0.5.5` shipped **D-014 full**: `lastErrors` ring buffer and `recentSyncRuns` on `/api/health`. `v0.6.0` is the **Phase 3 hardening release**: operator access control on the panel/API (D-018), startup crash recovery for orphaned sync runs and outbox rows (D-013 amendment, at-least-once delivery accepted), and abort deadlines on every Plaud API call and audio download. Remaining Phase 3 work before the soak: panel-side observability UI and the scrypt KDF upgrade; resumable backfill and automatic re-login stay deferred.
@@ -31,13 +31,13 @@ Because the operator's Plaud account is Google SSO (no password, and Plaud forbi
 
 1. In the panel Configuration tab, **Reconectar Plaud** → the backend mints a one-time `captureId` (TTL 10 min) and the panel opens `app.plaud.ai`.
 2. Log into Plaud normally (Google), then tap the **"Reconectar Plaud Mirror"** bookmarklet (install once: drag to the bookmarks bar on desktop, or save it as a bookmark and paste its address on mobile).
-3. The bookmarklet reads the bearer from Plaud's `localStorage` and bounces it to the mirror's `/connect` page, which completes the capture against the live `captureId`. The token is validated against Plaud and stored.
+3. The bookmarklet reads the bearer from Plaud's `localStorage` and bounces it to the mirror's `/connect` page, which completes the capture against the live `captureId`. From `v0.7.6`, it shows a browser alert before returning to the panel; if no alert appears, the bookmarklet did not install or execute. The token is validated against Plaud and stored.
 
 The Plaud bearer lasts ~300 days, so this is a roughly-once-a-year, no-DevTools, no-password action. Manual paste remains the fallback. Telegram is **not** a capture channel — it cannot read browser storage; it is only a possible future notification surface.
 
 Two things the capture must get right (both fixed in v0.7.3):
 
-- **Token type:** the captured token must be the global **user token** (`localStorage.pld_tokenstr`), not Plaud's per-workspace token. `/user/me` (the validation endpoint) rejects the workspace token with 403. The extractor/bookmarklet prefer the user token; the workspace token is only a fallback.
+- **Token type:** the captured token must be the global **user token** (`localStorage.pld_tokenstr`), not Plaud's per-workspace token. `/user/me` (the validation endpoint) rejects the workspace token with 403. The bookmarklet prefers `pld_tokenstr` and scans storage as a fallback; it no longer carries the full workspace-token heuristic because the operator path needs a short, visible marker more than a silent, oversized one.
 - **Region:** the bearer is region-bound. Set `PLAUD_MIRROR_API_BASE` to the account's regional API domain (`https://api-euc1.plaud.ai` for EU, `https://api.plaud.ai` for US). A wrong region returns a hard 403 that the `-302` regional-retry path does not catch. This deployment is EU (set in Doppler `plaud-mirror/dev`).
 - The panel normalizes a pasted token (strips surrounding quotes and a leading `Bearer ` prefix), and Plaud's rejection body is surfaced in the error so a 403 explains itself.
 

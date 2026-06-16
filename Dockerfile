@@ -26,8 +26,22 @@ RUN corepack npm ci
 COPY . .
 
 RUN corepack npm run build:runtime \
-  && corepack npm run build --workspace @plaud-mirror/web \
-  && corepack npm prune --omit=dev
+  && corepack npm run build --workspace @plaud-mirror/web
+
+FROM ${BUILD_BASE_IMAGE} AS prod-deps
+
+WORKDIR /app
+
+RUN command -v node >/dev/null 2>&1 \
+  && command -v corepack >/dev/null 2>&1 \
+  && corepack enable
+
+COPY package.json package-lock.json ./
+COPY apps/api/package.json apps/api/package.json
+COPY apps/web/package.json apps/web/package.json
+COPY packages/shared/package.json packages/shared/package.json
+
+RUN corepack npm ci --omit=dev --no-audit --no-fund
 
 FROM ${RUNTIME_BASE_IMAGE} AS runtime
 
@@ -43,17 +57,17 @@ ENV PLAUD_MIRROR_DATA_DIR=/var/lib/plaud-mirror/data
 ENV PLAUD_MIRROR_RECORDINGS_DIR=/var/lib/plaud-mirror/recordings
 ENV PLAUD_MIRROR_WEB_DIST_DIR=/app/apps/web/dist
 
-COPY --from=build /app/node_modules ./node_modules
-COPY --from=build /app/apps/api/package.json ./apps/api/package.json
-COPY --from=build /app/apps/api/dist ./apps/api/dist
-COPY --from=build /app/apps/web/dist ./apps/web/dist
-COPY --from=build /app/packages/shared/package.json ./packages/shared/package.json
-COPY --from=build /app/packages/shared/dist ./packages/shared/dist
-COPY --from=build /app/VERSION ./VERSION
+COPY --from=prod-deps --chown=1000:1000 /app/node_modules ./node_modules
+COPY --from=build --chown=1000:1000 /app/apps/api/package.json ./apps/api/package.json
+COPY --from=build --chown=1000:1000 /app/apps/api/dist ./apps/api/dist
+COPY --from=build --chown=1000:1000 /app/apps/web/dist ./apps/web/dist
+COPY --from=build --chown=1000:1000 /app/packages/shared/package.json ./packages/shared/package.json
+COPY --from=build --chown=1000:1000 /app/packages/shared/dist ./packages/shared/dist
+COPY --from=build --chown=1000:1000 /app/VERSION ./VERSION
 
 RUN command -v node >/dev/null 2>&1 \
   && mkdir -p /var/lib/plaud-mirror/data /var/lib/plaud-mirror/recordings \
-  && chown -R 1000:1000 /app /var/lib/plaud-mirror
+  && chown -R 1000:1000 /var/lib/plaud-mirror
 
 # Run as non-root. UID:GID 1000:1000 matches the `node` user on the official
 # node:*-bookworm-slim images and the typical dev-vm host user, so bind-mounted

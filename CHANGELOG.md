@@ -4,6 +4,33 @@ All notable changes to Plaud Mirror are documented in this file.
 
 This project follows Semantic Versioning (SemVer): MAJOR.MINOR.PATCH.
 
+## [0.7.6] - 2026-06-16
+
+### Changed
+
+- **Bookmarklet made shorter and visible.** The browser-assisted reconnect marker no longer carries the full workspace-token heuristic. It now focuses on the known user-token key (`pld_tokenstr`), scans storage as a fallback, and stays under 2 KB to reduce bookmark truncation risk.
+- **Reconnect instructions now state the expected browser behavior.** Pressing the marker on `app.plaud.ai` should show a Plaud Mirror alert and then return to `/connect`; if no alert appears, the marker is not installed/executing correctly.
+
+### Fixed
+
+- **Bookmarklet failure is no longer silent.** The marker now shows an alert for every outcome: wrong page, token not found, token found, or capture error. This is intentionally less elegant but much easier to debug for an operator.
+
+### Notes
+
+- Tests 144 → 145 (new: bookmarklet size guard; web tests 20 → 21).
+
+## [0.7.5] - 2026-06-16
+
+### Fixed
+
+- **Masked token paste now fails with a clear 400 instead of a ByteString crash.** Pasting a redacted/hidden token value such as `Bearer ●●●●` made the backend try to build `Authorization: Bearer ●...`; the bullet character is not legal in a Fetch `ByteString` header, so the operator saw `Cannot convert argument to a ByteString... index 7`. `saveAccessToken` now rejects mask characters and other non-header-safe token characters before constructing the Plaud client, with a message that tells the operator to copy the real `localStorage` token instead of a hidden/redacted field.
+- **Docker image build no longer depends on `npm prune`.** The v0.7.5 deploy exposed a local build hang in `corepack npm prune --omit=dev`; the Dockerfile now uses a separate `prod-deps` stage with `npm ci --omit=dev` and copies those production dependencies into the runtime image.
+
+### Notes
+
+- Tests 143 → 144 (new: masked-token guard rejects before any Plaud request is built).
+- Live deploy verified on dev-vm: container and `/api/health` report `0.7.5`, operator auth is armed, and `PLAUD_MIRROR_API_BASE=https://api-euc1.plaud.ai`.
+
 ## [0.7.4] - 2026-06-13
 
 Closes the PII/info-leak introduced by v0.7.3 and fixes stale comments. No new feature.

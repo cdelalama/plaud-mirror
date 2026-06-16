@@ -86,9 +86,14 @@ describe("buildBookmarklet", () => {
     expect(src).toContain("/connect#token=");
     expect(src).toContain("pld_tokenstr");
     expect(src).toContain("plaud.ai");
+    expect(src).toContain("token encontrado");
     // The origin is single-quoted (no double quotes added around it); any
     // double quote present comes only from the quote-stripping regex /^"|"$/,
     // which is valid inside a javascript: URL.
     expect(src).toContain("'https://plaud.example.com'");
+  });
+
+  it("keeps the bookmarklet short enough to reduce browser truncation risk", () => {
+    expect(buildBookmarklet("https://plaud.example.com").length).toBeLessThan(2_000);
   });
 });

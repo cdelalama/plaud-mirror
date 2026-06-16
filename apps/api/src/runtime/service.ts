@@ -337,6 +337,7 @@ export class PlaudMirrorService {
       .replace(/^"|"$/g, "")
       .replace(/^bearer\s+/i, "")
       .trim();
+    assertUsablePlaudAccessToken(accessToken);
     const existingSecrets = await this.secrets.load();
     const client = this.createPlaudClient(accessToken);
 
@@ -1187,6 +1188,26 @@ function toErrorMessage(error: unknown): string {
   }
 
   return String(error);
+}
+
+function assertUsablePlaudAccessToken(accessToken: string): void {
+  if (!accessToken) {
+    throw createHttpError(400, "Plaud bearer token is empty after trimming quotes and the Bearer prefix");
+  }
+
+  if (/[\u2022\u25cf]/u.test(accessToken)) {
+    throw createHttpError(
+      400,
+      "The pasted Plaud token contains mask characters (●). Copy the real token from Plaud localStorage, not a hidden or redacted field.",
+    );
+  }
+
+  if (/\s/u.test(accessToken) || /[^\x21-\x7e]/u.test(accessToken)) {
+    throw createHttpError(
+      400,
+      "The pasted Plaud token contains characters that cannot be sent in an Authorization header. Copy the raw Plaud token from localStorage and paste it unchanged.",
+    );
+  }
 }
 
 function createHttpError(statusCode: number, message: string): Error & { statusCode: number } {

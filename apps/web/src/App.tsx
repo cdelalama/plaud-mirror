@@ -832,7 +832,10 @@ function Panel({
             <p className="muted small"><strong>Paso 2 — usarlo:</strong> pulsa
               "Reconectar Plaud" (abre la web de Plaud) → inicia sesión si hace falta
               → y <strong>en la pestaña de Plaud</strong> pulsa el marcador que
-              instalaste en el paso 1. El token viaja solo a este panel.</p>
+              instalaste en el paso 1. Debe aparecer un aviso de Plaud Mirror; al
+              cerrarlo volverás al panel y el token se guardará solo. Si no aparece
+              ningún aviso, el marcador no quedó bien instalado: bórralo e instala
+              de nuevo el de esta pantalla.</p>
             <div className="button-row">
               <button type="button" disabled={busy} onClick={() => handleReconnectPlaud()}>
                 Reconectar Plaud
