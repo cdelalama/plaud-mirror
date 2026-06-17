@@ -4,6 +4,22 @@ All notable changes to Plaud Mirror are documented in this file.
 
 This project follows Semantic Versioning (SemVer): MAJOR.MINOR.PATCH.
 
+## [0.9.1] - 2026-06-17
+
+### Added
+
+- Nothing.
+
+### Changed
+
+- **Operator panel now uses the full viewport.** The `v0.9.0` redesign copied the standalone reference frame too literally: the production shell rendered as a centered 1240px card on a grey presentation canvas. The app shell now fills the viewport, keeps the 212px rail pinned to the left edge, and lets the main content scroll inside the remaining width/height.
+- **Mobile rail stays compact.** The desktop full-height rail is overridden at the existing mobile breakpoint so the single-column layout keeps a compact sticky top rail instead of a 100vh block.
+
+### Fixed
+
+- **Wide desktop wasted space.** Large monitors no longer show broad grey margins around the operator panel; the frame border, shadow, outer radius, max-width, and page padding were removed from the production shell.
+- Tests: 150 (127 Node/integration tests + 23 web tests).
+
 ## [0.9.0] - 2026-06-16
 
 ### Added

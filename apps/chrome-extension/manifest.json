@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Plaud Mirror Connector",
-  "version": "0.9.0",
+  "version": "0.9.1",
   "description": "Send the active Plaud browser session token to Plaud Mirror.",
   "action": {
     "default_popup": "popup.html",

@@ -1,4 +1,4 @@
-<!-- doc-version: 0.9.0 -->
+<!-- doc-version: 0.9.1 -->
 # Project Context - Plaud Mirror
 
 ## Vision
@@ -22,9 +22,11 @@ Plaud Mirror is a server-first product with two runtime surfaces:
 
 Persistence is split between SQLite for state/indexes and the filesystem for mirrored audio artifacts. Secrets are encrypted at rest with a master key supplied by the surrounding deployment.
 
-## Current Status (2026-06-16, v0.9.0)
+## Current Status (2026-06-17, v0.9.1)
 
-Plaud Mirror `v0.9.0` is the current **Phase 4 operator UX** release. It absorbs the standalone design reference at `docs/design/reference/plaud-mirror-panel-standalone.html` into the real React/Vite panel without changing backend APIs: a 212px operator rail, dense light-console visual system, five screens (Main, Library, Backfill, Configuration, Operations), ES/EN chrome toggle, health/status strip, auth-failure banner, next-action card, KPI coverage, live Library search/player controls, live Backfill preview, and Operations visibility for recent runs, outbox retry, and `lastErrors`.
+Plaud Mirror `v0.9.1` is the current **Phase 4 operator UX** patch. It keeps the `v0.9.0` reference-driven panel but fixes the production shell: the standalone reference frame had been copied too literally as a centered 1240px card on a grey presentation canvas. The real panel now fills the viewport, keeps the 212px rail on the left edge, and lets the main content scroll inside the remaining width and height. No backend API, auth, sync, storage, secret, or `.env` behavior changed.
+
+The `v0.9.0` minor release underneath absorbs the standalone design reference at `docs/design/reference/plaud-mirror-panel-standalone.html` into the real React/Vite panel without changing backend APIs: a 212px operator rail, dense light-console visual system, five screens (Main, Library, Backfill, Configuration, Operations), ES/EN chrome toggle, health/status strip, auth-failure banner, next-action card, KPI coverage, live Library search/player controls, live Backfill preview, and Operations visibility for recent runs, outbox retry, and `lastErrors`.
 
 The `v0.8.x` line underneath remains the Phase 4 re-auth foundation. `v0.8.0` added the local Chrome companion extension as the recommended capture surface, and `v0.8.1` fixes the remaining server-side validation mismatch: the operator proved the captured EU user token returns `200` from Plaud Web's own console, while the backend got an HTML `403` from Plaud/Cloudflare. The token and region were correct; the stale backend request fingerprint was not. `PlaudClient` now validates and syncs with Plaud Web's browser context (`https://web.plaud.ai`, browser-like Chrome UA, browser `sec-fetch-*` headers).
 
@@ -38,7 +40,7 @@ The runtime baseline carried from `v0.5.3` is the **durable webhook outbox** (D-
 
 The earlier `0.5.x` baseline still applies: in-process continuous sync scheduler (D-012, stabilized in `v0.5.1`, panel-driven from `v0.5.2`), two-layer anti-overlap, SQLite-persisted scheduler config. `SyncRunSummary.enqueued` counts webhook payloads pushed to the outbox during the run; `delivered` keeps its original semantic ("delivered synchronously inside this run") and structurally stays at 0 from `v0.5.3` onwards.
 
-Operators upgrading from `0.4.x` should skip `v0.5.0` (scheduler default-on regression + missing service-layer anti-overlap) and go directly to `v0.9.0`.
+Operators upgrading from `0.4.x` should skip `v0.5.0` (scheduler default-on regression + missing service-layer anti-overlap) and go directly to `v0.9.1`.
 
 The Phase 2 slice it inherits: a live Fastify API, a web panel for token setup, webhook configuration, sync/backfill controls, recordings visibility with inline audio playback, encrypted persisted manual bearer-token auth, manual sync and filtered historical backfill (async-202, with a `limit=0` "refresh server stats" path), SQLite-backed recording and delivery state (including `dismissed` / `dismissed_at` columns for local curation), immediate HMAC-signed webhook delivery with persisted attempt logging, a confirmed local-only dismiss/restore flow that never touches Plaud, Docker packaging for `dev-vm` running as non-root `USER 1000:1000`, and the original Phase 1 spike CLI for direct Plaud probing. Concretely:
 
