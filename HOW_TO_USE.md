@@ -30,12 +30,12 @@ For the full feature inventory see [README.md](README.md); for the product inten
 
 ```bash
 cd ~/src/plaud-mirror
-export PLAUD_MIRROR_MASTER_KEY="<long-random-secret>"
-export PLAUD_MIRROR_ADMIN_PASSPHRASE="<operator-passphrase>"
-docker compose up --build -d
+doppler run --project plaud-mirror --config dev -- docker compose up -d --build
 ```
 
 Then open `http://localhost:3040`, sign in with the operator passphrase, reconnect Plaud from the Configuration screen (Chrome extension recommended, manual paste fallback), and trigger a sync from the Main screen.
+
+On `dev-vm`, the operator passphrase lives in Doppler (`plaud-mirror/dev`). Use the Doppler-wrapped compose command for every recreate unless the same secret is intentionally copied into the local gitignored `.env`.
 
 For Docker Hub timeout handling and acceptable fallback images, see [docs/operations/DEPLOY_PLAYBOOK.md](docs/operations/DEPLOY_PLAYBOOK.md). Pentesting distributions (e.g. `vxcontrol/kali-linux:latest`) are explicitly rejected as runtime bases.
 
@@ -161,7 +161,7 @@ Useful for live Plaud flow checks and metadata discovery without booting the pan
 npm test
 ```
 
-150 tests at `v0.9.0`: 127 Node tests (shared schemas/formatting, Plaud client, runtime service/store/scheduler/outbox/auth/capture-session, server routes, integration smoke for built API/web, Chrome extension contract) + 23 web tests under Vitest+jsdom+@testing-library/react (D-015). The root `npm test` runs both the Node test runner and `npm run test:web`.
+150 tests at `v0.9.1`: 127 Node tests (shared schemas/formatting, Plaud client, runtime service/store/scheduler/outbox/auth/capture-session, server routes, integration smoke for built API/web, Chrome extension contract) + 23 web tests under Vitest+jsdom+@testing-library/react (D-015). The root `npm test` runs both the Node test runner and `npm run test:web`.
 
 ## Working With LLM-DocKit Upstream
 
@@ -230,7 +230,7 @@ Per D-005 + D-011, AGPL upstreams (`openplaud/openplaud`) may be referenced for 
 The runtime is already in place. High-level module boundaries:
 
 - `apps/api/src/` — Fastify admin API, auth handler, sync/backfill service with pluggable scheduler, SQLite store, encrypted secret store, Plaud client with regional retry.
-- `apps/web/src/` — React/Vite panel with the v0.9.0 operator rail: Main, Library, Backfill, Configuration, and Operations screens.
+- `apps/web/src/` — React/Vite panel with the v0.9.0 operator rail and v0.9.1 full-viewport shell: Main, Library, Backfill, Configuration, and Operations screens.
 - `packages/shared/src/` — Zod schemas: `plaud.ts` holds wire-level Plaud response shapes, `runtime.ts` holds domain types shared across API/store/web.
 
 Before changing auth, download, sync cadence, or storage layout, read:

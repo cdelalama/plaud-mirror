@@ -57,10 +57,10 @@ Then open `http://localhost:3040`.
 
 ```bash
 cd ~/src/plaud-mirror
-export PLAUD_MIRROR_MASTER_KEY="<long-random-secret>"
-export PLAUD_MIRROR_ADMIN_PASSPHRASE="<operator-passphrase>"
-docker compose up --build
+doppler run --project plaud-mirror --config dev -- docker compose up -d --build
 ```
+
+The `dev-vm` deployment keeps operator access control in Doppler (`plaud-mirror/dev`). A bare `docker compose up` can recreate the container without `PLAUD_MIRROR_ADMIN_PASSPHRASE` and disarm the panel lock unless the same value is also present in a local `.env`.
 
 If Docker Hub is timing out, the Dockerfile accepts `PLAUD_MIRROR_DOCKER_BUILD_IMAGE` and `PLAUD_MIRROR_DOCKER_RUNTIME_IMAGE` build-arg overrides so you can point the build at a locally cached Node base. Acceptable substitutes:
 
@@ -91,7 +91,7 @@ This remains useful for live Plaud validation and metadata discovery.
 ```bash
 npm test
 npm start
-docker compose up --build
+doppler run --project plaud-mirror --config dev -- docker compose up -d --build
 scripts/check-version-sync.sh
 scripts/dockit-validate-session.sh --human
 ```

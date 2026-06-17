@@ -1,7 +1,7 @@
 <!-- doc-version: 0.9.1 -->
 # Deploy Playbook
 
-This runbook describes the actual Phase 2 Docker deployment path for Plaud Mirror.
+This runbook describes the current Docker deployment path for Plaud Mirror.
 
 ## Scope
 
@@ -22,9 +22,7 @@ This runbook describes the actual Phase 2 Docker deployment path for Plaud Mirro
 
 ```bash
 cd ~/src/plaud-mirror
-export PLAUD_MIRROR_MASTER_KEY="<long-random-secret>"
-export PLAUD_MIRROR_ADMIN_PASSPHRASE="<operator-passphrase>"
-docker compose up --build -d
+doppler run --project plaud-mirror --config dev -- docker compose up -d --build
 ```
 
 If Docker Hub is timing out when pulling `node:20-bookworm-slim` on `dev-vm`, the Dockerfile accepts `PLAUD_MIRROR_DOCKER_BUILD_IMAGE` and `PLAUD_MIRROR_DOCKER_RUNTIME_IMAGE` build-arg overrides so you can point at a locally cached Node base instead. Acceptable substitutes are any legitimate Node runtime image:
@@ -38,7 +36,7 @@ Example with a locally cached Node slim image:
 ```bash
 export PLAUD_MIRROR_DOCKER_BUILD_IMAGE="node:20-alpine"
 export PLAUD_MIRROR_DOCKER_RUNTIME_IMAGE="node:20-alpine"
-docker compose up --build -d
+doppler run --project plaud-mirror --config dev -- docker compose up -d --build
 ```
 
 The fallback path uses `corepack npm` inside the container build and does not rely on `apt` to install `npm`, `node`, or build tools, so any Node-capable base without an `npm` binary on `PATH` works.
@@ -52,7 +50,7 @@ Then open `http://<host>:3040`.
 ```bash
 cd ~/src/plaud-mirror
 git pull
-docker compose up --build -d
+doppler run --project plaud-mirror --config dev -- docker compose up -d --build
 ```
 
 ## Validation
@@ -75,7 +73,7 @@ docker compose down
 3. Rebuild and relaunch:
 
 ```bash
-docker compose up --build -d
+doppler run --project plaud-mirror --config dev -- docker compose up -d --build
 ```
 
 ## Notes
