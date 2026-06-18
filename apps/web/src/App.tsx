@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useState, type ReactNode } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { buildBookmarklet, PLAUD_WEB_APP_URL } from "./plaud-token.js";
 import { readLanguage, readTab, STORAGE_KEYS, type ActiveTab, type OperatorLanguage } from "./storage.js";
@@ -1228,7 +1228,7 @@ function Panel({
             {operationResult ? <Banner tone="success" message={operationResult} /> : null}
           </div>
 
-          <div className="operator-content">
+          <div className={"operator-content" + (activeTab === "library" ? " library-content" : "")}>
             {activeTab === "main" ? (
               <section>
                 <HeaderRow
@@ -1306,7 +1306,7 @@ function Panel({
             ) : null}
 
             {activeTab === "library" ? (
-              <section>
+              <section className="library-view">
                 <HeaderRow
                   title={t.navLibrary}
                   subtitle={formatInteger(totalRecordings) + " " + t.librarySubtitle + " · " + formatInteger(dismissedCount) + " " + t.dismissed.toLowerCase()}
@@ -1349,7 +1349,8 @@ function Panel({
                       deviceLabel={formatDeviceShortName(recording.serialNumber, deviceCatalog)}
                       playerMode={playerMode}
                       isPlaying={playingRecordingId === recording.id}
-                      onPlay={() => setPlayingRecordingId((current) => current === recording.id ? null : recording.id)}
+                      onPlay={() => setPlayingRecordingId(recording.id)}
+                      onStop={() => setPlayingRecordingId((current) => current === recording.id ? null : current)}
                       onDismiss={() => void handleDeleteRecording(recording)}
                       onRestore={() => void handleRestoreRecording(recording)}
                       busy={busy}
@@ -1598,6 +1599,7 @@ function RecordingRow({
   playerMode,
   isPlaying,
   onPlay,
+  onStop,
   onDismiss,
   onRestore,
   busy,
@@ -1608,14 +1610,32 @@ function RecordingRow({
   playerMode: "compact" | "full";
   isPlaying: boolean;
   onPlay: () => void;
+  onStop: () => void;
   onDismiss: () => void;
   onRestore: () => void;
   busy: boolean;
   t: Copy;
 }) {
   const canPlay = Boolean(recording.localPath) && !recording.dismissed;
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!isPlaying && audio && !audio.paused) {
+      audio.pause();
+    }
+  }, [isPlaying]);
+
+  function handleCompactPlay(): void {
+    onPlay();
+    void audioRef.current?.play().catch(() => {
+      // The native player stays visible after the state update, so the
+      // operator can press play manually if the browser rejects autoplay.
+    });
+  }
+
   return (
-    <article className={"recording-line" + (recording.dismissed ? " dismissed" : "")}>
+    <article className={"recording-line recording-line-" + playerMode + (recording.dismissed ? " dismissed" : "")}>
       <span className="mono recording-sequence">#{recording.sequenceNumber ?? "?"}</span>
       <div className="recording-copy">
         <strong>{recording.title}</strong>
@@ -1625,17 +1645,21 @@ function RecordingRow({
       </div>
       <div className="recording-player">
         {canPlay ? (
-          playerMode === "full" || isPlaying ? (
+          <>
             <audio
-              controls
+              ref={audioRef}
+              controls={playerMode === "full" || isPlaying}
               preload="none"
-              className="recording-audio-inline"
+              className={"recording-audio-inline" + (playerMode === "compact" && !isPlaying ? " hidden-audio" : "")}
               src={`/api/recordings/${encodeURIComponent(recording.id)}/audio`}
               onPlay={onPlay}
+              onPause={onStop}
+              onEnded={onStop}
             />
-          ) : (
-            <button type="button" className="play-button" onClick={onPlay} title={t.play}>▶ <span className="mono">{formatDuration(recording.durationSeconds)}</span></button>
-          )
+            {playerMode === "compact" && !isPlaying ? (
+              <button type="button" className="play-button" onClick={handleCompactPlay} title={t.play}>▶ <span className="mono">{formatDuration(recording.durationSeconds)}</span></button>
+            ) : null}
+          </>
         ) : (
           <span className="mono no-copy">{t.noLocalCopy}</span>
         )}

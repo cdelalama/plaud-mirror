@@ -213,8 +213,11 @@ select {
 
 .operator-main {
   min-width: 0;
+  min-height: 0;
+  height: 100vh;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
   background: var(--card);
 }
 
@@ -389,6 +392,17 @@ button.status-segment:hover {
   min-height: 0;
   overflow-y: auto;
   padding: 22px;
+}
+
+.operator-content.library-content {
+  overflow: hidden;
+}
+
+.library-view {
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .view-header {
@@ -836,6 +850,11 @@ button.status-segment:hover {
 
 .recording-table {
   display: grid;
+  align-content: start;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 4px;
 }
 
 .recording-line {
@@ -845,6 +864,10 @@ button.status-segment:hover {
   align-items: center;
   padding: 13px 8px;
   border-bottom: 1px solid #f0f1f3;
+}
+
+.recording-line-full {
+  grid-template-columns: 46px minmax(260px, 0.75fr) minmax(520px, 1.25fr) auto 32px;
 }
 
 .recording-line:hover {
@@ -885,11 +908,26 @@ button.status-segment:hover {
 
 .recording-player {
   width: 210px;
+  position: relative;
+}
+
+.recording-line-full .recording-player {
+  width: 100%;
+  min-width: 0;
 }
 
 .recording-audio-inline {
   width: 100%;
   height: 32px;
+}
+
+.recording-audio-inline.hidden-audio {
+  position: absolute;
+  inset: 0 auto auto 0;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
 }
 
 .play-button {
@@ -1298,6 +1336,14 @@ button.status-segment:hover {
     padding: 16px;
   }
 
+  .operator-content.library-content {
+    overflow-y: auto;
+  }
+
+  .library-view {
+    height: auto;
+  }
+
   .view-header,
   .auth-banner,
   .next-card,
@@ -1324,6 +1370,10 @@ button.status-segment:hover {
     grid-template-columns: 38px minmax(0, 1fr) auto;
   }
 
+  .recording-line-full {
+    grid-template-columns: 38px minmax(0, 1fr) auto;
+  }
+
   .recording-player,
   .recording-line .state-pill {
     grid-column: 2 / -1;
@@ -1338,6 +1388,12 @@ button.status-segment:hover {
   .scheduler-form,
   .field-grid.two {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 1180px) and (min-width: 981px) {
+  .recording-line-full {
+    grid-template-columns: 46px minmax(220px, 0.8fr) minmax(340px, 1.2fr) auto 32px;
   }
 }
 

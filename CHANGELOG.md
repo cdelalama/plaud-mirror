@@ -4,6 +4,22 @@ All notable changes to Plaud Mirror are documented in this file.
 
 This project follows Semantic Versioning (SemVer): MAJOR.MINOR.PATCH.
 
+## [0.9.4] - 2026-06-18
+
+### Added
+
+- Nothing.
+
+### Changed
+
+- **Library Full mode now earns its toggle.** Full playback rows use a wider, flexible native-audio column on desktop so the scrubber reaches much farther left instead of staying as a narrow right-side control.
+- **Library owns its list scroll.** The Library screen now keeps its header/toolbar/pagebar fixed inside the operator content area and scrolls the recordings table itself, so 50/100/150-row pages remain reachable in the full-viewport shell.
+
+### Fixed
+
+- **Compact Library playback.** Compact Play now controls the real row `<audio>` element inside the user click gesture instead of only toggling React state and waiting for a newly-rendered audio control. The playing compact row still expands to the native scrubber.
+- Tests: 151 -> 153 (127 Node/integration tests + 26 web tests).
+
 ## [0.9.3] - 2026-06-18
 
 ### Added

@@ -2,9 +2,11 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { App } from "./App.js";
+import { STORAGE_KEYS } from "./storage.js";
 
 afterEach(() => {
   cleanup();
+  vi.restoreAllMocks();
   vi.unstubAllGlobals();
   window.localStorage.clear();
 });
@@ -87,6 +89,24 @@ const config = {
   schedulerIntervalMs: 0,
 };
 
+const recording = {
+  id: "recording-1",
+  title: "Planning note",
+  createdAt: "2026-06-18T09:00:00.000Z",
+  durationSeconds: 93,
+  serialNumber: "device-1",
+  scene: null,
+  localPath: "/recordings/recording-1/audio.m4a",
+  contentType: "audio/mp4",
+  bytesWritten: 123456,
+  mirroredAt: "2026-06-18T09:01:00.000Z",
+  lastWebhookStatus: "skipped",
+  lastWebhookAttemptAt: null,
+  dismissed: false,
+  dismissedAt: null,
+  sequenceNumber: 1,
+};
+
 describe("<App>", () => {
   it("syncs every missing recording from Main instead of inheriting the Backfill limit", async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -147,5 +167,90 @@ describe("<App>", () => {
       limit: 7,
       forceDownload: false,
     });
+  });
+
+  it("plays the compact Library row through the real audio element", async () => {
+    const playMock = vi.spyOn(window.HTMLMediaElement.prototype, "play").mockResolvedValue(undefined);
+    vi.spyOn(window.HTMLMediaElement.prototype, "pause").mockImplementation(() => undefined);
+    window.localStorage.setItem(STORAGE_KEYS.ACTIVE_TAB, "library");
+
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const path = String(input);
+      if (path === "/api/session") {
+        return jsonResponse({ authRequired: false, authenticated: true });
+      }
+      if (path === "/api/health") {
+        return jsonResponse(health);
+      }
+      if (path === "/api/config") {
+        return jsonResponse(config);
+      }
+      if (path === "/api/auth/status") {
+        return jsonResponse(authStatus);
+      }
+      if (path.startsWith("/api/recordings")) {
+        return jsonResponse({ recordings: [recording], total: 1, skip: 0, limit: 50 });
+      }
+      if (path === "/api/devices") {
+        return jsonResponse({ devices: [] });
+      }
+      if (path === "/api/outbox") {
+        return jsonResponse({ items: [] });
+      }
+      throw new Error(`Unexpected request: ${path}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<App />);
+
+    const playButton = await screen.findByTitle("Reproducir");
+    fireEvent.click(playButton);
+
+    await waitFor(() => expect(playMock).toHaveBeenCalledTimes(1));
+    const row = screen.getByText("Planning note").closest("article");
+    expect(row?.className).toContain("recording-line-compact");
+    const audio = row?.querySelector("audio");
+    expect(audio?.className).not.toContain("hidden-audio");
+  });
+
+  it("marks full Library rows so the native player can use the wide layout", async () => {
+    vi.spyOn(window.HTMLMediaElement.prototype, "pause").mockImplementation(() => undefined);
+    window.localStorage.setItem(STORAGE_KEYS.ACTIVE_TAB, "library");
+
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const path = String(input);
+      if (path === "/api/session") {
+        return jsonResponse({ authRequired: false, authenticated: true });
+      }
+      if (path === "/api/health") {
+        return jsonResponse(health);
+      }
+      if (path === "/api/config") {
+        return jsonResponse(config);
+      }
+      if (path === "/api/auth/status") {
+        return jsonResponse(authStatus);
+      }
+      if (path.startsWith("/api/recordings")) {
+        return jsonResponse({ recordings: [recording], total: 1, skip: 0, limit: 50 });
+      }
+      if (path === "/api/devices") {
+        return jsonResponse({ devices: [] });
+      }
+      if (path === "/api/outbox") {
+        return jsonResponse({ items: [] });
+      }
+      throw new Error(`Unexpected request: ${path}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "completo" }));
+
+    const row = screen.getByText("Planning note").closest("article");
+    expect(row?.className).toContain("recording-line-full");
+    const audio = row?.querySelector("audio");
+    expect(audio?.className).not.toContain("hidden-audio");
   });
 });
