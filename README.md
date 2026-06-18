@@ -1,4 +1,4 @@
-<!-- doc-version: 0.9.1 -->
+<!-- doc-version: 0.9.2 -->
 # Plaud Mirror
 
 Self-hosted Plaud audio mirror with a local operator panel, manual sync/backfill controls, and Docker deployment.
@@ -26,7 +26,7 @@ The repository now contains the full Phase 2 slice plus the complete Phase 3 run
 - Spanish/English operator chrome persisted in browser storage
 - Docker packaging for `dev-vm`, running as non-root `USER 1000:1000`
 
-The current re-auth path is browser-assisted: the panel starts a one-time capture session and the local Chrome extension sends the Plaud browser token back through `/connect`. The v0.9.1 panel absorbs `docs/design/reference/plaud-mirror-panel-standalone.html` as its visual source reference and uses a full-viewport production shell on wide monitors. Resumable backfill, fully unattended re-login, and NAS rollout remain later phases.
+The current re-auth path is browser-assisted: the panel starts a one-time capture session and the local Chrome extension sends the Plaud browser token back through `/connect`. The v0.9.x panel absorbs `docs/design/reference/plaud-mirror-panel-standalone.html` as its visual source reference, uses a full-viewport production shell on wide monitors, and makes the Main cockpit's "Sync missing" action download the displayed missing count instead of inheriting the Backfill form's conservative limit. Resumable backfill, fully unattended re-login, and NAS rollout remain later phases.
 
 ## Operator Posture
 

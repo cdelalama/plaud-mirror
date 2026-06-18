@@ -4,6 +4,22 @@ All notable changes to Plaud Mirror are documented in this file.
 
 This project follows Semantic Versioning (SemVer): MAJOR.MINOR.PATCH.
 
+## [0.9.2] - 2026-06-18
+
+### Added
+
+- Nothing.
+
+### Changed
+
+- **Main sync now downloads the displayed missing count.** The Main cockpit action no longer borrows the Historical Backfill form's conservative `limit=1`. When Main says recordings are missing, its button now sends the visible missing count as the sync limit, capped at the existing backend safety ceiling of 1000.
+- **High-volume Main syncs require confirmation.** If the Main action would download 25 or more recordings, the panel asks the operator to confirm before starting the run.
+
+### Fixed
+
+- **Misleading "Sync missing" behavior.** A Main click could examine the full Plaud catalog but download only one recording because it inherited the Backfill draft limit. The button label now says exactly how many recordings it will download.
+- Tests: 150 -> 151 (127 Node/integration tests + 24 web tests).
+
 ## [0.9.1] - 2026-06-17
 
 ### Added

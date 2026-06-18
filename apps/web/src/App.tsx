@@ -53,6 +53,8 @@ const DEFAULT_BACKFILL_DRAFT: BackfillDraft = {
 };
 
 const TAB_ORDER: ActiveTab[] = ["main", "library", "backfill", "config", "ops"];
+const MAIN_SYNC_CONFIRM_THRESHOLD = 25;
+const MAX_SYNC_DOWNLOAD_LIMIT = 1000;
 
 const COPY = {
   es: {
@@ -415,6 +417,24 @@ const COPY = {
 
 type Copy = typeof COPY.es;
 type Tone = "good" | "warn" | "bad" | "muted" | "info";
+
+function formatMainSyncButton(language: OperatorLanguage, limit: number, total: number): string {
+  if (language === "es") {
+    return limit === total ? `Descargar ${total}` : `Descargar ${limit} de ${total}`;
+  }
+  return limit === total ? `Download ${total}` : `Download ${limit} of ${total}`;
+}
+
+function formatMainSyncConfirm(language: OperatorLanguage, limit: number, total: number): string {
+  if (language === "es") {
+    return limit === total
+      ? `Vas a descargar ${total} grabaciones faltantes. Puede tardar varios minutos y ocupar espacio local.\n\n¿Continuar?`
+      : `Hay ${total} grabaciones faltantes. Este run descargará las primeras ${limit} por el límite de seguridad actual; puedes repetirlo después.\n\n¿Continuar?`;
+  }
+  return limit === total
+    ? `You are about to download ${total} missing recordings. This can take several minutes and use local disk space.\n\nContinue?`
+    : `There are ${total} missing recordings. This run will download the first ${limit} because of the current safety limit; you can run it again afterwards.\n\nContinue?`;
+}
 
 // Session gate (D-018, v0.6.0). The panel boots by asking the server
 // whether operator auth is required; when it is and there is no valid
@@ -1023,10 +1043,17 @@ function Panel({
     }
   }
 
-  async function handleRunSync(): Promise<void> {
+  async function handleRunMissingFromMain(): Promise<void> {
+    if (missingCount == null || missingCount <= 0) {
+      return;
+    }
+    const limit = Math.min(missingCount, MAX_SYNC_DOWNLOAD_LIMIT);
+    if (limit >= MAIN_SYNC_CONFIRM_THRESHOLD && !window.confirm(formatMainSyncConfirm(language, limit, missingCount))) {
+      return;
+    }
     await startBackgroundRun("/api/sync/run", {
-      limit: coerceNonNegativeInteger(backfill.limit, config?.defaultSyncLimit ?? 100),
-      forceDownload: backfill.forceDownload,
+      limit,
+      forceDownload: false,
     });
   }
 
@@ -1240,7 +1267,7 @@ function Panel({
                           <span className="mono next-label">{t.nextAction}</span>
                           <strong>{missingCount} {t.missingAction}</strong>
                         </div>
-                        <button type="button" disabled={busy} onClick={() => void handleRunSync()}>{t.syncMissing}</button>
+                        <button type="button" disabled={busy} onClick={() => void handleRunMissingFromMain()}>{formatMainSyncButton(language, Math.min(missingCount, MAX_SYNC_DOWNLOAD_LIMIT), missingCount)}</button>
                       </section>
                     ) : null}
 
