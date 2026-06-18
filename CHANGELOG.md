@@ -4,6 +4,23 @@ All notable changes to Plaud Mirror are documented in this file.
 
 This project follows Semantic Versioning (SemVer): MAJOR.MINOR.PATCH.
 
+## [0.9.3] - 2026-06-18
+
+### Added
+
+- **Trace Protocol governance support from LLM-DocKit.** Session onboarding now documents the Trace header convention, `dockit-bootstrap-context.sh` surfaces it during startup, and `dockit-validate-session.sh` includes a durable `trace-protocol` check that stays skipped unless a project explicitly enables it in `.dockit-config.yml`.
+- **Validator smoke coverage for Trace Protocol.** `scripts/test-validator.sh` now covers the skip path, valid anchors, minute/second commit times, missing HISTORY footers, pre-activation history, missing anchors, invalid hashes, and missing `since` configuration.
+
+### Changed
+
+- **Merged the DocKit sync manually instead of accepting the raw overwrite.** The upstream trace-protocol additions were kept while restoring Plaud Mirror's local validator extensions.
+- **Read-only DocKit hook skips are now explicit.** The Claude hook runs the validator with `DOCKIT_ALLOW_READ_ONLY_SKIP=1`, preserving the upstream maintenance refinement without weakening dirty-session enforcement.
+
+### Fixed
+
+- **Local guardrails were restored after a raw DocKit sync clobbered them.** `handoff-start-here-sync`, `prose-drift`, `unabsorbed-artifact`, and `json-version` handling in the version bump/check scripts are active again. The validator now reports 12 checks instead of dropping to 9.
+- Tests: runtime tests unchanged at 151. Governance checks: `scripts/dockit-validate-session.sh --human` passes 12/12; `scripts/test-validator.sh` passes 17/17.
+
 ## [0.9.2] - 2026-06-18
 
 ### Added

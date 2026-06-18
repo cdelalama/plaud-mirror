@@ -1,4 +1,4 @@
-<!-- doc-version: 0.9.2 -->
+<!-- doc-version: 0.9.3 -->
 # Plaud Mirror
 
 Self-hosted Plaud audio mirror with a local operator panel, manual sync/backfill controls, and Docker deployment.

@@ -1,4 +1,4 @@
-<!-- doc-version: 0.9.2 -->
+<!-- doc-version: 0.9.3 -->
 # LLM Start Guide - Plaud Mirror
 
 ## Read This First (Mandatory)
@@ -86,7 +86,8 @@ Recommended reading order:
 
 Source of truth: docs/llm/HANDOFF.md.
 - Last Updated: 2026-06-18 - Codex GPT-5
-- Working on: **v0.9.2 (patch) — Main sync action now downloads the displayed missing count.** Live investigation showed the Main cockpit button inherited the Historical Backfill form's conservative draft `limit=1`, so a click could examine the full Plaud catalog while downloading only one missing recording. `apps/web/src/App.tsx` now decouples Main from the Backfill draft: Main computes the displayed missing count from health, sends that count to `POST /api/sync/run` capped at the existing 1000-item backend ceiling, forces `forceDownload:false`, labels the button with the exact count (`Descargar N` / `Download N`), and asks for confirmation at 25+ downloads. The Backfill screen keeps its own `limit=1` default because it is an advanced filtered tool. New web regression coverage in `apps/web/src/App.test.tsx` proves Main sends the visible missing count instead of `1`. Tests: 151 (127 Node/integration + 24 web). `npm test` passes. Operational full sync was run before the patch with an explicit high limit: run `5a970a84-3f44-4602-b727-3d1d12179349` completed with `examined=514`, `matched=165`, `downloaded=165`, `skipped=165` (webhook skipped because no webhook is configured), `enqueued=0`, and no error; health/SQLite now show `recordingsCount=514`, `plaudTotal=514`, missing `0`. Deployed on dev-vm 2026-06-18 with `doppler run --project plaud-mirror --config dev -- docker compose up -d --build`; container `/app/VERSION`, local `/api/health`, and `https://plaud.lamanoriega.com/api/health` report `0.9.2`, auth `healthy`, EU API base, warnings `[]`, `/api/session` `authRequired:true`, and unauthenticated `/api/config` 401.
+- Working on: **v0.9.3 (patch) — DocKit trace protocol merged without losing local guardrails.** A raw LLM-DocKit sync had landed in the working tree after v0.9.2 and added trace-protocol scaffolding, but also removed Plaud Mirror's local governance protections: `handoff-start-here-sync`, `prose-drift`, `unabsorbed-artifact`, and `json-version` package-manifest handling. v0.9.3 keeps the useful upstream pieces (`LLM_START_HERE.md` Trace Protocol section, bootstrap Trace guidance, validator `trace-protocol` check, read-only skip refinement, and smoke tests) while restoring the local extensions. `scripts/check-version-sync.sh` again checks 21 targets, and `scripts/dockit-validate-session.sh --human` now reports 12 checks: the previous 11 plus trace-protocol, skipped unless explicitly enabled in `.dockit-config.yml`. `scripts/test-validator.sh` passes 17/17. Runtime behavior is unchanged from v0.9.2: Main sync UX remains fixed, auth is healthy, EU API base is configured, and the catalog is complete at 514/514.
+- Previous (v0.9.2): Main sync action now downloads the displayed missing count. Live investigation showed the Main cockpit button inherited the Historical Backfill form's conservative draft `limit=1`, so a click could examine the full Plaud catalog while downloading only one missing recording. `apps/web/src/App.tsx` decouples Main from the Backfill draft: Main computes the displayed missing count from health, sends that count to `POST /api/sync/run` capped at the existing 1000-item backend ceiling, forces `forceDownload:false`, labels the button with the exact count (`Descargar N` / `Download N`), and asks for confirmation at 25+ downloads. Backfill keeps its own `limit=1` default because it is an advanced filtered tool. Tests: 151 (127 Node/integration + 24 web). Operational full sync run `5a970a84-3f44-4602-b727-3d1d12179349` completed with `examined=514`, `matched=165`, `downloaded=165`, `skipped=165` (webhook skipped because no webhook is configured), `enqueued=0`, and no error; health/SQLite show `recordingsCount=514`, `plaudTotal=514`, missing `0`.
 - Previous (v0.9.1): full-viewport operator shell + documentation drift cleanup. The `v0.9.0` redesign copied the standalone reference frame too literally, rendering production as a centered 1240px card on a grey presentation canvas. `apps/web/src/styles.css` removed the outer card frame (`max-width`, page padding, border, radius, shadow), made the operator frame fill `100vh`/`100%`, kept the 212px rail pinned to the left edge on desktop, and let `.operator-content` own vertical scrolling. Existing screens, components, copy, endpoints, auth/reconnect flows, and mobile breakpoints stayed intact. Tests: 150 (127 Node/integration + 23 web).
 - Previous (v0.9.0): reference-driven operator panel redesign. Absorbed `docs/design/reference/plaud-mirror-panel-standalone.html` into the real React/Vite panel without backend API changes or secret/env edits. The panel now uses the dense light-console visual system from the reference (212px rail, Archivo/Space Grotesk/JetBrains Mono, green accent, state colors) and real five-screen navigation: Main, Library, Backfill, Configuration, Operations. Existing capabilities stay wired: operator login, health/status, Chrome-extension reconnect + manual token fallback, scheduler/webhook config, sync/backfill, recordings playback/dismiss/restore, outbox retry, and errors/runs. Added ES/EN operator chrome persisted in localStorage. Tests 148 -> 150 (127 Node + 23 web).
 - Previous (v0.8.1): backend Plaud validation fingerprint aligned with Plaud Web. The operator proved the extension-captured EU user token is valid in the Plaud Web console, while the backend received an HTML `403` from Plaud/Cloudflare. Diagnosis: token and region were correct; the stale server-side Plaud request context was the mismatch (`Origin/Referer: https://app.plaud.ai` plus custom `plaud-mirror-phase1/...` user-agent). Fix: `PlaudClient` now sends `Origin/Referer: https://web.plaud.ai`, a browser-like Chrome UA, and browser `sec-fetch-*` headers. Extension flow unchanged. Tests 147 -> 148. v0.8.0 below.
@@ -174,6 +175,77 @@ Use the Do Not Touch section in docs/llm/HANDOFF.md to flag any files or areas t
 | docs/operations/AUTH_AND_SYNC.md | docs/operations/AUTH_AND_SYNC.md |
 | docs/operations/DEPLOY_PLAYBOOK.md | docs/operations/DEPLOY_PLAYBOOK.md |
 <!-- DOCKIT-EXTERNAL-CONTEXT:END -->
+
+<!-- DOCKIT-TEMPLATE:START trace-protocol -->
+## Trace Protocol
+
+For execution or audit work, begin each substantive execution report or audit
+verdict with a compact `Trace` header, then write the normal explanation in
+prose. The header is for orientation; it does not replace the message.
+
+Required chat header fields:
+- `Role`: `executor` or `auditor`
+- `Sent`: `YYYY-MM-DD HH:MM <local-tz> (HH:MM UTC)`. The order is mandatory:
+  local time first, UTC second in parentheses.
+- `Subject`: current task, or commit hash/title being implemented or audited
+- `Resulting state`: what this message leaves true after it is sent
+- `Repo state`: local branch vs origin and worktree status verified now
+- `Validation`: checks run and result
+- `Next gate`: who/what should act next
+
+Time verification:
+- Verify `Sent` before writing it; do not infer or mentally convert the time.
+- If shell access is available, run both:
+  ```sh
+  date -u '+%Y-%m-%d %H:%M UTC'
+  TZ=Europe/Madrid date '+%Y-%m-%d %H:%M %Z'
+  ```
+- Replace `Europe/Madrid` with `trace_protocol.local_timezone` from
+  `.dockit-config.yml` when the project sets one.
+- If the agent cannot verify the clock, write:
+  `Sent: unverified client time YYYY-MM-DD HH:MM <claimed-tz>`.
+
+Recommended `Resulting state` shape:
+
+```text
+Resulting state: HEAD=<hash|unchanged (hash)>; version=<version|none>; gate=<opened|cleared|blocked|superseded|next-slice>; <short note>
+```
+
+Examples:
+
+```text
+Resulting state: HEAD=01f90bb; version=<version>; gate=cleared; supersedes audit of d6fc816
+Resulting state: HEAD=unchanged (01f90bb); version=none; gate=cleared; ready for next slice
+Resulting state: HEAD=unchanged (d6fc816); version=none; gate=blocked; requires executor patch in the next release
+```
+
+Use clear prose after the header. Explain what changed, why it matters, what
+was verified, and what risk remains.
+
+When `trace_protocol.enabled: true` is set in `.dockit-config.yml`, the durable
+half is enforced by `scripts/dockit-validate-session.sh --check trace-protocol`:
+- `docs/llm/HANDOFF.md` must contain a `## Trace Anchor` section.
+- HANDOFF Trace Anchor commit times may use `YYYY-MM-DD HH:MM:SS UTC` or
+  `YYYY-MM-DD HH:MM UTC`.
+- `docs/llm/HISTORY.md` entries dated on or after `trace_protocol.since` that
+  reference backtick-quoted commit hashes must end with an inline footer:
+  `Trace: role=executor|auditor; commits=hash1,hash2; state=...; validation=...; next=...`
+
+Projects can set the local timezone used in `Sent` with:
+
+```yaml
+trace_protocol:
+  local_timezone: Europe/Madrid
+```
+
+Projects that do not use executor/auditor windows can disable the chat-side
+convention with:
+
+```yaml
+trace_protocol:
+  enabled: false
+```
+<!-- DOCKIT-TEMPLATE:END trace-protocol -->
 
 <!-- DOCKIT-TEMPLATE:START footer -->
 ---

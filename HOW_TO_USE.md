@@ -1,11 +1,11 @@
-<!-- doc-version: 0.9.2 -->
+<!-- doc-version: 0.9.3 -->
 # How to Use This Repository
 
 This guide explains how Plaud Mirror is operated end-to-end and how it stays aligned with both `LLM-DocKit` (the governance scaffold it adopts) and the Plaud ecosystem upstreams it watches.
 
 ## Current Reality
 
-`v0.9.2` is the current **Phase 4 operator UX release**: it keeps the hardened `v0.6.x` runtime, the `v0.7.x` `/connect` capture handshake, the local Chrome companion extension from `v0.8.0`, the Plaud Web-aligned backend validation fingerprint from `v0.8.1`, the reference-driven five-screen operator panel from `v0.9.0`, the full-viewport production shell from `v0.9.1`, and the fixed Main "download missing" action from `v0.9.2`. **Operators upgrading from any `0.4.x`/`0.5.x` should go directly to `v0.9.2`.** Today the repository gives you:
+`v0.9.3` is the current **Phase 4 operator UX / governance release**: it keeps the hardened `v0.6.x` runtime, the `v0.7.x` `/connect` capture handshake, the local Chrome companion extension from `v0.8.0`, the Plaud Web-aligned backend validation fingerprint from `v0.8.1`, the reference-driven five-screen operator panel from `v0.9.0`, the full-viewport production shell from `v0.9.1`, the fixed Main "download missing" action from `v0.9.2`, and the DocKit trace-protocol merge from `v0.9.3` without losing Plaud Mirror's local guardrails. **Operators upgrading from any `0.4.x`/`0.5.x` should go directly to `v0.9.3`.** Today the repository gives you:
 
 - a Fastify API and React/Vite panel bundled in a single Docker container;
 - **operator access control** (v0.6.0): set `PLAUD_MIRROR_ADMIN_PASSPHRASE` and the panel asks for the passphrase once per device (30-day session cookie); without it the API runs open and `/api/health` warns;
@@ -161,7 +161,7 @@ Useful for live Plaud flow checks and metadata discovery without booting the pan
 npm test
 ```
 
-151 tests at `v0.9.2`: 127 Node tests (shared schemas/formatting, Plaud client, runtime service/store/scheduler/outbox/auth/capture-session, server routes, integration smoke for built API/web, Chrome extension contract) + 24 web tests under Vitest+jsdom+@testing-library/react (D-015). The root `npm test` runs both the Node test runner and `npm run test:web`.
+151 runtime tests at `v0.9.3`: 127 Node tests (shared schemas/formatting, Plaud client, runtime service/store/scheduler/outbox/auth/capture-session, server routes, integration smoke for built API/web, Chrome extension contract) + 24 web tests under Vitest+jsdom+@testing-library/react (D-015). The root `npm test` runs both the Node test runner and `npm run test:web`. Governance checks are separate: `scripts/dockit-validate-session.sh --human` runs 12 checks and `scripts/test-validator.sh` currently has 17 smoke cases.
 
 ## Working With LLM-DocKit Upstream
 
@@ -230,7 +230,7 @@ Per D-005 + D-011, AGPL upstreams (`openplaud/openplaud`) may be referenced for 
 The runtime is already in place. High-level module boundaries:
 
 - `apps/api/src/` — Fastify admin API, auth handler, sync/backfill service with pluggable scheduler, SQLite store, encrypted secret store, Plaud client with regional retry.
-- `apps/web/src/` — React/Vite panel with the v0.9.0 operator rail, v0.9.1 full-viewport shell, and v0.9.2 Main sync-limit fix: Main, Library, Backfill, Configuration, and Operations screens.
+- `apps/web/src/` — React/Vite panel with the v0.9.0 operator rail, v0.9.1 full-viewport shell, and v0.9.2 Main sync-limit fix: Main, Library, Backfill, Configuration, and Operations screens. v0.9.3 changes governance tooling only, not the panel runtime.
 - `packages/shared/src/` — Zod schemas: `plaud.ts` holds wire-level Plaud response shapes, `runtime.ts` holds domain types shared across API/store/web.
 
 Before changing auth, download, sync cadence, or storage layout, read:
