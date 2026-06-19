@@ -4,6 +4,22 @@ All notable changes to Plaud Mirror are documented in this file.
 
 This project follows Semantic Versioning (SemVer): MAJOR.MINOR.PATCH.
 
+## [0.9.5] - 2026-06-19
+
+### Added
+
+- **Labeled mobile view selector.** The mobile rail now exposes a native view selector labeled `Vista` / `View`, so navigation is not an icon-only strip at the top of the phone screen.
+
+### Changed
+
+- **Mobile status is compact.** The desktop status strip is replaced on mobile by a single horizontally-scrollable row of compact chips, keeping Auth, Sync, Scheduler, Outbox, and Errors visible without consuming the main viewport.
+- **Mobile rail is a real header.** The mobile shell now keeps the brand/version, view selector, language toggle, and logout in a compact top header instead of a five-icon pseudo-sidebar.
+
+### Fixed
+
+- **Library mobile row actions stay on the right.** Dismiss/restore buttons are explicitly anchored to the top-right grid cell on narrow screens instead of dropping under the row content.
+- Tests: 153 -> 154 (127 Node/integration tests + 27 web tests).
+
 ## [0.9.4] - 2026-06-18
 
 ### Added

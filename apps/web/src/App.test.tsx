@@ -108,6 +108,45 @@ const recording = {
 };
 
 describe("<App>", () => {
+  it("keeps mobile navigation labeled and able to switch views", async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const path = String(input);
+      if (path === "/api/session") {
+        return jsonResponse({ authRequired: false, authenticated: true });
+      }
+      if (path === "/api/health") {
+        return jsonResponse(health);
+      }
+      if (path === "/api/config") {
+        return jsonResponse(config);
+      }
+      if (path === "/api/auth/status") {
+        return jsonResponse(authStatus);
+      }
+      if (path.startsWith("/api/recordings")) {
+        return jsonResponse({ recordings: [], total: 0, skip: 0, limit: 50 });
+      }
+      if (path === "/api/devices") {
+        return jsonResponse({ devices: [] });
+      }
+      if (path === "/api/outbox") {
+        return jsonResponse({ items: [] });
+      }
+      throw new Error(`Unexpected request: ${path}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<App />);
+
+    const viewMenu = await screen.findByLabelText("Vista");
+    expect((viewMenu as HTMLSelectElement).value).toBe("main");
+
+    fireEvent.change(viewMenu, { target: { value: "library" } });
+
+    await screen.findByRole("heading", { name: "Library" });
+    expect(window.localStorage.getItem(STORAGE_KEYS.ACTIVE_TAB)).toBe("library");
+  });
+
   it("syncs every missing recording from Main instead of inheriting the Backfill limit", async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const path = String(input);

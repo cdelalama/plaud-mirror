@@ -1,4 +1,4 @@
-<!-- doc-version: 0.9.4 -->
+<!-- doc-version: 0.9.5 -->
 # Plaud Mirror
 
 Self-hosted Plaud audio mirror with a local operator panel, manual sync/backfill controls, and Docker deployment.
@@ -23,10 +23,10 @@ The repository now contains the full Phase 2 slice plus the complete Phase 3 run
 - local-only dismiss and restore (Plaud itself is never mutated)
 - HMAC-signed webhook delivery via a **durable outbox** (v0.5.3+): each successful sync enqueues the payload, a worker retries with exponential backoff (30s → 8h, 8 attempts, ~16h total window), and the Operations screen surfaces permanently-failed items with a Retry button. Counters on `/api/health.outbox`.
 - **opt-in continuous sync scheduler** configured from the Configuration screen of the panel (interval in minutes, `0` disables, hot-applied without container restart); status surfaced via the `scheduler` block on `/api/health`
-- Spanish/English operator chrome persisted in browser storage
+- Spanish/English operator chrome persisted in browser storage, with a labeled mobile view selector and compact mobile status chips
 - Docker packaging for `dev-vm`, running as non-root `USER 1000:1000`
 
-The current re-auth path is browser-assisted: the panel starts a one-time capture session and the local Chrome extension sends the Plaud browser token back through `/connect`. The v0.9.x panel absorbs `docs/design/reference/plaud-mirror-panel-standalone.html` as its visual source reference, uses a full-viewport production shell on wide monitors, and makes the Main cockpit's "Sync missing" action download the displayed missing count instead of inheriting the Backfill form's conservative limit. Resumable backfill, fully unattended re-login, and NAS rollout remain later phases.
+The current re-auth path is browser-assisted: the panel starts a one-time capture session and the local Chrome extension sends the Plaud browser token back through `/connect`. The v0.9.x panel absorbs `docs/design/reference/plaud-mirror-panel-standalone.html` as its visual source reference, uses a full-viewport production shell on wide monitors, makes the Main cockpit's "Sync missing" action download the displayed missing count instead of inheriting the Backfill form's conservative limit, and keeps the mobile shell readable with labeled navigation and compact status chips. Resumable backfill, fully unattended re-login, and NAS rollout remain later phases.
 
 ## Operator Posture
 

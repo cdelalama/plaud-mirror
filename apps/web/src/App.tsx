@@ -81,6 +81,8 @@ const COPY = {
     navBackfill: "Backfill",
     navConfig: "Configuration",
     navOps: "Operations",
+    viewMenu: "Vista",
+    mobileStatus: "Estado actual",
     selfHosted: "self-hosted",
     logout: "Salir",
     statusAuth: "Auth",
@@ -259,6 +261,8 @@ const COPY = {
     navBackfill: "Backfill",
     navConfig: "Configuration",
     navOps: "Operations",
+    viewMenu: "View",
+    mobileStatus: "Current status",
     selfHosted: "self-hosted",
     logout: "Log out",
     statusAuth: "Auth",
@@ -1142,6 +1146,15 @@ function Panel({
             </div>
           </div>
 
+          <label className="mobile-view-menu">
+            <span className="mono">{t.viewMenu}</span>
+            <select value={activeTab} onChange={(event) => setActiveTab(event.target.value as ActiveTab)}>
+              {TAB_ORDER.map((tab) => (
+                <option key={tab} value={tab}>{tabLabel(tab, t)}</option>
+              ))}
+            </select>
+          </label>
+
           <nav className="rail-nav" aria-label="Plaud Mirror">
             {TAB_ORDER.map((tab) => (
               <button
@@ -1204,6 +1217,38 @@ function Panel({
               onClick={() => setActiveTab("ops")}
             />
             <StatusSegment
+              label={t.statusErrors}
+              value={String(recentErrors.length)}
+              tone={recentErrors.length > 0 ? "warn" : "muted"}
+              onClick={() => setActiveTab("ops")}
+            />
+          </section>
+
+          <section className="mobile-status-summary" aria-label={t.mobileStatus}>
+            <MobileStatusChip
+              label={t.statusAuth}
+              value={authMissing ? t.noToken : authState === "healthy" ? t.healthy : authState === "degraded" ? t.degraded : t.invalid}
+              tone={authMissing ? "muted" : authInvalid ? "bad" : "good"}
+              onClick={() => setActiveTab("config")}
+            />
+            <MobileStatusChip
+              label={t.statusSync}
+              value={syncRunning ? t.running : t.idle}
+              tone={syncRunning ? "info" : "muted"}
+              spinning={syncRunning}
+            />
+            <MobileStatusChip
+              label={t.statusScheduler}
+              value={health?.scheduler.enabled ? schedulerStatusLabel(health.scheduler, t) : t.off}
+              tone={health?.scheduler.enabled ? "good" : "muted"}
+            />
+            <MobileStatusChip
+              label={t.statusOutbox}
+              value={String(outboxTotal)}
+              tone={outboxProblem ? "warn" : outboxTotal > 0 ? "info" : "muted"}
+              onClick={() => setActiveTab("ops")}
+            />
+            <MobileStatusChip
               label={t.statusErrors}
               value={String(recentErrors.length)}
               tone={recentErrors.length > 0 ? "warn" : "muted"}
@@ -1514,6 +1559,35 @@ function StatusSegment({
     <button type="button" className={"status-segment tone-" + tone} onClick={onClick}>{content}</button>
   ) : (
     <div className={"status-segment tone-" + tone}>{content}</div>
+  );
+}
+
+function MobileStatusChip({
+  label,
+  value,
+  tone,
+  spinning = false,
+  onClick,
+}: {
+  label: string;
+  value: string;
+  tone: Tone;
+  spinning?: boolean;
+  onClick?: () => void;
+}) {
+  const content = (
+    <>
+      <span className={"status-dot tone-" + tone + (spinning ? " spinning" : "")} aria-hidden="true" />
+      <span>
+        <span className="mono status-label">{label}</span>
+        <strong>{value}</strong>
+      </span>
+    </>
+  );
+  return onClick ? (
+    <button type="button" className={"mobile-status-chip tone-" + tone} onClick={onClick}>{content}</button>
+  ) : (
+    <div className={"mobile-status-chip tone-" + tone}>{content}</div>
   );
 }
 
