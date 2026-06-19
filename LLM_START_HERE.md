@@ -1,4 +1,4 @@
-<!-- doc-version: 0.9.5 -->
+<!-- doc-version: 0.9.6 -->
 # LLM Start Guide - Plaud Mirror
 
 ## Read This First (Mandatory)
@@ -39,7 +39,7 @@ Recommended reading order:
 ### Documentation Update Rules
 - Update docs/llm/HANDOFF.md every time you make a change.
 - Append an entry to docs/llm/HISTORY.md in every session.
-- HISTORY format: YYYY-MM-DD - <LLM_NAME> - <Brief summary> - Files: [list] - Version impact: [yes/no + details]
+- HISTORY format defaults to `any`: either `- YYYY-MM-DD - <LLM_NAME> - ...` or `YYYY-MM-DD - <LLM_NAME> - ...` is accepted. Set top-level `history_format: dash` or `history_format: no-dash` in `.dockit-config.yml` when a project wants strict enforcement.
 - Put long-form rationale in docs/llm/DECISIONS.md and link to it from HANDOFF.
 - Prefer ASCII-only in docs/llm/* to avoid Windows encoding issues.
 <!-- DOCKIT-TEMPLATE:END doc-update-rules -->
@@ -70,6 +70,7 @@ Recommended reading order:
 - Every commit that changes code/config files MUST include a version bump. The pre-commit hook enforces this.
 - For version bumps, run `scripts/bump-version.sh <new_version>`; do not edit version strings manually.
 - The bump script reads `docs/version-sync-manifest.yml` to update all tracked files atomically.
+- Supported manifest marker types are `version-file`, `changelog`, `html-comment`, `json-version`, `yaml-info-version`, and `package-lock-version`.
 - Validate sync with `scripts/check-version-sync.sh` (also available as pre-commit hook).
 - Do not bump versions without consulting docs/VERSIONING_RULES.md for impact level (patch/minor/major).
 - Do NOT batch multiple code commits without versioning. No exceptions.
@@ -86,7 +87,8 @@ Recommended reading order:
 
 Source of truth: docs/llm/HANDOFF.md.
 - Last Updated: 2026-06-19 - Codex GPT-5
-- Working on: **v0.9.5 (patch) — mobile operator shell made usable.** The `v0.9.0` redesign and `v0.9.1` full-viewport shell still behaved too much like desktop on phones: the mobile rail hid labels and showed only icons, the status strip occupied too much vertical space, and Library row actions could fall to the lower-left of a mobile row. v0.9.5 keeps backend routes, auth, sync, storage, scheduler, webhook, secrets, and `.env` behavior unchanged while adding a labeled mobile view selector (`Vista` / `View`), replacing the large mobile status strip with one compact chip row, and pinning Library dismiss/restore actions to the top-right on narrow screens. Tests: 154 (127 Node/integration + 27 web). Runtime state after deploy: container and `/api/health` report `0.9.5`, auth healthy, EU API base, catalog complete at 580/580, operator lock armed.
+- Working on: **v0.9.6 (patch) — LLM-DocKit 4.9.6 adopter sync, no runtime deployment.** Applied the 4.9.6 sync from `~/src/LLM-DocKit` and kept the useful upstream guardrails: HISTORY format defaults to `any` with strict dash/no-dash opt-in, version tooling supports `json-version`, `yaml-info-version`, and `package-lock-version`, and Trace v1.3 requires seconds in chat `Sent` headers plus stale-read re-verification guidance. The raw sync again dropped Plaud Mirror's local validator checks (`handoff-start-here-sync`, `prose-drift`, `unabsorbed-artifact`) from the copied `scripts/dockit-validate-session.sh`; they were reinserted before commit. `scripts/test-validator.sh` now reports 32 smoke cases, including the intentional upstream rule that HANDOFF Trace Anchor commit times may omit seconds while chat `Sent` headers must include seconds. `docs/version-sync-manifest.yml` now tracks `package-lock.json` via `package-lock-version`, raising version-sync from 21 to 22 targets and clearing the stale lockfile version. Runtime/product/NAS/deploy work was explicitly out of scope; the live container remains the previously verified `0.9.5` runtime.
+- Previous (v0.9.5): mobile operator shell made usable. The `v0.9.0` redesign and `v0.9.1` full-viewport shell still behaved too much like desktop on phones: the mobile rail hid labels and showed only icons, the status strip occupied too much vertical space, and Library row actions could fall to the lower-left of a mobile row. v0.9.5 keeps backend routes, auth, sync, storage, scheduler, webhook, secrets, and `.env` behavior unchanged while adding a labeled mobile view selector (`Vista` / `View`), replacing the large mobile status strip with one compact chip row, and pinning Library dismiss/restore actions to the top-right on narrow screens. Tests: 154 (127 Node/integration + 27 web). Runtime state after deploy: container and `/api/health` report `0.9.5`, auth healthy, EU API base, catalog complete at 580/580, operator lock armed.
 - Previous (v0.9.4): Library playback and scrolling fixed in the redesigned panel. The `v0.9.0` Library had two operator-visible regressions in the full-viewport shell: Compact Play only toggled React state and did not start the native audio element, and the recordings list did not own a reliable scroll area. v0.9.4 keeps the backend and data contracts unchanged while making each playable row keep a real `<audio>` in the DOM, calling `audio.play()` inside the compact button's user gesture, pausing stale rows when another row starts, widening Full-mode player rows on desktop, and giving Library a table-owned scroll region under its fixed header/toolbar/pagebar. Tests: 153 (127 Node/integration + 26 web). Runtime state after deploy: auth healthy, EU API base, catalog complete at 517/517, operator lock armed.
 - Previous (v0.9.3): DocKit trace protocol merged without losing local guardrails. A raw LLM-DocKit sync had landed in the working tree after v0.9.2 and added trace-protocol scaffolding, but also removed Plaud Mirror's local governance protections: `handoff-start-here-sync`, `prose-drift`, `unabsorbed-artifact`, and `json-version` package-manifest handling. v0.9.3 keeps the useful upstream pieces (`LLM_START_HERE.md` Trace Protocol section, bootstrap Trace guidance, validator `trace-protocol` check, read-only skip refinement, and smoke tests) while restoring the local extensions. `scripts/check-version-sync.sh` again checks 21 targets, and `scripts/dockit-validate-session.sh --human` reports 12 checks: the previous 11 plus trace-protocol, skipped unless explicitly enabled in `.dockit-config.yml`. `scripts/test-validator.sh` passes 17/17.
 - Previous (v0.9.2): Main sync action now downloads the displayed missing count. Live investigation showed the Main cockpit button inherited the Historical Backfill form's conservative draft `limit=1`, so a click could examine the full Plaud catalog while downloading only one missing recording. `apps/web/src/App.tsx` decouples Main from the Backfill draft: Main computes the displayed missing count from health, sends that count to `POST /api/sync/run` capped at the existing 1000-item backend ceiling, forces `forceDownload:false`, labels the button with the exact count (`Descargar N` / `Download N`), and asks for confirmation at 25+ downloads. Backfill keeps its own `limit=1` default because it is an advanced filtered tool. Tests: 151 (127 Node/integration + 24 web). Operational full sync run `5a970a84-3f44-4602-b727-3d1d12179349` completed with `examined=514`, `matched=165`, `downloaded=165`, `skipped=165` (webhook skipped because no webhook is configured), `enqueued=0`, and no error; health/SQLite show `recordingsCount=514`, `plaudTotal=514`, missing `0`.
@@ -187,8 +189,9 @@ prose. The header is for orientation; it does not replace the message.
 
 Required chat header fields:
 - `Role`: `executor` or `auditor`
-- `Sent`: `YYYY-MM-DD HH:MM <local-tz> (HH:MM UTC)`. The order is mandatory:
-  local time first, UTC second in parentheses.
+- `Sent`: `YYYY-MM-DD HH:MM:SS <local-tz> (HH:MM:SS UTC)`. The order and
+  precision are mandatory: local time first, UTC second in parentheses, seconds
+  included on both sides.
 - `Subject`: current task, or commit hash/title being implemented or audited
 - `Resulting state`: what this message leaves true after it is sent
 - `Repo state`: local branch vs origin and worktree status verified now
@@ -199,13 +202,13 @@ Time verification:
 - Verify `Sent` before writing it; do not infer or mentally convert the time.
 - If shell access is available, run both:
   ```sh
-  date -u '+%Y-%m-%d %H:%M UTC'
-  TZ=Europe/Madrid date '+%Y-%m-%d %H:%M %Z'
+  date -u '+%Y-%m-%d %H:%M:%S UTC'
+  TZ=Europe/Madrid date '+%Y-%m-%d %H:%M:%S %Z'
   ```
 - Replace `Europe/Madrid` with `trace_protocol.local_timezone` from
   `.dockit-config.yml` when the project sets one.
 - If the agent cannot verify the clock, write:
-  `Sent: unverified client time YYYY-MM-DD HH:MM <claimed-tz>`.
+  `Sent: unverified client time YYYY-MM-DD HH:MM:SS <claimed-tz>`.
 
 Recommended `Resulting state` shape:
 
@@ -223,6 +226,11 @@ Resulting state: HEAD=unchanged (d6fc816); version=none; gate=blocked; requires 
 
 Use clear prose after the header. Explain what changed, why it matters, what
 was verified, and what risk remains.
+
+When reading an older Trace block, do not treat its `Repo state` as current
+without checking the tree again. If the `Sent` time is more than a few minutes
+old, or another LLM/operator may have acted since it was written, verify
+`git status`, `git log -1`, and the current clock before acting on the report.
 
 When `trace_protocol.enabled: true` is set in `.dockit-config.yml`, the durable
 half is enforced by `scripts/dockit-validate-session.sh --check trace-protocol`:

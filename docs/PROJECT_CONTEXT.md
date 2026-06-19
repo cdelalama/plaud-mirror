@@ -1,4 +1,4 @@
-<!-- doc-version: 0.9.5 -->
+<!-- doc-version: 0.9.6 -->
 # Project Context - Plaud Mirror
 
 ## Vision
@@ -22,9 +22,11 @@ Plaud Mirror is a server-first product with two runtime surfaces:
 
 Persistence is split between SQLite for state/indexes and the filesystem for mirrored audio artifacts. Secrets are encrypted at rest with a master key supplied by the surrounding deployment.
 
-## Current Status (2026-06-19, v0.9.5)
+## Current Status (2026-06-19, v0.9.6)
 
-Plaud Mirror `v0.9.5` is the current **Phase 4 operator UX** patch. It does not change backend behavior. It keeps the `v0.9.0` reference-driven panel, the `v0.9.1` full-viewport shell, the `v0.9.2` Main cockpit sync fix, the `v0.9.3` DocKit trace-protocol governance merge, and the `v0.9.4` Library playback/scroll fix, then makes the mobile shell usable: phone navigation now has a labeled `Vista` / `View` selector instead of icon-only rail buttons, the status strip collapses to one compact chip row, and Library dismiss/restore actions stay pinned to the top-right of mobile rows.
+Plaud Mirror `v0.9.6` is the current **Phase 4 operator UX + governance** patch. It does not change backend behavior. It keeps the `v0.9.0` reference-driven panel, the `v0.9.1` full-viewport shell, the `v0.9.2` Main cockpit sync fix, the `v0.9.3` DocKit trace-protocol governance merge, the `v0.9.4` Library playback/scroll fix, and the `v0.9.5` mobile shell fix, then syncs LLM-DocKit 4.9.6 governance/tooling: flexible HISTORY format validation, Trace v1.3 chat `Sent` guidance with seconds, expanded version marker handlers, preserved Plaud Mirror local validator guardrails, and `package-lock.json` version enforcement.
+
+The `v0.9.5` patch underneath made the mobile shell usable: phone navigation now has a labeled `Vista` / `View` selector instead of icon-only rail buttons, the status strip collapses to one compact chip row, and Library dismiss/restore actions stay pinned to the top-right of mobile rows.
 
 The `v0.9.4` patch underneath fixed the redesigned Library: Compact Play starts the native row audio, Full mode uses a wider desktop player column, and the recordings table owns its scroll region under the fixed Library header/toolbar/pagebar.
 
@@ -40,7 +42,7 @@ The `v0.8.x` line underneath remains the Phase 4 re-auth foundation. `v0.8.0` ad
 
 `v0.7.0` introduced the browser-assisted `/connect` handshake (D-019): a panel-initiated single-use `captureId` lets the operator refresh the ~300-day Plaud bearer with no DevTools and no stored password. It was chosen after confirming the operator's account is Google SSO (so it has no password and Plaud forbids adding one, killing credentials-login) and parking the official OAuth/MCP as deferred/watch (not disproven). `v0.7.1`-`v0.7.6` patched the bookmarklet delivery path (popup timing, copy install, encoding, token type/region, public-error hygiene, masked-token guard, shorter visible marker). The final finding was decisive: React-rendered `javascript:` links are not a reliable way to install a bookmarklet, because React replaces the `href` with a defensive throw before Chrome stores it. `v0.8.0` therefore added a local Chrome companion extension as the recommended capture surface. The extension reads the active Plaud tab's browser storage (`pld_tokenstr` first, scan fallback), redirects that tab to `/connect#token=...`, stores only the mirror origin, and never stores or logs the token. Manual token paste and copy-only bookmarklet remain fallback paths; Telegram is explicitly not a capture channel.
 
-The `v0.6.x` line this builds on was the **Phase 3 hardening + tooling** sequence, forced by the 2026-06-10 security review: `v0.6.0` operator access control (D-018 — `PLAUD_MIRROR_ADMIN_PASSPHRASE` + signed HttpOnly session cookie gating `/api/*`, login screen, throttle, health PII redaction), startup crash recovery (D-013 amendment — orphaned `running`/`delivering` rows recovered at boot, at-least-once accepted), and Plaud client timeouts; then `v0.6.1` (LLM-DocKit 4.8.2 sync), `v0.6.2` (Doppler passphrase helper `scripts/set-admin-passphrase.sh`), `v0.6.3` (terminal-echo fix). The operator access control is armed in production (passphrase in Doppler, secondary "Startup Embassy" account). Runtime test count: 154 (127 Node + 27 web); validator smoke: 17 checks.
+The `v0.6.x` line this builds on was the **Phase 3 hardening + tooling** sequence, forced by the 2026-06-10 security review: `v0.6.0` operator access control (D-018 — `PLAUD_MIRROR_ADMIN_PASSPHRASE` + signed HttpOnly session cookie gating `/api/*`, login screen, throttle, health PII redaction), startup crash recovery (D-013 amendment — orphaned `running`/`delivering` rows recovered at boot, at-least-once accepted), and Plaud client timeouts; then `v0.6.1` (LLM-DocKit 4.8.2 sync), `v0.6.2` (Doppler passphrase helper `scripts/set-admin-passphrase.sh`), `v0.6.3` (terminal-echo fix). The operator access control is armed in production (passphrase in Doppler, secondary "Startup Embassy" account). Runtime test count: 154 (127 Node + 27 web); validator smoke: 32 checks.
 
 The `v0.5.5` runtime baseline underneath: **D-014 full** health observability (`lastErrors` ring buffer capped at 20, `recentSyncRuns` last 5 finished runs on `/api/health`) plus the D-016/D-017 governance layers (`prose-drift` at FAIL, `unabsorbed-artifact` baseline).
 
@@ -48,7 +50,7 @@ The runtime baseline carried from `v0.5.3` is the **durable webhook outbox** (D-
 
 The earlier `0.5.x` baseline still applies: in-process continuous sync scheduler (D-012, stabilized in `v0.5.1`, panel-driven from `v0.5.2`), two-layer anti-overlap, SQLite-persisted scheduler config. `SyncRunSummary.enqueued` counts webhook payloads pushed to the outbox during the run; `delivered` keeps its original semantic ("delivered synchronously inside this run") and structurally stays at 0 from `v0.5.3` onwards.
 
-Operators upgrading from `0.4.x` should skip `v0.5.0` (scheduler default-on regression + missing service-layer anti-overlap) and go directly to `v0.9.5`.
+Operators upgrading from `0.4.x` should skip `v0.5.0` (scheduler default-on regression + missing service-layer anti-overlap) and go directly to `v0.9.6`.
 
 The Phase 2 slice it inherits: a live Fastify API, a web panel for token setup, webhook configuration, sync/backfill controls, recordings visibility with inline audio playback, encrypted persisted manual bearer-token auth, manual sync and filtered historical backfill (async-202, with a `limit=0` "refresh server stats" path), SQLite-backed recording and delivery state (including `dismissed` / `dismissed_at` columns for local curation), immediate HMAC-signed webhook delivery with persisted attempt logging, a confirmed local-only dismiss/restore flow that never touches Plaud, Docker packaging for `dev-vm` running as non-root `USER 1000:1000`, and the original Phase 1 spike CLI for direct Plaud probing. Concretely:
 

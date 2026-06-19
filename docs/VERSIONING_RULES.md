@@ -1,4 +1,4 @@
-<!-- doc-version: 0.9.5 -->
+<!-- doc-version: 0.9.6 -->
 # Versioning Rules
 
 ## Version Format
@@ -13,6 +13,7 @@ Current version sources:
 - `VERSION`: primary source of truth for project version
 - `docs/version-sync-manifest.yml`: lists all files tracked for version sync
 - `package.json`: root workspace manifest
+- `package-lock.json`: root lockfile (`version` and `packages[""].version`)
 - `apps/api/package.json`: API workspace manifest
 - `apps/web/package.json`: web workspace manifest
 - `apps/chrome-extension/manifest.json`: local Chrome companion extension manifest
@@ -55,6 +56,7 @@ The script reads the manifest and updates:
 - `VERSION` file (plain version string)
 - `<!-- doc-version: X.Y.Z -->` HTML comment markers in documentation files
 - `"version": "X.Y.Z"` fields in tracked package manifests
+- `package-lock.json` top-level `version` and root package `packages[""].version`
 - `CHANGELOG.md` section header (adds `## [X.Y.Z]` placeholder)
 
 ### Validation
@@ -86,6 +88,7 @@ To track a new file:
 2. Use the marker type that matches the file format:
    - docs: `<!-- doc-version: X.Y.Z -->` on line 1
    - package manifest: `"version": "X.Y.Z"`
+   - package lock: top-level `"version"` plus `packages[""].version`
 3. Run `scripts/check-version-sync.sh` to verify.
 
 ## Update Process

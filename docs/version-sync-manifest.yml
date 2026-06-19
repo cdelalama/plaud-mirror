@@ -2,10 +2,15 @@
 # Read by scripts/bump-version.sh and scripts/check-version-sync.sh
 #
 # Marker types:
-#   version-file  -> plain X.Y.Z (first line of file)
-#   changelog     -> ## [X.Y.Z] section header
-#   html-comment  -> <!-- doc-version: X.Y.Z --> on first line of file
-#   json-version  -> "version": "X.Y.Z" in package manifests
+#   version-file          -> plain X.Y.Z (first line of file)
+#   changelog             -> ## [X.Y.Z] section header
+#   html-comment          -> <!-- doc-version: X.Y.Z --> on first line of file
+#   json-version          -> JSON top-level "version"
+#   yaml-info-version     -> YAML info.version
+#   package-lock-version  -> package-lock top-level version + packages[""].version
+#
+# Unknown marker types are errors. Downstream projects: add your own files
+# below the template entries.
 
 targets:
 - path: VERSION                    marker: version-file
@@ -18,6 +23,7 @@ targets:
 - path: docs/llm/HANDOFF.md        marker: html-comment
 # --- Project-specific entries (preserved by dockit-sync) ---
 - path: package.json               marker: json-version
+- path: package-lock.json          marker: package-lock-version
 - path: apps/api/package.json      marker: json-version
 - path: apps/web/package.json      marker: json-version
 - path: apps/chrome-extension/manifest.json marker: json-version

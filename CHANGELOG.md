@@ -4,6 +4,26 @@ All notable changes to Plaud Mirror are documented in this file.
 
 This project follows Semantic Versioning (SemVer): MAJOR.MINOR.PATCH.
 
+## [0.9.6] - 2026-06-19
+
+### Added
+
+- **LLM-DocKit 4.9.6 guardrails adopted.** Version tooling now supports upstream `yaml-info-version` and `package-lock-version` marker handlers in addition to the existing Plaud Mirror `json-version` handling.
+- **Package-lock version sync.** `package-lock.json` is now tracked by `docs/version-sync-manifest.yml`, and both its top-level `version` and `packages[""].version` are checked and bumped with the rest of the release markers.
+- **Expanded validator smoke coverage.** `scripts/test-validator.sh` now covers flexible HISTORY formats, Trace footer handling for dash/no-dash HISTORY entries, and version marker drift for JSON, YAML, and package-lock files.
+
+### Changed
+
+- **Trace Protocol v1.3 chat guidance.** `LLM_START_HERE.md` and `scripts/dockit-bootstrap-context.sh` now require seconds in chat `Sent` headers on both local and UTC timestamps, and instruct readers to re-check git status, `git log -1`, and the current clock before acting on stale Trace reports.
+- **HISTORY validation follows upstream 4.9.6.** The validator accepts both dash and no-dash HISTORY entry formats by default, with strict `history_format: dash` / `history_format: no-dash` available through `.dockit-config.yml`.
+- **DocKit sync merged manually.** The upstream 4.9.6 updates were applied while preserving Plaud Mirror's local `handoff-start-here-sync`, `prose-drift`, and `unabsorbed-artifact` validator checks.
+
+### Fixed
+
+- **Prevented another raw-sync clobber.** The first post-apply validator dropped from 12 checks to 9 after upstream copied `scripts/dockit-validate-session.sh`; the local guardrails were reinserted before commit.
+- **Removed stale lockfile version drift.** `package-lock.json` had remained at `0.9.0`; the new `package-lock-version` target updates it to `0.9.6`.
+- Tests: runtime tests unchanged; governance checks now expect 22 version targets, `scripts/dockit-validate-session.sh --human` reports 12 checks, and `scripts/test-validator.sh` reports 32 smoke cases.
+
 ## [0.9.5] - 2026-06-19
 
 ### Added

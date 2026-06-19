@@ -1,11 +1,11 @@
-<!-- doc-version: 0.9.5 -->
+<!-- doc-version: 0.9.6 -->
 # How to Use This Repository
 
 This guide explains how Plaud Mirror is operated end-to-end and how it stays aligned with both `LLM-DocKit` (the governance scaffold it adopts) and the Plaud ecosystem upstreams it watches.
 
 ## Current Reality
 
-`v0.9.5` is the current **Phase 4 operator UX release**: it keeps the hardened `v0.6.x` runtime, the `v0.7.x` `/connect` capture handshake, the local Chrome companion extension from `v0.8.0`, the Plaud Web-aligned backend validation fingerprint from `v0.8.1`, the reference-driven five-screen operator panel from `v0.9.0`, the full-viewport production shell from `v0.9.1`, the fixed Main "download missing" action from `v0.9.2`, the DocKit trace-protocol merge from `v0.9.3`, the Library playback/scroll fixes from `v0.9.4`, and mobile shell usability fixes from `v0.9.5`. **Operators upgrading from any `0.4.x`/`0.5.x` should go directly to `v0.9.5`.** Today the repository gives you:
+`v0.9.6` is the current **Phase 4 operator UX + governance release**: it keeps the hardened `v0.6.x` runtime, the `v0.7.x` `/connect` capture handshake, the local Chrome companion extension from `v0.8.0`, the Plaud Web-aligned backend validation fingerprint from `v0.8.1`, the reference-driven five-screen operator panel from `v0.9.0`, the full-viewport production shell from `v0.9.1`, the fixed Main "download missing" action from `v0.9.2`, the DocKit trace-protocol merge from `v0.9.3`, the Library playback/scroll fixes from `v0.9.4`, mobile shell usability fixes from `v0.9.5`, and the LLM-DocKit 4.9.6 governance/tooling sync from `v0.9.6`. **Operators upgrading from any `0.4.x`/`0.5.x` should go directly to `v0.9.6`.** Today the repository gives you:
 
 - a Fastify API and React/Vite panel bundled in a single Docker container;
 - **operator access control** (v0.6.0): set `PLAUD_MIRROR_ADMIN_PASSPHRASE` and the panel asks for the passphrase once per device (30-day session cookie); without it the API runs open and `/api/health` warns;
@@ -161,7 +161,7 @@ Useful for live Plaud flow checks and metadata discovery without booting the pan
 npm test
 ```
 
-154 runtime tests at `v0.9.5`: 127 Node tests (shared schemas/formatting, Plaud client, runtime service/store/scheduler/outbox/auth/capture-session, server routes, integration smoke for built API/web, Chrome extension contract) + 27 web tests under Vitest+jsdom+@testing-library/react (D-015). The root `npm test` runs both the Node test runner and `npm run test:web`. Governance checks are separate: `scripts/dockit-validate-session.sh --human` runs 12 checks and `scripts/test-validator.sh` currently has 17 smoke cases.
+154 runtime tests at `v0.9.6`: 127 Node tests (shared schemas/formatting, Plaud client, runtime service/store/scheduler/outbox/auth/capture-session, server routes, integration smoke for built API/web, Chrome extension contract) + 27 web tests under Vitest+jsdom+@testing-library/react (D-015). The root `npm test` runs both the Node test runner and `npm run test:web`. Governance checks are separate: `scripts/dockit-validate-session.sh --human` runs 12 checks, `scripts/check-version-sync.sh` checks 22 version targets, and `scripts/test-validator.sh` currently has 32 smoke cases.
 
 ## Working With LLM-DocKit Upstream
 
