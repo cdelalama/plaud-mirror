@@ -1,7 +1,7 @@
-<!-- doc-version: 0.9.6 -->
+<!-- doc-version: 0.10.0 -->
 # Authentication and Sync Operations
 
-This runbook defines the live behavior of Plaud Mirror's auth and sync surface. Phase 2 (manual sync/backfill) is fully shipped. Phase 3: the continuous sync scheduler landed in `v0.5.0` (regressed) → `v0.5.1` (fixed) → `v0.5.2` (panel-driven). `v0.5.3` shipped the **durable webhook outbox** (D-013). `v0.5.4` was governance-only (D-016). `v0.5.5` shipped **D-014 full**: `lastErrors` ring buffer and `recentSyncRuns` on `/api/health`. `v0.6.0` is the **Phase 3 hardening release**: operator access control on the panel/API (D-018), startup crash recovery for orphaned sync runs and outbox rows (D-013 amendment, at-least-once delivery accepted), and abort deadlines on every Plaud API call and audio download. `v0.9.0` surfaces the auth/sync/outbox observability in the real panel's Main and Operations screens. Remaining Phase 3 work before the soak: the scrypt KDF upgrade, then the soak itself; resumable backfill and fully unattended re-login stay deferred.
+This runbook defines the live behavior of Plaud Mirror's auth and sync surface. Phase 2 (manual sync/backfill) is fully shipped. Phase 3: the continuous sync scheduler landed in `v0.5.0` (regressed) -> `v0.5.1` (fixed) -> `v0.5.2` (panel-driven). `v0.5.3` shipped the **durable webhook outbox** (D-013). `v0.5.4` was governance-only (D-016). `v0.5.5` shipped **D-014 full**: `lastErrors` ring buffer and `recentSyncRuns` on `/api/health`. `v0.6.0` is the **Phase 3 hardening release**: operator access control on the panel/API (D-018), startup crash recovery for orphaned sync runs and outbox rows (D-013 amendment, at-least-once delivery accepted), and abort deadlines on every Plaud API call and audio download. `v0.9.0` surfaces the auth/sync/outbox observability in the real panel's Main and Operations screens. `v0.10.0` publishes the same sync state through `home-infra-protocol`: `infra.contract.yml` declares `plaud-mirror-recordings-sync`, and `/api/protocol/sync-jobs/plaud-mirror-recordings-sync/status` returns a sanitized status snapshot for Infra Portal/Hermes consumers. Remaining Phase 3 work before the soak: the scrypt KDF upgrade, then the soak itself; resumable backfill and fully unattended re-login stay deferred.
 
 ## Operator Access Control (D-018, v0.6.0)
 
@@ -120,6 +120,41 @@ Operational properties:
 
 - **`lastErrors`** — cross-subsystem ring buffer (capped at 20 entries, most-recent-first, in-memory). Each entry: `occurredAt` (ISO), `subsystem` (`scheduler` | `outbox` | `sync` | `auth`), `message`, `context` (string→string map). Failed scheduler ticks, outbox delivery errors (both retry and permanent escalations), and failed sync runs all feed this buffer through `service.recordError`. The buffer resets per container restart by design — durable failures live in `outbox.permanentlyFailed` or `lastSync.error`.
 - **`recentSyncRuns`** — last 5 finished sync runs (`finished_at DESC`) from SQLite. Distinct from `lastSync` (single most-recent finished run) — this is the operator-facing audit signal for "are recent runs succeeding or failing?". Active runs are intentionally excluded; they remain on `activeRun`.
+
+#### Home Infra Protocol status snapshot — shipped in `v0.10.0`
+
+Plaud Mirror now exposes the Plaud recording sync as a
+`home-infra-protocol` sync job:
+
+- Contract: `infra.contract.yml`, job id `plaud-mirror-recordings-sync`.
+- Human contract doc: `docs/INFRA_CONTRACT.md`.
+- Public sanitized status URL:
+  `/api/protocol/sync-jobs/plaud-mirror-recordings-sync/status`.
+- Alias: `/api/protocol/status`.
+
+The endpoint returns `schemas/status-snapshot.schema.json` shape:
+`observed_at`, `condition`, `severity`, `summary`, and `checks[]`. It is public
+like `/api/health` so Infra Portal can read it without an operator session, but
+it is sanitized: no Plaud account summary, no bearer, no webhook secret, and no
+raw Plaud rejection body.
+
+The snapshot is built from existing `/api/health` runtime truth:
+
+- Plaud auth -> `plaud-auth` check.
+- Latest/active sync -> `latest-sync` check.
+- Plaud/local/dismissed/missing counts -> `coverage` check.
+- Scheduler state -> `scheduler` check.
+- Durable webhook outbox -> `webhook-outbox` check.
+
+`observed_at` is deliberately anchored to sync evidence rather than the HTTP
+request time: active run `startedAt`, latest sync `finishedAt`, auth validation
+time, then current time only as first-boot fallback. Consumers derive freshness
+by joining this timestamp with `infra.contract.yml` `stale_after`.
+
+The contract currently declares `schedule.mode: manual` with `stale_after:
+P1D`, because the live scheduler is disabled until the Phase 3 soak is
+deliberately started. When the scheduler becomes normal operation, change the
+contract to `internal-loop`, add `cadence`, and keep `stale_after > cadence`.
 
 #### Startup crash recovery — shipped in `v0.6.0` (D-013 amendment)
 

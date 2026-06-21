@@ -4,6 +4,38 @@ All notable changes to Plaud Mirror are documented in this file.
 
 This project follows Semantic Versioning (SemVer): MAJOR.MINOR.PATCH.
 
+## [0.10.0] - 2026-06-21
+
+### Added
+
+- **Home Infra Protocol sync-job adoption.** `infra.contract.yml` now declares
+  `plaud-mirror-recordings-sync` as a `home-infra-protocol` `sync_jobs[]`
+  producer for Plaud recording mirroring.
+- **Protocol status snapshot endpoint.** `GET
+  /api/protocol/sync-jobs/plaud-mirror-recordings-sync/status` and alias
+  `/api/protocol/status` publish a public sanitized `status-snapshot` for Infra
+  Portal/Hermes consumers.
+- **Protocol schemas and mapper.** `packages/shared/src/protocol.ts` models the
+  status-snapshot contract, and `apps/api/src/runtime/protocol-status.ts` maps
+  `ServiceHealth` into protocol checks for auth, latest sync, coverage,
+  scheduler, and outbox.
+- **Infra contract docs.** `docs/INFRA_CONTRACT.md` documents the
+  producer/consumer boundary and explains why the contract starts as
+  `schedule.mode: manual`.
+
+### Changed
+
+- **Phase 5 entered for infra/protocol integration.** The sync engine is
+  unchanged, but Plaud Mirror now participates in the shared Home Infra sync
+  protocol; NAS rollout and multi-day soak remain pending.
+- **Public allowlist extended safely.** The protocol status routes are public
+  like `/api/health`, but return only sanitized operational status and no Plaud
+  account PII, bearer tokens, webhook secrets, or raw Plaud error bodies.
+
+### Fixed
+
+- Nothing.
+
 ## [0.9.6] - 2026-06-19
 
 ### Added

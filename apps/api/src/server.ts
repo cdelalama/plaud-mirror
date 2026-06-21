@@ -21,6 +21,7 @@ import {
   verifySessionToken,
 } from "./runtime/operator-auth.js";
 import { OutboxWorker } from "./runtime/outbox-worker.js";
+import { buildPlaudMirrorProtocolStatus } from "./runtime/protocol-status.js";
 import { SchedulerManager } from "./runtime/scheduler-manager.js";
 import { SecretStore } from "./runtime/secrets.js";
 import { PlaudMirrorService, type RuntimeServiceDependencies } from "./runtime/service.js";
@@ -151,6 +152,8 @@ export async function createApp(options: CreateAppOptions = {}) {
   // /api/session* must be public or nobody could ever log in.
   const publicApiPaths = new Set([
     "/api/health",
+    "/api/protocol/status",
+    "/api/protocol/sync-jobs/plaud-mirror-recordings-sync/status",
     "/api/session",
     "/api/session/login",
     "/api/session/logout",
@@ -220,6 +223,16 @@ export async function createApp(options: CreateAppOptions = {}) {
       return { ...health, auth: { ...health.auth, userSummary: null } };
     }
     return health;
+  });
+
+  app.get("/api/protocol/status", async (_request, reply) => {
+    reply.header("cache-control", "no-store");
+    return buildPlaudMirrorProtocolStatus(await service.getHealth());
+  });
+
+  app.get("/api/protocol/sync-jobs/plaud-mirror-recordings-sync/status", async (_request, reply) => {
+    reply.header("cache-control", "no-store");
+    return buildPlaudMirrorProtocolStatus(await service.getHealth());
   });
 
   app.get("/api/session", async (request) => ({

@@ -1,9 +1,9 @@
-<!-- doc-version: 0.9.6 -->
+<!-- doc-version: 0.10.0 -->
 # Plaud Mirror Architecture
 
-> Version: 0.9.6
-> Last Updated: 2026-06-19
-> Status: Phase 4 entered at `v0.7.0` and now spans `0.7.x`-`0.9.x`; Phase 3 exit gate (multi-day soak) still pending. The `0.5.x` line delivered the Phase 3 feature surface (scheduler D-012, durable webhook outbox D-013, full health observability D-014, governance D-016/D-017); `v0.6.0`-`v0.6.3` were the hardening + tooling line (operator access control D-018, startup crash recovery, Plaud client timeouts, Doppler passphrase helper, LLM-DocKit 4.8.2 sync). `v0.7.0` opened **Phase 4** with **browser-assisted Plaud re-auth** (D-019): a panel-initiated single-use capture session plus bookmarklet refreshed the ~300-day Plaud bearer without DevTools or stored password. `v0.7.1`-`v0.7.6` hardened that path, but the final browser finding was decisive: React-rendered `javascript:` hrefs are not a reliable bookmarklet distribution mechanism. `v0.8.0` keeps the same `/connect` capture handshake and adds a local Chrome companion extension as the recommended delivery surface. `v0.8.1` aligns server-side Plaud validation with Plaud Web's browser request fingerprint after the operator proved the captured token is valid in-browser but rejected from the backend with an HTML 403. `v0.9.0` absorbs the standalone operator-panel reference into the real React/Vite panel with a five-screen rail UI, ES/EN chrome, and first-class observability surfaces, without backend API changes. `v0.9.1` removes the presentation-card frame from that shell so the operator panel fills the viewport on wide monitors. `v0.9.2` fixes the Main cockpit sync action so it downloads the displayed missing count instead of inheriting the Backfill form's conservative `limit=1`. `v0.9.3` is a governance/tooling patch that merges DocKit trace-protocol support while restoring Plaud Mirror's local guardrails. `v0.9.4` fixes Library Compact playback, Full-mode player width, and list scrolling in the redesigned panel. `v0.9.5` fixes the mobile shell with labeled navigation, compact status chips, and right-aligned Library row actions. `v0.9.6` syncs LLM-DocKit 4.9.6 governance/tooling and adds package-lock version enforcement. Operators upgrading from any `0.4.x`/`0.5.x` release should go directly to `v0.9.6`.
+> Version: 0.10.0
+> Last Updated: 2026-06-21
+> Status: Phase 5 infra/protocol integration entered at `v0.10.0`; Phase 3 exit gate (multi-day soak) still pending. The `0.5.x` line delivered the Phase 3 feature surface (scheduler D-012, durable webhook outbox D-013, full health observability D-014, governance D-016/D-017); `v0.6.0`-`v0.6.3` were the hardening + tooling line (operator access control D-018, startup crash recovery, Plaud client timeouts, Doppler passphrase helper, LLM-DocKit 4.8.2 sync). `v0.7.0` opened **Phase 4** with **browser-assisted Plaud re-auth** (D-019), `v0.8.0` added the local Chrome companion extension, `v0.8.1` aligned Plaud Web request fingerprinting, and `v0.9.x` rebuilt and corrected the operator panel through `v0.9.6` governance sync. `v0.10.0` keeps the sync engine intact but makes Plaud recording sync a `home-infra-protocol` producer: `infra.contract.yml` declares `plaud-mirror-recordings-sync`, `/api/protocol/sync-jobs/plaud-mirror-recordings-sync/status` publishes the sanitized status snapshot, and Home Infra can register it for Infra Portal/Hermes consumers. Operators upgrading from any `0.4.x`/`0.5.x` release should go directly to `v0.10.0`.
 
 ## Overview
 
@@ -14,14 +14,16 @@ Plaud Mirror is a single-operator, server-first service that:
 3. mirrors audio artifacts into `recordings/<recording-id>/`,
 4. records local state in SQLite,
 5. emits a signed webhook for each mirrored recording,
-6. serves a local web panel for setup and manual control.
+6. serves a local web panel for setup and manual control,
+7. publishes sync state through `home-infra-protocol` for infra consumers.
 
 ## Runtime Shape
 
 - **Backend:** Fastify in `apps/api`
 - **Panel:** React + Vite in `apps/web`; as of `v0.9.0` it uses a reference-driven five-screen operator shell (Main, Library, Backfill, Configuration, Operations) with ES/EN chrome persisted in browser storage
 - **Plaud connector:** local unpacked Chrome extension in `apps/chrome-extension`
-- **Shared contracts:** Zod schemas in `packages/shared`
+- **Shared contracts:** Zod schemas in `packages/shared`, including runtime and `home-infra-protocol` status snapshot schemas
+- **Infra contract:** `infra.contract.yml` plus `docs/INFRA_CONTRACT.md`
 - **State store:** SQLite at `data/app.db`
 - **Secrets:** encrypted JSON blob at `data/secrets.enc`
 - **Artifacts:** filesystem under `recordings/<recording-id>/`
@@ -56,6 +58,7 @@ Phase 3 turns the manual slice into an unattended service. The later `0.7.x`-`0.
 - **`v0.9.4`:** Library UX patch. Compact Play now controls the real row audio element instead of only toggling React state; Full mode uses a wider native player column on desktop; and the Library recordings table owns the scroll region under the fixed Library header/toolbar/pagebar. No backend route, schema, storage, auth, or sync-engine behavior changed.
 - **`v0.9.5`:** mobile shell UX patch. The mobile operator rail uses a labeled native view selector instead of icon-only navigation, the status strip becomes one compact horizontal chip row, and Library row actions stay top-right on narrow screens. No backend route, schema, storage, auth, sync-engine, scheduler, webhook, secret, or `.env` behavior changed.
 - **`v0.9.6`:** governance/tooling patch. LLM-DocKit 4.9.6 is synced with flexible HISTORY format validation, Trace v1.3 chat `Sent` guidance with seconds, expanded version marker handlers, package-lock version enforcement, and Plaud Mirror's local validator guardrails preserved. No backend route, schema, storage, auth, sync-engine, scheduler, webhook, secret, UI runtime behavior, or `.env` behavior changed.
+- **`v0.10.0`:** Home Infra Protocol sync-job adoption. The existing Plaud sync engine remains authoritative; no download, outbox, scheduler, storage, secret, or `.env` behavior changes. New shared protocol schemas model `status-snapshot.schema.json`; `apps/api/src/runtime/protocol-status.ts` maps `ServiceHealth` to a sanitized protocol snapshot; `GET /api/protocol/sync-jobs/plaud-mirror-recordings-sync/status` and `/api/protocol/status` expose it publicly with `Cache-Control: no-store`. `infra.contract.yml` declares `plaud-mirror-recordings-sync` under `sync_jobs[]` with `schedule.mode: manual` and `stale_after: P1D`, because the live scheduler is disabled until the soak starts. When scheduler operation becomes the intended mode, change the contract to `internal-loop` and add cadence.
 
 Still **not** in Phase 3 scope:
 
@@ -120,6 +123,34 @@ The language selector only translates operator chrome. Recording titles, raw err
 8. Recording state is upserted into SQLite. Sync summary records `examined` (every recording Plaud returned), `matched` (final candidate count), `downloaded`, `plaudTotal`, and is finalized with `status = "completed"` or `"failed"` and a `finishedAt` timestamp.
 
 The web panel polls `GET /api/health` every 2 s while a run is active. The health payload splits state into two fields: `lastSync` holds the last COMPLETED run (drives "Last run" stats, "Plaud total", and the hero metric) and stays pinned while a new run is in flight; `activeRun` holds the running run (drives the progress banner). Polling stops once `activeRun` becomes `null` — at that point `lastSync.id` matches the run's id and the final summary is surfaced. The pre-0.4.7 semantics ("look at the N newest recordings Plaud has and skip ones that are already mirrored") silently did nothing when the N newest were all already local. Mode B instead walks as deep as needed to find N genuine gaps.
+
+### Home Infra Protocol sync status (v0.10.0)
+
+Plaud Mirror publishes its Plaud recording sync as a `home-infra-protocol`
+`sync_jobs[]` producer. The project contract lives in `infra.contract.yml` and
+the human explanation lives in `docs/INFRA_CONTRACT.md`.
+
+The status endpoint is public like `/api/health`, but sanitized:
+
+- `GET /api/protocol/sync-jobs/plaud-mirror-recordings-sync/status`
+- `GET /api/protocol/status` (alias)
+
+Both routes return the protocol `status-snapshot` shape: `observed_at`,
+`condition`, `severity`, `summary`, and `checks[]`. The snapshot is derived
+from existing runtime truth (`ServiceHealth`), not a second database or a new
+sync mechanism. It includes Plaud auth state, latest/active sync, coverage
+counts, scheduler state, and webhook outbox state.
+
+`observed_at` is anchored to sync evidence rather than request time: active run
+`startedAt`, latest sync `finishedAt`, auth validation time, then current time
+only as first-boot fallback. Consumers therefore derive freshness from
+`observed_at + stale_after` without every HTTP read pretending to be a fresh
+source sync.
+
+The contract currently declares `schedule.mode: manual`, because the live
+deployment has the scheduler disabled. Turning the scheduler into the normal
+operating mode is a contract change: switch to `internal-loop`, add cadence,
+and keep `stale_after > cadence`.
 
 ### Webhook (durable outbox, D-013, v0.5.3+)
 

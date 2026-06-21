@@ -1,4 +1,4 @@
-<!-- doc-version: 0.9.6 -->
+<!-- doc-version: 0.10.0 -->
 # Deploy Playbook
 
 This runbook describes the current Docker deployment path for Plaud Mirror.
@@ -56,10 +56,12 @@ doppler run --project plaud-mirror --config dev -- docker compose up -d --build
 ## Validation
 
 1. `GET /api/health` returns `200`
-2. Web panel loads
-3. Token can be saved from the UI
-4. Manual sync or backfill can be triggered
-5. Mirrored files appear in `runtime/recordings`
+2. `GET /api/protocol/sync-jobs/plaud-mirror-recordings-sync/status` returns
+   `200` with `job_id: "plaud-mirror-recordings-sync"` and no operator cookie
+3. Web panel loads
+4. Token can be saved from the UI
+5. Manual sync or backfill can be triggered
+6. Mirrored files appear in `runtime/recordings`
 
 ## Rollback
 
@@ -80,3 +82,6 @@ doppler run --project plaud-mirror --config dev -- docker compose up -d --build
 
 - The current container is a single-process Phase 3 slice: API + static web panel + opt-in continuous sync scheduler (D-012, panel-driven from `v0.5.2`) + durable webhook outbox (D-013, shipped in `v0.5.3`). The scheduler stays **disabled unless** the operator sets a positive interval from the panel (or, on a fresh install, via `PLAUD_MIRROR_SCHEDULER_INTERVAL_MS`); the outbox **always runs** and short-circuits to `permanently_failed` when no webhook URL is configured. See [HOW_TO_USE.md](../../HOW_TO_USE.md) and [AUTH_AND_SYNC.md](AUTH_AND_SYNC.md) for both surfaces.
 - Full health observability — `lastErrors` ring buffer + `recentSyncRuns` (D-014, full) — shipped in `v0.5.5`. `/api/health` exposes both fields directly; no separate route.
+- Home Infra Protocol sync status — `infra.contract.yml` declares
+  `plaud-mirror-recordings-sync`, and the public sanitized status snapshot route
+  is `/api/protocol/sync-jobs/plaud-mirror-recordings-sync/status`.

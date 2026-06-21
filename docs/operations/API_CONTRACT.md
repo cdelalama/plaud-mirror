@@ -1,11 +1,11 @@
-<!-- doc-version: 0.9.6 -->
+<!-- doc-version: 0.10.0 -->
 # API Contract
 
-This document describes the HTTP and webhook surface that now exists in-repo. The current implementation covers the full Phase 2 slice (manual sync/backfill, local curation routes) plus the Phase 3 scheduler subset (panel-driven from `v0.5.2`) plus the **durable webhook outbox** (D-013) shipped in `v0.5.3` plus **full health observability** (D-014, complete) shipped in `v0.5.5`. From `v0.5.3` onwards webhook delivery is asynchronous: each sync run enqueues the payload, a worker retries it with exponential backoff. From `v0.5.5` onwards `/api/health` also returns `lastErrors` (cross-subsystem ring buffer, capped at 20) and `recentSyncRuns` (last 5 finished runs). `v0.9.0` changes only the React panel organization; `v0.9.1` changes only that panel's production shell layout; `v0.9.2` changes only the Main panel's choice of sync limit; `v0.9.3` is governance/tooling only; `v0.9.4` changes only Library playback/scroll UI behavior; `v0.9.5` changes only mobile panel navigation/status/layout behavior; `v0.9.6` is governance/tooling only. The five-screen UI consumes the routes below and does not add backend API capabilities.
+This document describes the HTTP and webhook surface that now exists in-repo. The current implementation covers the full Phase 2 slice (manual sync/backfill, local curation routes) plus the Phase 3 scheduler subset (panel-driven from `v0.5.2`) plus the **durable webhook outbox** (D-013) shipped in `v0.5.3` plus **full health observability** (D-014, complete) shipped in `v0.5.5`. From `v0.5.3` onwards webhook delivery is asynchronous: each sync run enqueues the payload, a worker retries it with exponential backoff. From `v0.5.5` onwards `/api/health` also returns `lastErrors` (cross-subsystem ring buffer, capped at 20) and `recentSyncRuns` (last 5 finished runs). `v0.10.0` adds a `home-infra-protocol` status surface for the Plaud recording sync job: `/api/protocol/sync-jobs/plaud-mirror-recordings-sync/status` and alias `/api/protocol/status`, both public and sanitized. The five-screen UI consumes the existing app routes; the protocol routes are for Infra Portal/Hermes style consumers.
 
 ## Admin API
 
-**Access control (D-018, v0.6.0).** When the deployment sets `PLAUD_MIRROR_ADMIN_PASSPHRASE`, every route below returns `401` without a valid operator session cookie, EXCEPT the public allowlist: `GET /api/health` (status probes; `auth.userSummary` is redacted for unauthenticated callers) and the `/api/session*` routes. Obtain a session with `POST /api/session/login`; the cookie (`plaud_mirror_session`, HttpOnly, SameSite=Lax, 30-day TTL) is sent automatically by browsers. When the env var is unset, all routes stay open and `health.warnings` carries an explicit "access control is disabled" entry.
+**Access control (D-018, v0.6.0).** When the deployment sets `PLAUD_MIRROR_ADMIN_PASSPHRASE`, every route below returns `401` without a valid operator session cookie, EXCEPT the public allowlist: `GET /api/health` (status probes; `auth.userSummary` is redacted for unauthenticated callers), the sanitized protocol status routes (`/api/protocol/status`, `/api/protocol/sync-jobs/plaud-mirror-recordings-sync/status`), and the `/api/session*` routes. Obtain a session with `POST /api/session/login`; the cookie (`plaud_mirror_session`, HttpOnly, SameSite=Lax, 30-day TTL) is sent automatically by browsers. When the env var is unset, all routes stay open and `health.warnings` carries an explicit "access control is disabled" entry.
 
 | Method | Path | Purpose |
 |--------|------|---------|
@@ -15,6 +15,8 @@ This document describes the HTTP and webhook surface that now exists in-repo. Th
 | `POST` | `/api/connect/start` | Browser-assisted re-auth (D-019). Mints a single-use `captureId` (TTL 10 min) → `{ captureId, expiresAt }`. Used by the panel before the Chrome extension or fallback bookmarklet returns a Plaud bearer. Operator-session-gated. |
 | `POST` | `/api/connect/complete` | Complete a capture: body `{ token, captureId }`. Consumes the `captureId` (single-use; `409` if missing/expired/reused — token-fixation defence), then validates `token` against Plaud and stores it (same path as `/api/auth/token`). Returns the resulting `AuthStatus`; `400` if no token. Operator-session-gated. |
 | `GET` | `/api/health` | Return version, phase string, auth summary, last completed sync, currently active run (if any), scheduler status, outbox counters, **lastErrors** ring buffer (cross-subsystem error history, capped at 20, most-recent-first), **recentSyncRuns** (last 5 finished runs from SQLite, `finished_at DESC`), recording counts, webhook configuration flag, warning list. D-014 full as of v0.5.5. |
+| `GET` | `/api/protocol/sync-jobs/plaud-mirror-recordings-sync/status` | Return a public sanitized `home-infra-protocol` status snapshot for the Plaud recording sync job. Shape: `observed_at`, `condition`, `severity`, `summary`, `checks[]`, plus Plaud Mirror-specific `counts`, `latest_sync`, `active_sync`, `scheduler`, and `outbox` blocks. `Cache-Control: no-store`. |
+| `GET` | `/api/protocol/status` | Alias for the Plaud recording sync status snapshot above. Public, sanitized, no-store. |
 | `GET` | `/api/config` | Return sanitized runtime config: webhook URL + secret-presence flag, default sync limit, **and the persisted `schedulerIntervalMs`** (the panel reads this on load to populate the scheduler form). |
 | `PUT` | `/api/config` | Update webhook URL, optional webhook secret, **and / or the scheduler interval**. All three fields are optional and independent — omit any to leave it unchanged. `schedulerIntervalMs` must be `0` (disable) or `≥ 60000`; sub-floor positives return HTTP 400. When this field changes, the live `Scheduler` is started / stopped / swapped to the new cadence in place via the `SchedulerManager` reconfigure hook. |
 | `GET` | `/api/auth/status` | Return current auth state |
@@ -245,6 +247,83 @@ Fields:
 - The example above shows the **enabled** shape; by default the scheduler is **disabled** (operators must opt in via `PLAUD_MIRROR_SCHEDULER_INTERVAL_MS`), in which case `scheduler` reads `{ enabled: false, intervalMs: 0, nextTickAt: null, lastTickAt: null, lastTickStatus: null, lastTickError: null }` and `phase` reads `"Phase 2 - first usable slice"`. The field is the partial D-014 surface introduced in `v0.5.0` and stabilized in `v0.5.1`. `lastTickStatus` is one of `"completed"` / `"failed"` / `"skipped"` or `null` (no tick yet in this process). A `"skipped"` tick has two possible meanings: either this scheduler's previous tick was still in flight (internal anti-overlap), or the service-level `getActiveSyncRun` reuse absorbed the tick because a manual sync was already running (external anti-overlap). In both skip cases, `lastTickError` carries an operator-readable reason rather than an actual error. `nextTickAt` and `lastTickAt` are ISO 8601 strings or `null`. For genuine `"failed"` ticks, `lastTickError` holds `Error.message`.
 - `recordingsCount` excludes dismissed rows; `dismissedCount` is the dismissed-only count.
 - `warnings` is a free-form string array reserved for non-fatal operator-visible signals.
+
+### `GET /api/protocol/sync-jobs/plaud-mirror-recordings-sync/status`
+
+No request body. Public, sanitized, `Cache-Control: no-store`. Response
+conforms to `home-infra-protocol`
+`schemas/status-snapshot.schema.json`.
+
+Example:
+
+```json
+{
+  "observed_at": "2026-06-21T10:02:00.000Z",
+  "condition": "ok",
+  "severity": "none",
+  "summary": "Plaud Mirror sync ok: 584/584 recording(s) mirrored.",
+  "project": "plaud-mirror",
+  "job_id": "plaud-mirror-recordings-sync",
+  "version": "0.10.0",
+  "source": {
+    "kind": "plaud",
+    "authority": "external"
+  },
+  "counts": {
+    "plaud_total": 584,
+    "mirrored": 584,
+    "dismissed": 0,
+    "missing": 0
+  },
+  "latest_sync": {
+    "id": "sync-run-id",
+    "mode": "sync",
+    "status": "completed",
+    "started_at": "2026-06-21T10:01:00.000Z",
+    "finished_at": "2026-06-21T10:02:00.000Z",
+    "examined": 584,
+    "matched": 0,
+    "downloaded": 0,
+    "enqueued": 0,
+    "skipped": 0,
+    "error_present": false
+  },
+  "active_sync": null,
+  "scheduler": {
+    "enabled": false,
+    "interval_ms": 0,
+    "next_tick_at": null,
+    "last_tick_at": null,
+    "last_tick_status": null,
+    "last_tick_error_present": false
+  },
+  "outbox": {
+    "webhook_configured": false,
+    "pending": 0,
+    "retry_waiting": 0,
+    "permanently_failed": 0,
+    "oldest_pending_age_ms": null
+  },
+  "checks": [
+    {
+      "name": "plaud-auth",
+      "condition": "ok",
+      "severity": "none",
+      "summary": "Plaud bearer is configured and validates successfully."
+    }
+  ]
+}
+```
+
+Raw sync or scheduler error messages are intentionally not included in this
+public protocol response. The snapshot only exposes `error_present` /
+`last_tick_error_present`; detailed operator troubleshooting remains behind
+the authenticated panel and `/api/health`.
+
+`observed_at` is not the HTTP request time. It is anchored to sync evidence
+(active run `startedAt`, latest sync `finishedAt`, auth validation time, then
+current time only as first-boot fallback) so consumers can derive freshness by
+joining it with `infra.contract.yml` `stale_after`.
 
 ## Webhook Contract
 

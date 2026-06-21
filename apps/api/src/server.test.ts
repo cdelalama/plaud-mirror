@@ -797,6 +797,47 @@ test("operator auth enabled: gates /api, login issues a session cookie, throttle
   await app.close();
 });
 
+test("operator auth enabled: protocol status stays public and sanitized", async () => {
+  const root = await mkdtemp(join(tmpdir(), "plaud-mirror-server-protocol-public-"));
+  const environment: ServerEnvironment = {
+    ...createEnvironment(root),
+    adminPassphrase: "correct-horse",
+  };
+  const app = await createApp({
+    environment,
+    plaudFetchImpl: async () => {
+      throw new Error("Unexpected Plaud fetch in protocol status public test");
+    },
+  });
+
+  const blockedConfig = await app.inject({ method: "GET", url: "/api/config" });
+  assert.equal(blockedConfig.statusCode, 401);
+
+  const protocolStatus = await app.inject({
+    method: "GET",
+    url: "/api/protocol/sync-jobs/plaud-mirror-recordings-sync/status",
+  });
+  assert.equal(protocolStatus.statusCode, 200);
+  assert.equal(protocolStatus.headers["cache-control"], "no-store");
+
+  const body = protocolStatus.json() as {
+    job_id: string;
+    condition: string;
+    severity: string;
+    auth?: unknown;
+    userSummary?: unknown;
+    summary: string;
+  };
+  assert.equal(body.job_id, "plaud-mirror-recordings-sync");
+  assert.equal(body.condition, "degraded");
+  assert.equal(body.severity, "critical");
+  assert.equal(body.auth, undefined);
+  assert.equal(body.userSummary, undefined);
+  assert.ok(body.summary.includes("Plaud auth is missing"));
+
+  await app.close();
+});
+
 test("connect flow: start mints a captureId, complete validates it and stores the captured token", async () => {
   const root = await mkdtemp(join(tmpdir(), "plaud-mirror-server-connect-"));
   const environment: ServerEnvironment = {

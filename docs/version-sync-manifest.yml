@@ -32,6 +32,7 @@ targets:
 - path: docs/ROADMAP.md            marker: html-comment
 - path: docs/UPSTREAMS.md          marker: html-comment
 - path: docs/STRUCTURE.md          marker: html-comment
+- path: docs/INFRA_CONTRACT.md     marker: html-comment
 - path: docs/operations/API_CONTRACT.md marker: html-comment
 - path: docs/operations/DEPLOY_PLAYBOOK.md marker: html-comment
 - path: docs/operations/AUTH_AND_SYNC.md marker: html-comment

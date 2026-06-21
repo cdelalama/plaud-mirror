@@ -569,3 +569,96 @@ Both connect routes require the operator session (D-018); neither is in the publ
 - If Plaud changes its browser token shape, the Chrome extension and fallback bookmarklet extraction are the maintenance surface; the `iiAtlas` upstream is the reference to re-sync against.
 - If Plaud changes the request context expected for browser-minted bearers, the backend Plaud client must follow Plaud Web's current fingerprint as well. `v0.8.1` is the first instance: the operator proved the captured EU `pld_tokenstr` was valid in Plaud Web, while the backend's old `app.plaud.ai` + custom-user-agent request got an HTML 403, so `PlaudClient` moved to Plaud Web origin/referer, browser-like UA, and browser `sec-fetch-*` headers.
 - The extension does not overturn D-002's server-first architecture. It is a local capture adapter only: no syncing, storage, listing, or download logic moves into the browser.
+
+## D-020 - Plaud recording sync adopts Home Infra Protocol as a status contract
+
+**Status:** accepted; **implemented in v0.10.0** (`infra.contract.yml`, `docs/INFRA_CONTRACT.md`, `packages/shared/src/protocol.ts`, `apps/api/src/runtime/protocol-status.ts`, public protocol status routes in `apps/api/src/server.ts`).
+
+### Decision
+
+Plaud Mirror's Plaud recording sync is declared as a `home-infra-protocol`
+`sync_jobs[]` producer. The project contract lives in `infra.contract.yml` and
+declares one job:
+
+```yaml
+id: plaud-mirror-recordings-sync
+source:
+  kind: plaud
+  authority: external
+schedule:
+  mode: manual
+stale_after: P1D
+runtime:
+  host_id: dev-vm
+  service_id: plaud-mirror
+```
+
+The runtime publishes a sanitized protocol status snapshot at:
+
+```text
+GET /api/protocol/sync-jobs/plaud-mirror-recordings-sync/status
+GET /api/protocol/status
+```
+
+The snapshot conforms to `home-infra-protocol`
+`schemas/status-snapshot.schema.json`: `observed_at`, `condition`, `severity`,
+`summary`, and optional shaped `checks[]`, with Plaud Mirror-specific detail
+blocks allowed by the protocol's additive schema.
+
+### Rationale
+
+The operator wants Plaud Mirror sync to participate in the same infrastructure
+language as other homelab synchronizers, so Infra Portal, Hermes, and future
+agents can consume it without bespoke `/api/health` parsing. The right
+integration point is a thin status/contract layer over the existing sync
+engine, not a rewrite of the Plaud download pipeline.
+
+Plaud Mirror already owns all runtime facts needed for the protocol:
+
+- Plaud auth state.
+- Latest and active sync runs.
+- Plaud total, local mirrored count, dismissed count, and missing count.
+- Scheduler state.
+- Durable webhook outbox state.
+
+The protocol layer normalizes those facts into the shared status vocabulary.
+Consumers derive freshness and policy from `observed_at + stale_after`; Plaud
+Mirror does not self-declare freshness and does not alert by itself.
+
+### Schedule mode
+
+The contract starts as `manual` because the live scheduler is currently
+disabled until the Phase 3 soak starts. The product already has an
+`internal-loop` scheduler, but contract truth must follow the intended runtime
+mode, not merely code capability.
+
+When the operator enables the scheduler as normal operation, update the
+contract to:
+
+- `schedule.mode: internal-loop`
+- `schedule.cadence: <actual interval>`
+- `stale_after > cadence`
+
+### Security and exposure
+
+The protocol status route is public like `/api/health` because Infra Portal and
+status probes need to read it without an operator session. It must therefore
+remain sanitized:
+
+- no Plaud account `userSummary`
+- no bearer token
+- no webhook secret
+- no raw Plaud rejection body
+- no filesystem paths beyond already-public mirror metadata semantics
+
+### Implications
+
+- `infra.contract.yml` is now part of the project contract surface and should be
+  kept in sync with scheduler reality.
+- `home-infra/catalog/project-contracts.yml` should register Plaud Mirror so
+  Infra Portal can render `plaud-mirror-recordings-sync`.
+- The generic `recording.synced` webhook remains the downstream event delivery
+  mechanism; it is separate from the protocol status snapshot.
+- YouTube2Text/Media2Text should consume webhook events for work creation and
+  expose its own protocol job for transcription/archive state. It should not
+  infer Plaud Mirror source freshness from webhook volume alone.

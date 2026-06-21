@@ -1,11 +1,11 @@
-<!-- doc-version: 0.9.6 -->
+<!-- doc-version: 0.10.0 -->
 # How to Use This Repository
 
 This guide explains how Plaud Mirror is operated end-to-end and how it stays aligned with both `LLM-DocKit` (the governance scaffold it adopts) and the Plaud ecosystem upstreams it watches.
 
 ## Current Reality
 
-`v0.9.6` is the current **Phase 4 operator UX + governance release**: it keeps the hardened `v0.6.x` runtime, the `v0.7.x` `/connect` capture handshake, the local Chrome companion extension from `v0.8.0`, the Plaud Web-aligned backend validation fingerprint from `v0.8.1`, the reference-driven five-screen operator panel from `v0.9.0`, the full-viewport production shell from `v0.9.1`, the fixed Main "download missing" action from `v0.9.2`, the DocKit trace-protocol merge from `v0.9.3`, the Library playback/scroll fixes from `v0.9.4`, mobile shell usability fixes from `v0.9.5`, and the LLM-DocKit 4.9.6 governance/tooling sync from `v0.9.6`. **Operators upgrading from any `0.4.x`/`0.5.x` should go directly to `v0.9.6`.** Today the repository gives you:
+`v0.10.0` is the current **Phase 5 infra/protocol integration release**: it keeps the hardened `v0.6.x` runtime, the `v0.7.x` `/connect` capture handshake, the local Chrome companion extension from `v0.8.0`, the Plaud Web-aligned backend validation fingerprint from `v0.8.1`, the reference-driven five-screen operator panel from `v0.9.0`, the full-viewport production shell from `v0.9.1`, the fixed Main "download missing" action from `v0.9.2`, the DocKit trace-protocol merge from `v0.9.3`, the Library playback/scroll fixes from `v0.9.4`, mobile shell usability fixes from `v0.9.5`, the LLM-DocKit 4.9.6 governance/tooling sync from `v0.9.6`, and the `home-infra-protocol` sync-job contract from `v0.10.0`. **Operators upgrading from any `0.4.x`/`0.5.x` should go directly to `v0.10.0`.** Today the repository gives you:
 
 - a Fastify API and React/Vite panel bundled in a single Docker container;
 - **operator access control** (v0.6.0): set `PLAUD_MIRROR_ADMIN_PASSPHRASE` and the panel asks for the passphrase once per device (30-day session cookie); without it the API runs open and `/api/health` warns;
@@ -17,6 +17,7 @@ This guide explains how Plaud Mirror is operated end-to-end and how it stays ali
 - local recording index in SQLite with stable `#N` ranks, search, 50/100/150 pagination, compact/full inline audio playback with HTTP Range support, and local-only dismiss/restore;
 - HMAC-signed webhook delivery via a **durable outbox**: every sync enqueues, the worker retries failures with exponential backoff, the panel exposes counters and a Retry button for permanently-failed items;
 - a `scheduler` block, an `outbox` counters block, plus the `lastErrors` ring buffer and `recentSyncRuns` list on `/api/health` (D-014 full from v0.5.5), now visible in the Main and Operations screens;
+- a `home-infra-protocol` sync-job surface: `infra.contract.yml` declares `plaud-mirror-recordings-sync`, and `/api/protocol/sync-jobs/plaud-mirror-recordings-sync/status` publishes a public sanitized status snapshot for Infra Portal/Hermes-style consumers;
 - a Spanish/English operator-chrome toggle persisted in browser storage, plus a labeled mobile view selector so phone navigation is not icon-only;
 - upstream-watch tooling plus the full LLM-DocKit governance circuit (HANDOFF, HISTORY, DECISIONS, REVIEWS, version-sync manifest, validator, pre-commit hook).
 
@@ -85,6 +86,26 @@ Each tick performs `runScheduledSync()` against Plaud. Two layers of anti-overla
 2. **Scheduler-level.** If the previous tick's promise has not resolved by the time the next timer fires, the new fire is also recorded as `"skipped"` and discarded.
 
 When the scheduler is enabled, `health.phase` reads `"Phase 3 - unattended operation"`; when disabled it falls back to `"Phase 2 - first usable slice"`. Use this string for human eyes only — never for control flow.
+
+### Home Infra Protocol sync status (Phase 5)
+
+Plaud Mirror declares its Plaud recording sync in `infra.contract.yml` as
+`plaud-mirror-recordings-sync`. The live status endpoint is:
+
+```text
+GET /api/protocol/sync-jobs/plaud-mirror-recordings-sync/status
+```
+
+`/api/protocol/status` is an alias. Both are public and sanitized like
+`/api/health`, but they return the protocol `status-snapshot` shape for Infra
+Portal, Hermes, or future agents. The snapshot maps existing runtime truth:
+Plaud auth, latest/active sync, mirror coverage, scheduler state, and webhook
+outbox state.
+
+The contract currently uses `schedule.mode: manual` with `stale_after: P1D`
+because the live scheduler is disabled until the soak starts. When the
+scheduler becomes the intended operating mode, update `infra.contract.yml` to
+`internal-loop`, add cadence, and keep `stale_after > cadence`.
 
 #### Optional: bootstrap from the env var
 
@@ -161,7 +182,7 @@ Useful for live Plaud flow checks and metadata discovery without booting the pan
 npm test
 ```
 
-154 runtime tests at `v0.9.6`: 127 Node tests (shared schemas/formatting, Plaud client, runtime service/store/scheduler/outbox/auth/capture-session, server routes, integration smoke for built API/web, Chrome extension contract) + 27 web tests under Vitest+jsdom+@testing-library/react (D-015). The root `npm test` runs both the Node test runner and `npm run test:web`. Governance checks are separate: `scripts/dockit-validate-session.sh --human` runs 12 checks, `scripts/check-version-sync.sh` checks 22 version targets, and `scripts/test-validator.sh` currently has 32 smoke cases.
+161 runtime tests at `v0.10.0`: 134 Node tests (shared schemas/formatting/protocol, Plaud client, runtime service/store/scheduler/outbox/auth/capture-session/protocol-status, server routes, integration smoke for built API/web, Chrome extension contract) + 27 web tests under Vitest+jsdom+@testing-library/react (D-015). The root `npm test` runs both the Node test runner and `npm run test:web`. Governance checks are separate: `scripts/dockit-validate-session.sh --human` runs 12 checks, `scripts/check-version-sync.sh` checks 23 version targets, and `scripts/test-validator.sh` currently has 32 smoke cases.
 
 ## Working With LLM-DocKit Upstream
 

@@ -1,0 +1,50 @@
+# infra.contract.yml - Plaud Mirror project contract for home-infra-protocol 0.6.0
+#
+# Spec:    ~/src/home-infra-protocol/SPEC.md
+# Format:  ~/src/home-infra-protocol/docs/PROJECT_CONTRACTS.md
+# Schemas: ~/src/home-infra-protocol/schemas/
+#
+# This contract is an upstream input to home-infra. The deployed source of
+# truth remains ~/src/home-infra until that repo ingests project contracts
+# directly. No secret values live here.
+
+id: plaud-mirror
+name: Plaud Mirror
+repository: https://github.com/cdelalama/plaud-mirror
+
+services:
+  - plaud-mirror
+
+sync_jobs:
+  - id: plaud-mirror-recordings-sync
+    source:
+      kind: plaud
+      authority: external
+    schedule:
+      mode: manual
+    stale_after: P1D
+    runtime:
+      host_id: dev-vm
+      service_id: plaud-mirror
+    status_url: https://plaud.lamanoriega.com/api/protocol/sync-jobs/plaud-mirror-recordings-sync/status
+    safety:
+      idempotent: true
+      lock: sqlite-active-sync-run
+      max_runtime: PT1H
+      backoff: none
+
+runbooks:
+  deploy: docs/operations/DEPLOY_PLAYBOOK.md
+  sync: docs/operations/AUTH_AND_SYNC.md
+  api: docs/operations/API_CONTRACT.md
+
+secret_refs:
+  - name: PLAUD_MIRROR_MASTER_KEY
+    store: doppler
+    notes: doppler://plaud-mirror/dev/PLAUD_MIRROR_MASTER_KEY
+  - name: PLAUD_MIRROR_ADMIN_PASSPHRASE
+    store: doppler
+    notes: doppler://plaud-mirror/dev/PLAUD_MIRROR_ADMIN_PASSPHRASE
+  - name: PLAUD_MIRROR_API_BASE
+    store: doppler
+    notes: doppler://plaud-mirror/dev/PLAUD_MIRROR_API_BASE
