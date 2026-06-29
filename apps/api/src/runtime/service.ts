@@ -77,6 +77,8 @@ interface ProcessRecordingResult {
   // for an already-mirrored recording will set `enqueued=true` /
   // `downloaded=false`.
   enqueued: boolean;
+  // Candidate-level skip for the sync summary. Do not use this for webhook
+  // "skipped" decisions; those live in RecordingMirror.lastWebhookStatus.
   skipped: boolean;
 }
 
@@ -926,7 +928,7 @@ export class PlaudMirrorService {
         downloaded: false,
         delivered: false,
         enqueued: enqueueDecision.status === "queued",
-        skipped: enqueueDecision.status === "skipped",
+        skipped: false,
       };
     }
 
@@ -970,7 +972,7 @@ export class PlaudMirrorService {
       downloaded: true,
       delivered: false,
       enqueued: enqueueDecision.status === "queued",
-      skipped: persisted.lastWebhookStatus === "skipped",
+      skipped: false,
     };
   }
 

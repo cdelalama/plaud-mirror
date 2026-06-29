@@ -4,6 +4,29 @@ All notable changes to Plaud Mirror are documented in this file.
 
 This project follows Semantic Versioning (SemVer): MAJOR.MINOR.PATCH.
 
+## [0.10.1] - 2026-06-29
+
+### Added
+
+- Nothing.
+
+### Changed
+
+- Nothing.
+
+### Fixed
+
+- **Sync progress no longer counts disabled-webhook decisions as skipped sync
+  candidates.** A normal sync with no webhook configured could show
+  `downloaded 20` and `skipped 20` for the same 20 recordings because
+  `SyncRunSummary.skipped` was incremented from the recording-level
+  `lastWebhookStatus="skipped"` state. The run summary now treats webhook
+  skipped as delivery state only; downloaded candidates keep `skipped=0` while
+  the recording row still records that no webhook was configured.
+- Tests: runtime test count unchanged; `apps/api/src/runtime/service.test.ts`
+  now asserts the split between sync skipped candidates and webhook skipped
+  delivery state.
+
 ## [0.10.0] - 2026-06-21
 
 ### Added

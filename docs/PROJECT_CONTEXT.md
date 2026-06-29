@@ -1,4 +1,4 @@
-<!-- doc-version: 0.10.0 -->
+<!-- doc-version: 0.10.1 -->
 # Project Context - Plaud Mirror
 
 ## Vision
@@ -24,9 +24,26 @@ Plaud Mirror is a server-first product with two runtime surfaces:
 
 Persistence is split between SQLite for state/indexes and the filesystem for mirrored audio artifacts. Secrets are encrypted at rest with a master key supplied by the surrounding deployment.
 
-## Current Status (2026-06-21, v0.10.0)
+## Current Status (2026-06-29, v0.10.1)
 
-Plaud Mirror `v0.10.0` opens **Phase 5 infra/protocol integration** while preserving the existing sync engine. It adds `home-infra-protocol` adoption for the Plaud recording sync: `infra.contract.yml` declares `plaud-mirror-recordings-sync`, `docs/INFRA_CONTRACT.md` explains the producer/consumer boundary, and the API publishes a public sanitized status snapshot at `/api/protocol/sync-jobs/plaud-mirror-recordings-sync/status` (alias `/api/protocol/status`). The snapshot maps existing runtime truth (`/api/health`, `sync_runs`, scheduler state, outbox counters) into the protocol's `observed_at`, `condition`, `severity`, `summary`, and `checks[]` shape without exposing Plaud account PII, tokens, webhook secrets, or raw secret-bearing errors.
+Plaud Mirror `v0.10.1` is a Phase 5 patch on top of the `v0.10.0`
+Home Infra Protocol release. It fixes the sync-run progress summary so
+recording-level webhook delivery state does not masquerade as skipped sync
+work: a downloaded recording with no webhook configured still records
+`lastWebhookStatus="skipped"`, but `SyncRunSummary.skipped` no longer increments
+for that delivery decision.
+
+The `v0.10.0` release underneath opened **Phase 5 infra/protocol integration**
+while preserving the existing sync engine. It adds `home-infra-protocol`
+adoption for the Plaud recording sync: `infra.contract.yml` declares
+`plaud-mirror-recordings-sync`, `docs/INFRA_CONTRACT.md` explains the
+producer/consumer boundary, and the API publishes a public sanitized status
+snapshot at `/api/protocol/sync-jobs/plaud-mirror-recordings-sync/status`
+(alias `/api/protocol/status`). The snapshot maps existing runtime truth
+(`/api/health`, `sync_runs`, scheduler state, outbox counters) into the
+protocol's `observed_at`, `condition`, `severity`, `summary`, and `checks[]`
+shape without exposing Plaud account PII, tokens, webhook secrets, or raw
+secret-bearing errors.
 
 The sync job is declared as `schedule.mode: manual` because the live scheduler is still disabled until the Phase 3 soak is deliberately started. When the scheduler becomes the normal operating mode, the contract should move to `internal-loop` with a concrete cadence and `stale_after > cadence`. This is not a rewrite of the Plaud sync/download pipeline; it is the protocol surface that lets Home Infra, Infra Portal, Hermes, and future agents consume Plaud Mirror's sync state consistently.
 
@@ -56,7 +73,7 @@ The runtime baseline carried from `v0.5.3` is the **durable webhook outbox** (D-
 
 The earlier `0.5.x` baseline still applies: in-process continuous sync scheduler (D-012, stabilized in `v0.5.1`, panel-driven from `v0.5.2`), two-layer anti-overlap, SQLite-persisted scheduler config. `SyncRunSummary.enqueued` counts webhook payloads pushed to the outbox during the run; `delivered` keeps its original semantic ("delivered synchronously inside this run") and structurally stays at 0 from `v0.5.3` onwards.
 
-Operators upgrading from `0.4.x` should skip `v0.5.0` (scheduler default-on regression + missing service-layer anti-overlap) and go directly to `v0.10.0`.
+Operators upgrading from `0.4.x` should skip `v0.5.0` (scheduler default-on regression + missing service-layer anti-overlap) and go directly to `v0.10.1`.
 
 The Phase 2 slice it inherits: a live Fastify API, a web panel for token setup, webhook configuration, sync/backfill controls, recordings visibility with inline audio playback, encrypted persisted manual bearer-token auth, manual sync and filtered historical backfill (async-202, with a `limit=0` "refresh server stats" path), SQLite-backed recording and delivery state (including `dismissed` / `dismissed_at` columns for local curation), immediate HMAC-signed webhook delivery with persisted attempt logging, a confirmed local-only dismiss/restore flow that never touches Plaud, Docker packaging for `dev-vm` running as non-root `USER 1000:1000`, and the original Phase 1 spike CLI for direct Plaud probing. Concretely:
 

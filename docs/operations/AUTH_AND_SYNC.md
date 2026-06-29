@@ -1,7 +1,7 @@
-<!-- doc-version: 0.10.0 -->
+<!-- doc-version: 0.10.1 -->
 # Authentication and Sync Operations
 
-This runbook defines the live behavior of Plaud Mirror's auth and sync surface. Phase 2 (manual sync/backfill) is fully shipped. Phase 3: the continuous sync scheduler landed in `v0.5.0` (regressed) -> `v0.5.1` (fixed) -> `v0.5.2` (panel-driven). `v0.5.3` shipped the **durable webhook outbox** (D-013). `v0.5.4` was governance-only (D-016). `v0.5.5` shipped **D-014 full**: `lastErrors` ring buffer and `recentSyncRuns` on `/api/health`. `v0.6.0` is the **Phase 3 hardening release**: operator access control on the panel/API (D-018), startup crash recovery for orphaned sync runs and outbox rows (D-013 amendment, at-least-once delivery accepted), and abort deadlines on every Plaud API call and audio download. `v0.9.0` surfaces the auth/sync/outbox observability in the real panel's Main and Operations screens. `v0.10.0` publishes the same sync state through `home-infra-protocol`: `infra.contract.yml` declares `plaud-mirror-recordings-sync`, and `/api/protocol/sync-jobs/plaud-mirror-recordings-sync/status` returns a sanitized status snapshot for Infra Portal/Hermes consumers. Remaining Phase 3 work before the soak: the scrypt KDF upgrade, then the soak itself; resumable backfill and fully unattended re-login stay deferred.
+This runbook defines the live behavior of Plaud Mirror's auth and sync surface. Phase 2 (manual sync/backfill) is fully shipped. Phase 3: the continuous sync scheduler landed in `v0.5.0` (regressed) -> `v0.5.1` (fixed) -> `v0.5.2` (panel-driven). `v0.5.3` shipped the **durable webhook outbox** (D-013). `v0.5.4` was governance-only (D-016). `v0.5.5` shipped **D-014 full**: `lastErrors` ring buffer and `recentSyncRuns` on `/api/health`. `v0.6.0` is the **Phase 3 hardening release**: operator access control on the panel/API (D-018), startup crash recovery for orphaned sync runs and outbox rows (D-013 amendment, at-least-once delivery accepted), and abort deadlines on every Plaud API call and audio download. `v0.9.0` surfaces the auth/sync/outbox observability in the real panel's Main and Operations screens. `v0.10.0` publishes the same sync state through `home-infra-protocol`: `infra.contract.yml` declares `plaud-mirror-recordings-sync`, and `/api/protocol/sync-jobs/plaud-mirror-recordings-sync/status` returns a sanitized status snapshot for Infra Portal/Hermes consumers. `v0.10.1` fixes the run summary so disabled-webhook delivery state (`lastWebhookStatus="skipped"`) does not increment `SyncRunSummary.skipped`. Remaining Phase 3 work before the soak: the scrypt KDF upgrade, then the soak itself; resumable backfill and fully unattended re-login stay deferred.
 
 ## Operator Access Control (D-018, v0.6.0)
 
@@ -70,6 +70,10 @@ The service exposes:
 - Existing mirrored recordings are skipped unless `forceDownload` is requested.
 - Webhook delivery: through `v0.5.2` it was synchronous inside `executeMirror`. From `v0.5.3` onwards it is **enqueued to the durable outbox** and delivered asynchronously by the worker (see "Webhook outbox" below).
 - Delivery attempts are persisted even when the webhook call fails (`webhook_deliveries` audit log, append-only, unchanged across releases).
+- `SyncRunSummary.skipped` is a sync-work counter, not a webhook-delivery
+  counter. From `v0.10.1`, a downloaded recording with no webhook configured
+  still records `lastWebhookStatus="skipped"` on the recording row, but it does
+  not increase the run's `skipped` field.
 
 ### Phase 3 (in progress, `0.5.x` line)
 

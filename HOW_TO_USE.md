@@ -1,11 +1,11 @@
-<!-- doc-version: 0.10.0 -->
+<!-- doc-version: 0.10.1 -->
 # How to Use This Repository
 
 This guide explains how Plaud Mirror is operated end-to-end and how it stays aligned with both `LLM-DocKit` (the governance scaffold it adopts) and the Plaud ecosystem upstreams it watches.
 
 ## Current Reality
 
-`v0.10.0` is the current **Phase 5 infra/protocol integration release**: it keeps the hardened `v0.6.x` runtime, the `v0.7.x` `/connect` capture handshake, the local Chrome companion extension from `v0.8.0`, the Plaud Web-aligned backend validation fingerprint from `v0.8.1`, the reference-driven five-screen operator panel from `v0.9.0`, the full-viewport production shell from `v0.9.1`, the fixed Main "download missing" action from `v0.9.2`, the DocKit trace-protocol merge from `v0.9.3`, the Library playback/scroll fixes from `v0.9.4`, mobile shell usability fixes from `v0.9.5`, the LLM-DocKit 4.9.6 governance/tooling sync from `v0.9.6`, and the `home-infra-protocol` sync-job contract from `v0.10.0`. **Operators upgrading from any `0.4.x`/`0.5.x` should go directly to `v0.10.0`.** Today the repository gives you:
+`v0.10.1` is the current **Phase 5 infra/protocol integration patch**: it keeps the hardened `v0.6.x` runtime, the `v0.7.x` `/connect` capture handshake, the local Chrome companion extension from `v0.8.0`, the Plaud Web-aligned backend validation fingerprint from `v0.8.1`, the reference-driven five-screen operator panel from `v0.9.0`, the full-viewport production shell from `v0.9.1`, the fixed Main "download missing" action from `v0.9.2`, the DocKit trace-protocol merge from `v0.9.3`, the Library playback/scroll fixes from `v0.9.4`, mobile shell usability fixes from `v0.9.5`, the LLM-DocKit 4.9.6 governance/tooling sync from `v0.9.6`, and the `home-infra-protocol` sync-job contract from `v0.10.0`. The `v0.10.1` patch fixes sync progress summaries so disabled-webhook delivery state is not counted as skipped sync candidates. **Operators upgrading from any `0.4.x`/`0.5.x` should go directly to `v0.10.1`.** Today the repository gives you:
 
 - a Fastify API and React/Vite panel bundled in a single Docker container;
 - **operator access control** (v0.6.0): set `PLAUD_MIRROR_ADMIN_PASSPHRASE` and the panel asks for the passphrase once per device (30-day session cookie); without it the API runs open and `/api/health` warns;
@@ -182,7 +182,7 @@ Useful for live Plaud flow checks and metadata discovery without booting the pan
 npm test
 ```
 
-161 runtime tests at `v0.10.0`: 134 Node tests (shared schemas/formatting/protocol, Plaud client, runtime service/store/scheduler/outbox/auth/capture-session/protocol-status, server routes, integration smoke for built API/web, Chrome extension contract) + 27 web tests under Vitest+jsdom+@testing-library/react (D-015). The root `npm test` runs both the Node test runner and `npm run test:web`. Governance checks are separate: `scripts/dockit-validate-session.sh --human` runs 12 checks, `scripts/check-version-sync.sh` checks 23 version targets, and `scripts/test-validator.sh` currently has 32 smoke cases.
+161 runtime tests at `v0.10.1`: 134 Node tests (shared schemas/formatting/protocol, Plaud client, runtime service/store/scheduler/outbox/auth/capture-session/protocol-status, server routes, integration smoke for built API/web, Chrome extension contract) + 27 web tests under Vitest+jsdom+@testing-library/react (D-015). The root `npm test` runs both the Node test runner and `npm run test:web`. Governance checks are separate: `scripts/dockit-validate-session.sh --human` runs 12 checks, `scripts/check-version-sync.sh` checks 23 version targets, and `scripts/test-validator.sh` currently has 32 smoke cases.
 
 ## Working With LLM-DocKit Upstream
 

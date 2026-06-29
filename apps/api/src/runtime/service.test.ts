@@ -300,6 +300,7 @@ test("PlaudMirrorService backfill downloads audio and enqueues the webhook paylo
   assert.equal(summary.downloaded, 1);
   assert.equal(summary.delivered, 0, "delivered stays 0 — the sync run no longer POSTs synchronously (v0.5.3)");
   assert.equal(summary.enqueued, 1, "the run pushed exactly one payload into the outbox");
+  assert.equal(summary.skipped, 0, "queued webhook delivery is not a skipped sync candidate");
   assert.equal(summary.plaudTotal, 1, "sync summary should carry Plaud's data_file_total");
 
   const recordings = await service.listRecordings(10);
@@ -466,8 +467,8 @@ test("PlaudMirrorService runSync skips already-mirrored rows and pulls the first
   });
 
   // Ask for 1 recording: Mode B must pick `rec-new-1` (the only genuinely
-  // missing one), skip `rec-already-mirrored` (has success webhook), and
-  // skip `rec-dismissed` (operator rejected).
+  // missing one), exclude `rec-already-mirrored` (already on disk, regardless
+  // of webhook state), and exclude `rec-dismissed` (operator rejected).
   const handle = await service.runSync({ limit: 1 });
   assert.equal(handle.status, "running");
   await sched.settled();
@@ -477,9 +478,17 @@ test("PlaudMirrorService runSync skips already-mirrored rows and pulls the first
   assert.equal(summary.examined, 3, "examined = every recording Plaud returned");
   assert.equal(summary.matched, 1, "matched = 1 candidate after skipping mirrored + dismissed");
   assert.equal(summary.downloaded, 1);
+  assert.equal(summary.skipped, 0, "disabled webhook status must not be counted as skipped sync work");
   assert.equal(summary.plaudTotal, 3, "plaudTotal = Plaud's real total (from listEverything)");
   assert.equal(artifactCalls.length, 1, "only the missing recording should be downloaded");
   assert.match(artifactCalls[0] ?? "", /rec-new-1/);
+
+  const recordings = await service.listRecordings(10);
+  assert.equal(
+    recordings.recordings.find((recording) => recording.id === "rec-new-1")?.lastWebhookStatus,
+    "skipped",
+    "recording-level webhook state still records that no webhook was configured",
+  );
 
   service.close();
 });
