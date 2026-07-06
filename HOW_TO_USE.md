@@ -1,11 +1,11 @@
-<!-- doc-version: 0.10.5 -->
+<!-- doc-version: 0.10.6 -->
 # How to Use This Repository
 
 This guide explains how Plaud Mirror is operated end-to-end and how it stays aligned with both `LLM-DocKit` (the governance scaffold it adopts) and the Plaud ecosystem upstreams it watches.
 
 ## Current Reality
 
-`v0.10.5` is the CI-portable form of the consolidated pre-soak hardening release on the Phase 5 protocol-integrated runtime. Runtime behavior comes from `v0.10.4`; `v0.10.5` makes its timeout regression test reliable on Node 20 CI. **Operators upgrading from any `0.4.x`/`0.5.x` should go directly to `v0.10.5`.** Today the repository gives you:
+`v0.10.6` is the CI-portable form of the consolidated pre-soak hardening release on the Phase 5 protocol-integrated runtime. Runtime behavior comes from `v0.10.4`; `v0.10.5`-`v0.10.6` make both timeout regression harnesses reliable on Node 20 CI. **Operators upgrading from any `0.4.x`/`0.5.x` should go directly to `v0.10.6`.** Today the repository gives you:
 
 - a Fastify API and React/Vite panel bundled in a single Docker container;
 - **operator access control** (v0.6.0): set `PLAUD_MIRROR_ADMIN_PASSPHRASE` and the panel asks for the passphrase once per device (30-day session cookie); without it the API runs open and `/api/health` warns;

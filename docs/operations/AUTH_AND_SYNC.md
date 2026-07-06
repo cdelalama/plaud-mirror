@@ -1,4 +1,4 @@
-<!-- doc-version: 0.10.5 -->
+<!-- doc-version: 0.10.6 -->
 # Authentication and Sync Operations
 
 This runbook defines the live behavior of Plaud Mirror's auth and sync surface. Phase 2 is fully shipped. Phase 3 added the scheduler, durable outbox, health observability, and access/recovery timeouts. `v0.10.3` makes artifact integrity truthful; `v0.10.4` makes scheduler completion, runtime ceilings, outbox recovery, pagination, and shutdown truthful before the soak. Resumable backfill and fully unattended re-login stay deferred.

@@ -4,6 +4,18 @@ All notable changes to Plaud Mirror are documented in this file.
 
 This project follows Semantic Versioning (SemVer): MAJOR.MINOR.PATCH.
 
+## [0.10.6] - 2026-07-10
+
+### Added
+
+### Changed
+
+- **Node 20 whole-run timeout evidence.** The service-level max-runtime test
+  now owns the same short event-loop keepalive as the request-timeout test,
+  allowing the intentionally unref'ed production timer to fire under Node 20.
+
+### Fixed
+
 ## [0.10.5] - 2026-07-10
 
 ### Added

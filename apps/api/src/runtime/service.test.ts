@@ -236,6 +236,9 @@ test("PlaudMirrorService scheduled ticks settle only after the underlying sync f
 });
 
 test("PlaudMirrorService aborts a scheduled sync at the whole-run runtime ceiling", async () => {
+  // The production max-runtime timer is intentionally unref'ed. Keep the
+  // isolated Node 20 test process alive until that timer aborts the fetch.
+  const keepAlive = setTimeout(() => undefined, 250);
   const root = await mkdtemp(join(tmpdir(), "plaud-mirror-max-runtime-"));
   const environment = { ...createEnvironment(root), syncMaxRuntimeMs: 25 };
   const store = new RuntimeStore({
@@ -253,13 +256,17 @@ test("PlaudMirrorService aborts a scheduled sync at the whole-run runtime ceilin
   });
   await service.initialize();
 
-  await assert.rejects(
-    () => service.runScheduledSync(),
-    /exceeded maximum runtime of 25ms/,
-  );
-  assert.equal(store.getLastSyncRun()?.status, "failed");
-  assert.match(store.getLastSyncRun()?.error ?? "", /maximum runtime/);
-  service.close();
+  try {
+    await assert.rejects(
+      () => service.runScheduledSync(),
+      /exceeded maximum runtime of 25ms/,
+    );
+    assert.equal(store.getLastSyncRun()?.status, "failed");
+    assert.match(store.getLastSyncRun()?.error ?? "", /maximum runtime/);
+  } finally {
+    clearTimeout(keepAlive);
+    service.close();
+  }
 });
 
 test("PlaudMirrorService shutdown aborts active network work before closing SQLite", async () => {
