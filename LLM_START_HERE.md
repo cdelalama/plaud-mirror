@@ -89,15 +89,16 @@ Source of truth: docs/llm/HANDOFF.md.
 - Last Updated: 2026-07-10 - GPT-5 Codex
 - Working on: **v0.10.7 soak activation.** Physical reconciliation examined all
   619 recordings with zero candidates/failures. The contract declares
-  `internal-loop`, `cadence: PT15M`, and `stale_after: PT2H`; deploy/enable and
-  post-tick observation remain. Both Node 20 timeout tests
+  `internal-loop`, `cadence: PT15M`, and `stale_after: PT2H`. Runtime v0.10.7
+  is Docker healthy; its first automatic tick finished after the underlying
+  619-record sync completed with zero work/failures, and Infra Portal reports
+  `stale=false`, producer/display `ok`. Both Node 20 timeout tests
   keep the event loop alive until their unref'ed abort timers fire; runtime
   behavior is unchanged from `v0.10.4`. Scheduled ticks await the
   actual mirror run; whole-run cancellation defaults to one hour; pagination
   is bounded; outbox setup failures requeue claims and all eight waits precede
   a ninth final attempt; SIGTERM drains work before SQLite closes; compose has
-  a healthcheck; dependency audits are clean. Runtime v0.10.6 is deployed
-  healthy and physically reconciled; v0.10.7 deploy/activation remains.
+  a healthcheck; dependency audits are clean. The 3-5 day soak is running.
 - Previous (v0.10.0): Plaud recording sync now publishes the Home Infra Protocol contract/status surface. This did **not** rewrite the Plaud sync engine: the existing scheduler/manual sync/backfill/outbox flow remains the producer. New `infra.contract.yml` declares `plaud-mirror-recordings-sync` as a `home-infra-protocol` `sync_jobs[]` entry; `packages/shared/src/protocol.ts` models the status snapshot; `apps/api/src/runtime/protocol-status.ts` maps existing `ServiceHealth` into protocol checks; and public routes `GET /api/protocol/sync-jobs/plaud-mirror-recordings-sync/status` plus alias `/api/protocol/status` return a sanitized snapshot for Infra Portal/Hermes consumers. Home Infra commit `5df02e3` registers the contract and the NAS portal input sync copied Plaud Mirror contract source `fcbb7d9`; Infra Portal `/api/sync-jobs` now includes `plaud-mirror-recordings-sync`.
 - Previous (v0.9.6): LLM-DocKit 4.9.6 adopter sync, no runtime deployment. Applied the 4.9.6 sync from `~/src/LLM-DocKit` and kept the useful upstream guardrails: HISTORY format defaults to `any` with strict dash/no-dash opt-in, version tooling supports `json-version`, `yaml-info-version`, and `package-lock-version`, and Trace v1.3 requires seconds in chat `Sent` headers plus stale-read re-verification guidance. The raw sync again dropped Plaud Mirror's local validator checks (`handoff-start-here-sync`, `prose-drift`, `unabsorbed-artifact`) from the copied `scripts/dockit-validate-session.sh`; they were reinserted before commit. `scripts/test-validator.sh` reports 32 smoke cases, including the intentional upstream rule that HANDOFF Trace Anchor commit times may omit seconds while chat `Sent` headers must include seconds. `docs/version-sync-manifest.yml` tracks `package-lock.json` via `package-lock-version`, raising version-sync from 21 to 22 targets and clearing the stale lockfile version.
 - Previous (v0.9.5): mobile operator shell made usable. The `v0.9.0` redesign and `v0.9.1` full-viewport shell still behaved too much like desktop on phones: the mobile rail hid labels and showed only icons, the status strip occupied too much vertical space, and Library row actions could fall to the lower-left of a mobile row. v0.9.5 keeps backend routes, auth, sync, storage, scheduler, webhook, secrets, and `.env` behavior unchanged while adding a labeled mobile view selector (`Vista` / `View`), replacing the large mobile status strip with one compact chip row, and pinning Library dismiss/restore actions to the top-right on narrow screens. Tests: 154 (127 Node/integration + 27 web). Runtime state after deploy: container and `/api/health` report `0.9.5`, auth healthy, EU API base, catalog complete at 580/580, operator lock armed.

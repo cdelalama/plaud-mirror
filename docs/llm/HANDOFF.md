@@ -9,16 +9,17 @@ This file is the live operational snapshot. Durable rationale lives in `docs/llm
 - Session Focus: **v0.10.7 soak activation.** Physical reconciliation examined
   all 619 Plaud recordings with zero candidates/failures. The contract now
   declares Home Infra Protocol 0.7.1, `internal-loop`, `cadence: PT15M`, and
-  `stale_after: PT2H`. The scheduler activation and post-tick observation are
-  the remaining live steps. Both Node 20 timeout
+  `stale_after: PT2H`. Runtime v0.10.7 is deployed Docker healthy and the first
+  automatic tick completed at `2026-07-10T23:29:46.825Z` only after its sync
+  run finished: 619 examined, 0 matched/downloaded/failed, producer `ok/none`,
+  Portal `stale=false`. Both Node 20 timeout
   regressions now keep the event loop alive until their unref'ed abort timers
   fire; runtime behavior is unchanged from `v0.10.4`. Scheduled ticks now
   await their mirror run; whole-run cancellation defaults to one hour and
   reaches Plaud calls/audio streams; pagination is bounded; outbox setup errors
   requeue claims and all eight waits precede a ninth final attempt; SIGTERM
   drains work before SQLite closes; compose has a healthcheck; full and
-  production dependency audits are clean. Runtime v0.10.6 is deployed healthy
-  and physically reconciled; v0.10.7 deploy/activation remains.
+  production dependency audits are clean. The 3-5 day soak is now running.
 - Previous Session Focus (v0.10.3 patch): atomic audio replacement, physical
   artifact reconciliation, candidate failure isolation/accounting, and HTTP
   409 for backfills colliding with active sync.
@@ -151,9 +152,9 @@ The six items GPT-5 flagged in the 2026-04-23 review are closed:
 ## Top Priorities
 
 0. ~~Arm operator access control~~ — DONE 2026-06-11. ~~Re-validate the Plaud bearer token~~ — DONE 2026-06-16 after Chrome extension capture + EU base + Plaud Web request fingerprint; `/api/health` reported `auth.state: healthy`.
-1. Reconcile all 606 database rows against physical audio, deploy the hardened
-   runtime, enable the scheduler at PT15M, update `infra.contract.yml` to
-   `internal-loop` with `stale_after: PT2H`, and start the 3-5 day soak.
+1. Observe the PT15M runtime for 3-5 days through `recentSyncRuns`, scheduler
+   status, Docker health, outbox counters, and Infra Portal freshness. Do not
+   claim the Phase 3 exit gate before that elapsed evidence exists.
 2. During the soak, keep the `App.tsx` decomposition, persistence decoders, and
    token-capture consolidation on a separate branch so they do not contaminate
    runtime evidence.
@@ -213,11 +214,12 @@ Do not collapse those phases casually.
 
 - Role: executor
 - Subject: Plaud Mirror v0.10.7 soak activation
-- Repo state: source is v0.10.7; dev-vm currently runs v0.10.6 healthy after
-  physical reconciliation; deploy v0.10.7 and enable PT15M next.
-- Validation: root tests, governance checks, Docker-context probe, commit/push,
-  and post-deploy runtime checks remain the closeout gates.
-- Next gate: publish/deploy v0.10.7, enable PT15M, and observe a truthful tick.
+- Repo state: source/runtime are v0.10.7; main equals origin/main; Docker healthy;
+  619/619 physically reconciled; PT15M scheduler and PT2H contract active.
+- Validation: 173 local tests, Node 20 CI, governance, schema/catalog audits,
+  backup, deploy, physical reconciliation, first automatic tick, external
+  protocol endpoint, and Infra Portal freshness all passed.
+- Next gate: accumulate 3-5 days of unattended soak evidence before NAS work.
 
 ## Key Decisions (Links)
 
