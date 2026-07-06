@@ -4,6 +4,36 @@ All notable changes to Plaud Mirror are documented in this file.
 
 This project follows Semantic Versioning (SemVer): MAJOR.MINOR.PATCH.
 
+## [0.10.2] - 2026-07-10
+
+### Added
+
+- **Repository CI gate.** GitHub Actions now runs the supported Node 20 build,
+  web typecheck, Node/integration tests, and Vitest suite on pushes to `main`
+  and pull requests.
+- **Automatic Node test discovery.** `scripts/run-node-tests.mjs` recursively
+  finds compiled unit and integration tests, so a new test file cannot be
+  silently omitted from the root suite.
+
+### Changed
+
+- **The root test gate now typechecks the panel.** `npm test` runs
+  `tsc -p apps/web/tsconfig.json --noEmit`; Vite transpilation is no longer the
+  only compiler check for React code.
+- **Idle panels observe scheduler work.** The panel polls health every 30
+  seconds while idle and switches to the existing 2-second run polling loop
+  when it discovers a sync started outside the current tab.
+
+### Fixed
+
+- **Docker build context no longer includes secrets or host build output.**
+  `.env*`, nested `node_modules`, `dist`, `.tsbuildinfo`, and Vite caches are
+  excluded, preventing secret exposure and stale host artifacts from affecting
+  image builds.
+- **Library layout test no longer races initial loading.** The Full-player test
+  waits for its recording before changing mode, removing timing-dependent CI
+  failures.
+
 ## [0.10.1] - 2026-06-29
 
 ### Added

@@ -731,18 +731,20 @@ function Panel({
     void refreshSnapshot();
   }, [showDismissed, page, pageSize]);
 
+  const observedRunId = activeRunId ?? health?.activeRun?.id ?? null;
+
   // Polling loop while a sync is in flight. Polls /api/health every 2s and
   // refreshes the library list so newly-mirrored recordings appear without an
   // explicit Refresh click. `health.activeRun` carries the in-flight counters;
   // `health.lastSync` stays pinned to the most recent COMPLETED run so the
   // stats ("Plaud total", "Last run", hero metric) do not flicker to zeroes
-  // during a run. When `activeRun` becomes null and `lastSync.id` matches our
-  // `activeRunId`, the background work has finished — stop polling and post
-  // the success/error banner.
+  // during a run. Runs discovered through idle polling are observed just like
+  // runs started from this tab, but only operator-started runs post a banner.
   useEffect(() => {
-    if (!activeRunId) {
+    if (!observedRunId) {
       return;
     }
+    const operatorStartedRun = activeRunId === observedRunId;
     let cancelled = false;
     const tick = async () => {
       if (cancelled) {
@@ -772,14 +774,16 @@ function Panel({
         setRecordings(recordingsResponse.recordings);
         setTotalRecordings(recordingsResponse.total);
 
-        const ourRunStillActive = h.activeRun && h.activeRun.id === activeRunId;
-        if (!ourRunStillActive) {
-          const finalSummary = h.lastSync && h.lastSync.id === activeRunId
+        const observedRunStillActive = h.activeRun && h.activeRun.id === observedRunId;
+        if (!observedRunStillActive) {
+          const finalSummary = h.lastSync && h.lastSync.id === observedRunId
             ? h.lastSync
-            : await requestJson<SyncRunSummary>(`/api/sync/runs/${activeRunId}`).catch(() => null);
+            : await requestJson<SyncRunSummary>(`/api/sync/runs/${observedRunId}`).catch(() => null);
           cancelled = true;
-          setActiveRunId(null);
-          setBusy(false);
+          if (operatorStartedRun) {
+            setActiveRunId(null);
+            setBusy(false);
+          }
           // A successful sync refreshes the device catalog on the server, so
           // pull the updated list before posting the completion banner.
           try {
@@ -788,9 +792,9 @@ function Panel({
           } catch {
             // Devices are a convenience; a transient failure here is fine.
           }
-          if (finalSummary && finalSummary.status === "completed") {
+          if (operatorStartedRun && finalSummary && finalSummary.status === "completed") {
             setOperationResult(summarizeRun(finalSummary.mode === "backfill" ? "Backfill" : "Sync", finalSummary));
-          } else if (finalSummary && finalSummary.status === "failed") {
+          } else if (operatorStartedRun && finalSummary && finalSummary.status === "failed") {
             setOperationError(`Sync failed: ${finalSummary.error ?? "unknown error"}`);
           }
         }
@@ -812,7 +816,35 @@ function Panel({
       cancelled = true;
       clearInterval(interval);
     };
-  }, [activeRunId, page, pageSize, showDismissed]);
+  }, [activeRunId, observedRunId, page, pageSize, showDismissed]);
+
+  // Scheduler runs can start while this tab is idle. A low-frequency health
+  // poll discovers them, then `observedRunId` switches the panel to the 2s loop
+  // above until the run finishes.
+  useEffect(() => {
+    if (observedRunId) {
+      return;
+    }
+    let cancelled = false;
+    const tick = async () => {
+      try {
+        const h = await requestJson<ServiceHealth>("/api/health");
+        if (!cancelled) {
+          setHealth(h);
+          setLastRun(h.lastSync);
+        }
+      } catch (error) {
+        if (!cancelled && error instanceof UnauthorizedError) {
+          onUnauthorized();
+        }
+      }
+    };
+    const interval = setInterval(tick, 30_000);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [observedRunId, onUnauthorized]);
 
   async function refreshSnapshot(): Promise<void> {
     setLoading(true);

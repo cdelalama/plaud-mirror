@@ -1,12 +1,25 @@
-<!-- doc-version: 0.10.1 -->
+<!-- doc-version: 0.10.2 -->
 # LLM Work Handoff
 
 This file is the live operational snapshot. Durable rationale lives in `docs/llm/DECISIONS.md`. Phase boundaries live in `docs/ROADMAP.md`.
 
 ## Current Status
 
-- Last Updated: 2026-06-29 - Codex GPT-5
-- Session Focus: **v0.10.1 patch deployed — sync progress no longer counts disabled-webhook delivery as skipped sync candidates.** Operator ran stats refresh and a normal sync that completed the catalog at `606/606`, but the live `0.10.0` UI showed contradictory progress such as `downloaded 20 of 21` and `skipped 20` because `SyncRunSummary.skipped` was incremented from recording-level `lastWebhookStatus="skipped"` when no webhook was configured. The fix keeps those meanings separate: downloaded recordings still record webhook delivery state as `lastWebhookStatus="skipped"` when there is no webhook URL/secret, but the run summary leaves `skipped=0` unless a sync candidate itself was actually skipped. Deployed on `dev-vm` with the Doppler-wrapped compose command; container `/app/VERSION`, `/api/health`, and protocol status now report `0.10.1`, auth healthy, warnings `[]`, `recordingsCount=606`, `plaudTotal=606`, protocol `condition=ok` / `severity=none`, and latest run `4ce7ed15-bd24-44fe-8485-9c1d4841afa1` now shows `downloaded=21`, `skipped=0` after a targeted runtime correction backed up to `runtime/data/app.db.backup-20260629-v0101-skipped-counter-fix`. Tests: `npm test` passes (161 runtime tests: 134 Node/integration + 27 web), `scripts/check-version-sync.sh` passes, `scripts/check-prose-drift.sh --strict` passes, and `scripts/dockit-validate-session.sh --human` passes with only the expected external-context review warning.
+- Last Updated: 2026-07-10 - GPT-5 Codex
+- Session Focus: **v0.10.2 pre-soak evidence patch.** The root gate now
+  typechecks the React panel and discovers all compiled Node/integration tests
+  automatically; GitHub Actions runs the same gate on Node 20. `.dockerignore`
+  excludes `.env*`, nested build output, TypeScript build metadata, dependency
+  trees, and Vite caches. The panel polls health every 30 seconds while idle and
+  moves to its 2-second loop when it observes a scheduler-started run. A new UI
+  test covers that transition, and an existing Library test now waits for data
+  instead of depending on load timing. Home Infra 0.2.14 renewed the isolated
+  preview through 2026-07-22; runtime deployment remains on v0.10.1 until this
+  patch and the integrity/execution patches are validated.
+- Previous Session Focus (v0.10.1 patch): sync progress no longer counts
+  disabled-webhook delivery as skipped sync candidates. The deployed dev-vm
+  runtime reports auth healthy and 606/606 mirrored; the latest corrected run
+  records `downloaded=21` and `skipped=0`.
 - Previous Session Focus (v0.10.0 minor): Plaud recording sync now publishes the Home Infra Protocol contract/status surface. This did **not** rewrite the Plaud sync engine: the existing scheduler/manual sync/backfill/outbox flow remains the producer. New `infra.contract.yml` declares `plaud-mirror-recordings-sync` as a `home-infra-protocol` `sync_jobs[]` entry; `packages/shared/src/protocol.ts` models the status snapshot; `apps/api/src/runtime/protocol-status.ts` maps existing `ServiceHealth` into protocol checks; and public routes `GET /api/protocol/sync-jobs/plaud-mirror-recordings-sync/status` plus alias `/api/protocol/status` return a sanitized snapshot for Infra Portal/Hermes consumers. Home Infra commit `5df02e3` registers the contract and the NAS portal input sync copied Plaud Mirror contract source `fcbb7d9`; Infra Portal `/api/sync-jobs` now includes `plaud-mirror-recordings-sync`.
 - Previous Session Focus (v0.9.6 patch): LLM-DocKit 4.9.6 adopter sync, no runtime deployment. Applied the 4.9.6 sync from `~/src/LLM-DocKit` and kept the useful upstream guardrails: HISTORY format defaults to `any` with strict dash/no-dash opt-in, version tooling supports `json-version`, `yaml-info-version`, and `package-lock-version`, and Trace v1.3 requires seconds in chat `Sent` headers plus stale-read re-verification guidance. The raw sync again dropped Plaud Mirror's local validator checks (`handoff-start-here-sync`, `prose-drift`, `unabsorbed-artifact`) from the copied `scripts/dockit-validate-session.sh`; they were reinserted before commit. `scripts/test-validator.sh` reports 32 smoke cases, including the intentional upstream rule that HANDOFF Trace Anchor commit times may omit seconds while chat `Sent` headers must include seconds. `docs/version-sync-manifest.yml` tracks `package-lock.json` via `package-lock-version`, raising version-sync from 21 to 22 targets and clearing the stale lockfile version.
 - Previous Session Focus (v0.9.5 patch): mobile operator shell made usable. The `v0.9.0` redesign and `v0.9.1` full-viewport shell still behaved too much like desktop on phones: the mobile rail hid labels and showed only icons, the status strip occupied too much vertical space, and Library row actions could fall to the lower-left of a mobile row. v0.9.5 keeps backend routes, auth, sync, storage, scheduler, webhook, secrets, and `.env` behavior unchanged while adding a labeled mobile view selector (`Vista` / `View`), replacing the large mobile status strip with one compact chip row, and pinning Library dismiss/restore actions to the top-right on narrow screens. Tests: 154 (127 Node/integration + 27 web). Runtime state after deploy: container and `/api/health` report `0.9.5`, auth healthy, EU API base, catalog complete at 580/580, operator lock armed.
@@ -129,11 +142,18 @@ The six items GPT-5 flagged in the 2026-04-23 review are closed:
 ## Top Priorities
 
 0. ~~Arm operator access control~~ — DONE 2026-06-11. ~~Re-validate the Plaud bearer token~~ — DONE 2026-06-16 after Chrome extension capture + EU base + Plaud Web request fingerprint; `/api/health` reported `auth.state: healthy`.
-1. Visual-smoke the deployed `v0.10.1` panel in the operator browser on the large monitor and on a phone: confirm the shell is full-viewport on desktop, Main labels the exact missing-download count, all five screens render, ES/EN switching works, reconnect copy remains intact, Compact Play starts audio, Full mode uses a wide player, Library pages scroll, mobile navigation has the labeled selector, mobile status uses one compact chip row, and Library mobile actions stay top-right.
-2. Start the Phase 3 soak now that the protocol warning is clear: enable the scheduler from the panel, observe `health.scheduler.lastTickAt` advancing for several ticks, confirm a manual sync mid-tick is recorded as `lastTickStatus = "skipped"` with a useful `lastTickError` reason, and watch the protocol freshness state in Infra Portal.
-3. Live-soak the durable outbox: configure a real webhook URL, run sync, watch `/api/health.outbox` counters move from `pending -> 0`, and confirm the audit-log `webhook_deliveries` rows fill in.
-4. Inject a deliberate downstream failure (point the webhook at a 503 endpoint) and verify the backoff schedule + permanent-fail escalation + Retry-from-panel UX all behave as documented.
-5. Multi-day soak run on `dev-vm` to verify the full Phase 3 runtime: scheduler ticks for several days, exercise an outbox failure (point at a 503 endpoint), confirm `lastErrors` populates from all three subsystems (scheduler/outbox/sync), confirm `recentSyncRuns` reflects the last 5.
+1. Ship the integrity patch: atomic audio writes, physical artifact
+   reconciliation, per-candidate failure isolation with truthful failed/partial
+   run state, and HTTP 409 for a backfill that collides with an active sync.
+2. Ship the execution patch: awaitable scheduler ticks, enforced max runtime,
+   bounded Plaud pagination, recoverable outbox claims and correct retry window,
+   graceful shutdown, Docker healthcheck, and dependency audit remediation.
+3. Reconcile all 606 database rows against physical audio, deploy the hardened
+   runtime, enable the scheduler at PT15M, update `infra.contract.yml` to
+   `internal-loop` with `stale_after: PT2H`, and start the 3-5 day soak.
+4. During the soak, keep the `App.tsx` decomposition, persistence decoders, and
+   token-capture consolidation on a separate branch so they do not contaminate
+   runtime evidence.
 
 ## Open Questions
 
@@ -182,9 +202,19 @@ Do not collapse those phases casually.
   - Phase 1 spike tests
   - encrypted-secret/store/service/server tests
   - built API/web integration smoke tests
-- Current `v0.10.1` source test total is 161 runtime tests (134 Node/integration + 27 web). Governance checks should report `scripts/dockit-validate-session.sh --human` 12/12, `scripts/check-version-sync.sh` 23 targets, and `scripts/test-validator.sh` 32/32 smoke cases.
+- Current `v0.10.2` source test total is 162 runtime tests (134 Node/integration + 28 web). The root suite also runs the web typecheck and reports 20 discovered Node/integration test files. Governance checks should report `scripts/dockit-validate-session.sh --human` 12/12, `scripts/check-version-sync.sh` 23 targets, and `scripts/test-validator.sh` 32/32 smoke cases.
 - Docker packaging includes a local-base fallback for this `dev-vm`; always verify the live `/api/health.version` after a Doppler-wrapped compose rebuild instead of trusting an older handoff snapshot.
 - Live Plaud re-auth through the Chrome extension still requires the operator's Chrome/Plaud session and cannot be completed by an agent without those browser credentials; the operator confirmed it healthy before this UI redesign.
+
+## Trace Anchor
+
+- Role: executor
+- Subject: Plaud Mirror v0.10.2 pre-soak evidence patch
+- Repo state: source is v0.10.2; dev-vm remains on v0.10.1 until the pre-soak
+  patches pass and deploy together.
+- Validation: root tests, governance checks, Docker-context probe, commit/push,
+  and post-deploy runtime checks remain the closeout gates.
+- Next gate: implement the integrity patch before enabling the scheduler.
 
 ## Key Decisions (Links)
 

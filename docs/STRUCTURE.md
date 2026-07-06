@@ -1,4 +1,4 @@
-<!-- doc-version: 0.10.1 -->
+<!-- doc-version: 0.10.2 -->
 # Repository Structure Guide
 
 This document describes the actual Plaud Mirror repository layout as of the first usable Phase 2 slice.
@@ -16,6 +16,7 @@ plaud-mirror/
 +- compose.yml
 +- package.json
 +- package-lock.json
++- .github/workflows/ci.yml
 +- tsconfig.base.json
 +- apps/
 |  +- api/
@@ -66,6 +67,8 @@ plaud-mirror/
 | `docs/INFRA_CONTRACT.md` | Human explanation of `infra.contract.yml` | Explains producer/consumer boundary and status snapshot semantics |
 | `docs/design/reference/` | Visual reference artifacts | `plaud-mirror-panel-standalone.html` is the v0.9.0 operator-panel source reference |
 | `tests/integration/` | Post-build integration smoke tests | Exercises built API and web artifacts |
+| `scripts/run-node-tests.mjs` | Automatic Node/integration test discovery | Recursively runs every compiled `*.test.js` and integration `*.test.mjs` file |
+| `.github/workflows/ci.yml` | Repository CI gate | Runs `npm test` on Node 20 for `main` and pull requests |
 | `docs/ROADMAP.md` | Canonical phase boundary document | Use this when scope questions appear |
 | `Dockerfile` | Single-container production image | Builds API and panel together |
 | `compose.yml` | Local `dev-vm` launch path | Mounts `runtime/data` and `runtime/recordings` |

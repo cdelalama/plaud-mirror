@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { App } from "./App.js";
@@ -208,6 +208,69 @@ describe("<App>", () => {
     });
   });
 
+  it("discovers scheduler runs while idle and switches to fast polling", async () => {
+    const intervals: Array<{ handler: TimerHandler; delay: number | undefined }> = [];
+    let intervalId = 0;
+    vi.spyOn(globalThis, "setInterval").mockImplementation(((handler: TimerHandler, delay?: number) => {
+      intervals.push({ handler, delay });
+      intervalId += 1;
+      return intervalId;
+    }) as typeof setInterval);
+
+    const schedulerRun = {
+      ...completedRun,
+      id: "scheduler-run",
+      status: "running",
+      finishedAt: null,
+      examined: 606,
+      matched: 21,
+      downloaded: 4,
+      plaudTotal: 606,
+    };
+    let healthReads = 0;
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const path = String(input);
+      if (path === "/api/session") {
+        return jsonResponse({ authRequired: false, authenticated: true });
+      }
+      if (path === "/api/health") {
+        healthReads += 1;
+        return jsonResponse(healthReads === 1 ? health : { ...health, activeRun: schedulerRun });
+      }
+      if (path === "/api/config") {
+        return jsonResponse(config);
+      }
+      if (path === "/api/auth/status") {
+        return jsonResponse(authStatus);
+      }
+      if (path.startsWith("/api/recordings")) {
+        return jsonResponse({ recordings: [], total: 3, skip: 0, limit: 50 });
+      }
+      if (path === "/api/devices") {
+        return jsonResponse({ devices: [] });
+      }
+      if (path === "/api/outbox") {
+        return jsonResponse({ items: [] });
+      }
+      throw new Error(`Unexpected request: ${path}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<App />);
+
+    await screen.findByLabelText("Vista");
+    await waitFor(() => expect(intervals.some(({ delay }) => delay === 30_000)).toBe(true));
+    const idleTick = intervals.find(({ delay }) => delay === 30_000)?.handler;
+    expect(typeof idleTick).toBe("function");
+
+    await act(async () => {
+      await (idleTick as () => Promise<void>)();
+    });
+
+    await waitFor(() => expect(intervals.some(({ delay }) => delay === 2_000)).toBe(true));
+    expect(healthReads).toBeGreaterThanOrEqual(3);
+  });
+
   it("plays the compact Library row through the real audio element", async () => {
     const playMock = vi.spyOn(window.HTMLMediaElement.prototype, "play").mockResolvedValue(undefined);
     vi.spyOn(window.HTMLMediaElement.prototype, "pause").mockImplementation(() => undefined);
@@ -285,6 +348,7 @@ describe("<App>", () => {
 
     render(<App />);
 
+    await screen.findByText("Planning note");
     fireEvent.click(await screen.findByRole("button", { name: "completo" }));
 
     const row = screen.getByText("Planning note").closest("article");
