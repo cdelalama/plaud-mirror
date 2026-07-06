@@ -635,17 +635,10 @@ Mirror does not self-declare freshness and does not alert by itself.
 
 ### Schedule mode
 
-The contract starts as `manual` because the live scheduler is currently
-disabled until the Phase 3 soak starts. The product already has an
-`internal-loop` scheduler, but contract truth must follow the intended runtime
-mode, not merely code capability.
-
-When the operator enables the scheduler as normal operation, update the
-contract to:
-
-- `schedule.mode: internal-loop`
-- `schedule.cadence: <actual interval>`
-- `stale_after > cadence`
+The contract started as `manual` while scheduler operation was not intended.
+From `v0.10.7`, the Phase 3 soak makes the existing in-process scheduler normal
+operation, so the contract declares `internal-loop`, `cadence: PT15M`, and
+`stale_after: PT2H`. The budget exceeds cadence plus `max_runtime: PT1H`.
 
 ### Security and exposure
 

@@ -1,4 +1,4 @@
-<!-- doc-version: 0.10.6 -->
+<!-- doc-version: 0.10.7 -->
 # Infra Contract
 
 Plaud Mirror publishes a `home-infra-protocol` project contract in
@@ -17,16 +17,17 @@ Current declaration:
 
 - Source: `plaud`, `external`.
 - Runtime: `dev-vm`, service `plaud-mirror`.
-- Schedule mode: `manual`.
-- Silence budget: `P1D`.
+- Schedule mode: `internal-loop`.
+- Cadence: `PT15M`.
+- Silence budget: `PT2H` (greater than cadence plus `max_runtime: PT1H`).
 - Status URL:
   `https://plaud.lamanoriega.com/api/protocol/sync-jobs/plaud-mirror-recordings-sync/status`.
 
-The schedule is intentionally `manual` right now. Plaud Mirror already has an
-internal scheduler, but the live deployment has it disabled until the Phase 3
-soak is deliberately started. When the operator enables the scheduler as the
-normal operating mode, update this contract to `schedule.mode: internal-loop`,
-add the matching `cadence`, and keep `stale_after > cadence`.
+The internal scheduler is the normal soak mode from `v0.10.7`. Plaud Mirror
+continues to own and execute the loop; Home Infra only consumes its declared
+cadence and status. `stale_after: PT2H` exceeds both the 15-minute cadence and
+the one-hour maximum runtime, so consumers do not mark a legitimately long run
+stale before its next expected evidence window.
 
 ## Status Snapshot
 

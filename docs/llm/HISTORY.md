@@ -4,6 +4,8 @@ Append new entries at the top so the most recent activity is easiest to find.
 
 ## Log
 
+- 2026-07-10 - GPT-5 Codex - Cut v0.10.7 to activate the Phase 3 soak contract after a live v0.10.6 physical reconciliation examined all 619 Plaud rows with zero candidates, downloads, or failures. Updated the project contract from `manual/P1D` to `internal-loop`, `cadence: PT15M`, `stale_after: PT2H`, aligned with `max_runtime: PT1H`; updated its header to Home Infra Protocol 0.7.1 and removed the obsolete pre-ingestion note. - Files: [infra.contract.yml, docs/INFRA_CONTRACT.md, current-state docs, VERSION markers] - Version impact: yes (0.10.6 -> 0.10.7, patch: intended schedule/infra contract activation)
+
 - 2026-07-10 - GPT-5 Codex - Cut v0.10.6 after the Node 20 CI run showed the service whole-run timeout test had the same unref'ed-timer harness issue as the Plaud request timeout test fixed in v0.10.5. Added the same short keepalive around that test and clear it in `finally`; runtime behavior is unchanged. - Files: [apps/api/src/runtime/service.test.ts, CHANGELOG.md, current-state docs, VERSION markers] - Version impact: yes (0.10.5 -> 0.10.6, patch: complete Node 20 timeout evidence portability)
 
 - 2026-07-10 - GPT-5 Codex - Cut v0.10.5 after the new Node 20 CI gate exposed that the hung-request test depended on Node 24 keeping an otherwise empty event loop alive. Node 20 correctly unrefs `AbortSignal.timeout()`; the test now owns a short ordinary timer while awaiting the abort and clears it in `finally`. Runtime behavior is unchanged. - Files: [apps/api/src/plaud/client.test.ts, CHANGELOG.md, current-state docs, VERSION markers] - Version impact: yes (0.10.4 -> 0.10.5, patch: portable CI evidence)

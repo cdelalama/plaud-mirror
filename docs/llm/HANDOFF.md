@@ -1,4 +1,4 @@
-<!-- doc-version: 0.10.6 -->
+<!-- doc-version: 0.10.7 -->
 # LLM Work Handoff
 
 This file is the live operational snapshot. Durable rationale lives in `docs/llm/DECISIONS.md`. Phase boundaries live in `docs/ROADMAP.md`.
@@ -6,15 +6,19 @@ This file is the live operational snapshot. Durable rationale lives in `docs/llm
 ## Current Status
 
 - Last Updated: 2026-07-10 - GPT-5 Codex
-- Session Focus: **v0.10.6 CI-portable pre-soak patch.** Both Node 20 timeout
+- Session Focus: **v0.10.7 soak activation.** Physical reconciliation examined
+  all 619 Plaud recordings with zero candidates/failures. The contract now
+  declares Home Infra Protocol 0.7.1, `internal-loop`, `cadence: PT15M`, and
+  `stale_after: PT2H`. The scheduler activation and post-tick observation are
+  the remaining live steps. Both Node 20 timeout
   regressions now keep the event loop alive until their unref'ed abort timers
   fire; runtime behavior is unchanged from `v0.10.4`. Scheduled ticks now
   await their mirror run; whole-run cancellation defaults to one hour and
   reaches Plaud calls/audio streams; pagination is bounded; outbox setup errors
   requeue claims and all eight waits precede a ninth final attempt; SIGTERM
   drains work before SQLite closes; compose has a healthcheck; full and
-  production dependency audits are clean. Runtime remains v0.10.1 until the
-  consolidated pre-soak image is deployed and physically reconciled.
+  production dependency audits are clean. Runtime v0.10.6 is deployed healthy
+  and physically reconciled; v0.10.7 deploy/activation remains.
 - Previous Session Focus (v0.10.3 patch): atomic audio replacement, physical
   artifact reconciliation, candidate failure isolation/accounting, and HTTP
   409 for backfills colliding with active sync.
@@ -201,19 +205,19 @@ Do not collapse those phases casually.
   - Phase 1 spike tests
   - encrypted-secret/store/service/server tests
   - built API/web integration smoke tests
-- Current `v0.10.4` source test total is 173 runtime tests (145 Node/integration + 28 web). The root suite also runs the web typecheck and reports 20 discovered Node/integration test files. Governance checks should report `scripts/dockit-validate-session.sh --human` 12/12, `scripts/check-version-sync.sh` 23 targets, and `scripts/test-validator.sh` 32/32 smoke cases.
+- Current `v0.10.7` source test total is 173 runtime tests (145 Node/integration + 28 web). The root suite also runs the web typecheck and reports 20 discovered Node/integration test files. Governance checks should report `scripts/dockit-validate-session.sh --human` 12/12, `scripts/check-version-sync.sh` 23 targets, and `scripts/test-validator.sh` 32/32 smoke cases.
 - Docker packaging includes a local-base fallback for this `dev-vm`; always verify the live `/api/health.version` after a Doppler-wrapped compose rebuild instead of trusting an older handoff snapshot.
 - Live Plaud re-auth through the Chrome extension still requires the operator's Chrome/Plaud session and cannot be completed by an agent without those browser credentials; the operator confirmed it healthy before this UI redesign.
 
 ## Trace Anchor
 
 - Role: executor
-- Subject: Plaud Mirror v0.10.6 CI-portable pre-soak patch
-- Repo state: source is v0.10.6; dev-vm remains on v0.10.1 until the pre-soak
-  patches pass and deploy together.
+- Subject: Plaud Mirror v0.10.7 soak activation
+- Repo state: source is v0.10.7; dev-vm currently runs v0.10.6 healthy after
+  physical reconciliation; deploy v0.10.7 and enable PT15M next.
 - Validation: root tests, governance checks, Docker-context probe, commit/push,
   and post-deploy runtime checks remain the closeout gates.
-- Next gate: publish, deploy, physically reconcile, then enable the scheduler.
+- Next gate: publish/deploy v0.10.7, enable PT15M, and observe a truthful tick.
 
 ## Key Decisions (Links)
 

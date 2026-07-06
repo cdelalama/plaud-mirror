@@ -1,4 +1,4 @@
-<!-- doc-version: 0.10.6 -->
+<!-- doc-version: 0.10.7 -->
 # Authentication and Sync Operations
 
 This runbook defines the live behavior of Plaud Mirror's auth and sync surface. Phase 2 is fully shipped. Phase 3 added the scheduler, durable outbox, health observability, and access/recovery timeouts. `v0.10.3` makes artifact integrity truthful; `v0.10.4` makes scheduler completion, runtime ceilings, outbox recovery, pagination, and shutdown truthful before the soak. Resumable backfill and fully unattended re-login stay deferred.
@@ -162,10 +162,9 @@ request time: active run `startedAt`, latest sync `finishedAt`, auth validation
 time, then current time only as first-boot fallback. Consumers derive freshness
 by joining this timestamp with `infra.contract.yml` `stale_after`.
 
-The contract currently declares `schedule.mode: manual` with `stale_after:
-P1D`, because the live scheduler is disabled until the Phase 3 soak is
-deliberately started. When the scheduler becomes normal operation, change the
-contract to `internal-loop`, add `cadence`, and keep `stale_after > cadence`.
+The soak contract declares `schedule.mode: internal-loop`, `cadence: PT15M`,
+and `stale_after: PT2H`. The freshness budget exceeds cadence plus the one-hour
+maximum runtime.
 
 #### Startup crash recovery — shipped in `v0.6.0` (D-013 amendment)
 

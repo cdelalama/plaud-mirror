@@ -1,9 +1,9 @@
-<!-- doc-version: 0.10.6 -->
+<!-- doc-version: 0.10.7 -->
 # Plaud Mirror Architecture
 
-> Version: 0.10.6
+> Version: 0.10.7
 > Last Updated: 2026-07-10
-> Status: Phase 5 infra/protocol integration entered at `v0.10.0`; Phase 3 exit gate (multi-day soak) still pending. `v0.10.2` establishes the evidence gate, `v0.10.3` makes artifact integrity truthful, `v0.10.4` hardens execution/shutdown, and `v0.10.5`-`v0.10.6` make timeout evidence portable to Node 20 CI. Operators upgrading from any `0.4.x`/`0.5.x` release should go directly to `v0.10.6`.
+> Status: Phase 5 infra/protocol integration entered at `v0.10.0`; the Phase 3 soak starts at `v0.10.7` after evidence, integrity, and execution hardening. The contract declares a PT15M internal loop with PT2H freshness budget. Operators upgrading from any `0.4.x`/`0.5.x` release should go directly to `v0.10.7`.
 
 ## Overview
 
@@ -75,6 +75,10 @@ Phase 3 turns the manual slice into an unattended service. The later `0.7.x`-`0.
   `AbortSignal.timeout()` timer. Runtime behavior and contracts are unchanged.
 - **`v0.10.6`:** evidence-only patch. The service whole-run timeout test uses
   the same Node 20 keepalive pattern. Runtime behavior remains unchanged.
+- **`v0.10.7`:** soak activation contract. `infra.contract.yml` moves from
+  `manual/P1D` to `internal-loop`, `cadence: PT15M`, `stale_after: PT2H`, and
+  records Home Infra Protocol 0.7.1. Runtime scheduling remains owned by the
+  existing in-process loop.
 - **`v0.10.2`:** pre-soak evidence patch. CI runs the complete Node 20 gate,
   the React panel is typechecked, Node/integration tests are discovered rather
   than enumerated, Docker context excludes secrets and host build artifacts,
@@ -170,10 +174,9 @@ only as first-boot fallback. Consumers therefore derive freshness from
 `observed_at + stale_after` without every HTTP read pretending to be a fresh
 source sync.
 
-The contract currently declares `schedule.mode: manual`, because the live
-deployment has the scheduler disabled. Turning the scheduler into the normal
-operating mode is a contract change: switch to `internal-loop`, add cadence,
-and keep `stale_after > cadence`.
+The soak contract declares `schedule.mode: internal-loop`, `cadence: PT15M`,
+and `stale_after: PT2H`. The freshness budget exceeds cadence plus the one-hour
+maximum runtime.
 
 ### Webhook (durable outbox, D-013, v0.5.3+)
 

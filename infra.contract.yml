@@ -1,12 +1,11 @@
-# infra.contract.yml - Plaud Mirror project contract for home-infra-protocol 0.6.0
+# infra.contract.yml - Plaud Mirror project contract for home-infra-protocol 0.7.1
 #
 # Spec:    ~/src/home-infra-protocol/SPEC.md
 # Format:  ~/src/home-infra-protocol/docs/PROJECT_CONTRACTS.md
 # Schemas: ~/src/home-infra-protocol/schemas/
 #
-# This contract is an upstream input to home-infra. The deployed source of
-# truth remains ~/src/home-infra until that repo ingests project contracts
-# directly. No secret values live here.
+# Home Infra ingests this project-owned contract into Infra Portal. No secret
+# values live here.
 
 id: plaud-mirror
 name: Plaud Mirror
@@ -21,8 +20,9 @@ sync_jobs:
       kind: plaud
       authority: external
     schedule:
-      mode: manual
-    stale_after: P1D
+      mode: internal-loop
+      cadence: PT15M
+    stale_after: PT2H
     runtime:
       host_id: dev-vm
       service_id: plaud-mirror

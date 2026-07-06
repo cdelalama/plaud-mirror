@@ -4,6 +4,19 @@ All notable changes to Plaud Mirror are documented in this file.
 
 This project follows Semantic Versioning (SemVer): MAJOR.MINOR.PATCH.
 
+## [0.10.7] - 2026-07-10
+
+### Added
+
+### Changed
+
+- **Soak schedule contract activated.** The project contract now declares
+  `internal-loop` at `PT15M` with `stale_after: PT2H`, aligned with the one-hour
+  runtime ceiling. Its header now references Home Infra Protocol 0.7.1 and
+  removes the obsolete pre-ingestion note.
+
+### Fixed
+
 ## [0.10.6] - 2026-07-10
 
 ### Added

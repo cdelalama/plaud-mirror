@@ -1,4 +1,4 @@
-<!-- doc-version: 0.10.6 -->
+<!-- doc-version: 0.10.7 -->
 # Project Context - Plaud Mirror
 
 ## Vision
@@ -24,9 +24,14 @@ Plaud Mirror is a server-first product with two runtime surfaces:
 
 Persistence is split between SQLite for state/indexes and the filesystem for mirrored audio artifacts. Secrets are encrypted at rest with a master key supplied by the surrounding deployment.
 
-## Current Status (2026-07-10, v0.10.6)
+## Current Status (2026-07-10, v0.10.7)
 
-Plaud Mirror `v0.10.6` is the CI-portable form of the `v0.10.4` pre-soak
+Plaud Mirror `v0.10.7` activates the soak contract: the project-owned sync job
+is `internal-loop` at `PT15M`, with `stale_after: PT2H` exceeding cadence plus
+the one-hour maximum runtime. The physical preflight completed at 619/619 with
+zero repair candidates.
+
+The `v0.10.6` source underneath is the CI-portable form of the `v0.10.4` pre-soak
 execution hardening. It adds no runtime behavior: `v0.10.5` fixes the Node 20
 request-timeout harness and `v0.10.6` applies the same keepalive to the
 whole-run timeout harness.
@@ -66,7 +71,7 @@ protocol's `observed_at`, `condition`, `severity`, `summary`, and `checks[]`
 shape without exposing Plaud account PII, tokens, webhook secrets, or raw
 secret-bearing errors.
 
-The sync job is declared as `schedule.mode: manual` because the live scheduler is still disabled until the Phase 3 soak is deliberately started. When the scheduler becomes the normal operating mode, the contract should move to `internal-loop` with a concrete cadence and `stale_after > cadence`. This is not a rewrite of the Plaud sync/download pipeline; it is the protocol surface that lets Home Infra, Infra Portal, Hermes, and future agents consume Plaud Mirror's sync state consistently.
+The sync job is declared as `schedule.mode: internal-loop`, `cadence: PT15M`, and `stale_after: PT2H` for the Phase 3 soak. This is not a rewrite of the Plaud sync/download pipeline; it is the protocol surface that lets Home Infra, Infra Portal, Hermes, and future agents consume Plaud Mirror's sync state consistently.
 
 The `v0.9.6` patch underneath keeps the `v0.9.0` reference-driven panel, the `v0.9.1` full-viewport shell, the `v0.9.2` Main cockpit sync fix, the `v0.9.3` DocKit trace-protocol governance merge, the `v0.9.4` Library playback/scroll fix, and the `v0.9.5` mobile shell fix, then syncs LLM-DocKit 4.9.6 governance/tooling: flexible HISTORY format validation, Trace v1.3 chat `Sent` guidance with seconds, expanded version marker handlers, preserved Plaud Mirror local validator guardrails, and `package-lock.json` version enforcement.
 
@@ -94,7 +99,7 @@ The runtime baseline carried from `v0.5.3` is the **durable webhook outbox** (D-
 
 The earlier `0.5.x` baseline still applies: in-process continuous sync scheduler (D-012, stabilized in `v0.5.1`, panel-driven from `v0.5.2`), two-layer anti-overlap, SQLite-persisted scheduler config. `SyncRunSummary.enqueued` counts webhook payloads pushed to the outbox during the run; `delivered` keeps its original semantic ("delivered synchronously inside this run") and structurally stays at 0 from `v0.5.3` onwards.
 
-Operators upgrading from `0.4.x` should skip `v0.5.0` (scheduler default-on regression + missing service-layer anti-overlap) and go directly to `v0.10.6`.
+Operators upgrading from `0.4.x` should skip `v0.5.0` (scheduler default-on regression + missing service-layer anti-overlap) and go directly to `v0.10.7`.
 
 The Phase 2 slice it inherits: a live Fastify API, a web panel for token setup, webhook configuration, sync/backfill controls, recordings visibility with inline audio playback, encrypted persisted manual bearer-token auth, manual sync and filtered historical backfill (async-202, with a `limit=0` "refresh server stats" path), SQLite-backed recording and delivery state (including `dismissed` / `dismissed_at` columns for local curation), immediate HMAC-signed webhook delivery with persisted attempt logging, a confirmed local-only dismiss/restore flow that never touches Plaud, Docker packaging for `dev-vm` running as non-root `USER 1000:1000`, and the original Phase 1 spike CLI for direct Plaud probing. Concretely:
 
