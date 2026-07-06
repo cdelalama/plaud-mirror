@@ -1,9 +1,9 @@
-<!-- doc-version: 0.10.4 -->
+<!-- doc-version: 0.10.5 -->
 # Plaud Mirror Architecture
 
-> Version: 0.10.4
+> Version: 0.10.5
 > Last Updated: 2026-07-10
-> Status: Phase 5 infra/protocol integration entered at `v0.10.0`; Phase 3 exit gate (multi-day soak) still pending. `v0.10.2` establishes the evidence gate, `v0.10.3` makes artifact and candidate integrity truthful, and `v0.10.4` hardens execution and shutdown before the soak. Operators upgrading from any `0.4.x`/`0.5.x` release should go directly to `v0.10.4`.
+> Status: Phase 5 infra/protocol integration entered at `v0.10.0`; Phase 3 exit gate (multi-day soak) still pending. `v0.10.2` establishes the evidence gate, `v0.10.3` makes artifact integrity truthful, `v0.10.4` hardens execution/shutdown, and `v0.10.5` makes the timeout evidence portable to Node 20 CI. Operators upgrading from any `0.4.x`/`0.5.x` release should go directly to `v0.10.5`.
 
 ## Overview
 
@@ -70,6 +70,9 @@ Phase 3 turns the manual slice into an unattended service. The later `0.7.x`-`0.
   outbox setup failures return claims to retry and all eight backoff windows
   precede a ninth final attempt; SIGTERM/SIGINT drain active work; compose adds
   `/api/health` liveness; production and full dependency audits are clean.
+- **`v0.10.5`:** evidence-only patch. The hung-request timeout test keeps an
+  ordinary event-loop handle while awaiting Node 20's unref'ed
+  `AbortSignal.timeout()` timer. Runtime behavior and contracts are unchanged.
 - **`v0.10.2`:** pre-soak evidence patch. CI runs the complete Node 20 gate,
   the React panel is typechecked, Node/integration tests are discovered rather
   than enumerated, Docker context excludes secrets and host build artifacts,

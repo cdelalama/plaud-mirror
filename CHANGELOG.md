@@ -4,6 +4,19 @@ All notable changes to Plaud Mirror are documented in this file.
 
 This project follows Semantic Versioning (SemVer): MAJOR.MINOR.PATCH.
 
+## [0.10.5] - 2026-07-10
+
+### Added
+
+### Changed
+
+- **Node 20 timeout-test portability.** The hung-request regression test keeps
+  the event loop alive long enough for Node 20's unref'ed
+  `AbortSignal.timeout()` timer to fire. Runtime timeout behavior is unchanged;
+  the evidence gate now measures it consistently on CI and local Node 24.
+
+### Fixed
+
 ## [0.10.4] - 2026-07-10
 
 ### Added

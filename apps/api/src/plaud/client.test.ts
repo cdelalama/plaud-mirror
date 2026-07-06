@@ -348,6 +348,10 @@ test("extractTempUrl accepts nested data.temp_url and rejects missing temp urls"
 });
 
 test("PlaudClient aborts a hung request after requestTimeoutMs", async () => {
+  // Node 20 implements AbortSignal.timeout with an unref'ed timer. Keep one
+  // ordinary handle alive so node:test does not cancel this intentionally
+  // pending mock before the abort event can fire.
+  const keepAlive = setTimeout(() => undefined, 250);
   const client = new PlaudClient({
     accessToken: "token-value",
     requestTimeoutMs: 25,
@@ -360,9 +364,13 @@ test("PlaudClient aborts a hung request after requestTimeoutMs", async () => {
       })) as typeof fetch,
   });
 
-  await assert.rejects(
-    client.getCurrentUser(),
-    (error: unknown) =>
-      error instanceof PlaudApiError && error.message.includes("timed out after 25ms"),
-  );
+  try {
+    await assert.rejects(
+      client.getCurrentUser(),
+      (error: unknown) =>
+        error instanceof PlaudApiError && error.message.includes("timed out after 25ms"),
+    );
+  } finally {
+    clearTimeout(keepAlive);
+  }
 });

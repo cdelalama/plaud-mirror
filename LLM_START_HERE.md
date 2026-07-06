@@ -1,4 +1,4 @@
-<!-- doc-version: 0.10.4 -->
+<!-- doc-version: 0.10.5 -->
 # LLM Start Guide - Plaud Mirror
 
 ## Read This First (Mandatory)
@@ -87,7 +87,9 @@ Recommended reading order:
 
 Source of truth: docs/llm/HANDOFF.md.
 - Last Updated: 2026-07-10 - GPT-5 Codex
-- Working on: **v0.10.4 pre-soak execution patch.** Scheduled ticks await the
+- Working on: **v0.10.5 CI-portable pre-soak patch.** The Node 20 timeout test
+  keeps the event loop alive until its unref'ed abort timer fires; runtime
+  behavior is unchanged from `v0.10.4`. Scheduled ticks await the
   actual mirror run; whole-run cancellation defaults to one hour; pagination
   is bounded; outbox setup failures requeue claims and all eight waits precede
   a ninth final attempt; SIGTERM drains work before SQLite closes; compose has

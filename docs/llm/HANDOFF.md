@@ -1,4 +1,4 @@
-<!-- doc-version: 0.10.4 -->
+<!-- doc-version: 0.10.5 -->
 # LLM Work Handoff
 
 This file is the live operational snapshot. Durable rationale lives in `docs/llm/DECISIONS.md`. Phase boundaries live in `docs/ROADMAP.md`.
@@ -6,7 +6,9 @@ This file is the live operational snapshot. Durable rationale lives in `docs/llm
 ## Current Status
 
 - Last Updated: 2026-07-10 - GPT-5 Codex
-- Session Focus: **v0.10.4 pre-soak execution patch.** Scheduled ticks now
+- Session Focus: **v0.10.5 CI-portable pre-soak patch.** The Node 20 timeout
+  regression now keeps the event loop alive until its unref'ed abort timer
+  fires; runtime behavior is unchanged from `v0.10.4`. Scheduled ticks now
   await their mirror run; whole-run cancellation defaults to one hour and
   reaches Plaud calls/audio streams; pagination is bounded; outbox setup errors
   requeue claims and all eight waits precede a ninth final attempt; SIGTERM
@@ -206,8 +208,8 @@ Do not collapse those phases casually.
 ## Trace Anchor
 
 - Role: executor
-- Subject: Plaud Mirror v0.10.4 pre-soak execution patch
-- Repo state: source is v0.10.4; dev-vm remains on v0.10.1 until the pre-soak
+- Subject: Plaud Mirror v0.10.5 CI-portable pre-soak patch
+- Repo state: source is v0.10.5; dev-vm remains on v0.10.1 until the pre-soak
   patches pass and deploy together.
 - Validation: root tests, governance checks, Docker-context probe, commit/push,
   and post-deploy runtime checks remain the closeout gates.

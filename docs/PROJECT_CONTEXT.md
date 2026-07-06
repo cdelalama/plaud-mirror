@@ -1,4 +1,4 @@
-<!-- doc-version: 0.10.4 -->
+<!-- doc-version: 0.10.5 -->
 # Project Context - Plaud Mirror
 
 ## Vision
@@ -24,9 +24,14 @@ Plaud Mirror is a server-first product with two runtime surfaces:
 
 Persistence is split between SQLite for state/indexes and the filesystem for mirrored audio artifacts. Secrets are encrypted at rest with a master key supplied by the surrounding deployment.
 
-## Current Status (2026-07-10, v0.10.4)
+## Current Status (2026-07-10, v0.10.5)
 
-Plaud Mirror `v0.10.4` completes the pre-soak execution hardening. Scheduler
+Plaud Mirror `v0.10.5` is the CI-portable form of the `v0.10.4` pre-soak
+execution hardening. It adds no runtime behavior: the Node 20 timeout test now
+keeps the event loop alive until `AbortSignal.timeout()` fires, matching the
+already-green local Node 24 evidence.
+
+The `v0.10.4` patch completes execution hardening. Scheduler
 ticks await the actual mirror run, sync work has a one-hour cancelable ceiling,
 Plaud pagination is bounded, outbox claims recover in-process and retain the
 full overnight retry window, and SIGTERM waits for active work before SQLite
@@ -89,7 +94,7 @@ The runtime baseline carried from `v0.5.3` is the **durable webhook outbox** (D-
 
 The earlier `0.5.x` baseline still applies: in-process continuous sync scheduler (D-012, stabilized in `v0.5.1`, panel-driven from `v0.5.2`), two-layer anti-overlap, SQLite-persisted scheduler config. `SyncRunSummary.enqueued` counts webhook payloads pushed to the outbox during the run; `delivered` keeps its original semantic ("delivered synchronously inside this run") and structurally stays at 0 from `v0.5.3` onwards.
 
-Operators upgrading from `0.4.x` should skip `v0.5.0` (scheduler default-on regression + missing service-layer anti-overlap) and go directly to `v0.10.4`.
+Operators upgrading from `0.4.x` should skip `v0.5.0` (scheduler default-on regression + missing service-layer anti-overlap) and go directly to `v0.10.5`.
 
 The Phase 2 slice it inherits: a live Fastify API, a web panel for token setup, webhook configuration, sync/backfill controls, recordings visibility with inline audio playback, encrypted persisted manual bearer-token auth, manual sync and filtered historical backfill (async-202, with a `limit=0` "refresh server stats" path), SQLite-backed recording and delivery state (including `dismissed` / `dismissed_at` columns for local curation), immediate HMAC-signed webhook delivery with persisted attempt logging, a confirmed local-only dismiss/restore flow that never touches Plaud, Docker packaging for `dev-vm` running as non-root `USER 1000:1000`, and the original Phase 1 spike CLI for direct Plaud probing. Concretely:
 

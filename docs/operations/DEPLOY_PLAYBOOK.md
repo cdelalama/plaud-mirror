@@ -1,4 +1,4 @@
-<!-- doc-version: 0.10.4 -->
+<!-- doc-version: 0.10.5 -->
 # Deploy Playbook
 
 This runbook describes the current Docker deployment path for Plaud Mirror.
