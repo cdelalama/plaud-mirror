@@ -1,7 +1,7 @@
-<!-- doc-version: 0.10.3 -->
+<!-- doc-version: 0.10.4 -->
 # Authentication and Sync Operations
 
-This runbook defines the live behavior of Plaud Mirror's auth and sync surface. Phase 2 (manual sync/backfill) is fully shipped. Phase 3: the continuous sync scheduler landed in `v0.5.0` (regressed) -> `v0.5.1` (fixed) -> `v0.5.2` (panel-driven). `v0.5.3` shipped the **durable webhook outbox** (D-013); `v0.5.5` shipped **D-014 full**; `v0.6.0` hardened access control, crash recovery, and timeouts. `v0.9.0` surfaces observability in the panel and `v0.10.0` publishes the Home Infra Protocol status. `v0.10.1` fixes skipped semantics; `v0.10.3` adds atomic audio replacement, physical artifact reconciliation, per-candidate failure isolation, and explicit backfill conflicts. The execution hardening patch and soak remain next; resumable backfill and fully unattended re-login stay deferred.
+This runbook defines the live behavior of Plaud Mirror's auth and sync surface. Phase 2 is fully shipped. Phase 3 added the scheduler, durable outbox, health observability, and access/recovery timeouts. `v0.10.3` makes artifact integrity truthful; `v0.10.4` makes scheduler completion, runtime ceilings, outbox recovery, pagination, and shutdown truthful before the soak. Resumable backfill and fully unattended re-login stay deferred.
 
 ## Operator Access Control (D-018, v0.6.0)
 
@@ -102,8 +102,9 @@ Operational properties:
   1. **Service-layer.** `runScheduledSync()` and public `runSync` reuse an active run without creating another row. `runBackfill` is intentionally different: it returns HTTP 409 when a run is active, because reusing the existing id would silently discard the operator's filters. The scheduler tick variant returns `started: false` so the timer can record `lastTickStatus = "skipped"` honestly.
   2. **Scheduler-level.** The `inflight` flag on `Scheduler.executeTick` stops two ticks from this same scheduler from running concurrently. This case is rare in practice (it requires a tick to take longer than `intervalMs`), but it is the second guardrail that protects against a silent backlog if Plaud responses degrade.
 - **Cadence is from-fire, not from-completion.** The next tick is scheduled before the current tick is awaited, so a slow run does not push the cadence back; anti-overlap absorbs the case where work outlasts the interval.
-- **Observability.** `/api/health` exposes the scheduler block — `enabled`, `intervalMs`, `nextTickAt` (ISO), `lastTickAt` (ISO), `lastTickStatus` (`completed` / `failed` / `skipped` / `null`), `lastTickError` (string or `null`). When a tick is absorbed by an active run, `lastTickStatus = "skipped"` and `lastTickError` carries an operator-readable reason like `"another sync run was already in flight"` (it is not actually an error; the field is reused for context). When the scheduler is enabled, `health.phase` reads `"Phase 3 - unattended operation"`; when disabled, it falls back to `"Phase 2 - first usable slice"`.
-- **Shutdown.** Fastify's `onClose` hook stops the scheduler so SIGTERM does not leave a half-fired tick or a dangling timer.
+- **Observability.** `/api/health` exposes the scheduler block — `enabled`, `intervalMs`, `nextTickAt` (ISO), `lastTickAt` (ISO), `lastTickStatus` (`completed` / `failed` / `skipped` / `null`), `lastTickError` (string or `null`). From `v0.10.4`, a started tick stays in-flight until its mirror run finishes: `completed` no longer means merely dispatched. Absorbed active runs remain `skipped` with an operator-readable reason.
+- **Whole-run ceiling.** `PLAUD_MIRROR_SYNC_MAX_RUNTIME_MS` defaults to `3600000` (one hour). Its abort signal reaches Plaud API calls and audio streams; timeout closes the durable run as failed.
+- **Shutdown.** SIGTERM/SIGINT stop new ticks, await the outbox, cancel and await active sync work, and close SQLite last. The CLI has a 75-second hard-stop guard.
 
 #### Webhook outbox — shipped in `v0.5.3`
 
@@ -111,9 +112,9 @@ Each successfully-mirrored recording pushes its `recording.synced` payload into 
 
 - **2xx** → row state `delivered`; the audit log records a `success`.
 - **non-2xx or thrown error** → row state `retry_waiting`, `attempts` incremented, `next_attempt_at = now + backoff[attempts]`. Audit log records a `failed`.
-- After **8 failed attempts** → row state `permanently_failed`. Operator sees the row in the panel's "Webhook outbox" card and can press **Retry** to reset it to `pending` (`attempts = 0`).
+- After eight retry windows, the **ninth failed attempt** → row state `permanently_failed`. Operator sees the row in the panel's "Webhook outbox" card and can press **Retry** to reset it to `pending` (`attempts = 0`).
 
-Backoff schedule: `30 s, 2 m, 10 m, 30 m, 1 h, 2 h, 4 h, 8 h`. Cumulative ~16 h before escalation, sized to ride out an overnight downstream outage on a home-infra box.
+Backoff schedule: `30 s, 2 m, 10 m, 30 m, 1 h, 2 h, 4 h, 8 h`. All eight waits are reachable; cumulative wait is about 15 h 42 m before the ninth/final attempt.
 
 Operational properties:
 
@@ -121,6 +122,7 @@ Operational properties:
 - **HMAC at delivery time.** Rotating `webhookSecret` from the panel takes effect on the next worker tick — items already in the queue get re-signed with the new secret.
 - **Mode rotation.** `executeMirror` stamps the run's mode (`sync` / `backfill`) into the payload at enqueue time so the downstream sees the original context, not the worker's tick context.
 - **Atomic claim.** The transition `pending|retry_waiting → delivering` is a guarded UPDATE; two concurrent claims (worker tick + panel-triggered Retry) cannot both pick the same row.
+- **In-process claim recovery.** Secret decryption and payload parsing are inside the failure boundary. If either throws after claim, the attempt is audited and the row returns to `retry_waiting`; `health.outbox.delivering` makes any active claim visible.
 - **No web-config short-circuit.** When the operator clears the webhook URL while items are in the queue, the worker escalates them to `permanently_failed` with `last_error = "webhook not configured"` rather than silently dropping or retrying forever. The operator must reconfigure and Retry.
 
 #### Full health observability — shipped in `v0.5.5`
@@ -176,7 +178,7 @@ Both sweeps log a warning and surface in `health.lastErrors` (subsystems `sync` 
 
 #### Plaud request timeouts — shipped in `v0.6.0`
 
-Every Plaud API call carries `AbortSignal.timeout(PLAUD_MIRROR_REQUEST_TIMEOUT_MS)` (default 30 s); audio-artifact downloads carry a longer fixed ceiling (10 min, sized for large files on a modest uplink). A hung connection now fails the run with a clear `timed out after Nms` error instead of leaving `activeRun` wedged forever.
+Every Plaud API call carries `AbortSignal.timeout(PLAUD_MIRROR_REQUEST_TIMEOUT_MS)` (default 30 s); audio-artifact downloads carry a longer fixed ceiling (10 min, sized for large files on a modest uplink). From `v0.10.4`, both are combined with the one-hour whole-run signal. A hung connection now fails the run instead of leaving `activeRun` wedged forever.
 
 Resumable backfill remains deferred (no firm release target).
 

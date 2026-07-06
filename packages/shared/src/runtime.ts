@@ -249,9 +249,9 @@ export const StartSyncRunResponseSchema = z.object({
  *      ▲                         │
  *      │                         └── non-2xx / throw ───►  retry_waiting
  *   force-retry from UI                                       │
- *      │                                                      ├── attempts < 8 ──►  next claim re-enters delivering
+ *      │                                                      ├── attempts <= 8 ─►  next claim re-enters delivering
  *      │                                                      │
- *   permanently_failed ◄────────── attempts >= 8 ──────────────┘
+ *   permanently_failed ◄────────── attempts >= 9 ──────────────┘
  */
 export const OutboxStateSchema = z.enum([
   "pending",
@@ -294,6 +294,7 @@ export const OutboxRetryResponseSchema = z.object({
  */
 export const OutboxHealthSchema = z.object({
   pending: z.number().int().nonnegative(),
+  delivering: z.number().int().nonnegative().default(0),
   retryWaiting: z.number().int().nonnegative(),
   permanentlyFailed: z.number().int().nonnegative(),
   // Age (in ms, as observed at health-read time) of the oldest row in
@@ -304,6 +305,7 @@ export const OutboxHealthSchema = z.object({
 
 const DISABLED_OUTBOX_HEALTH = {
   pending: 0,
+  delivering: 0,
   retryWaiting: 0,
   permanentlyFailed: 0,
   oldestPendingAgeMs: null,

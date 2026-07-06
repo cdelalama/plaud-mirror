@@ -199,7 +199,16 @@ export async function createApp(options: CreateAppOptions = {}) {
   // leave half-fired ticks or dangling timers when the process unwinds.
   app.addHook("onClose", async () => {
     manager.stop();
-    outboxWorker?.stop();
+    const outboxSettled = await outboxWorker?.stop();
+    if (outboxSettled === false) {
+      console.warn("Outbox delivery did not settle before the shutdown grace period elapsed");
+    }
+    if (ownsService) {
+      const syncSettled = await service.shutdown();
+      if (!syncSettled) {
+        console.warn("Active sync did not settle before the shutdown grace period elapsed");
+      }
+    }
   });
 
   app.setErrorHandler((error, _request, reply) => {
@@ -446,12 +455,6 @@ export async function createApp(options: CreateAppOptions = {}) {
       return reply.sendFile("index.html");
     });
   }
-
-  app.addHook("onClose", async () => {
-    if (ownsService) {
-      service.close();
-    }
-  });
 
   return app;
 }

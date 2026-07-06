@@ -184,7 +184,7 @@ test("OutboxWorker.runTick stamps deliveryAttempt monotonically across retries",
   store.close();
 });
 
-test("OutboxWorker.runTick escalates to permanently_failed on the OUTBOX_MAX_ATTEMPTS-th failure", async () => {
+test("OutboxWorker.runTick reaches the 8-hour retry window before the ninth failure becomes permanent", async () => {
   const baseNow = new Date("2026-04-26T10:00:00.000Z");
   const { store, secrets, clock } = await setup(baseNow);
   const item = store.enqueueOutboxItem({
@@ -203,6 +203,14 @@ test("OutboxWorker.runTick escalates to permanently_failed on the OUTBOX_MAX_ATT
   // Drive the worker through OUTBOX_MAX_ATTEMPTS failures.
   for (let attempt = 1; attempt <= OUTBOX_MAX_ATTEMPTS; attempt += 1) {
     await worker.runTick();
+    if (attempt === 8) {
+      const afterEighth = store.getOutboxItem(item.id);
+      assert.equal(afterEighth?.state, "retry_waiting");
+      assert.equal(
+        afterEighth?.nextAttemptAt,
+        new Date(clock.value.getTime() + OUTBOX_BACKOFF_SCHEDULE_MS[7]!).toISOString(),
+      );
+    }
     if (attempt < OUTBOX_MAX_ATTEMPTS) {
       // Skip the backoff window so the next runTick can claim the row.
       const backoff = OUTBOX_BACKOFF_SCHEDULE_MS[attempt - 1]!;
@@ -218,6 +226,33 @@ test("OutboxWorker.runTick escalates to permanently_failed on the OUTBOX_MAX_ATT
   // No further claim is possible.
   assert.equal(store.claimOutboxItem(clock.value), null);
 
+  store.close();
+});
+
+test("OutboxWorker.runTick requeues a claim when secret loading fails", async () => {
+  const baseNow = new Date("2026-04-26T10:00:00.000Z");
+  const { store, secrets, clock } = await setup(baseNow);
+  const item = store.enqueueOutboxItem({
+    recordingId: "rec-secret-error",
+    payload: makePayload("rec-secret-error"),
+  });
+  secrets.load = async () => {
+    throw new Error("secrets.enc cannot be decrypted");
+  };
+  const worker = new OutboxWorker({
+    store,
+    secrets,
+    requestTimeoutMs: 5_000,
+    now: () => clock.value,
+  });
+
+  await worker.runTick();
+
+  const persisted = store.getOutboxItem(item.id);
+  assert.equal(persisted?.state, "retry_waiting");
+  assert.equal(persisted?.attempts, 1);
+  assert.match(persisted?.lastError ?? "", /cannot be decrypted/);
+  assert.equal(store.getOutboxHealth(clock.value).delivering, 0);
   store.close();
 });
 

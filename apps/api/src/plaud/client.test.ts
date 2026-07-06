@@ -22,6 +22,22 @@ function createJsonResponse(payload: unknown, status = 200): Response {
   });
 }
 
+function remoteRecording(id: string) {
+  return {
+    id,
+    filename: `${id}.mp3`,
+    filesize: 100,
+    start_time: 1713780000000,
+    end_time: 1713780300000,
+    duration: 100,
+    edit_time: 1713780310000,
+    is_trash: false,
+    is_trans: true,
+    is_summary: false,
+    serial_number: "PLAUD-1",
+  };
+}
+
 test("normalizeApiBase only accepts plaud hosts", () => {
   assert.equal(normalizeApiBase("api.plaud.ai"), "https://api.plaud.ai");
   assert.equal(normalizeApiBase("https://api-apne1.plaud.ai/"), "https://api-apne1.plaud.ai");
@@ -129,6 +145,40 @@ test("listEverything paginates until the final page arrives partial and reports 
   assert.equal(calls.length, 2, "should stop as soon as a page arrives shorter than pageSize");
   assert.ok(calls[0]?.includes("skip=0"));
   assert.ok(calls[1]?.includes("skip=500"));
+});
+
+test("listEverything rejects a repeated full page instead of looping forever", async () => {
+  const page = {
+    status: 0,
+    data_file_total: 2,
+    data_file_list: [remoteRecording("rec-1"), remoteRecording("rec-2")],
+  };
+  const client = new PlaudClient({
+    accessToken: "token",
+    fetchImpl: async () => createJsonResponse(page),
+  });
+
+  await assert.rejects(
+    () => client.listEverything(2),
+    /repeated a page at skip=2/,
+  );
+});
+
+test("listEverything enforces a configurable page ceiling", async () => {
+  let page = 0;
+  const client = new PlaudClient({
+    accessToken: "token",
+    fetchImpl: async () => createJsonResponse({
+      status: 0,
+      data_file_total: 1,
+      data_file_list: [remoteRecording(`rec-${++page}`)],
+    }),
+  });
+
+  await assert.rejects(
+    () => client.listEverything(1, 2),
+    /exceeded 2 pages \(2 recordings\)/,
+  );
 });
 
 test("PlaudClient retries with a regional host when Plaud requests it", async () => {

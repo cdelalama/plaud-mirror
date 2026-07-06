@@ -1,6 +1,6 @@
 {
   "name": "@plaud-mirror/web",
-  "version": "0.10.3",
+  "version": "0.10.4",
   "private": true,
   "type": "module",
   "scripts": {
@@ -20,6 +20,6 @@
     "@vitejs/plugin-react": "^5.1.0",
     "jsdom": "^29.0.2",
     "vite": "^7.1.12",
-    "vitest": "^2.1.9"
+    "vitest": "^4.1.10"
   }
 }

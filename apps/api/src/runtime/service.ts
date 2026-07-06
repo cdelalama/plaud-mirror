@@ -92,6 +92,15 @@ interface RemoteRecordingShape {
   scene?: number | null | undefined;
 }
 
+interface ActiveMirrorRun {
+  id: string;
+  completion: Promise<SyncRunSummary>;
+  abortController: AbortController;
+  workStarted: boolean;
+  rejectCompletion: (error: unknown) => void;
+  maxRuntimeTimer: NodeJS.Timeout | null;
+}
+
 /**
  * Provider for the operational scheduler status surfaced through
  * `/api/health.scheduler` (D-014 partial). The runtime entry point
@@ -119,6 +128,7 @@ export class PlaudMirrorService {
   private readonly artifactFetchImpl: typeof fetch;
   private readonly webhookFetchImpl: typeof fetch;
   private readonly scheduler: (work: () => Promise<unknown>) => void;
+  private activeMirrorRun: ActiveMirrorRun | null = null;
   private schedulerStatusProvider: SchedulerStatusProvider | null = null;
   private schedulerReconfigureHook: ((intervalMs: number) => void) | null = null;
   // D-014 full (v0.5.5). Cross-subsystem error ring buffer. Most-recent-first;
@@ -188,6 +198,32 @@ export class PlaudMirrorService {
 
   close(): void {
     this.store.close();
+  }
+
+  async shutdown(graceMs = 35_000): Promise<boolean> {
+    const active = this.activeMirrorRun;
+    if (active) {
+      active.abortController.abort(new Error("sync cancelled during graceful shutdown"));
+      if (!active.workStarted) {
+        if (active.maxRuntimeTimer) {
+          clearTimeout(active.maxRuntimeTimer);
+        }
+        active.rejectCompletion(active.abortController.signal.reason);
+        this.activeMirrorRun = null;
+      }
+      const settled = await Promise.race([
+        active.completion.then(() => true, () => true),
+        new Promise<boolean>((resolve) => {
+          const timer = setTimeout(() => resolve(false), graceMs);
+          timer.unref();
+        }),
+      ]);
+      if (!settled) {
+        return false;
+      }
+    }
+    this.close();
+    return true;
   }
 
   /**
@@ -427,13 +463,17 @@ export class PlaudMirrorService {
       limit: this.environment.defaultSyncLimit,
       forceDownload: false,
     });
-    return this.startOrReuseMirror("sync", {
+    const startedRun = this.startOrReuseMirror("sync", {
       ...filters,
       from: null,
       to: null,
       serialNumber: null,
       scene: null,
     });
+    if (startedRun.started && startedRun.completion) {
+      await startedRun.completion;
+    }
+    return { id: startedRun.id, started: startedRun.started };
   }
 
   getSyncRunStatus(id: string): SyncRunSummary {
@@ -704,21 +744,79 @@ export class PlaudMirrorService {
    * and race on the recordings UPSERT path. v0.5.0 documented this guard
    * but did not implement it; this is the fix in v0.5.1.
    */
-  private startOrReuseMirror(mode: SyncRunMode, filters: SyncFilters): { id: string; started: boolean } {
+  private startOrReuseMirror(
+    mode: SyncRunMode,
+    filters: SyncFilters,
+  ): { id: string; started: boolean; completion?: Promise<SyncRunSummary> } {
     const active = this.store.getActiveSyncRun();
     if (active) {
       return { id: active.id, started: false };
     }
     const normalizedFilters = SyncFiltersSchema.parse(filters);
     const { id } = this.store.startSyncRun(mode, normalizedFilters);
-    this.scheduler(() => this.executeMirror(id, mode, normalizedFilters));
-    return { id, started: true };
+    const abortController = new AbortController();
+    let resolveCompletion!: (summary: SyncRunSummary) => void;
+    let rejectCompletion!: (error: unknown) => void;
+    const completion = new Promise<SyncRunSummary>((resolve, reject) => {
+      resolveCompletion = resolve;
+      rejectCompletion = reject;
+    });
+    // Manual API callers intentionally do not await this promise. Keep a
+    // rejection handler attached while the scheduler path awaits the original.
+    void completion.catch(() => undefined);
+    const activeRun: ActiveMirrorRun = {
+      id,
+      completion,
+      abortController,
+      workStarted: false,
+      rejectCompletion,
+      maxRuntimeTimer: null,
+    };
+    this.activeMirrorRun = activeRun;
+
+    const maxRuntimeTimer = setTimeout(() => {
+      abortController.abort(
+        new Error(`sync exceeded maximum runtime of ${this.environment.syncMaxRuntimeMs}ms`),
+      );
+      if (!activeRun.workStarted) {
+        rejectCompletion(abortController.signal.reason);
+        if (this.activeMirrorRun?.id === id) {
+          this.activeMirrorRun = null;
+        }
+      }
+    }, this.environment.syncMaxRuntimeMs);
+    maxRuntimeTimer.unref();
+    activeRun.maxRuntimeTimer = maxRuntimeTimer;
+
+    this.scheduler(async () => {
+      try {
+        activeRun.workStarted = true;
+        abortController.signal.throwIfAborted();
+        const summary = await this.executeMirror(id, mode, normalizedFilters, abortController.signal);
+        resolveCompletion(summary);
+        return summary;
+      } catch (error) {
+        rejectCompletion(error);
+        throw error;
+      } finally {
+        clearTimeout(maxRuntimeTimer);
+        if (this.activeMirrorRun?.id === id) {
+          this.activeMirrorRun = null;
+        }
+      }
+    });
+    return { id, started: true, completion };
   }
 
   // Public for tests; production callers go through `runSync` / `runBackfill`
   // which schedule this via `this.scheduler`. Tests can either inject a
   // synchronous scheduler or call `executeMirror` directly after `startSyncRun`.
-  async executeMirror(id: string, mode: SyncRunMode, filters: SyncFilters): Promise<SyncRunSummary> {
+  async executeMirror(
+    id: string,
+    mode: SyncRunMode,
+    filters: SyncFilters,
+    signal?: AbortSignal,
+  ): Promise<SyncRunSummary> {
     const normalizedFilters = SyncFiltersSchema.parse(filters);
     const existingRow = this.store.getSyncRun(id);
     if (!existingRow) {
@@ -727,7 +825,9 @@ export class PlaudMirrorService {
     const startedAt = existingRow.startedAt;
 
     try {
-      const { client } = await this.loadValidatedClient();
+      signal?.throwIfAborted();
+      const { client } = await this.loadValidatedClient(signal);
+      signal?.throwIfAborted();
       // Mode B semantics: paginate the full Plaud listing so we can tell the
       // operator the authoritative total, then pick up to `limit` recordings
       // that are genuinely missing locally (i.e. not dismissed and not already
@@ -736,6 +836,7 @@ export class PlaudMirrorService {
       // Plaud and skip whatever is already local — silently did nothing if
       // the `limit` newest were all already mirrored, which was confusing.
       const { recordings: remoteRecordings, total: plaudTotal } = await client.listEverything(500);
+      signal?.throwIfAborted();
 
       // First incremental update: the operator's UI poll picks up `examined`
       // and `plaudTotal` as soon as the listing is in (before any download).
@@ -829,8 +930,15 @@ export class PlaudMirrorService {
       const candidateErrors: string[] = [];
 
       for (const recording of candidates) {
+        signal?.throwIfAborted();
         try {
-          const result = await this.processRecording(client, recording, mode, normalizedFilters.forceDownload);
+          const result = await this.processRecording(
+            client,
+            recording,
+            mode,
+            normalizedFilters.forceDownload,
+            signal,
+          );
           if (result.downloaded) {
             downloaded += 1;
           }
@@ -844,6 +952,9 @@ export class PlaudMirrorService {
             skipped += 1;
           }
         } catch (error) {
+          if (signal?.aborted) {
+            throw signal.reason;
+          }
           failed += 1;
           const message = toErrorMessage(error);
           candidateErrors.push(`${recording.id}: ${message}`);
@@ -916,6 +1027,7 @@ export class PlaudMirrorService {
     recording: RemoteRecordingShape,
     mode: SyncRunMode,
     forceDownload: boolean,
+    signal?: AbortSignal,
   ): Promise<ProcessRecordingResult> {
     const existing = this.store.getRecording(recording.id);
 
@@ -970,6 +1082,8 @@ export class PlaudMirrorService {
       detail,
       false,
       this.artifactFetchImpl,
+      undefined,
+      signal,
     );
 
     if (!artifact) {
@@ -1101,13 +1215,13 @@ export class PlaudMirrorService {
     return this.store.forceOutboxRetry(id);
   }
 
-  private async loadValidatedClient(): Promise<{ client: PlaudClient; secrets: StoredSecrets }> {
+  private async loadValidatedClient(signal?: AbortSignal): Promise<{ client: PlaudClient; secrets: StoredSecrets }> {
     const secrets = await this.secrets.load();
     if (!secrets.accessToken) {
       throw new PlaudAuthError("No Plaud bearer token is configured");
     }
 
-    const client = this.createPlaudClient(secrets.accessToken);
+    const client = this.createPlaudClient(secrets.accessToken, signal);
 
     try {
       const user = await client.getCurrentUser();
@@ -1135,13 +1249,14 @@ export class PlaudMirrorService {
     return { client, secrets };
   }
 
-  private createPlaudClient(accessToken: string): PlaudClient {
+  private createPlaudClient(accessToken: string, signal?: AbortSignal): PlaudClient {
     const config: ConstructorParameters<typeof PlaudClient>[0] = {
       accessToken,
       fetchImpl: this.plaudFetchImpl,
       // H3 (v0.6.0): every Plaud API call carries an abort deadline so a
       // hung connection cannot leave a sync run in 'running' forever.
       requestTimeoutMs: this.environment.requestTimeoutMs,
+      ...(signal ? { signal } : {}),
     };
 
     if (this.environment.apiBase) {

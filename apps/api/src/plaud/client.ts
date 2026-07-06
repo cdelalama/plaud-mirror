@@ -24,6 +24,7 @@ const DEFAULT_BROWSER_USER_AGENT =
 // the anti-overlap guard then blocks every future sync. Matches the
 // `PLAUD_MIRROR_REQUEST_TIMEOUT_MS` default in environment.ts.
 export const DEFAULT_PLAUD_REQUEST_TIMEOUT_MS = 30_000;
+export const MAX_LIST_EVERYTHING_PAGES = 100;
 
 export interface PlaudClientConfig {
   accessToken: string;
@@ -31,6 +32,7 @@ export interface PlaudClientConfig {
   fetchImpl?: typeof fetch;
   userAgent?: string;
   requestTimeoutMs?: number;
+  signal?: AbortSignal;
 }
 
 export interface PlaudListOptions {
@@ -73,6 +75,7 @@ export class PlaudClient {
   private readonly fetchImpl: typeof fetch;
   private readonly userAgent: string;
   private readonly requestTimeoutMs: number;
+  private readonly externalSignal: AbortSignal | undefined;
   private preferredApiBase: string | null = null;
 
   constructor(config: PlaudClientConfig) {
@@ -81,6 +84,7 @@ export class PlaudClient {
     this.deviceId = randomUUID().replaceAll("-", "").slice(0, 16);
     this.fetchImpl = config.fetchImpl ?? fetch;
     this.requestTimeoutMs = config.requestTimeoutMs ?? DEFAULT_PLAUD_REQUEST_TIMEOUT_MS;
+    this.externalSignal = config.signal;
     this.userAgent = config.userAgent ?? DEFAULT_BROWSER_USER_AGENT;
 
     if (!this.accessToken) {
@@ -113,18 +117,33 @@ export class PlaudClient {
   // authoritative total. Note that Plaud's `data_file_total` field is NOT the
   // account's grand total — it just mirrors the length of the current page —
   // so pagination-until-partial is the only way to learn the real count.
-  async listEverything(pageSize = 500): Promise<{ recordings: PlaudListResponse["data_file_list"]; total: number }> {
+  async listEverything(
+    pageSize = 500,
+    maxPages = MAX_LIST_EVERYTHING_PAGES,
+  ): Promise<{ recordings: PlaudListResponse["data_file_list"]; total: number }> {
+    if (!Number.isInteger(pageSize) || pageSize <= 0 || pageSize > 500) {
+      throw new Error(`listEverything pageSize must be an integer between 1 and 500; received ${pageSize}`);
+    }
+    if (!Number.isInteger(maxPages) || maxPages <= 0) {
+      throw new Error(`listEverything maxPages must be a positive integer; received ${maxPages}`);
+    }
     const all: PlaudListResponse["data_file_list"] = [];
+    const pageFingerprints = new Set<string>();
     let skip = 0;
-    while (true) {
+    for (let pageNumber = 0; pageNumber < maxPages; pageNumber += 1) {
       const page = await this.listRecordings({ skip, limit: pageSize });
+      const fingerprint = page.data_file_list.map((recording) => recording.id).join("\u0000");
+      if (page.data_file_list.length > 0 && pageFingerprints.has(fingerprint)) {
+        throw new Error(`Plaud pagination repeated a page at skip=${skip}; refusing an unbounded listing loop`);
+      }
+      pageFingerprints.add(fingerprint);
       all.push(...page.data_file_list);
       if (page.data_file_list.length < pageSize) {
-        break;
+        return { recordings: all, total: all.length };
       }
       skip += page.data_file_list.length;
     }
-    return { recordings: all, total: all.length };
+    throw new Error(`Plaud pagination exceeded ${maxPages} pages (${all.length} recordings)`);
   }
 
   async listAllRecordings(
@@ -244,9 +263,13 @@ export class PlaudClient {
     try {
       // The signal covers the whole exchange: connection, headers, and the
       // body read below (fetch aborts in-flight body streams too).
+      const timeoutSignal = AbortSignal.timeout(this.requestTimeoutMs);
+      const signal = this.externalSignal
+        ? AbortSignal.any([timeoutSignal, this.externalSignal])
+        : timeoutSignal;
       const response = await this.fetchImpl(buildPlaudApiUrl(path, apiBase), {
         ...options,
-        signal: AbortSignal.timeout(this.requestTimeoutMs),
+        signal,
         headers: this.buildHeaders(options.headers),
       });
       const text = await response.text();
@@ -257,6 +280,9 @@ export class PlaudClient {
         text,
       };
     } catch (error) {
+      if (this.externalSignal?.aborted) {
+        throw this.externalSignal.reason;
+      }
       if (isTimeoutLikeError(error)) {
         throw new PlaudApiError(
           `Plaud ${options.method ?? "GET"} ${path} timed out after ${this.requestTimeoutMs}ms`,

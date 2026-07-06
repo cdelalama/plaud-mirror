@@ -42,6 +42,7 @@ function createEnvironment(root: string): ServerEnvironment {
     webDistDir: join(root, "web-dist"),
     defaultSyncLimit: 100,
     requestTimeoutMs: 5_000,
+    syncMaxRuntimeMs: 60 * 60_000,
     schedulerIntervalMs: 0,
   };
 }
@@ -202,6 +203,97 @@ test("PlaudMirrorService anti-overlap: concurrent runSync / runScheduledSync reu
   assert.equal(queued.length, 2, "the post-finish runSync must dispatch new background work");
 
   service.close();
+});
+
+test("PlaudMirrorService scheduled ticks settle only after the underlying sync finishes", async () => {
+  const root = await mkdtemp(join(tmpdir(), "plaud-mirror-scheduled-await-"));
+  const environment = createEnvironment(root);
+  const store = new RuntimeStore({
+    dbPath: join(environment.dataDir, "app.db"),
+    dataDir: environment.dataDir,
+    recordingsDir: environment.recordingsDir,
+    defaultSyncLimit: environment.defaultSyncLimit,
+  });
+  const secrets = new SecretStore(join(environment.dataDir, "secrets.enc"), environment.masterKey);
+  const queued: Array<() => Promise<unknown>> = [];
+  const service = new PlaudMirrorService(environment, store, secrets, {
+    scheduler: (work) => queued.push(work),
+  });
+  await service.initialize();
+
+  let settled = false;
+  const tick = service.runScheduledSync().finally(() => {
+    settled = true;
+  });
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(settled, false, "dispatching background work must not complete the scheduler tick");
+  assert.equal(queued.length, 1);
+
+  await assert.rejects(() => queued[0]!(), /No Plaud bearer token/);
+  await assert.rejects(() => tick, /No Plaud bearer token/);
+  assert.equal(store.getLastSyncRun()?.status, "failed");
+  service.close();
+});
+
+test("PlaudMirrorService aborts a scheduled sync at the whole-run runtime ceiling", async () => {
+  const root = await mkdtemp(join(tmpdir(), "plaud-mirror-max-runtime-"));
+  const environment = { ...createEnvironment(root), syncMaxRuntimeMs: 25 };
+  const store = new RuntimeStore({
+    dbPath: join(environment.dataDir, "app.db"),
+    dataDir: environment.dataDir,
+    recordingsDir: environment.recordingsDir,
+    defaultSyncLimit: environment.defaultSyncLimit,
+  });
+  const secrets = new SecretStore(join(environment.dataDir, "secrets.enc"), environment.masterKey);
+  await secrets.update({ accessToken: "token" });
+  const service = new PlaudMirrorService(environment, store, secrets, {
+    plaudFetchImpl: async (_input, init) => new Promise<Response>((_resolve, reject) => {
+      init?.signal?.addEventListener("abort", () => reject(init.signal?.reason), { once: true });
+    }),
+  });
+  await service.initialize();
+
+  await assert.rejects(
+    () => service.runScheduledSync(),
+    /exceeded maximum runtime of 25ms/,
+  );
+  assert.equal(store.getLastSyncRun()?.status, "failed");
+  assert.match(store.getLastSyncRun()?.error ?? "", /maximum runtime/);
+  service.close();
+});
+
+test("PlaudMirrorService shutdown aborts active network work before closing SQLite", async () => {
+  const root = await mkdtemp(join(tmpdir(), "plaud-mirror-shutdown-"));
+  const environment = createEnvironment(root);
+  const store = new RuntimeStore({
+    dbPath: join(environment.dataDir, "app.db"),
+    dataDir: environment.dataDir,
+    recordingsDir: environment.recordingsDir,
+    defaultSyncLimit: environment.defaultSyncLimit,
+  });
+  const secrets = new SecretStore(join(environment.dataDir, "secrets.enc"), environment.masterKey);
+  await secrets.update({ accessToken: "token" });
+  let requestStarted!: () => void;
+  const started = new Promise<void>((resolve) => {
+    requestStarted = resolve;
+  });
+  let aborted = false;
+  const service = new PlaudMirrorService(environment, store, secrets, {
+    scheduler: (work) => void work().catch(() => undefined),
+    plaudFetchImpl: async (_input, init) => new Promise<Response>((_resolve, reject) => {
+      requestStarted();
+      init?.signal?.addEventListener("abort", () => {
+        aborted = true;
+        reject(init.signal?.reason);
+      }, { once: true });
+    }),
+  });
+  await service.initialize();
+
+  await service.runSync({ limit: 1 });
+  await started;
+  assert.equal(await service.shutdown(1_000), true);
+  assert.equal(aborted, true);
 });
 
 test("PlaudMirrorService backfill downloads audio and enqueues the webhook payload to the outbox (delivery is async from v0.5.3)", async () => {

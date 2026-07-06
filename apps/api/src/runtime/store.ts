@@ -867,7 +867,7 @@ export class RuntimeStore {
   getOutboxHealth(now: Date = new Date()): OutboxHealth {
     const counts = this.db.prepare(`
       SELECT state, COUNT(*) AS count FROM webhook_outbox
-      WHERE state IN ('pending','retry_waiting','permanently_failed')
+      WHERE state IN ('pending','delivering','retry_waiting','permanently_failed')
       GROUP BY state
     `).all() as Array<{ state: string; count: number }>;
     const byState = new Map(counts.map((row) => [row.state, row.count]));
@@ -882,6 +882,7 @@ export class RuntimeStore {
 
     return {
       pending: byState.get("pending") ?? 0,
+      delivering: byState.get("delivering") ?? 0,
       retryWaiting: byState.get("retry_waiting") ?? 0,
       permanentlyFailed: byState.get("permanently_failed") ?? 0,
       oldestPendingAgeMs,

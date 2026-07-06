@@ -1,11 +1,11 @@
-<!-- doc-version: 0.10.3 -->
+<!-- doc-version: 0.10.4 -->
 # How to Use This Repository
 
 This guide explains how Plaud Mirror is operated end-to-end and how it stays aligned with both `LLM-DocKit` (the governance scaffold it adopts) and the Plaud ecosystem upstreams it watches.
 
 ## Current Reality
 
-`v0.10.3` is the current pre-soak integrity patch on the Phase 5 protocol-integrated runtime. It retains the hardened auth, browser-assisted re-auth, five-screen panel, durable outbox, and Home Infra Protocol surface while adding atomic audio replacement, physical artifact reconciliation, per-candidate failure isolation, and explicit backfill conflicts. **Operators upgrading from any `0.4.x`/`0.5.x` should go directly to `v0.10.3`.** Today the repository gives you:
+`v0.10.4` is the consolidated pre-soak hardening release on the Phase 5 protocol-integrated runtime. It combines the evidence and integrity patches with truthful scheduler completion, one-hour whole-run cancellation, bounded Plaud pagination, hot outbox recovery, graceful shutdown, Docker liveness, and clean dependency audits. **Operators upgrading from any `0.4.x`/`0.5.x` should go directly to `v0.10.4`.** Today the repository gives you:
 
 - a Fastify API and React/Vite panel bundled in a single Docker container;
 - **operator access control** (v0.6.0): set `PLAUD_MIRROR_ADMIN_PASSPHRASE` and the panel asks for the passphrase once per device (30-day session cookie); without it the API runs open and `/api/health` warns;
@@ -13,6 +13,7 @@ This guide explains how Plaud Mirror is operated end-to-end and how it stays ali
 - browser-assisted Plaud re-auth through the local Chrome extension (`apps/chrome-extension`), with manual paste and copy-only bookmarklet fallback, surfaced in the Configuration screen;
 - async manual sync and filtered historical backfill with live progress polling and a dry-run preview;
 - **opt-in continuous sync scheduler** — configurable from the Configuration screen of the panel (set the interval in minutes, `0` disables); see "Configuring the scheduler" below;
+- a one-hour whole-run ceiling (`PLAUD_MIRROR_SYNC_MAX_RUNTIME_MS=3600000` by default) that cancels Plaud calls and audio streams instead of leaving a run active forever;
 - a cached device catalog that feeds a real device selector in the backfill form;
 - local recording index in SQLite with stable `#N` ranks, search, 50/100/150 pagination, compact/full inline audio playback with HTTP Range support, and local-only dismiss/restore;
 - HMAC-signed webhook delivery via a **durable outbox**: every sync enqueues, the worker retries failures with exponential backoff, the panel exposes counters and a Retry button for permanently-failed items;
@@ -113,7 +114,7 @@ The `PLAUD_MIRROR_SCHEDULER_INTERVAL_MS` env var (in `.env` or `compose.yml`) is
 
 ### Webhook outbox (Phase 3, durable retry queue, v0.5.3+)
 
-Every successfully-mirrored recording is pushed into the durable outbox (`webhook_outbox` SQLite table). A dedicated worker walks the queue every 5 s, retries with exponential backoff, and either delivers (`→ delivered`) or escalates to `permanently_failed` after 8 attempts.
+Every successfully-mirrored recording is pushed into the durable outbox (`webhook_outbox` SQLite table). A dedicated worker walks the queue every 5 s, retries across eight exponential-backoff windows, and either delivers (`→ delivered`) or escalates to `permanently_failed` on the ninth failed attempt.
 
 Backoff schedule (per-attempt wait):
 

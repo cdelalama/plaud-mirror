@@ -13,6 +13,8 @@ export interface ServerEnvironment {
   initialWebhookUrl?: string;
   initialWebhookSecret?: string;
   requestTimeoutMs: number;
+  /** Hard ceiling for one complete sync/backfill run. Default: 1 hour. */
+  syncMaxRuntimeMs: number;
   /**
    * Operator access control passphrase (D-018, v0.6.0). When set, every
    * `/api/*` route except the public allowlist requires a signed session
@@ -52,6 +54,7 @@ export function loadServerEnvironment(env: NodeJS.ProcessEnv = process.env): Ser
   const initialWebhookUrl = env.PLAUD_MIRROR_WEBHOOK_URL?.trim() || undefined;
   const initialWebhookSecret = env.PLAUD_MIRROR_WEBHOOK_SECRET?.trim() || undefined;
   const requestTimeoutMs = parsePositiveInteger(env.PLAUD_MIRROR_REQUEST_TIMEOUT_MS, 30_000);
+  const syncMaxRuntimeMs = parsePositiveInteger(env.PLAUD_MIRROR_SYNC_MAX_RUNTIME_MS, 60 * 60_000);
   const adminPassphrase = env.PLAUD_MIRROR_ADMIN_PASSPHRASE?.trim() || undefined;
   // Scheduler accepts 0 (= disabled) explicitly, so we cannot use
   // parsePositiveInteger here — that helper rejects 0. The cadence floor
@@ -70,6 +73,7 @@ export function loadServerEnvironment(env: NodeJS.ProcessEnv = process.env): Ser
     webDistDir,
     defaultSyncLimit,
     requestTimeoutMs,
+    syncMaxRuntimeMs,
     schedulerIntervalMs,
   };
 

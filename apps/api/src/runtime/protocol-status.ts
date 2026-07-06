@@ -241,7 +241,7 @@ function buildOutboxCheck(health: ServiceHealth): ProtocolStatusCheck {
     name: "webhook-outbox",
     condition: "ok",
     severity: "none",
-    summary: `Webhook outbox has ${health.outbox.pending} pending and ${health.outbox.retryWaiting} retry-waiting item(s).`,
+    summary: `Webhook outbox has ${health.outbox.pending} pending, ${health.outbox.delivering} delivering, and ${health.outbox.retryWaiting} retry-waiting item(s).`,
   };
 }
 

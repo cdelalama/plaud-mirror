@@ -18,7 +18,14 @@ services:
       PLAUD_MIRROR_WEBHOOK_URL: ${PLAUD_MIRROR_WEBHOOK_URL:-}
       PLAUD_MIRROR_WEBHOOK_SECRET: ${PLAUD_MIRROR_WEBHOOK_SECRET:-}
       PLAUD_MIRROR_DEFAULT_SYNC_LIMIT: ${PLAUD_MIRROR_DEFAULT_SYNC_LIMIT:-100}
+      PLAUD_MIRROR_SYNC_MAX_RUNTIME_MS: ${PLAUD_MIRROR_SYNC_MAX_RUNTIME_MS:-3600000}
     volumes:
       - ./runtime/data:/var/lib/plaud-mirror/data
       - ./runtime/recordings:/var/lib/plaud-mirror/recordings
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3040/api/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s

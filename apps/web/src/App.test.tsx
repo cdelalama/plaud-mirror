@@ -69,6 +69,7 @@ const health = {
   },
   outbox: {
     pending: 0,
+    delivering: 0,
     retryWaiting: 0,
     permanentlyFailed: 0,
     oldestPendingAgeMs: null,

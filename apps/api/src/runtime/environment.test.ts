@@ -13,6 +13,15 @@ test("loadServerEnvironment leaves the scheduler disabled when PLAUD_MIRROR_SCHE
     PLAUD_MIRROR_MASTER_KEY: "x",
   });
   assert.equal(env.schedulerIntervalMs, 0);
+  assert.equal(env.syncMaxRuntimeMs, 60 * 60_000);
+});
+
+test("loadServerEnvironment accepts an explicit whole-run runtime ceiling", () => {
+  const env = loadServerEnvironment({
+    PLAUD_MIRROR_MASTER_KEY: "x",
+    PLAUD_MIRROR_SYNC_MAX_RUNTIME_MS: "900000",
+  });
+  assert.equal(env.syncMaxRuntimeMs, 900_000);
 });
 
 test("loadServerEnvironment treats an empty value as 'not set' (still disabled)", () => {

@@ -4,6 +4,33 @@ All notable changes to Plaud Mirror are documented in this file.
 
 This project follows Semantic Versioning (SemVer): MAJOR.MINOR.PATCH.
 
+## [0.10.4] - 2026-07-10
+
+### Added
+
+- **Whole-run runtime ceiling.** Sync/backfill work defaults to one hour
+  (`PLAUD_MIRROR_SYNC_MAX_RUNTIME_MS`) and propagates cancellation into Plaud
+  requests and streamed audio downloads.
+- **Container liveness.** Compose probes the public `/api/health` endpoint.
+
+### Changed
+
+- **Scheduler telemetry awaits the run.** `lastTickStatus=completed` now means
+  the mirror run finished, not merely that background work was dispatched.
+- **Bounded pagination and graceful shutdown.** Full Plaud listings reject
+  repeated pages and stop after 100 pages; SIGTERM/SIGINT drain active work
+  before SQLite closes.
+- **Dependency security refresh.** Fastify Static 9, Vitest 4, and patched
+  transitives leave both full and production `npm audit` clean.
+
+### Fixed
+
+- **Outbox retry off-by-one.** All eight backoff windows, including the final
+  8-hour wait, are reachable before a ninth failed attempt becomes permanent.
+- **Outbox claims recover in-process.** Secret/payload setup failures now audit
+  the attempt and return the claim to `retry_waiting`; health counts active
+  `delivering` rows.
+
 ## [0.10.3] - 2026-07-10
 
 ### Added

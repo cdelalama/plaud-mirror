@@ -219,6 +219,7 @@ const COPY = {
     noFailedOutbox: "No hay filas permanentemente fallidas.",
     noRuns: "Sin runs recientes.",
     pendingShort: "pend",
+    deliveringShort: "entregando",
     retryShort: "retry",
     failShort: "fail",
     tokenRequired: "Pega un bearer token de Plaud antes de guardar.",
@@ -400,6 +401,7 @@ const COPY = {
     noFailedOutbox: "No permanently-failed items.",
     noRuns: "No recent runs.",
     pendingShort: "pend",
+    deliveringShort: "delivering",
     retryShort: "retry",
     failShort: "fail",
     tokenRequired: "Paste a Plaud bearer token before saving.",
@@ -1148,7 +1150,7 @@ function Panel({
   const missingCount = plaudTotal == null ? null : Math.max(0, plaudTotal - localCount - dismissedCount);
   const coverage = plaudTotal && plaudTotal > 0 ? Math.max(0, Math.min(100, (localCount / plaudTotal) * 100)) : 0;
   const coverageLabel = plaudTotal == null ? "--" : coverage.toFixed(1) + "%";
-  const outboxTotal = (health?.outbox.pending ?? 0) + (health?.outbox.retryWaiting ?? 0) + (health?.outbox.permanentlyFailed ?? 0);
+  const outboxTotal = (health?.outbox.pending ?? 0) + (health?.outbox.delivering ?? 0) + (health?.outbox.retryWaiting ?? 0) + (health?.outbox.permanentlyFailed ?? 0);
   const outboxProblem = (health?.outbox.permanentlyFailed ?? 0) > 0 || (health?.outbox.retryWaiting ?? 0) > 0;
   const recentErrors = health?.lastErrors ?? [];
   const recentRuns = health?.recentSyncRuns ?? (lastRun ? [lastRun] : []);
@@ -1836,7 +1838,7 @@ function OperationsOutbox({
       <div className="card-title-row">
         <strong>Webhook outbox</strong>
         <span className="mono subdued">
-          {health?.outbox.pending ?? 0} {t.pendingShort} · {health?.outbox.retryWaiting ?? 0} {t.retryShort} · {health?.outbox.permanentlyFailed ?? 0} {t.failShort}
+          {health?.outbox.pending ?? 0} {t.pendingShort} · {health?.outbox.delivering ?? 0} {t.deliveringShort} · {health?.outbox.retryWaiting ?? 0} {t.retryShort} · {health?.outbox.permanentlyFailed ?? 0} {t.failShort}
         </span>
       </div>
       {items.length === 0 ? <p className="mono empty-list compact">{t.noFailedOutbox}</p> : (

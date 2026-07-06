@@ -1,9 +1,9 @@
-<!-- doc-version: 0.10.3 -->
+<!-- doc-version: 0.10.4 -->
 # Plaud Mirror Architecture
 
-> Version: 0.10.3
+> Version: 0.10.4
 > Last Updated: 2026-07-10
-> Status: Phase 5 infra/protocol integration entered at `v0.10.0`; Phase 3 exit gate (multi-day soak) still pending. The `0.5.x` line delivered the Phase 3 feature surface; `v0.6.x` hardened access control and recovery; `v0.7.x`-`v0.9.x` delivered browser-assisted re-auth and the operator panel. `v0.10.0` makes Plaud recording sync a `home-infra-protocol` producer; `v0.10.1` fixes the skipped counter; `v0.10.2` establishes the evidence gate; `v0.10.3` makes artifact replacement and candidate processing truthful before the execution hardening patch. Operators upgrading from any `0.4.x`/`0.5.x` release should go directly to `v0.10.3`.
+> Status: Phase 5 infra/protocol integration entered at `v0.10.0`; Phase 3 exit gate (multi-day soak) still pending. `v0.10.2` establishes the evidence gate, `v0.10.3` makes artifact and candidate integrity truthful, and `v0.10.4` hardens execution and shutdown before the soak. Operators upgrading from any `0.4.x`/`0.5.x` release should go directly to `v0.10.4`.
 
 ## Overview
 
@@ -64,6 +64,12 @@ Phase 3 turns the manual slice into an unattended service. The later `0.7.x`-`0.
   paths against physical size; candidate errors increment a durable `failed`
   counter, preserve recording-id context, continue with later candidates, and
   close the run as failed; concurrent backfill requests return HTTP 409.
+- **`v0.10.4`:** pre-soak execution patch. Scheduled ticks await the actual
+  sync result; a one-hour whole-run signal cancels Plaud requests and audio
+  streams; pagination rejects repeated pages and has a hard page ceiling;
+  outbox setup failures return claims to retry and all eight backoff windows
+  precede a ninth final attempt; SIGTERM/SIGINT drain active work; compose adds
+  `/api/health` liveness; production and full dependency audits are clean.
 - **`v0.10.2`:** pre-soak evidence patch. CI runs the complete Node 20 gate,
   the React panel is typechecked, Node/integration tests are discovered rather
   than enumerated, Docker context excludes secrets and host build artifacts,
@@ -171,7 +177,7 @@ and keep `stale_after > cadence`.
 3. The worker recomputes the HMAC signature at delivery time using the current `webhookSecret` (so an operator-rotated secret is honoured for items already in the queue) and stamps `sync.deliveryAttempt` to the current attempt number. POSTs to the configured `webhookUrl` with `AbortSignal.timeout(requestTimeoutMs)`.
 4. On a 2xx response: `markOutboxDelivered` (state → `delivered`, attempts++) plus a `webhook_deliveries` audit row with status `success`.
 5. On a non-2xx response or thrown error: a `webhook_deliveries` row with status `failed` is recorded, then either `markOutboxRetry(id, nextAttemptAt, error)` (state → `retry_waiting`, attempts++, `next_attempt_at = now + backoff[attempts]`) or `markOutboxPermanentlyFailed(id, error)` (state → `permanently_failed`, attempts++) when `attempts >= OUTBOX_MAX_ATTEMPTS`. Backoff schedule: `[30s, 2m, 10m, 30m, 1h, 2h, 4h, 8h]` — cumulative ~16 h before escalating.
-6. The panel polls `health.outbox` (`pending` / `retryWaiting` / `permanentlyFailed` / `oldestPendingAgeMs`) and `GET /api/outbox` (the list of `permanently_failed` rows) to render the outbox section in Operations. `POST /api/outbox/:id/retry` resets a `permanently_failed` row to `pending` (`attempts = 0`, `last_error = null`) so the worker re-attempts on its next tick.
+6. The panel polls `health.outbox` (`pending` / `delivering` / `retryWaiting` / `permanentlyFailed` / `oldestPendingAgeMs`) and `GET /api/outbox` (the list of `permanently_failed` rows) to render the outbox section in Operations. `POST /api/outbox/:id/retry` resets a `permanently_failed` row to `pending` (`attempts = 0`, `last_error = null`) so the worker re-attempts on its next tick.
 7. The legacy `webhook_deliveries` table stays as-is (append-only audit log; every attempt records a row regardless of success/failure). The new `webhook_outbox` table holds live retry state — once a row reaches `delivered` or `permanently_failed`, the worker never touches it again.
 
 ### Local curation (audition then dismiss)
@@ -197,13 +203,13 @@ and keep `stale_after > cadence`.
 1. **Source of truth: SQLite, seeded once from the env var.** From `v0.5.2` onwards, the active scheduler interval is the `config.schedulerIntervalMs` row in the `settings` table (same key/value store the webhook URL already uses). On `service.initialize()`, `RuntimeStore.seedSchedulerDefaults(env.schedulerIntervalMs)` writes the env-var-derived value to SQLite **only if the row is absent** — once the operator has touched the panel even once, the env var is irrelevant on every subsequent boot. `parseSchedulerInterval` (`apps/api/src/runtime/environment.ts`) still applies its rules to the env var (`0`/unset/empty → 0; `≥ 60 000` accepted; `<60 000` positive or non-integer → rejected at startup); but the value it produces is now a seed, not a live setting. (`v0.5.0` arranged a 15-minute fallback here, which broke the opt-in promise of the SemVer minor bump; `v0.5.1` reverts the fallback to `0`; `v0.5.2` keeps that and additionally moves the live knob to SQLite.)
 2. **Lifecycle is owned by `SchedulerManager`** (`apps/api/src/runtime/scheduler-manager.ts`). At boot, `createApp` constructs the manager unconditionally and calls `manager.applyInterval(config.schedulerIntervalMs)` after reading the persisted value via `service.getConfig()`. The manager keeps a single underlying `Scheduler` instance: `applyInterval(0)` stops and clears it; `applyInterval(N>=60_000)` constructs a fresh `Scheduler` with that cadence and calls `start()`; `applyInterval(currentValue)` is a no-op (the live cadence is preserved on a no-op save from the panel). Sub-floor positive values throw at the manager level as defence-in-depth — the request boundary in `service.updateConfig` rejects with HTTP 400 first.
 3. **Hot reconfigure from the panel.** `service.setSchedulerReconfigureHook(hook)` is wired to `manager.applyInterval` during boot. When `service.updateConfig` accepts a `schedulerIntervalMs` field via `PUT /api/config`, it (a) validates the floor at the request boundary, (b) persists via `store.saveConfig`, and (c) calls the reconfigure hook so the live `Scheduler` is started / stopped / swapped immediately, no container restart needed. `service.setSchedulerStatusProvider(() => manager.status())` is also wired so `getHealth` always reads the live state regardless of which `Scheduler` instance is active.
-4. **The tick callback** (defined inline in `createApp` and shared by every `Scheduler` the manager creates) invokes `service.runScheduledSync()`. That method returns `{ id, started: boolean }`: when `started: true`, a fresh run was created; when `started: false`, an existing run absorbed the tick. The callback maps the latter to `{ skipped: true, reason: "another sync run was already in flight" }`, which the scheduler turns into `lastTickStatus = "skipped"` with the reason recorded in `lastTickError`.
+4. **The tick callback** invokes and awaits `service.runScheduledSync()`. A fresh run keeps the tick promise unresolved until `executeMirror` finishes, so `completed` is end-to-end truth; an existing run returns `started:false` and maps to `skipped` without inserting another row.
 3. **Anti-overlap is two layers (`v0.5.1` ships both — `v0.5.0` only had the second):**
    - **Service-layer (first guardrail).** `startOrReuseMirror` checks `store.getActiveSyncRun()` before allocation. Manual sync and scheduler ticks reuse the active id; the scheduler labels that tick skipped. Backfill converts `started:false` into HTTP 409 so date/device filters cannot be silently absorbed by unrelated work.
    - **Scheduler-level (second guardrail).** `Scheduler.executeTick` keeps an `inflight` flag: if the timer fires while the previous tick's promise has not resolved, the new fire is also recorded as `skipped` and discarded. This case is rare in practice (it requires a tick to take longer than `intervalMs`), but it is the second guardrail that protects against a silent backlog if Plaud responses degrade or the service-level reuse fails for some unforeseen reason.
 4. The next tick is scheduled **before** the current `runTick` is awaited. This means a long-running tick (large limit, slow Plaud responses) does not push subsequent ticks back; the cadence is always `intervalMs` from the previous fire, regardless of how long the work took. Anti-overlap absorbs the case where the work outlasts the interval.
 5. `Scheduler.status()` returns `{ enabled, intervalMs, nextTickAt, lastTickAt, lastTickStatus, lastTickError }`. `getHealth()` calls the registered status provider and includes the result as `scheduler` in the `/api/health` response. When the scheduler is enabled, `phase` reads `"Phase 3 - unattended operation"`; when it is disabled, `phase` falls back to the historical `"Phase 2 - first usable slice"` string. Older clients that read `health.scheduler` get the disabled-shape default `{ enabled: false, intervalMs: 0, nextTickAt: null, lastTickAt: null, lastTickStatus: null, lastTickError: null }` thanks to Zod's `.default(...)` on `ServiceHealthSchema.scheduler`.
-6. Shutdown is wired via `app.addHook("onClose", async () => scheduler.stop())` so SIGTERM / Fastify graceful-close cancels the pending timer cleanly without leaving a half-fired tick.
+6. SIGTERM/SIGINT call `app.close()`. The close hook stops new scheduler/outbox ticks, waits for any outbox request, aborts active sync work through the whole-run signal, waits for it to settle, and only then closes SQLite. The CLI keeps a 75-second hard-stop guard.
 
 ### Device catalog
 

@@ -302,13 +302,18 @@ export async function downloadAudioArtifact(
   opus: boolean,
   fetchImpl: typeof fetch = fetch,
   timeoutMs: number = AUDIO_DOWNLOAD_TIMEOUT_MS,
+  externalSignal?: AbortSignal,
 ): Promise<Phase1DownloadedArtifact | null> {
   if (!recordingId) {
     return null;
   }
 
   const tempUrl = await client.getAudioTempUrl(recordingId, opus);
-  const response = await fetchImpl(tempUrl, { signal: AbortSignal.timeout(timeoutMs) });
+  const timeoutSignal = AbortSignal.timeout(timeoutMs);
+  const signal = externalSignal
+    ? AbortSignal.any([timeoutSignal, externalSignal])
+    : timeoutSignal;
+  const response = await fetchImpl(tempUrl, { signal });
   if (!response.ok) {
     throw new Error(`Plaud temp URL fetch failed with HTTP ${response.status} for recording ${recordingId}`);
   }

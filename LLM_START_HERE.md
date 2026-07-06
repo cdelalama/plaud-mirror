@@ -1,4 +1,4 @@
-<!-- doc-version: 0.10.3 -->
+<!-- doc-version: 0.10.4 -->
 # LLM Start Guide - Plaud Mirror
 
 ## Read This First (Mandatory)
@@ -87,15 +87,12 @@ Recommended reading order:
 
 Source of truth: docs/llm/HANDOFF.md.
 - Last Updated: 2026-07-10 - GPT-5 Codex
-- Working on: **v0.10.3 pre-soak integrity patch.** Audio downloads now use
-  a temporary file, file `fsync`, and atomic rename; failed replacements keep
-  the previous valid audio. Candidate selection and backfill preview verify
-  physical existence and byte size instead of trusting `localPath`. A poisoned
-  recording increments durable `SyncRunSummary.failed`, records its id/error,
-  and does not block later candidates; any such run closes as `failed`, not
-  completed. A backfill colliding with active sync now returns HTTP 409 instead
-  of silently losing its filters. Runtime remains v0.10.1 until the execution
-  patch is also validated for a single pre-soak deploy.
+- Working on: **v0.10.4 pre-soak execution patch.** Scheduled ticks await the
+  actual mirror run; whole-run cancellation defaults to one hour; pagination
+  is bounded; outbox setup failures requeue claims and all eight waits precede
+  a ninth final attempt; SIGTERM drains work before SQLite closes; compose has
+  a healthcheck; dependency audits are clean. Runtime remains v0.10.1 until the
+  consolidated image is deployed and physically reconciled.
 - Previous (v0.10.0): Plaud recording sync now publishes the Home Infra Protocol contract/status surface. This did **not** rewrite the Plaud sync engine: the existing scheduler/manual sync/backfill/outbox flow remains the producer. New `infra.contract.yml` declares `plaud-mirror-recordings-sync` as a `home-infra-protocol` `sync_jobs[]` entry; `packages/shared/src/protocol.ts` models the status snapshot; `apps/api/src/runtime/protocol-status.ts` maps existing `ServiceHealth` into protocol checks; and public routes `GET /api/protocol/sync-jobs/plaud-mirror-recordings-sync/status` plus alias `/api/protocol/status` return a sanitized snapshot for Infra Portal/Hermes consumers. Home Infra commit `5df02e3` registers the contract and the NAS portal input sync copied Plaud Mirror contract source `fcbb7d9`; Infra Portal `/api/sync-jobs` now includes `plaud-mirror-recordings-sync`.
 - Previous (v0.9.6): LLM-DocKit 4.9.6 adopter sync, no runtime deployment. Applied the 4.9.6 sync from `~/src/LLM-DocKit` and kept the useful upstream guardrails: HISTORY format defaults to `any` with strict dash/no-dash opt-in, version tooling supports `json-version`, `yaml-info-version`, and `package-lock-version`, and Trace v1.3 requires seconds in chat `Sent` headers plus stale-read re-verification guidance. The raw sync again dropped Plaud Mirror's local validator checks (`handoff-start-here-sync`, `prose-drift`, `unabsorbed-artifact`) from the copied `scripts/dockit-validate-session.sh`; they were reinserted before commit. `scripts/test-validator.sh` reports 32 smoke cases, including the intentional upstream rule that HANDOFF Trace Anchor commit times may omit seconds while chat `Sent` headers must include seconds. `docs/version-sync-manifest.yml` tracks `package-lock.json` via `package-lock-version`, raising version-sync from 21 to 22 targets and clearing the stale lockfile version.
 - Previous (v0.9.5): mobile operator shell made usable. The `v0.9.0` redesign and `v0.9.1` full-viewport shell still behaved too much like desktop on phones: the mobile rail hid labels and showed only icons, the status strip occupied too much vertical space, and Library row actions could fall to the lower-left of a mobile row. v0.9.5 keeps backend routes, auth, sync, storage, scheduler, webhook, secrets, and `.env` behavior unchanged while adding a labeled mobile view selector (`Vista` / `View`), replacing the large mobile status strip with one compact chip row, and pinning Library dismiss/restore actions to the top-right on narrow screens. Tests: 154 (127 Node/integration + 27 web). Runtime state after deploy: container and `/api/health` report `0.9.5`, auth healthy, EU API base, catalog complete at 580/580, operator lock armed.

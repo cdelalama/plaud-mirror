@@ -308,10 +308,10 @@ export const OUTBOX_BACKOFF_SCHEDULE_MS = [
   4 * 60 * 60_000,   // after attempt 7
   8 * 60 * 60_000,   // after attempt 8
 ];
-export const OUTBOX_MAX_ATTEMPTS = 8;
+export const OUTBOX_MAX_ATTEMPTS = OUTBOX_BACKOFF_SCHEDULE_MS.length + 1; // 9
 ```
 
-Cumulative window before escalation: ~16 hours.
+Cumulative wait before the ninth/final attempt: ~15 hours 42 minutes.
 
 ### Revisions from original draft
 
@@ -319,7 +319,15 @@ The original draft (pre-implementation) specified a 5-attempt schedule (`30s, 2m
 
 - **Backoff schedule extended from 5 to 8 attempts (~7h cumulative → ~16h cumulative).** Reason: home-infra deployments typically experience overnight downstream outages (8–10 hours offline). A 7h window gave up too early — the operator would wake up to a queue full of `permanently_failed` rows that needed manual retry. 16h covers a full overnight window; the curve `30s, 2m, 10m, 30m, 1h, 2h, 4h, 8h` keeps early retries snappy for transient blips and lengthens later retries so a long outage doesn't hammer the downstream when it eventually comes back. Reviewer (GPT-5) explicitly recommended this; adopted without further changes.
 - **Endpoint renamed from `/api/webhook-outbox/:id/retry` to `/api/outbox/:id/retry`.** Reason: the new GET-list route had to live somewhere too, and `/api/outbox` reads better as a resource root than `/api/webhook-outbox` (the table name leaks into the URL otherwise). No functional difference.
-- **`GET /api/outbox` returns ONLY `permanently_failed` rows.** Pending and retry-waiting items are visible only as counters via `health.outbox` (`pending`, `retryWaiting`, `permanentlyFailed`, `oldestPendingAgeMs`). Decision driver: keep the panel focused on "what needs operator attention" and not turn it into a queue browser. If the operator needs to inspect a specific in-flight row, query SQLite directly.
+- **`GET /api/outbox` returns ONLY `permanently_failed` rows.** Pending, delivering, and retry-waiting items are visible as counters via `health.outbox` (`pending`, `delivering`, `retryWaiting`, `permanentlyFailed`, `oldestPendingAgeMs`). Decision driver: keep the panel focused on what needs operator attention, not turn it into a queue browser.
+
+**v0.10.4 amendment — retry ceiling and hot claim recovery.** The original
+implementation escalated when `newAttemptCount >= 8`, which made the eighth
+8-hour backoff entry unreachable. The corrected policy is eight retry windows
+and a ninth final delivery attempt. Secret loading and payload parsing are now
+inside the worker failure boundary, so a post-claim setup error returns the row
+to `retry_waiting` instead of leaving it in `delivering`; health exposes a
+`delivering` counter for direct observability.
 
 The original draft also implied that backoff could include "jitter" — the shipped implementation does NOT add jitter. Single-process, single-tenant home-infra deployment; no thundering-herd risk to mitigate.
 
@@ -345,14 +353,14 @@ Exponential backoff over linear because the failure modes we expect (downstream 
 - **Payload IS captured at enqueue time, not recomputed**. The `payload_json` row carries the recording's state at T+0 (the moment of download). If the operator dismisses the recording between enqueue and delivery, the worker still delivers the original payload — the downstream's idempotency contract assumes that `recording.synced` describes "what happened," not "what is true now."
 - `SyncRunSummary.delivered` keeps its pre-v0.5.3 semantic (synchronous deliveries inside this run). Because synchronous delivery no longer exists, it structurally stays at 0 from v0.5.3 onwards. A new `SyncRunSummary.enqueued` counter tracks "payloads pushed to the outbox during this run." Dashboards reading `delivered` should switch to `enqueued` plus `health.outbox.pending + retryWaiting` for the v0.5.3+ equivalent.
 - `RecordingMirror.lastWebhookStatus` enum is extended with `"queued"` (the new normal state right after a sync). Legacy values `"success"` / `"failed"` still appear on rows that pre-date v0.5.3.
-- `/api/health` exposes the outbox backlog (`pending` / `retryWaiting` / `permanentlyFailed` / `oldestPendingAgeMs`) per D-014's first slice.
+- `/api/health` exposes the outbox backlog (`pending` / `delivering` / `retryWaiting` / `permanentlyFailed` / `oldestPendingAgeMs`) per D-014's first slice and the v0.10.4 observability amendment.
 - `POST /api/outbox/:id/retry` allows the operator to recover a `permanently_failed` row from the panel: resets `attempts = 0`, clears `last_error`, transitions back to `pending`. Returns 409 for any other state, 404 for unknown id, 400 for unsafe id shape.
 - Atomic claim: the transition `pending|retry_waiting → delivering` is a guarded `UPDATE ... WHERE id = ? AND state = ?` that fails when a concurrent claim has already moved the row. Worker-tick + panel-triggered retry cannot pick the same row twice.
 - Backfill at scale creates many outbox rows in one batch. The worker processes them serially (one per 5-second tick) — simplest correctness, no parallel delivery. A 100-recording backfill against a healthy downstream drains in ~8.5 minutes; against a flaky downstream, the queue persists and recovers without operator intervention.
 
 ## D-014 - Health endpoint surfaces operational state, not just configuration state
 
-**Status:** accepted; **fully implemented in v0.5.5**. `/api/health.scheduler` shipped in v0.5.0, `/api/health.outbox` (counters: pending / retryWaiting / permanentlyFailed / oldestPendingAgeMs) shipped in v0.5.3, and `lastErrors` (in-memory ring buffer, cap LAST_ERRORS_CAP=20, most-recent-first, cross-subsystem) plus `recentSyncRuns` (last 5 finished runs from `sync_runs` ordered by `finished_at DESC`) shipped in v0.5.5. (`v0.5.4` was governance-only — Layer-1 doc-drift enforcement, D-016 — and did not advance D-014.)
+**Status:** accepted; **fully implemented in v0.5.5**, amended in v0.10.4 with the `outbox.delivering` counter. `/api/health.scheduler` shipped in v0.5.0, `/api/health.outbox` in v0.5.3, and `lastErrors` plus `recentSyncRuns` in v0.5.5.
 
 ### Decision
 

@@ -14,8 +14,8 @@ import type { SecretStore } from "./secrets.js";
 import { buildWebhookSignature } from "./webhook-signature.js";
 
 /**
- * Backoff schedule applied per failed attempt (1-indexed). The eighth
- * failure escalates to `permanently_failed`. The cumulative window is
+ * Backoff schedule applied per failed attempt (1-indexed). Eight retry
+ * windows lead to a ninth and final delivery attempt. The cumulative window is
  * ~16 hours, chosen to ride out an overnight downstream outage on a
  * home-infra box without paging the operator.
  *
@@ -34,8 +34,8 @@ export const OUTBOX_BACKOFF_SCHEDULE_MS = [
   8 * 60 * 60_000,   // after attempt 8 — last retry window before permanent failure
 ];
 
-/** Hard ceiling on total attempts. After this many failures → permanently_failed. */
-export const OUTBOX_MAX_ATTEMPTS = 8;
+/** Initial delivery plus one attempt after each of the eight retry windows. */
+export const OUTBOX_MAX_ATTEMPTS = OUTBOX_BACKOFF_SCHEDULE_MS.length + 1;
 
 /** How often the worker polls the queue when no event is pending. */
 export const OUTBOX_TICK_INTERVAL_MS = 5_000;
@@ -73,6 +73,7 @@ export class OutboxWorker {
   private readonly now: () => Date;
   private readonly onDeliveryError: OutboxWorkerDependencies["onDeliveryError"];
   private scheduler: Scheduler | null = null;
+  private inflightTick: Promise<TickRunResult | void> | null = null;
 
   constructor(dependencies: OutboxWorkerDependencies) {
     this.store = dependencies.store;
@@ -93,16 +94,26 @@ export class OutboxWorker {
     }
     this.scheduler = new Scheduler({
       intervalMs: OUTBOX_TICK_INTERVAL_MS,
-      runTick: () => this.runTick(),
+      runTick: () => this.runTrackedTick(),
     });
     this.scheduler.start();
   }
 
-  stop(): void {
+  async stop(graceMs = this.requestTimeoutMs + 5_000): Promise<boolean> {
     if (this.scheduler !== null) {
       this.scheduler.stop();
       this.scheduler = null;
     }
+    if (!this.inflightTick) {
+      return true;
+    }
+    return Promise.race([
+      this.inflightTick.then(() => true, () => true),
+      new Promise<boolean>((resolve) => {
+        const timer = setTimeout(() => resolve(false), graceMs);
+        timer.unref();
+      }),
+    ]);
   }
 
   status(): SchedulerStatus {
@@ -136,10 +147,25 @@ export class OutboxWorker {
       return { skipped: true, reason: "outbox empty" };
     }
 
-    const config = this.store.getConfig(false);
-    const secrets = await this.secrets.load();
+    let webhookUrl: string | null = null;
+    let secrets: Awaited<ReturnType<SecretStore["load"]>>;
+    let payload: WebhookPayload | null = null;
+    try {
+      const config = this.store.getConfig(false);
+      webhookUrl = config.webhookUrl;
+      secrets = await this.secrets.load();
+      payload = this.store.getOutboxPayload(claimed.id);
+    } catch (error) {
+      this.recordFailedAttempt(
+        claimed,
+        webhookUrl,
+        "{}",
+        error instanceof Error ? error.message : String(error),
+      );
+      return;
+    }
 
-    if (!config.webhookUrl || !secrets.webhookSecret) {
+    if (!webhookUrl || !secrets.webhookSecret) {
       // The operator removed the webhook configuration after this item
       // was enqueued. There is nothing useful to retry — escalate
       // immediately so the row stops blocking the queue and the panel
@@ -149,20 +175,19 @@ export class OutboxWorker {
       return;
     }
 
-    const payload = this.store.getOutboxPayload(claimed.id);
     if (!payload) {
       this.store.markOutboxPermanentlyFailed(claimed.id, "payload missing");
       return;
     }
 
-    const result = await this.deliver(claimed, payload, config.webhookUrl, secrets.webhookSecret);
+    const result = await this.deliver(claimed, payload, webhookUrl, secrets.webhookSecret);
 
     if (result.ok) {
       this.store.markOutboxDelivered(claimed.id);
       this.store.recordDeliveryAttempt({
         recordingId: claimed.recordingId,
         status: "success",
-        webhookUrl: config.webhookUrl,
+        webhookUrl,
         httpStatus: result.httpStatus,
         errorMessage: null,
         payloadJson: result.body,
@@ -171,41 +196,61 @@ export class OutboxWorker {
       return;
     }
 
-    // Failure path: bump attempts and either schedule a retry or
-    // escalate to permanently_failed. `claimed.attempts` is the value
-    // BEFORE this attempt (0 on first delivery, N before the (N+1)th);
-    // the store will increment to N+1 in mark{Retry,PermanentlyFailed}.
+    this.recordFailedAttempt(claimed, webhookUrl, result.body, result.errorMessage, result.httpStatus);
+  }
+
+  private runTrackedTick(): Promise<TickRunResult | void> {
+    const tick = this.runTick();
+    this.inflightTick = tick;
+    void tick.finally(() => {
+      if (this.inflightTick === tick) {
+        this.inflightTick = null;
+      }
+    }).catch(() => undefined);
+    return tick;
+  }
+
+  private recordFailedAttempt(
+    claimed: OutboxItem,
+    webhookUrl: string | null,
+    body: string,
+    errorMessage: string,
+    httpStatus: number | null = null,
+  ): void {
     const newAttemptCount = claimed.attempts + 1;
     this.store.recordDeliveryAttempt({
       recordingId: claimed.recordingId,
       status: "failed",
-      webhookUrl: config.webhookUrl,
-      httpStatus: result.httpStatus,
-      errorMessage: result.errorMessage,
-      payloadJson: result.body,
+      webhookUrl,
+      httpStatus,
+      errorMessage,
+      payloadJson: body,
       attemptedAt: this.now().toISOString(),
     });
 
     if (newAttemptCount >= OUTBOX_MAX_ATTEMPTS) {
-      this.store.markOutboxPermanentlyFailed(claimed.id, result.errorMessage);
+      this.store.markOutboxPermanentlyFailed(claimed.id, errorMessage);
       this.onDeliveryError?.({
         outboxId: claimed.id,
         attempt: newAttemptCount,
         escalation: "permanent",
-        message: result.errorMessage,
+        message: errorMessage,
       });
       return;
     }
 
+    const backoffMs = OUTBOX_BACKOFF_SCHEDULE_MS[newAttemptCount - 1]!;
+    this.store.markOutboxRetry(
+      claimed.id,
+      new Date(this.now().getTime() + backoffMs),
+      errorMessage,
+    );
     this.onDeliveryError?.({
       outboxId: claimed.id,
       attempt: newAttemptCount,
       escalation: "retry",
-      message: result.errorMessage,
+      message: errorMessage,
     });
-    const backoffMs = OUTBOX_BACKOFF_SCHEDULE_MS[newAttemptCount - 1] ?? OUTBOX_BACKOFF_SCHEDULE_MS[OUTBOX_BACKOFF_SCHEDULE_MS.length - 1]!;
-    const nextAttemptAt = new Date(this.now().getTime() + backoffMs);
-    this.store.markOutboxRetry(claimed.id, nextAttemptAt, result.errorMessage);
   }
 
   private async deliver(

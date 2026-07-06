@@ -1,4 +1,4 @@
-<!-- doc-version: 0.10.3 -->
+<!-- doc-version: 0.10.4 -->
 # Deploy Playbook
 
 This runbook describes the current Docker deployment path for Plaud Mirror.
@@ -56,12 +56,13 @@ doppler run --project plaud-mirror --config dev -- docker compose up -d --build
 ## Validation
 
 1. `GET /api/health` returns `200`
-2. `GET /api/protocol/sync-jobs/plaud-mirror-recordings-sync/status` returns
+2. `docker compose ps` reports the container as `healthy`
+3. `GET /api/protocol/sync-jobs/plaud-mirror-recordings-sync/status` returns
    `200` with `job_id: "plaud-mirror-recordings-sync"` and no operator cookie
-3. Web panel loads
-4. Token can be saved from the UI
-5. Manual sync or backfill can be triggered
-6. Mirrored files appear in `runtime/recordings`
+4. Web panel loads
+5. Token can be saved from the UI
+6. Manual sync or backfill can be triggered
+7. Mirrored files appear in `runtime/recordings`
 
 ## Rollback
 
@@ -81,6 +82,7 @@ doppler run --project plaud-mirror --config dev -- docker compose up -d --build
 ## Notes
 
 - The current container is a single-process Phase 3 slice: API + static web panel + opt-in continuous sync scheduler (D-012, panel-driven from `v0.5.2`) + durable webhook outbox (D-013, shipped in `v0.5.3`). The scheduler stays **disabled unless** the operator sets a positive interval from the panel (or, on a fresh install, via `PLAUD_MIRROR_SCHEDULER_INTERVAL_MS`); the outbox **always runs** and short-circuits to `permanently_failed` when no webhook URL is configured. See [HOW_TO_USE.md](../../HOW_TO_USE.md) and [AUTH_AND_SYNC.md](AUTH_AND_SYNC.md) for both surfaces.
+- From `v0.10.4`, compose has a `/api/health` healthcheck and whole-run sync work defaults to a one-hour ceiling. Override only with `PLAUD_MIRROR_SYNC_MAX_RUNTIME_MS`; keep the contract's `max_runtime` aligned.
 - Full health observability — `lastErrors` ring buffer + `recentSyncRuns` (D-014, full) — shipped in `v0.5.5`. `/api/health` exposes both fields directly; no separate route.
 - Home Infra Protocol sync status — `infra.contract.yml` declares
   `plaud-mirror-recordings-sync`, and the public sanitized status snapshot route
