@@ -1,4 +1,4 @@
-import { access, mkdir, stat, unlink } from "node:fs/promises";
+import { mkdir, stat, unlink } from "node:fs/promises";
 import { isAbsolute, join, relative, resolve } from "node:path";
 
 import {
@@ -407,7 +407,10 @@ export class PlaudMirrorService {
       ...normalizeObject(input),
     });
 
-    const { id } = this.startOrReuseMirror("backfill", parsed);
+    const { id, started } = this.startOrReuseMirror("backfill", parsed);
+    if (!started) {
+      throw createHttpError(409, `Cannot start backfill while sync run ${id} is already active`);
+    }
     return { id, status: "running" };
   }
 
@@ -502,17 +505,18 @@ export class PlaudMirrorService {
     }
 
     let missing = 0;
-    const annotated = filtered.map((raw) => {
+    const annotated: BackfillPreviewResponse["recordings"] = [];
+    for (const raw of filtered) {
       const existing = this.store.getRecording(raw.id);
       const state: BackfillCandidateState = existing?.dismissed
         ? "dismissed"
-        : existing?.localPath
+        : existing?.localPath && await hasLocalArtifact(existing.localPath, existing.bytesWritten)
           ? "mirrored"
           : "missing";
       if (state === "missing") {
         missing += 1;
       }
-      return {
+      annotated.push({
         id: raw.id,
         title: selectRecordingTitle(raw.filename, raw.fullname, undefined),
         createdAt: toIsoOrNull(Number(raw.start_time)),
@@ -521,8 +525,8 @@ export class PlaudMirrorService {
         scene: raw.scene === null || raw.scene === undefined ? null : Number(raw.scene),
         sequenceNumber: ranks.get(raw.id) ?? null,
         state,
-      };
-    });
+      });
+    }
 
     const truncated = annotated.slice(0, normalized.previewLimit);
 
@@ -803,7 +807,11 @@ export class PlaudMirrorService {
         // status is unrelated — a mirrored recording without a successful
         // webhook delivery is still mirrored and should NOT be re-downloaded.
         // Forcing a re-download is what `forceDownload` is for.
-        if (!normalizedFilters.forceDownload && existing?.localPath) {
+        if (
+          !normalizedFilters.forceDownload
+          && existing?.localPath
+          && await hasLocalArtifact(existing.localPath, existing.bytesWritten)
+        ) {
           continue;
         }
         candidates.push(recording);
@@ -817,33 +825,49 @@ export class PlaudMirrorService {
       let delivered = 0;
       let enqueued = 0;
       let skipped = 0;
+      let failed = 0;
+      const candidateErrors: string[] = [];
 
       for (const recording of candidates) {
-        const result = await this.processRecording(client, recording, mode, normalizedFilters.forceDownload);
-        if (result.downloaded) {
-          downloaded += 1;
-        }
-        if (result.delivered) {
-          delivered += 1;
-        }
-        if (result.enqueued) {
-          enqueued += 1;
-        }
-        if (result.skipped) {
-          skipped += 1;
+        try {
+          const result = await this.processRecording(client, recording, mode, normalizedFilters.forceDownload);
+          if (result.downloaded) {
+            downloaded += 1;
+          }
+          if (result.delivered) {
+            delivered += 1;
+          }
+          if (result.enqueued) {
+            enqueued += 1;
+          }
+          if (result.skipped) {
+            skipped += 1;
+          }
+        } catch (error) {
+          failed += 1;
+          const message = toErrorMessage(error);
+          candidateErrors.push(`${recording.id}: ${message}`);
+          this.recordError("sync", message, {
+            runId: id,
+            mode,
+            recordingId: recording.id,
+          });
         }
         // After each candidate so the UI poll sees the counter tick up.
-        this.store.updateSyncRunProgress(id, { downloaded, delivered, enqueued, skipped });
+        this.store.updateSyncRunProgress(id, { downloaded, delivered, enqueued, skipped, failed });
       }
 
       // Apply ranks last so freshly-inserted rows (from processRecording above)
       // also pick up their stable sequence number.
       this.store.updateSequenceNumbers(ranks);
 
+      const candidateErrorSummary = failed > 0
+        ? summarizeCandidateErrors(candidateErrors, failed)
+        : null;
       return this.store.finishSyncRun(SyncRunSummarySchema.parse({
         id,
         mode,
-        status: "completed",
+        status: failed > 0 ? "failed" : "completed",
         startedAt,
         finishedAt: new Date().toISOString(),
         examined: remoteRecordings.length,
@@ -852,9 +876,10 @@ export class PlaudMirrorService {
         delivered,
         enqueued,
         skipped,
+        failed,
         plaudTotal,
         filters: normalizedFilters,
-        error: null,
+        error: candidateErrorSummary,
       }));
     } catch (error) {
       // Preserve any partial progress already written to the row by
@@ -875,6 +900,7 @@ export class PlaudMirrorService {
         delivered: partial?.delivered ?? 0,
         enqueued: partial?.enqueued ?? 0,
         skipped: partial?.skipped ?? 0,
+        failed: partial?.failed ?? 0,
         plaudTotal: partial?.plaudTotal ?? null,
         filters: normalizedFilters,
         error: errorMessage,
@@ -902,7 +928,11 @@ export class PlaudMirrorService {
       };
     }
 
-    if (existing?.localPath && !forceDownload && await hasLocalArtifact(existing.localPath)) {
+    if (
+      existing?.localPath
+      && !forceDownload
+      && await hasLocalArtifact(existing.localPath, existing.bytesWritten)
+    ) {
       if (existing.lastWebhookStatus === "success") {
         return {
           downloaded: false,
@@ -1175,13 +1205,22 @@ function toIsoOrNull(value: number | null | undefined): string | null {
   return new Date(value).toISOString();
 }
 
-async function hasLocalArtifact(localPath: string): Promise<boolean> {
+async function hasLocalArtifact(localPath: string, expectedBytes = 0): Promise<boolean> {
   try {
-    await access(resolve(localPath));
-    return true;
+    const artifact = await stat(resolve(localPath));
+    if (!artifact.isFile() || artifact.size <= 0) {
+      return false;
+    }
+    return expectedBytes <= 0 || artifact.size === expectedBytes;
   } catch {
     return false;
   }
+}
+
+function summarizeCandidateErrors(errors: string[], failed: number): string {
+  const visible = errors.slice(0, 5);
+  const remainder = failed - visible.length;
+  return `${failed} recording(s) failed: ${visible.join("; ")}${remainder > 0 ? `; and ${remainder} more` : ""}`;
 }
 
 function toErrorMessage(error: unknown): string {

@@ -66,6 +66,7 @@ test("RuntimeStore persists config, recordings, and sync summaries", async () =>
     delivered: 1,
     enqueued: 0,
     skipped: 0,
+    failed: 0,
     plaudTotal: 42,
     filters: {
       from: "2026-04-01",
@@ -86,6 +87,7 @@ test("RuntimeStore persists config, recordings, and sync summaries", async () =>
   const lastRun = store.getLastSyncRun();
   assert.equal(lastRun?.mode, "backfill");
   assert.equal(lastRun?.plaudTotal, 42, "plaudTotal must round-trip through SQLite");
+  assert.equal(lastRun?.failed, 0, "failed must round-trip through SQLite");
 
   store.close();
 });
@@ -352,6 +354,7 @@ test("RuntimeStore splits last completed run from active running run", async () 
     delivered: 0,
     enqueued: 0,
     skipped: 0,
+    failed: 0,
     plaudTotal: 308,
     filters: { limit: 5, forceDownload: false },
     error: null,
@@ -371,6 +374,7 @@ test("RuntimeStore splits last completed run from active running run", async () 
   assert.equal(activeRun?.id, secondRun.id);
   assert.equal(activeRun?.status, "running");
   assert.equal(activeRun?.finishedAt, null);
+  assert.equal(activeRun?.failed, 0, "new running rows seed failed=0");
 
   // Once the second run completes, getActiveSyncRun must return null and
   // getLastSyncRun must surface the newer completed row.
@@ -386,12 +390,14 @@ test("RuntimeStore splits last completed run from active running run", async () 
     delivered: 0,
     enqueued: 0,
     skipped: 0,
+    failed: 2,
     plaudTotal: 308,
     filters: { limit: 25, forceDownload: false },
     error: null,
   });
   assert.equal(store.getActiveSyncRun(), null);
   assert.equal(store.getLastSyncRun()?.id, secondRun.id);
+  assert.equal(store.getLastSyncRun()?.failed, 2);
 
   store.close();
 });
@@ -527,6 +533,9 @@ test("RuntimeStore migrates pre-0.4.0 databases by adding the dismissed columns"
   assert.equal(rows.recordings[0]?.id, "rec-legacy");
   assert.equal(rows.recordings[0]?.dismissed, false);
   assert.equal(rows.recordings[0]?.dismissedAt, null);
+
+  const migratedRun = store.startSyncRun("sync", { limit: 0, forceDownload: false });
+  assert.equal(store.getSyncRun(migratedRun.id)?.failed, 0, "legacy sync_runs table gains failed with default 0");
 
   store.close();
 });

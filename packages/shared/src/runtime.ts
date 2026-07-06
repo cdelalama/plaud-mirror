@@ -224,6 +224,9 @@ export const SyncRunSummarySchema = z.object({
   // 0.5.3 — those rows just read 0 for this field.
   enqueued: z.number().int().nonnegative().default(0),
   skipped: z.number().int().nonnegative(),
+  // Candidate-level processing failures. `.default(0)` keeps pre-0.10.3 rows
+  // readable while exposing partial-run truth to health and the panel.
+  failed: z.number().int().nonnegative().default(0),
   // Total recordings reported by Plaud's `data_file_total` on the first page of
   // the listing. Independent of `examined` (which is capped by the caller's
   // `limit`) and `matched` (which is after local filters). Present only on

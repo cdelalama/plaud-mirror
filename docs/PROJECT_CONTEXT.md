@@ -1,4 +1,4 @@
-<!-- doc-version: 0.10.2 -->
+<!-- doc-version: 0.10.3 -->
 # Project Context - Plaud Mirror
 
 ## Vision
@@ -24,14 +24,17 @@ Plaud Mirror is a server-first product with two runtime surfaces:
 
 Persistence is split between SQLite for state/indexes and the filesystem for mirrored audio artifacts. Secrets are encrypted at rest with a master key supplied by the surrounding deployment.
 
-## Current Status (2026-07-10, v0.10.2)
+## Current Status (2026-07-10, v0.10.3)
 
-Plaud Mirror `v0.10.2` is the first pre-soak hardening patch. It makes the
-evidence surface dependable before changing sync behavior: CI runs the full
-Node 20 gate, the panel is typechecked, Node/integration tests are discovered
-automatically, Docker build context excludes secrets and host build artifacts,
-and idle panels discover scheduler-started runs before switching to fast
-polling. Runtime deployment remains on v0.10.1 until all pre-soak patches pass.
+Plaud Mirror `v0.10.3` is the pre-soak integrity patch. Audio replacement is
+atomic, SQLite coverage is reconciled against physical existence and size,
+candidate failures are isolated and counted without blocking older recordings,
+and filtered backfills reject active-sync collisions instead of losing their
+filters. Runtime deployment remains on v0.10.1 until all pre-soak patches pass.
+
+The `v0.10.2` patch underneath established trustworthy evidence: Node 20 CI,
+web typechecking, automatic test discovery, Docker-context hygiene, and idle
+panel observation of scheduler-started runs.
 
 The `v0.10.1` patch underneath is a Phase 5 patch on top of the `v0.10.0`
 Home Infra Protocol release. It fixes the sync-run progress summary so
@@ -80,7 +83,7 @@ The runtime baseline carried from `v0.5.3` is the **durable webhook outbox** (D-
 
 The earlier `0.5.x` baseline still applies: in-process continuous sync scheduler (D-012, stabilized in `v0.5.1`, panel-driven from `v0.5.2`), two-layer anti-overlap, SQLite-persisted scheduler config. `SyncRunSummary.enqueued` counts webhook payloads pushed to the outbox during the run; `delivered` keeps its original semantic ("delivered synchronously inside this run") and structurally stays at 0 from `v0.5.3` onwards.
 
-Operators upgrading from `0.4.x` should skip `v0.5.0` (scheduler default-on regression + missing service-layer anti-overlap) and go directly to `v0.10.2`.
+Operators upgrading from `0.4.x` should skip `v0.5.0` (scheduler default-on regression + missing service-layer anti-overlap) and go directly to `v0.10.3`.
 
 The Phase 2 slice it inherits: a live Fastify API, a web panel for token setup, webhook configuration, sync/backfill controls, recordings visibility with inline audio playback, encrypted persisted manual bearer-token auth, manual sync and filtered historical backfill (async-202, with a `limit=0` "refresh server stats" path), SQLite-backed recording and delivery state (including `dismissed` / `dismissed_at` columns for local curation), immediate HMAC-signed webhook delivery with persisted attempt logging, a confirmed local-only dismiss/restore flow that never touches Plaud, Docker packaging for `dev-vm` running as non-root `USER 1000:1000`, and the original Phase 1 spike CLI for direct Plaud probing. Concretely:
 

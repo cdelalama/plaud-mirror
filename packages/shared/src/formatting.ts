@@ -158,7 +158,7 @@ export function coerceNonNegativeInteger(value: string, fallback: number): numbe
  */
 export function summarizeRun(label: string, summary: SyncRunSummary): string {
   const prefix = label ? `${label}: ` : "";
-  return `${prefix}${summary.status}, matched ${summary.matched}, downloaded ${summary.downloaded}, delivered ${summary.delivered}`;
+  return `${prefix}${summary.status}, matched ${summary.matched}, downloaded ${summary.downloaded}, failed ${summary.failed}, delivered ${summary.delivered}`;
 }
 
 /**

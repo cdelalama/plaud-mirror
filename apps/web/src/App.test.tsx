@@ -40,6 +40,7 @@ const completedRun = {
   delivered: 0,
   enqueued: 0,
   skipped: 0,
+  failed: 0,
   plaudTotal: 10,
   filters: {
     from: null,

@@ -1,7 +1,7 @@
-<!-- doc-version: 0.10.2 -->
+<!-- doc-version: 0.10.3 -->
 # Authentication and Sync Operations
 
-This runbook defines the live behavior of Plaud Mirror's auth and sync surface. Phase 2 (manual sync/backfill) is fully shipped. Phase 3: the continuous sync scheduler landed in `v0.5.0` (regressed) -> `v0.5.1` (fixed) -> `v0.5.2` (panel-driven). `v0.5.3` shipped the **durable webhook outbox** (D-013). `v0.5.4` was governance-only (D-016). `v0.5.5` shipped **D-014 full**: `lastErrors` ring buffer and `recentSyncRuns` on `/api/health`. `v0.6.0` is the **Phase 3 hardening release**: operator access control on the panel/API (D-018), startup crash recovery for orphaned sync runs and outbox rows (D-013 amendment, at-least-once delivery accepted), and abort deadlines on every Plaud API call and audio download. `v0.9.0` surfaces the auth/sync/outbox observability in the real panel's Main and Operations screens. `v0.10.0` publishes the same sync state through `home-infra-protocol`: `infra.contract.yml` declares `plaud-mirror-recordings-sync`, and `/api/protocol/sync-jobs/plaud-mirror-recordings-sync/status` returns a sanitized status snapshot for Infra Portal/Hermes consumers. `v0.10.1` fixes the run summary so disabled-webhook delivery state (`lastWebhookStatus="skipped"`) does not increment `SyncRunSummary.skipped`. Remaining Phase 3 work before the soak: the scrypt KDF upgrade, then the soak itself; resumable backfill and fully unattended re-login stay deferred.
+This runbook defines the live behavior of Plaud Mirror's auth and sync surface. Phase 2 (manual sync/backfill) is fully shipped. Phase 3: the continuous sync scheduler landed in `v0.5.0` (regressed) -> `v0.5.1` (fixed) -> `v0.5.2` (panel-driven). `v0.5.3` shipped the **durable webhook outbox** (D-013); `v0.5.5` shipped **D-014 full**; `v0.6.0` hardened access control, crash recovery, and timeouts. `v0.9.0` surfaces observability in the panel and `v0.10.0` publishes the Home Infra Protocol status. `v0.10.1` fixes skipped semantics; `v0.10.3` adds atomic audio replacement, physical artifact reconciliation, per-candidate failure isolation, and explicit backfill conflicts. The execution hardening patch and soak remain next; resumable backfill and fully unattended re-login stay deferred.
 
 ## Operator Access Control (D-018, v0.6.0)
 
@@ -67,13 +67,18 @@ The service exposes:
   - date range (`from`, `to`) — surfaced in the web UI.
   - `serialNumber` — surfaced in the web UI as a device selector fed by `/api/devices`.
   - `scene` — accepted for programmatic callers only; the web UI no longer exposes it because the raw integer values are opaque to operators (see CHANGELOG 0.4.12).
-- Existing mirrored recordings are skipped unless `forceDownload` is requested.
+- Existing mirrored recordings are skipped unless `forceDownload` is requested,
+  but only after the file is verified to exist, be non-empty, and match the
+  persisted byte count. Missing or wrong-sized files are re-downloaded.
 - Webhook delivery: through `v0.5.2` it was synchronous inside `executeMirror`. From `v0.5.3` onwards it is **enqueued to the durable outbox** and delivered asynchronously by the worker (see "Webhook outbox" below).
 - Delivery attempts are persisted even when the webhook call fails (`webhook_deliveries` audit log, append-only, unchanged across releases).
 - `SyncRunSummary.skipped` is a sync-work counter, not a webhook-delivery
   counter. From `v0.10.1`, a downloaded recording with no webhook configured
   still records `lastWebhookStatus="skipped"` on the recording row, but it does
   not increase the run's `skipped` field.
+- `SyncRunSummary.failed` counts candidate processing failures. One bad Plaud
+  recording does not block later candidates, but any non-zero `failed` closes
+  the run as `failed` with recording-id context in `error`.
 
 ### Phase 3 (in progress, `0.5.x` line)
 
@@ -94,7 +99,7 @@ Recommended starting point when enabling for the first time: `15` minutes (`9000
 Operational properties:
 
 - **Anti-overlap (two layers).** Both layers ship in `v0.5.1` (the second was promised but missing in `v0.5.0`):
-  1. **Service-layer.** `runScheduledSync()` (and the public `runSync` / `runBackfill`) consult `store.getActiveSyncRun()` before inserting a new `sync_runs` row. If a run is already mid-flight (manual or scheduled, no distinction), the call returns the existing run's id without creating a second row or dispatching `executeMirror` again. The scheduler tick variant additionally returns `started: false` so the timer can record `lastTickStatus = "skipped"` honestly instead of mislabelling absorbed ticks as `completed`.
+  1. **Service-layer.** `runScheduledSync()` and public `runSync` reuse an active run without creating another row. `runBackfill` is intentionally different: it returns HTTP 409 when a run is active, because reusing the existing id would silently discard the operator's filters. The scheduler tick variant returns `started: false` so the timer can record `lastTickStatus = "skipped"` honestly.
   2. **Scheduler-level.** The `inflight` flag on `Scheduler.executeTick` stops two ticks from this same scheduler from running concurrently. This case is rare in practice (it requires a tick to take longer than `intervalMs`), but it is the second guardrail that protects against a silent backlog if Plaud responses degrade.
 - **Cadence is from-fire, not from-completion.** The next tick is scheduled before the current tick is awaited, so a slow run does not push the cadence back; anti-overlap absorbs the case where work outlasts the interval.
 - **Observability.** `/api/health` exposes the scheduler block — `enabled`, `intervalMs`, `nextTickAt` (ISO), `lastTickAt` (ISO), `lastTickStatus` (`completed` / `failed` / `skipped` / `null`), `lastTickError` (string or `null`). When a tick is absorbed by an active run, `lastTickStatus = "skipped"` and `lastTickError` carries an operator-readable reason like `"another sync run was already in flight"` (it is not actually an error; the field is reused for context). When the scheduler is enabled, `health.phase` reads `"Phase 3 - unattended operation"`; when disabled, it falls back to `"Phase 2 - first usable slice"`.

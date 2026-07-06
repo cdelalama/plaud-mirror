@@ -1,11 +1,11 @@
-<!-- doc-version: 0.10.2 -->
+<!-- doc-version: 0.10.3 -->
 # How to Use This Repository
 
 This guide explains how Plaud Mirror is operated end-to-end and how it stays aligned with both `LLM-DocKit` (the governance scaffold it adopts) and the Plaud ecosystem upstreams it watches.
 
 ## Current Reality
 
-`v0.10.1` is the current **Phase 5 infra/protocol integration patch**: it keeps the hardened `v0.6.x` runtime, the `v0.7.x` `/connect` capture handshake, the local Chrome companion extension from `v0.8.0`, the Plaud Web-aligned backend validation fingerprint from `v0.8.1`, the reference-driven five-screen operator panel from `v0.9.0`, the full-viewport production shell from `v0.9.1`, the fixed Main "download missing" action from `v0.9.2`, the DocKit trace-protocol merge from `v0.9.3`, the Library playback/scroll fixes from `v0.9.4`, mobile shell usability fixes from `v0.9.5`, the LLM-DocKit 4.9.6 governance/tooling sync from `v0.9.6`, and the `home-infra-protocol` sync-job contract from `v0.10.0`. The `v0.10.1` patch fixes sync progress summaries so disabled-webhook delivery state is not counted as skipped sync candidates. **Operators upgrading from any `0.4.x`/`0.5.x` should go directly to `v0.10.1`.** Today the repository gives you:
+`v0.10.3` is the current pre-soak integrity patch on the Phase 5 protocol-integrated runtime. It retains the hardened auth, browser-assisted re-auth, five-screen panel, durable outbox, and Home Infra Protocol surface while adding atomic audio replacement, physical artifact reconciliation, per-candidate failure isolation, and explicit backfill conflicts. **Operators upgrading from any `0.4.x`/`0.5.x` should go directly to `v0.10.3`.** Today the repository gives you:
 
 - a Fastify API and React/Vite panel bundled in a single Docker container;
 - **operator access control** (v0.6.0): set `PLAUD_MIRROR_ADMIN_PASSPHRASE` and the panel asks for the passphrase once per device (30-day session cookie); without it the API runs open and `/api/health` warns;

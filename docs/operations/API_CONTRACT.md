@@ -1,7 +1,7 @@
-<!-- doc-version: 0.10.2 -->
+<!-- doc-version: 0.10.3 -->
 # API Contract
 
-This document describes the HTTP and webhook surface that now exists in-repo. The current implementation covers the full Phase 2 slice (manual sync/backfill, local curation routes) plus the Phase 3 scheduler subset (panel-driven from `v0.5.2`) plus the **durable webhook outbox** (D-013) shipped in `v0.5.3` plus **full health observability** (D-014, complete) shipped in `v0.5.5`. From `v0.5.3` onwards webhook delivery is asynchronous: each sync run enqueues the payload, a worker retries it with exponential backoff. From `v0.5.5` onwards `/api/health` also returns `lastErrors` (cross-subsystem ring buffer, capped at 20) and `recentSyncRuns` (last 5 finished runs). `v0.10.0` adds a `home-infra-protocol` status surface for the Plaud recording sync job: `/api/protocol/sync-jobs/plaud-mirror-recordings-sync/status` and alias `/api/protocol/status`, both public and sanitized. `v0.10.1` keeps the same API shape and fixes the semantics of `SyncRunSummary.skipped`: webhook-disabled delivery state is not counted as skipped sync work. The five-screen UI consumes the existing app routes; the protocol routes are for Infra Portal/Hermes style consumers.
+This document describes the HTTP and webhook surface that now exists in-repo. The current implementation covers the full Phase 2 slice (manual sync/backfill, local curation routes) plus the Phase 3 scheduler subset (panel-driven from `v0.5.2`) plus the **durable webhook outbox** (D-013) shipped in `v0.5.3` plus **full health observability** (D-014, complete) shipped in `v0.5.5`. From `v0.5.3` onwards webhook delivery is asynchronous: each sync run enqueues the payload, a worker retries it with exponential backoff. From `v0.5.5` onwards `/api/health` also returns `lastErrors` (cross-subsystem ring buffer, capped at 20) and `recentSyncRuns` (last 5 finished runs). `v0.10.0` adds a `home-infra-protocol` status surface for the Plaud recording sync job; `v0.10.1` fixes `SyncRunSummary.skipped`; `v0.10.3` adds `SyncRunSummary.failed`, physical artifact reconciliation, and explicit backfill conflicts. The five-screen UI consumes the existing app routes; the protocol routes are for Infra Portal/Hermes style consumers.
 
 ## Admin API
 
@@ -22,9 +22,9 @@ This document describes the HTTP and webhook surface that now exists in-repo. Th
 | `GET` | `/api/auth/status` | Return current auth state |
 | `POST` | `/api/auth/token` | Validate and persist a Plaud bearer token |
 | `POST` | `/api/sync/run` | Schedule a manual sync. Returns `202 Accepted` with `{ id, status: "running" }` immediately; the work runs in the background. Poll `GET /api/sync/runs/:id` or `GET /api/health` (`activeRun` carries progress while running, `lastSync` updates on completion). |
-| `POST` | `/api/backfill/run` | Schedule a filtered historical backfill. Same async semantics as `/api/sync/run`: returns `202` with `{ id, status: "running" }`. |
+| `POST` | `/api/backfill/run` | Schedule a filtered historical backfill. Same async semantics as `/api/sync/run`: returns `202` with `{ id, status: "running" }`. Returns 409 when another sync is active so filters are never silently discarded. |
 | `GET` | `/api/backfill/candidates` | Dry-run preview: same filter pipeline as `/api/backfill/run` (listEverything + local filters), but returns matching recordings annotated with their local state (`missing`/`mirrored`/`dismissed`) and downloads nothing. Query params: `from`, `to`, `serialNumber`, `scene`, `previewLimit` (max 500, default 200). |
-| `GET` | `/api/sync/runs/:id` | Return the live `SyncRunSummary` for a specific run id. `status` is `"running"` until the background work finishes (`"completed"` or `"failed"`). From `v0.10.1`, `skipped` means skipped sync candidates only; disabled webhook delivery is visible through recording `lastWebhookStatus`, not this counter. Returns 404 for unknown ids. |
+| `GET` | `/api/sync/runs/:id` | Return the live `SyncRunSummary` for a specific run id. `status` is `"running"` until the background work finishes (`"completed"` or `"failed"`). `skipped` means skipped sync candidates only; `failed` counts candidate processing failures. A run with any failed candidate closes as `failed` even when later candidates downloaded successfully. Returns 404 for unknown ids. |
 | `GET` | `/api/devices` | Return the cached device catalog (`{ devices: Device[] }`). Populated from Plaud's `/device/list` as a side effect of every sync. No network call on this route — reads from SQLite. Empty array is a valid response when no sync has run yet. |
 | `GET` | `/api/recordings` | List recent mirrored recordings. Accepts `?limit=<n>` (max 200, default 50) and `?includeDismissed=true` to include locally dismissed rows (hidden by default). |
 | `GET` | `/api/recordings/:id/audio` | Stream the locally mirrored audio file for a single recording. Returns 404 if the recording is not tracked or has no local file. Response body is the raw audio bytes with the stored `Content-Type`. Supports HTTP Range (RFC 7233 single-range): advertises `Accept-Ranges: bytes`, includes `Content-Length`, and honors `Range: bytes=start-end` (plus suffix `bytes=-N` and open-ended `bytes=start-`) with `206 Partial Content`. Unsatisfiable ranges return `416` with `Content-Range: bytes */size`. Multipart byteranges are intentionally unsupported. |
@@ -163,13 +163,15 @@ No request body. Returns the live `SyncRunSummary` for the run:
   "matched": 25,
   "downloaded": 7,
   "delivered": 0,
+  "enqueued": 0,
   "skipped": 0,
+  "failed": 0,
   "plaudTotal": 308,
   "error": null
 }
 ```
 
-`finishedAt` is `null` while the run is in flight and stamped once the background work resolves. `status` transitions from `"running"` to `"completed"` (or `"failed"` with `error` populated). Returns 404 for unknown ids.
+`finishedAt` is `null` while the run is in flight and stamped once the background work resolves. `status` transitions from `"running"` to `"completed"` (or `"failed"` with `error` populated). Candidate-local failures increment `failed`, append durable recording-id context to `error`, and do not stop later candidates. Returns 404 for unknown ids.
 
 ### `DELETE /api/recordings/:id`
 

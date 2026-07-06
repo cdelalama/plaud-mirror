@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp } from "node:fs/promises";
+import { mkdir, mkdtemp, unlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -43,6 +43,23 @@ function createEnvironment(root: string): ServerEnvironment {
     defaultSyncLimit: 100,
     requestTimeoutMs: 5_000,
     schedulerIntervalMs: 0,
+  };
+}
+
+function remoteRecording(id: string, startTime: number) {
+  return {
+    id,
+    filename: `${id}.mp3`,
+    fullname: id,
+    filesize: 5,
+    start_time: startTime,
+    end_time: startTime + 5_000,
+    duration: 5_000,
+    edit_time: startTime + 5_001,
+    is_trash: false,
+    is_trans: true,
+    is_summary: false,
+    serial_number: "PLAUD-1",
   };
 }
 
@@ -493,6 +510,141 @@ test("PlaudMirrorService runSync skips already-mirrored rows and pulls the first
   service.close();
 });
 
+test("PlaudMirrorService re-downloads a database row whose audio size does not match", async () => {
+  const root = await mkdtemp(join(tmpdir(), "plaud-mirror-service-repair-"));
+  const environment = createEnvironment(root);
+  const store = new RuntimeStore({
+    dbPath: join(environment.dataDir, "app.db"),
+    dataDir: environment.dataDir,
+    recordingsDir: environment.recordingsDir,
+    defaultSyncLimit: environment.defaultSyncLimit,
+  });
+  const secrets = new SecretStore(join(environment.dataDir, "secrets.enc"), environment.masterKey);
+  const sched = createDeterministicScheduler();
+  const artifactCalls: string[] = [];
+  const service = new PlaudMirrorService(environment, store, secrets, {
+    scheduler: sched.scheduler,
+    plaudFetchImpl: async (input) => {
+      const url = String(input);
+      if (url.endsWith("/user/me")) return createJsonResponse({ status: 0, data: { uid: "user-1" } });
+      if (url.includes("/file/simple/web")) {
+        return createJsonResponse({
+          status: 0,
+          data_file_total: 1,
+          data_file_list: [remoteRecording("rec-missing-file", 1713780000000)],
+        });
+      }
+      if (url.endsWith("/file/detail/rec-missing-file")) {
+        return createJsonResponse({ status: 0, data: { file_id: "rec-missing-file", file_name: "Recovered", duration: 5_000, serial_number: "PLAUD-1" } });
+      }
+      if (url.endsWith("/file/temp-url/rec-missing-file")) {
+        return createJsonResponse({ status: 0, temp_url: "https://storage.example.com/audio/rec-missing-file.mp3" });
+      }
+      throw new Error(`Unexpected Plaud fetch: ${url}`);
+    },
+    artifactFetchImpl: async (input) => {
+      artifactCalls.push(String(input));
+      return new Response("fresh", { status: 200, headers: { "content-type": "audio/mpeg" } });
+    },
+  });
+
+  await service.initialize();
+  await service.saveAccessToken({ accessToken: "token-value" });
+  store.upsertRecording({
+    id: "rec-missing-file",
+    title: "Stale database row",
+    createdAt: new Date(1713780000000).toISOString(),
+    durationSeconds: 5,
+    serialNumber: "PLAUD-1",
+    scene: null,
+    localPath: join(environment.recordingsDir, "rec-missing-file", "audio.mp3"),
+    contentType: "audio/mpeg",
+    bytesWritten: 5,
+    mirroredAt: new Date().toISOString(),
+    lastWebhookStatus: "skipped",
+    lastWebhookAttemptAt: new Date().toISOString(),
+    dismissed: false,
+    dismissedAt: null,
+    sequenceNumber: 1,
+  });
+  await mkdir(join(environment.recordingsDir, "rec-missing-file"), { recursive: true });
+  await writeFile(join(environment.recordingsDir, "rec-missing-file", "audio.mp3"), "bad");
+
+  const handle = await service.runSync({ limit: 1 });
+  await sched.settled();
+  const summary = store.getSyncRun(handle.id)!;
+  assert.equal(summary.status, "completed");
+  assert.equal(summary.matched, 1, "wrong-sized physical audio must re-enter candidate selection");
+  assert.equal(summary.downloaded, 1);
+  assert.equal(summary.failed, 0);
+  assert.equal(artifactCalls.length, 1);
+
+  service.close();
+});
+
+test("PlaudMirrorService continues after one poisoned recording and closes the run as failed", async () => {
+  const root = await mkdtemp(join(tmpdir(), "plaud-mirror-service-poisoned-"));
+  const environment = createEnvironment(root);
+  const store = new RuntimeStore({
+    dbPath: join(environment.dataDir, "app.db"),
+    dataDir: environment.dataDir,
+    recordingsDir: environment.recordingsDir,
+    defaultSyncLimit: environment.defaultSyncLimit,
+  });
+  const secrets = new SecretStore(join(environment.dataDir, "secrets.enc"), environment.masterKey);
+  const sched = createDeterministicScheduler();
+  const service = new PlaudMirrorService(environment, store, secrets, {
+    scheduler: sched.scheduler,
+    plaudFetchImpl: async (input) => {
+      const url = String(input);
+      if (url.endsWith("/user/me")) return createJsonResponse({ status: 0, data: { uid: "user-1" } });
+      if (url.includes("/file/simple/web")) {
+        return createJsonResponse({
+          status: 0,
+          data_file_total: 2,
+          data_file_list: [
+            remoteRecording("rec-poisoned", 1713780100000),
+            remoteRecording("rec-good", 1713780000000),
+          ],
+        });
+      }
+      if (url.includes("/file/detail/")) {
+        const id = url.endsWith("rec-poisoned") ? "rec-poisoned" : "rec-good";
+        return createJsonResponse({ status: 0, data: { file_id: id, file_name: id, duration: 5_000, serial_number: "PLAUD-1" } });
+      }
+      if (url.endsWith("/file/temp-url/rec-poisoned")) {
+        return createJsonResponse({ status: 0, temp_url: "https://storage.example.com/audio/rec-poisoned.mp3" });
+      }
+      if (url.endsWith("/file/temp-url/rec-good")) {
+        return createJsonResponse({ status: 0, temp_url: "https://storage.example.com/audio/rec-good.mp3" });
+      }
+      throw new Error(`Unexpected Plaud fetch: ${url}`);
+    },
+    artifactFetchImpl: async (input) => String(input).includes("rec-poisoned")
+      ? new Response("gone", { status: 404 })
+      : new Response("audio", { status: 200, headers: { "content-type": "audio/mpeg" } }),
+  });
+
+  await service.initialize();
+  await service.saveAccessToken({ accessToken: "token-value" });
+
+  const handle = await service.runSync({ limit: 2 });
+  await sched.settled();
+  const summary = store.getSyncRun(handle.id)!;
+  assert.equal(summary.status, "failed", "partial success must not be reported completed");
+  assert.equal(summary.matched, 2);
+  assert.equal(summary.downloaded, 1, "the candidate after the poisoned row still downloads");
+  assert.equal(summary.failed, 1);
+  assert.match(summary.error ?? "", /rec-poisoned/);
+  assert.equal(store.getRecording("rec-good")?.bytesWritten, 5);
+  assert.equal(store.getRecording("rec-poisoned"), null);
+
+  const health = await service.getHealth();
+  assert.ok(health.lastErrors.some((entry) => entry.context.recordingId === "rec-poisoned"));
+
+  service.close();
+});
+
 test("PlaudMirrorService runSync with limit=0 only refreshes ranks and downloads nothing", async () => {
   const root = await mkdtemp(join(tmpdir(), "plaud-mirror-service-refresh-"));
   const environment = createEnvironment(root);
@@ -665,7 +817,7 @@ test("PlaudMirrorService previewBackfillCandidates annotates each recording with
     durationSeconds: 300,
     serialNumber: "PLAUD-B",
     scene: 2,
-    localPath: "recordings/rec-middle/audio.mp3",
+    localPath: join(environment.recordingsDir, "rec-middle", "audio.mp3"),
     contentType: "audio/mpeg",
     bytesWritten: 500,
     mirroredAt: "2024-04-21T00:10:00.000Z",
@@ -675,6 +827,8 @@ test("PlaudMirrorService previewBackfillCandidates annotates each recording with
     dismissedAt: null,
     sequenceNumber: 2,
   });
+  await mkdir(join(environment.recordingsDir, "rec-middle"), { recursive: true });
+  await writeFile(join(environment.recordingsDir, "rec-middle", "audio.mp3"), Buffer.alloc(500));
   store.upsertRecording({
     id: "rec-oldest",
     title: "Oldest recording",
@@ -705,6 +859,11 @@ test("PlaudMirrorService previewBackfillCandidates annotates each recording with
   assert.equal(newest?.title, "Newest meeting");
   assert.equal(allPreview.recordings.find((r) => r.id === "rec-middle")?.state, "mirrored");
   assert.equal(allPreview.recordings.find((r) => r.id === "rec-oldest")?.state, "dismissed");
+
+  await unlink(join(environment.recordingsDir, "rec-middle", "audio.mp3"));
+  const repairedPreview = await service.previewBackfillCandidates({ previewLimit: 200 });
+  assert.equal(repairedPreview.missing, 2, "preview treats a missing physical artifact as downloadable");
+  assert.equal(repairedPreview.recordings.find((r) => r.id === "rec-middle")?.state, "missing");
 
   // Serial filter narrows to 2 of 3 (rec-newest + rec-oldest, both PLAUD-A).
   const serialPreview = await service.previewBackfillCandidates({
@@ -862,6 +1021,7 @@ test("PlaudMirrorService getHealth pins lastSync to the last completed run while
     delivered: 0,
     enqueued: 0,
     skipped: 0,
+    failed: 0,
     plaudTotal: 308,
     filters: { limit: 5, forceDownload: false },
     error: null,
@@ -1187,6 +1347,7 @@ test("PlaudMirrorService getHealth.recentSyncRuns surfaces the last 5 completed 
       delivered: 0,
       enqueued: 0,
       skipped: 0,
+      failed: 0,
       plaudTotal: null,
       filters: { limit: 100, forceDownload: false },
       error: null,

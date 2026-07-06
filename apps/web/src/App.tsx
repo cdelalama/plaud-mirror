@@ -130,6 +130,7 @@ const COPY = {
     examined: "examinadas",
     downloaded: "bajadas",
     skipped: "saltadas",
+    failed: "fallidas",
     queued: "en cola",
     recentErrors: "Errores recientes",
     noRecentErrors: "Sin errores recientes.",
@@ -310,6 +311,7 @@ const COPY = {
     examined: "examined",
     downloaded: "downloaded",
     skipped: "skipped",
+    failed: "failed",
     queued: "queued",
     recentErrors: "Recent errors",
     noRecentErrors: "No recent errors.",
@@ -1792,6 +1794,7 @@ function OperationsRuns({ runs, t }: { runs: SyncRunSummary[]; t: Copy }) {
               <th>{t.mode}</th>
               <th>{t.examined}</th>
               <th>{t.downloaded}</th>
+              <th>{t.failed}</th>
               <th>{t.duration}</th>
               <th>{t.when}</th>
             </tr>
@@ -1803,6 +1806,7 @@ function OperationsRuns({ runs, t }: { runs: SyncRunSummary[]; t: Copy }) {
                 <td className="mono">{run.mode}</td>
                 <td className="mono">{formatInteger(run.examined)}</td>
                 <td className="mono tone-text-good">{formatInteger(run.downloaded)}</td>
+                <td className="mono tone-text-bad">{formatInteger(run.failed)}</td>
                 <td className="mono">{formatRunDuration(run)}</td>
                 <td className="mono muted-cell">{formatDateTime(run.finishedAt ?? run.startedAt)}</td>
               </tr>
@@ -1894,7 +1898,7 @@ function runMeta(run: SyncRunSummary | null, t: Copy): string {
   if (!run) {
     return "";
   }
-  return `${run.mode} · ${t.examined} ${run.examined} · ${t.downloaded} ${run.downloaded} · ${t.skipped} ${run.skipped}`;
+  return `${run.mode} · ${t.examined} ${run.examined} · ${t.downloaded} ${run.downloaded} · ${t.failed} ${run.failed} · ${t.skipped} ${run.skipped}`;
 }
 
 function progressForRun(run: SyncRunSummary | null): number {

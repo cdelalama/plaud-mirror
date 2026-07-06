@@ -76,6 +76,7 @@ test("computeMissing clamps negative arithmetic and surfaces staleness", () => {
       delivered: 0,
       enqueued: 0,
       skipped: 0,
+      failed: 0,
       plaudTotal,
       filters: { limit: 0, forceDownload: false },
       error: null,
@@ -196,17 +197,18 @@ test("summarizeRun prefixes with label when given, omits prefix when empty", () 
     delivered: 0,
     enqueued: 0,
     skipped: 0,
+    failed: 0,
     plaudTotal: 308,
     filters: { limit: 5, forceDownload: false },
     error: null,
   };
   assert.equal(
     summarizeRun("Sync", summary),
-    "Sync: completed, matched 5, downloaded 5, delivered 0",
+    "Sync: completed, matched 5, downloaded 5, failed 0, delivered 0",
   );
   assert.equal(
     summarizeRun("", summary),
-    "completed, matched 5, downloaded 5, delivered 0",
+    "completed, matched 5, downloaded 5, failed 0, delivered 0",
   );
 });
 
@@ -223,6 +225,7 @@ test("describeBusy returns progress text when run is live and generic text other
     delivered: 0,
     enqueued: 0,
     skipped: 0,
+    failed: 0,
     plaudTotal: 308,
     filters: { limit: 25, forceDownload: false },
     error: null,

@@ -1,5 +1,6 @@
+import { randomUUID } from "node:crypto";
 import { createWriteStream } from "node:fs";
-import { mkdir, stat, writeFile } from "node:fs/promises";
+import { mkdir, open, rename, rm, stat, writeFile } from "node:fs/promises";
 import { basename, extname, join, relative } from "node:path";
 import { pipeline } from "node:stream/promises";
 import { Readable } from "node:stream";
@@ -318,11 +319,28 @@ export async function downloadAudioArtifact(
   const extension = resolveAudioExtension(tempUrl, response.headers.get("content-type"));
   const destinationDirectory = join(recordingsDir, recordingId);
   const destinationPath = join(destinationDirectory, `audio${extension}`);
+  const temporaryPath = `${destinationPath}.${randomUUID()}.partial`;
 
   await mkdir(destinationDirectory, { recursive: true });
 
-  const output = createWriteStream(destinationPath);
-  await pipeline(Readable.fromWeb(response.body as never), output);
+  try {
+    const output = createWriteStream(temporaryPath, { flags: "wx" });
+    await pipeline(Readable.fromWeb(response.body as never), output);
+
+    const temporaryFile = await open(temporaryPath, "r");
+    try {
+      await temporaryFile.sync();
+    } finally {
+      await temporaryFile.close();
+    }
+
+    // Same-directory rename is atomic: an interrupted force-download cannot
+    // truncate a previously valid audio file.
+    await rename(temporaryPath, destinationPath);
+  } catch (error) {
+    await rm(temporaryPath, { force: true });
+    throw error;
+  }
 
   const bytesWritten = (await stat(destinationPath)).size;
   const contentType = response.headers.get("content-type") ?? "application/octet-stream";

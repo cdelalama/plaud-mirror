@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, readFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -196,4 +196,46 @@ test("downloadAudioArtifact passes an abort signal so a stalled download cannot 
 
   assert.ok(artifact);
   assert.ok(receivedSignal instanceof AbortSignal, "the temp-URL fetch must carry a timeout signal");
+});
+
+test("downloadAudioArtifact preserves an existing file when a replacement stream fails", async () => {
+  const recordingsDir = await mkdtemp(join(tmpdir(), "plaud-mirror-phase1-atomic-"));
+  const recordingDir = join(recordingsDir, "rec-atomic");
+  const destinationPath = join(recordingDir, "audio.mp3");
+  await mkdir(recordingDir, { recursive: true });
+  await writeFile(destinationPath, "ORIGINAL_AUDIO");
+
+  const client = {
+    async getAudioTempUrl() {
+      return "https://storage.example.com/audio/replacement.mp3";
+    },
+  } as unknown as PlaudClient;
+  const brokenBody = new ReadableStream<Uint8Array>({
+    start(controller) {
+      controller.enqueue(new TextEncoder().encode("PARTIAL"));
+      controller.error(new Error("synthetic stream failure"));
+    },
+  });
+
+  await assert.rejects(
+    () => downloadAudioArtifact(
+      client,
+      "rec-atomic",
+      recordingsDir,
+      null,
+      false,
+      async () => new Response(brokenBody, {
+        status: 200,
+        headers: { "content-type": "audio/mpeg" },
+      }),
+    ),
+    /synthetic stream failure/,
+  );
+
+  assert.equal(await readFile(destinationPath, "utf8"), "ORIGINAL_AUDIO");
+  assert.deepEqual(
+    (await readdir(recordingDir)).filter((name) => name.endsWith(".partial")),
+    [],
+    "failed temporary downloads must be cleaned up",
+  );
 });

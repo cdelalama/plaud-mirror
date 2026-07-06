@@ -4,6 +4,34 @@ All notable changes to Plaud Mirror are documented in this file.
 
 This project follows Semantic Versioning (SemVer): MAJOR.MINOR.PATCH.
 
+## [0.10.3] - 2026-07-10
+
+### Added
+
+- **Candidate failure accounting.** `SyncRunSummary.failed` is persisted in
+  SQLite (additive migration, default 0 for older rows) and rendered in live
+  progress plus the Operations run table.
+
+### Changed
+
+- **Candidate selection reconciles SQLite with disk.** A row counts as mirrored
+  only when its file exists, is non-empty, and matches `bytesWritten`; missing
+  or wrong-sized artifacts re-enter sync/backfill selection and preview as
+  missing.
+- **Poisoned recordings no longer block older candidates.** Candidate failures
+  are recorded individually, processing continues, and any partial run closes
+  as `failed` with durable per-recording error context instead of a false green.
+- **Concurrent backfills are explicit conflicts.** `POST /api/backfill/run`
+  returns 409 while another sync is active instead of reusing that run id and
+  silently discarding the requested filters.
+
+### Fixed
+
+- **Audio replacement is atomic.** Downloads stream into a unique temporary
+  file, `fsync` it, and rename it over the destination only after success; an
+  interrupted force-download or restore preserves the previous valid audio and
+  cleans up the partial file.
+
 ## [0.10.2] - 2026-07-10
 
 ### Added

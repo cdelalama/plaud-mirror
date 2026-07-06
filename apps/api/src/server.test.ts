@@ -481,6 +481,36 @@ test("createApp returns 202 from POST /api/sync/run and exposes status via GET /
   await app.close();
 });
 
+test("createApp rejects a backfill that collides with an active sync", async () => {
+  const root = await mkdtemp(join(tmpdir(), "plaud-mirror-server-backfill-conflict-"));
+  const environment = createEnvironment(root);
+  const queued: Array<() => Promise<unknown>> = [];
+  const app = await createApp({
+    environment,
+    scheduler: (work) => {
+      queued.push(work);
+    },
+  });
+
+  const syncResponse = await app.inject({
+    method: "POST",
+    url: "/api/sync/run",
+    payload: { limit: 1 },
+  });
+  assert.equal(syncResponse.statusCode, 202);
+
+  const backfillResponse = await app.inject({
+    method: "POST",
+    url: "/api/backfill/run",
+    payload: { from: "2024-01-01", to: "2024-01-31", limit: 10 },
+  });
+  assert.equal(backfillResponse.statusCode, 409);
+  assert.match(backfillResponse.json().message, /Cannot start backfill/);
+  assert.equal(queued.length, 1, "conflicting backfill must not dispatch background work");
+
+  await app.close();
+});
+
 test("createApp rejects audio requests for unsafe ids", async () => {
   const root = await mkdtemp(join(tmpdir(), "plaud-mirror-server-unsafe-"));
   const environment = createEnvironment(root);

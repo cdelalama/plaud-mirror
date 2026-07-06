@@ -38,6 +38,7 @@ interface SyncRunRow {
   delivered: number;
   enqueued: number;
   skipped: number;
+  failed: number;
   plaud_total: number | null;
   error_message: string | null;
 }
@@ -465,8 +466,9 @@ export class RuntimeStore {
         delivered,
         enqueued,
         skipped,
+        failed,
         error_message
-      ) VALUES (?, ?, 'running', ?, ?, NULL, 0, 0, 0, 0, 0, 0, NULL)
+      ) VALUES (?, ?, 'running', ?, ?, NULL, 0, 0, 0, 0, 0, 0, 0, NULL)
     `).run(id, mode, JSON.stringify(filters), startedAt);
 
     return { id, startedAt };
@@ -486,6 +488,7 @@ export class RuntimeStore {
         delivered = ?,
         enqueued = ?,
         skipped = ?,
+        failed = ?,
         plaud_total = ?,
         error_message = ?
       WHERE id = ?
@@ -499,6 +502,7 @@ export class RuntimeStore {
       normalized.delivered,
       normalized.enqueued,
       normalized.skipped,
+      normalized.failed,
       normalized.plaudTotal,
       normalized.error,
       normalized.id,
@@ -526,6 +530,7 @@ export class RuntimeStore {
         delivered,
         enqueued,
         skipped,
+        failed,
         plaud_total,
         error_message
       FROM sync_runs
@@ -558,6 +563,7 @@ export class RuntimeStore {
         delivered,
         enqueued,
         skipped,
+        failed,
         plaud_total,
         error_message
       FROM sync_runs
@@ -593,6 +599,7 @@ export class RuntimeStore {
         delivered,
         enqueued,
         skipped,
+        failed,
         plaud_total,
         error_message
       FROM sync_runs
@@ -618,6 +625,7 @@ export class RuntimeStore {
         delivered,
         enqueued,
         skipped,
+        failed,
         plaud_total,
         error_message
       FROM sync_runs
@@ -631,7 +639,7 @@ export class RuntimeStore {
   // status, finished_at, or error_message — those are owned by finishSyncRun.
   updateSyncRunProgress(
     id: string,
-    progress: { examined?: number; matched?: number; downloaded?: number; delivered?: number; enqueued?: number; skipped?: number; plaudTotal?: number },
+    progress: { examined?: number; matched?: number; downloaded?: number; delivered?: number; enqueued?: number; skipped?: number; failed?: number; plaudTotal?: number },
   ): void {
     const sets: string[] = [];
     const values: Array<number> = [];
@@ -641,6 +649,7 @@ export class RuntimeStore {
     if (progress.delivered !== undefined) { sets.push("delivered = ?"); values.push(progress.delivered); }
     if (progress.enqueued !== undefined) { sets.push("enqueued = ?"); values.push(progress.enqueued); }
     if (progress.skipped !== undefined) { sets.push("skipped = ?"); values.push(progress.skipped); }
+    if (progress.failed !== undefined) { sets.push("failed = ?"); values.push(progress.failed); }
     if (progress.plaudTotal !== undefined) { sets.push("plaud_total = ?"); values.push(progress.plaudTotal); }
     if (sets.length === 0) {
       return;
@@ -957,6 +966,7 @@ export class RuntimeStore {
         delivered INTEGER NOT NULL DEFAULT 0,
         enqueued INTEGER NOT NULL DEFAULT 0,
         skipped INTEGER NOT NULL DEFAULT 0,
+        failed INTEGER NOT NULL DEFAULT 0,
         plaud_total INTEGER,
         error_message TEXT
       );
@@ -1027,6 +1037,10 @@ export class RuntimeStore {
     // outbox-driven `enqueued` counter.
     if (!syncRunColumnNames.has("enqueued")) {
       this.db.exec("ALTER TABLE sync_runs ADD COLUMN enqueued INTEGER NOT NULL DEFAULT 0");
+    }
+    // v0.10.3: preserve candidate-local failures while continuing the run.
+    if (!syncRunColumnNames.has("failed")) {
+      this.db.exec("ALTER TABLE sync_runs ADD COLUMN failed INTEGER NOT NULL DEFAULT 0");
     }
   }
 
@@ -1124,6 +1138,7 @@ function mapSyncRunRow(row: SyncRunRow): SyncRunSummary {
     delivered: row.delivered,
     enqueued: row.enqueued ?? 0,
     skipped: row.skipped,
+    failed: row.failed ?? 0,
     plaudTotal: row.plaud_total,
     filters: SyncFiltersSchema.parse(JSON.parse(row.filters_json)),
     error: row.error_message,
