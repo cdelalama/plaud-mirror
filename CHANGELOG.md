@@ -4,6 +4,27 @@ All notable changes to Plaud Mirror are documented in this file.
 
 This project follows Semantic Versioning (SemVer): MAJOR.MINOR.PATCH.
 
+## [0.10.8] - 2026-07-13
+
+### Changed
+
+- Upstream baselines refreshed after the overdue D-004 review (applaud
+  v0.5.11, iiAtlas 1.4.3, openplaud v0.5.4, plaud-toolkit 810c7ceb,
+  obsidian-sync 1.0.1). This stops the daily `upstream-watch` failure
+  emails that started on 2026-07-11.
+- D-019 gains a 2026-07-13 amendment: Plaud is retiring localStorage
+  `pld_tokenstr` for new/migrated accounts in favor of `pld_ut`/`pld_urt`
+  cookies plus a refresh endpoint (facts from MIT applaud v0.5.11 PR #32).
+  The capture-path adaptation is queued in HANDOFF Open Work.
+
+### Notes
+
+- Governance/documentation-only patch; no runtime behavior change and no
+  deployment. The dev-vm runtime deliberately stays on `v0.10.7` while the
+  Phase 3 soak accumulates evidence (running since 2026-07-10).
+- `docs/llm/REVIEWS.md` records the pre-soak execution audit, including the
+  fabricated 2026-07-06 commit-date caveat on `2f38024..a791e0a`.
+
 ## [0.10.7] - 2026-07-10
 
 ### Added

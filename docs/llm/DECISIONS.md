@@ -578,6 +578,43 @@ Both connect routes require the operator session (D-018); neither is in the publ
 - If Plaud changes the request context expected for browser-minted bearers, the backend Plaud client must follow Plaud Web's current fingerprint as well. `v0.8.1` is the first instance: the operator proved the captured EU `pld_tokenstr` was valid in Plaud Web, while the backend's old `app.plaud.ai` + custom-user-agent request got an HTML 403, so `PlaudClient` moved to Plaud Web origin/referer, browser-like UA, and browser `sec-fetch-*` headers.
 - The extension does not overturn D-002's server-first architecture. It is a local capture adapter only: no syncing, storage, listing, or download logic moves into the browser.
 
+### Upstream watch amendment (2026-07-13)
+
+The 2026-07-13 baseline review (`docs/UPSTREAMS.md`) surfaced a material change
+in Plaud's browser auth model, reported by MIT `rsteckler/applaud` v0.5.11
+(PR #32, issue #31): **new/migrated Plaud accounts no longer expose the
+long-lived `pld_tokenstr` JWT in localStorage.** The first-party model is a
+short-lived cookie pair — `pld_ut` (user token) + `pld_urt` (refresh token,
+~30 days) — plus two endpoint facts (adoptable per D-011; the source is MIT so
+code may also be adapted with attribution per D-005):
+
+- `POST /user-app/auth/workspace/token/{id}` mints the short-lived workspace
+  token used as the API bearer.
+- `POST /auth/refresh-user-token` rotates the user token off the refresh token.
+
+Consequences for this decision:
+
+1. The current capture path (extension reads `pld_tokenstr`) keeps working for
+   accounts still on the legacy model — the operator's account captured
+   successfully on 2026-06-16 and the stored bearer remains healthy — but it
+   is living on borrowed time: when Plaud migrates the account, the next
+   annual re-auth will find no `pld_tokenstr` to capture.
+2. The new model is not only a threat; it is the first credible path to the
+   originally-deferred **unattended renewal**: capturing the `pld_ut`/`pld_urt`
+   pair once would let the server keep itself authenticated by refreshing the
+   user token and re-minting workspace tokens (what applaud PR #32 implements
+   server-side). Unlike applaud's on-disk Chromium cookie decryption, Plaud
+   Mirror's Chrome extension can read the cookies directly via the
+   `chrome.cookies` API — a far smaller change.
+3. Queued follow-up (HANDOFF Open Work; deliberately not started mid-soak):
+   extend the extension/`/connect` handshake to capture `pld_ut`/`pld_urt`
+   when `pld_tokenstr` is absent, and teach the backend the mint/refresh
+   lifecycle. Storing a refresh token raises the stakes of the secrets store,
+   which pulls the scrypt KDF upgrade (H2) forward into the same slice.
+
+This amendment records facts and intent only; the provider selection above is
+unchanged until the adaptation ships.
+
 ## D-020 - Plaud recording sync adopts Home Infra Protocol as a status contract
 
 **Status:** accepted; **implemented in v0.10.0** (`infra.contract.yml`, `docs/INFRA_CONTRACT.md`, `packages/shared/src/protocol.ts`, `apps/api/src/runtime/protocol-status.ts`, public protocol status routes in `apps/api/src/server.ts`).

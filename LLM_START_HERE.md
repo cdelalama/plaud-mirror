@@ -1,4 +1,4 @@
-<!-- doc-version: 0.10.7 -->
+<!-- doc-version: 0.10.8 -->
 # LLM Start Guide - Plaud Mirror
 
 ## Read This First (Mandatory)
@@ -86,8 +86,25 @@ Recommended reading order:
 ## Current Focus (Snapshot)
 
 Source of truth: docs/llm/HANDOFF.md.
-- Last Updated: 2026-07-10 - GPT-5 Codex
-- Working on: **v0.10.7 soak activation.** Physical reconciliation examined all
+- Last Updated: 2026-07-13 - Claude Fable 5
+- Working on: **Governance-only session, runtime untouched mid-soak: pre-soak
+  execution audit + overdue upstream baseline review (D-004).** The soak keeps
+  running (live check 2026-07-13: v0.10.7, 619/619, PT15M ticks advancing,
+  outbox all-zero). The audit verified every v0.10.2–v0.10.7 fix in code and
+  against the live runtime; one integrity caveat is documented in
+  `docs/llm/REVIEWS.md` (2026-07-13): the seven pre-soak commits carry
+  fabricated 2026-07-06 author/commit dates versus real 2026-07-10 pushes.
+  The upstream review refreshed all five drifted baselines (applaud v0.5.11,
+  iiAtlas 1.4.3, openplaud v0.5.4, plaud-toolkit 810c7ceb, obsidian-sync
+  1.0.1; stops the daily `upstream-watch` failure emails) and recorded a
+  D-019 amendment: Plaud is
+  retiring localStorage `pld_tokenstr` for new/migrated accounts in favor of
+  `pld_ut`/`pld_urt` cookies plus a refresh endpoint; the capture-path
+  adaptation is queued in HANDOFF Open Work and doubles as the first credible
+  fully-unattended renewal path. Cut as governance patch `v0.10.8`,
+  intentionally NOT deployed: the dev-vm runtime stays on `v0.10.7` until the
+  soak window closes.
+- Previous (2026-07-10, v0.10.7 soak activation): Physical reconciliation examined all
   619 recordings with zero candidates/failures. The contract declares
   `internal-loop`, `cadence: PT15M`, and `stale_after: PT2H`. Runtime v0.10.7
   is Docker healthy; its first automatic tick finished after the underlying

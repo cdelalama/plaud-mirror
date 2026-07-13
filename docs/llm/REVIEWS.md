@@ -100,6 +100,39 @@ The goal is *referenceable analysis*, not full transcripts. If a point is decide
 
 ---
 
+## 2026-07-13 — Pre-Soak Execution Audit + Upstream Baseline Review
+
+**Input:** GPT-5 Codex's pre-soak execution (06c8518..a791e0a, v0.10.2 → v0.10.7) and the five drifted upstream baselines behind the daily `upstream-watch` workflow failures.
+**Reviewers:** Claude Fable 5 (auditor pass with live verification), following the prior cross-audit chain (Claude Fable 5 architecture audit → GPT-5 Codex counter-audit → merged pre-soak plan).
+
+### Points of Agreement
+
+- All twelve claimed pre-soak fixes verified present in code and, where observable, live: atomic download (temp + same-directory rename), physical artifact reconciliation in candidate selection, per-candidate failure isolation without false green (run closes `failed` when any candidate fails), backfill-vs-active-sync HTTP 409, truthful awaitable scheduler tick (live tick/run completion delta of 3 ms), enforced whole-run max-runtime, bounded pagination, recoverable outbox claims with `delivering` in health counters, corrected 9-attempt backoff restoring the designed ~16 h window, SIGTERM drain before SQLite close, compose healthcheck, and the `.dockerignore`/web-typecheck/test-glob/CI evidence gate.
+- Runtime v0.10.7 healthy at review time: 619/619 mirrored, scheduler PT15M ticking, outbox all-zero, warnings empty; contract `internal-loop`/PT15M/PT2H on protocol 0.7.1; catalog preview renewed to 2026-07-22. The soak evidence stream is credible.
+
+### Points Raised (Pushback / Additions)
+
+1. **Backdated commit metadata** — all seven pre-soak commits (`2f38024..a791e0a`) carry AuthorDate and CommitDate 2026-07-06 with round, hand-set times (13:00 → 16:30 CEST), while GitHub records the pushes on 2026-07-10 22:15–23:32 UTC and HANDOFF/HISTORY correctly say 2026-07-10. The executor disclosed the anomaly without explaining it.
+   - Resolution: Documented; history NOT rewritten.
+   - Rationale: rewriting published `main` mid-soak to repair metadata trades a forensic blemish for a force-push risk. Treat these seven author/commit dates as unreliable; rely on GitHub push timestamps. The root cause (executor sandbox clock or injected `GIT_AUTHOR_DATE`/`GIT_COMMITTER_DATE`) must be identified before that environment signs further commits.
+2. **Daily failing `upstream-watch` emails** — working as designed (D-004 forces review on drift), but the review was overdue: the baseline had not been verified since 2026-04-22 and five of eight upstreams had moved, including both primaries.
+   - Resolution: Adopted — full baseline review performed this session.
+   - Rationale: see `docs/UPSTREAMS.md` "2026-07-13 Baseline Review". The applaud v0.5.11 finding (Plaud first-party `pld_ut`/`pld_urt` token model replacing localStorage `pld_tokenstr` for new accounts) is material to the re-auth strategy and is recorded as a D-019 amendment.
+
+### Summary Outcome
+
+- Execution audit: gate cleared; the soak continues undisturbed through 2026-07-15/16.
+- Upstream review: baselines refreshed for the five drifted repos; nothing adopted mid-soak; the D-019 amendment queues the capture-path adaptation, which doubles as the first credible fully-unattended renewal path.
+
+### Follow-Through Landed
+
+- `config/upstreams.tsv` + `docs/UPSTREAMS.md` baselines refreshed (this silences the daily workflow failure emails).
+- D-019 amendment (2026-07-13) added in `docs/llm/DECISIONS.md`.
+- HANDOFF Open Work gains the first-party token adaptation item, paired with the scrypt KDF upgrade.
+- Deferred, tracked in HANDOFF: the capture-path adaptation itself, the App.tsx decomposition branch, and the NAS slice — all post-soak.
+
+---
+
 ## Planned Reviews
 
 - Security review before implementing credential storage (recommend invoking `/security-review`).

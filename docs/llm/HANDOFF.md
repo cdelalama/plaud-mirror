@@ -1,12 +1,30 @@
-<!-- doc-version: 0.10.7 -->
+<!-- doc-version: 0.10.8 -->
 # LLM Work Handoff
 
 This file is the live operational snapshot. Durable rationale lives in `docs/llm/DECISIONS.md`. Phase boundaries live in `docs/ROADMAP.md`.
 
 ## Current Status
 
-- Last Updated: 2026-07-10 - GPT-5 Codex
-- Session Focus: **v0.10.7 soak activation.** Physical reconciliation examined
+- Last Updated: 2026-07-13 - Claude Fable 5
+- Session Focus: **Governance-only session, runtime untouched mid-soak: pre-soak
+  execution audit + overdue upstream baseline review (D-004).** The soak keeps
+  running (live check 2026-07-13: v0.10.7, 619/619, PT15M ticks advancing,
+  outbox all-zero, warnings empty). The audit verified every v0.10.2–v0.10.7
+  fix in code and against the live runtime; one integrity caveat is documented
+  in `docs/llm/REVIEWS.md` (2026-07-13 entry): the seven pre-soak commits carry
+  fabricated 2026-07-06 author/commit dates versus real 2026-07-10 pushes — do
+  not trust their git dates; use GitHub push timestamps. The upstream review
+  refreshed all five drifted baselines (applaud v0.5.11, iiAtlas 1.4.3,
+  openplaud v0.5.4, plaud-toolkit 810c7ceb, obsidian-sync 1.0.1), which stops
+  the daily `upstream-watch` failure emails, and surfaced a material finding
+  recorded as a D-019 amendment: Plaud is retiring localStorage `pld_tokenstr`
+  for new/migrated accounts in favor of `pld_ut`/`pld_urt` cookies plus a
+  refresh endpoint (applaud PR #32). The capture-path adaptation is queued in
+  Open Work — it also opens the first credible fully-unattended renewal path.
+  Cut as governance patch `v0.10.8` (pre-commit hook requires a bump for the
+  versioned baseline files); intentionally NOT deployed — the dev-vm runtime
+  stays on `v0.10.7` until the soak window closes.
+- Previous Session Focus (2026-07-10, v0.10.7 soak activation): Physical reconciliation examined
   all 619 Plaud recordings with zero candidates/failures. The contract now
   declares Home Infra Protocol 0.7.1, `internal-loop`, `cadence: PT15M`, and
   `stale_after: PT2H`. Runtime v0.10.7 is deployed Docker healthy and the first
@@ -129,6 +147,7 @@ This is now verified on the actual `dev-vm`, not assumed.
 
 ## Open Work
 
+- **Adapt the D-019 capture path to Plaud's first-party token model (queued 2026-07-13; do NOT start mid-soak):** when `pld_tokenstr` is absent, the Chrome extension should capture the `pld_ut`/`pld_urt` cookie pair (via the `chrome.cookies` API) and the backend should learn the mint/refresh lifecycle (`POST /user-app/auth/workspace/token/{id}`, `POST /auth/refresh-user-token` — endpoint facts from MIT applaud v0.5.11; see the D-019 amendment). Storing a refresh token pulls the scrypt KDF upgrade (H2, below) into the same slice. Upside: first credible fully-unattended renewal path for the Google-SSO account.
 - **D-018 ARMED (2026-06-11).** The operator stored the passphrase via `scripts/set-admin-passphrase.sh` (Doppler `plaud-mirror/dev` in the secondary "Startup Embassy" account; repo dir scoped via `doppler login --scope ~/src/plaud-mirror`; multi-account convention in `~/src/home-infra/docs/CONVENTIONS.md`) and restarted with the doppler-wrapped `up -d`. Verified: `/api/session` → `authRequired: true`, `/api/config` and audio routes → 401 without cookie (local AND through `https://plaud.lamanoriega.com/`), `userSummary` redacted, access-control warning gone from `health.warnings`, panel login works. **Operational rule from now on: every container recreate must be `doppler run --project plaud-mirror --config dev -- docker compose up -d`** — a bare `up -d` disarms the lock (see DEPLOY_PLAYBOOK). Optional future hardening: a gitignored compose override file on this host making the env var required.
 - File downstream feedback to LLM-DocKit about the clobber-on-sync pattern: `dockit-sync --apply` overwrites scripts that carry local extensions (`copy` strategy), forcing a manual re-merge every sync (happened 2026-05-13, 2026-06-10 with v0.6.1, 2026-06-18 before v0.9.3, and again during the v0.9.6 sync on 2026-06-19). Proposal: a `merge`/`copy-with-markers` strategy for `scripts/dockit-validate-session.sh` and version scripts, or upstream absorption of the local checks (DF-028 already covers `scripts/check-prose-drift.sh`).
 - Home Infra Protocol adoption is registered: `~/src/home-infra/catalog/project-contracts.yml` lists `plaud-mirror`, the NAS portal inputs include a bundled Plaud Mirror contract copy, and Infra Portal reads `plaud-mirror-recordings-sync` from `/api/sync-jobs`.
@@ -212,14 +231,16 @@ Do not collapse those phases casually.
 
 ## Trace Anchor
 
-- Role: executor
-- Subject: Plaud Mirror v0.10.7 soak activation
-- Repo state: source/runtime are v0.10.7; main equals origin/main; Docker healthy;
-  619/619 physically reconciled; PT15M scheduler and PT2H contract active.
-- Validation: 173 local tests, Node 20 CI, governance, schema/catalog audits,
-  backup, deploy, physical reconciliation, first automatic tick, external
-  protocol endpoint, and Infra Portal freshness all passed.
-- Next gate: accumulate 3-5 days of unattended soak evidence before NAS work.
+- Role: auditor
+- Subject: Pre-soak execution audit + 2026-07-13 upstream baseline review
+- Repo state: main equals origin/main; worktree clean; runtime v0.10.7
+  untouched, soak running since 2026-07-10T23:12Z.
+- Validation: live `/api/health` and protocol checks, GitHub CI runs inspected,
+  `scripts/check-upstreams.sh` all-CURRENT after the baseline refresh,
+  `scripts/dockit-validate-session.sh --human` green.
+- Next gate: accumulate soak evidence through 2026-07-15/16; then the NAS slice.
+- Caveat: commits `2f38024..a791e0a` carry fabricated 2026-07-06 author/commit
+  dates; the real work happened 2026-07-10 (see REVIEWS 2026-07-13 entry).
 
 ## Key Decisions (Links)
 

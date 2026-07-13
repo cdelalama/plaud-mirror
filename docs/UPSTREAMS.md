@@ -1,7 +1,7 @@
-<!-- doc-version: 0.10.7 -->
+<!-- doc-version: 0.10.8 -->
 # Upstream Strategy
 
-Last verified against GitHub: 2026-04-22
+Last verified against GitHub: 2026-07-13
 
 Plaud Mirror is its own project, but it is intentionally informed by existing work in the Plaud ecosystem. This document records:
 - which upstreams matter
@@ -47,12 +47,46 @@ Phase 4 adoption now landed in-repo (v0.7.0, v0.8.0, D-019):
 - the email+password login endpoint (`POST /auth/access-token`, body `username`/`password`, returns `access_token`+`refresh_token`, ~300-day TTL, 10 logins/hour) was confirmed from the MIT-stack toolkits and a no-credential reachability probe; it is documented in D-019 as the path for email+password accounts but is **not used** here because the operator's account is Google SSO. Endpoint facts only; no client code copied.
 - Plaud's official CLI/MCP (`@plaud-ai/mcp`, OAuth) is recorded as **deferred/watch** in D-019, not adopted and not disproven.
 
+## 2026-07-13 Baseline Review (five drifted upstreams)
+
+Trigger: the scheduled `upstream-watch` workflow began failing daily on
+2026-07-11 because five tracked upstreams moved past their baselines (the
+baseline had not been verified since 2026-04-22). Review outcome per the
+Review Policy below:
+
+- `rsteckler/applaud` `v0.5.10 → v0.5.11` — **watch, adoption candidate
+  queued.** The material change is PR #32 (with issue #31): Plaud stopped
+  exposing the long-lived `tokenstr` JWT in localStorage for new/migrated
+  accounts. The first-party model is short-lived cookies `pld_ut` (user
+  token) + `pld_urt` (refresh token, ~30 days), a workspace token minted via
+  `POST /user-app/auth/workspace/token/{id}`, and user-token refresh via
+  `POST /auth/refresh-user-token`; `tokenstr` remains a legacy fallback.
+  Impact on Plaud Mirror's D-019 capture path is recorded in the D-019
+  amendment (2026-07-13); the adaptation is queued in HANDOFF Open Work and
+  deliberately NOT implemented mid-soak. Also in the release: `-302` region
+  redirect handling and a desktop-browser UA against Cloudflare bot blocks —
+  both already present in Plaud Mirror since v0.7.3/v0.8.1.
+- `iiAtlas/plaud-recording-downloader` `v1.4.1 → v1.4.3` — **watch.**
+  Hardened download URL extraction and attempted non-US download fixes;
+  `auth-probe.js` gains a workspace-token resolver keyed by
+  `pld_<userId>:currentWorkspaceId` / `workspaceList`. No change to the
+  `pld_tokenstr` priority Plaud Mirror adapted in v0.7.3; re-sync the
+  extraction heuristics when the D-019 adaptation work starts.
+- `openplaud/openplaud` `v0.1.0 → v0.5.4` — **watch only** (AGPL-3.0
+  unchanged). Large product jump; ideas-only per D-005/D-011.
+- `sergivalverde/plaud-toolkit` `dd5774b3 → 810c7ceb` — **watch.** Gained an
+  Obsidian plugin package and a UA-403 fix ("unblock Plaud API access"),
+  corroborating the browser-fingerprint requirement Plaud Mirror already
+  ships. License remains unclear — still reference-only.
+- `leonardsellem/plaud-sync-for-obsidian` `1.0.0 → 1.0.1` — **ignore**
+  (no release notes; trivial delta).
+
 ## Primary Inspiration
 
 | Upstream | License | Baseline | What Plaud Mirror Keeps | What Plaud Mirror Rejects | Watch Focus |
 |----------|---------|----------|-------------------------|---------------------------|-------------|
-| `rsteckler/applaud` | MIT | `v0.5.10`, `3b005bf8e80e0c9ca696e49f8a1d2f04a03f5b0b` | Server-first shape, poller split, local storage mindset, operational web UI, webhook delivery | Lock-in to its exact storage layout or browser-session-only assumptions | Auth/session reuse, scheduler design, download flow, API and UI evolution |
-| `iiAtlas/plaud-recording-downloader` | MIT | `v1.4.1`, `bdee168d721eaea666172825dadec72778bcd66f` | Token/session extraction heuristics, regional handling ideas, fast reaction to Plaud frontend changes | Browser-only product scope; Plaud Mirror's extension is only a local companion for token capture | Token storage keys, auth changes, regional endpoint drift |
+| `rsteckler/applaud` | MIT | `v0.5.11`, `7b1b5048d67516799481165ac290064d98b8d50c` | Server-first shape, poller split, local storage mindset, operational web UI, webhook delivery | Lock-in to its exact storage layout or browser-session-only assumptions | Auth/session reuse, scheduler design, download flow, API and UI evolution |
+| `iiAtlas/plaud-recording-downloader` | MIT | `v1.4.3`, `93fafa7b2f2cf601841bb17d50facd2ae378610f` | Token/session extraction heuristics, regional handling ideas, fast reaction to Plaud frontend changes | Browser-only product scope; Plaud Mirror's extension is only a local companion for token capture | Token storage keys, auth changes, regional endpoint drift |
 
 ## Reference Upstreams
 
@@ -60,14 +94,14 @@ Phase 4 adoption now landed in-repo (v0.7.0, v0.8.0, D-019):
 |----------|---------|----------|-------------------------|---------------------------|-------------|
 | `JamesStuder/Plaud_API` | MIT | `2026.03.20.01`, `3563b9ba779c6e5ba38e7f04de360075d9b619bd` | Endpoint map, export flow sequencing, reverse-engineered API reference | Hard dependency on one unofficial client library | Auth endpoint changes, export actions, download temp-URL flow |
 | `JamesStuder/Plaud_BulkDownloader` | MIT | `6d6cc1addb84a761a438b8d934ecbc83b7a53a0c` | Bulk orchestration concepts and audio export ordering | Password echoing, CLI-only UX, transcript-heavy scope | Audio export edge cases and naming conventions |
-| `leonardsellem/plaud-sync-for-obsidian` | MIT | `1.0.0`, `7c1f06cc982f0174498694aa13bc8a0fb0a9fe1b` | Metadata mapping and session-handling ideas for a sync product | Obsidian-specific product assumptions | Session extraction and recording metadata handling |
+| `leonardsellem/plaud-sync-for-obsidian` | MIT | `1.0.1`, `9c7542ec2db79120ec6a7dba6099593a2ee2bbdf` | Metadata mapping and session-handling ideas for a sync product | Obsidian-specific product assumptions | Session extraction and recording metadata handling |
 
 ## Watch-Only Upstreams
 
 | Upstream | License | Baseline | Why It Is Tracked | Reuse Boundary |
 |----------|---------|----------|-------------------|----------------|
-| `openplaud/openplaud` | AGPL-3.0 | `v0.1.0`, `cc1892b23f39ed0567129be239b0028c91aa658b` | Product ideas around UX, secret handling, and sync ergonomics | No code copy into MIT Plaud Mirror without an explicit license decision |
-| `sergivalverde/plaud-toolkit` | No clear repo license | `dd5774b306f13cc2b11ce917d17575165b527bd4` | Auth/token-management ideas and a TypeScript ecosystem view | Reference only until license is clarified |
+| `openplaud/openplaud` | AGPL-3.0 | `v0.5.4`, `9a9b47ef655c3783fcc7eb1ccc64d79074aeb7ea` | Product ideas around UX, secret handling, and sync ergonomics | No code copy into MIT Plaud Mirror without an explicit license decision |
+| `sergivalverde/plaud-toolkit` | No clear repo license | `810c7ceb330693f39ec6078f0b794b18f068ba0f` | Auth/token-management ideas and a TypeScript ecosystem view | Reference only until license is clarified |
 | `josephhyatt/plaud-exporter` | No clear repo license | `456b32a04afa9d6a8664c0137f5656a0513db975` | Minimal exporter ideas and alternate download approaches | Reference only until license is clarified |
 
 ## Security Notes From Upstream Research
