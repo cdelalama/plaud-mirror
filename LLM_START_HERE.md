@@ -86,14 +86,17 @@ Recommended reading order:
 ## Current Focus (Snapshot)
 
 Source of truth: docs/llm/HANDOFF.md.
-- Last Updated: 2026-07-13 - Claude Fable 5
-- Working on: **Governance-only session, runtime untouched mid-soak: pre-soak
-  execution audit + overdue upstream baseline review (D-004).** The soak keeps
+- Last Updated: 2026-07-13 - GPT-5 Codex
+- Working on: **T0 provenance correction after the governance-only pre-soak
+  audit; runtime remains untouched mid-soak.** The soak keeps
   running (live check 2026-07-13: v0.10.7, 619/619, PT15M ticks advancing,
   outbox all-zero). The audit verified every v0.10.2–v0.10.7 fix in code and
-  against the live runtime; one integrity caveat is documented in
-  `docs/llm/REVIEWS.md` (2026-07-13): the seven pre-soak commits carry
-  fabricated 2026-07-06 author/commit dates versus real 2026-07-10 pushes.
+  against the live runtime. Its backdating caveat is corrected in
+  `docs/llm/REVIEWS.md` (2026-07-13): the operator explicitly requested July 6
+  dates and the executor set both Git date variables, but the commits lacked
+  provenance trailers and no warning recorded the forensic cost. Actual work
+  and pushes occurred July 10 UTC / July 11 CEST. Future intentional
+  backdating requires commit-local provenance trailers.
   The upstream review refreshed all five drifted baselines (applaud v0.5.11,
   iiAtlas 1.4.3, openplaud v0.5.4, plaud-toolkit 810c7ceb, obsidian-sync
   1.0.1; stops the daily `upstream-watch` failure emails) and recorded a

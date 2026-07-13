@@ -22,8 +22,9 @@ This project follows Semantic Versioning (SemVer): MAJOR.MINOR.PATCH.
 - Governance/documentation-only patch; no runtime behavior change and no
   deployment. The dev-vm runtime deliberately stays on `v0.10.7` while the
   Phase 3 soak accumulates evidence (running since 2026-07-10).
-- `docs/llm/REVIEWS.md` records the pre-soak execution audit, including the
-  fabricated 2026-07-06 commit-date caveat on `2f38024..a791e0a`.
+- `docs/llm/REVIEWS.md` records the pre-soak execution audit and the corrected
+  provenance of the operator-requested July 6 backdating on
+  `2f38024..a791e0a`; published history remains unchanged.
 
 ## [0.10.7] - 2026-07-10
 

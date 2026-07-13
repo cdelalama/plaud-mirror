@@ -5,15 +5,18 @@ This file is the live operational snapshot. Durable rationale lives in `docs/llm
 
 ## Current Status
 
-- Last Updated: 2026-07-13 - Claude Fable 5
-- Session Focus: **Governance-only session, runtime untouched mid-soak: pre-soak
-  execution audit + overdue upstream baseline review (D-004).** The soak keeps
+- Last Updated: 2026-07-13 - GPT-5 Codex
+- Session Focus: **T0 provenance correction after the governance-only pre-soak
+  audit; runtime remains untouched mid-soak.** The soak keeps
   running (live check 2026-07-13: v0.10.7, 619/619, PT15M ticks advancing,
   outbox all-zero, warnings empty). The audit verified every v0.10.2–v0.10.7
-  fix in code and against the live runtime; one integrity caveat is documented
-  in `docs/llm/REVIEWS.md` (2026-07-13 entry): the seven pre-soak commits carry
-  fabricated 2026-07-06 author/commit dates versus real 2026-07-10 pushes — do
-  not trust their git dates; use GitHub push timestamps. The upstream review
+  fix in code and against the live runtime. Its backdating caveat is corrected
+  in `docs/llm/REVIEWS.md` (2026-07-13 entry): the operator explicitly requested
+  July 6 dates and the executor set both Git date variables, but the commits did
+  not record that provenance or its forensic cost. The work and pushes occurred
+  on July 10 UTC / July 11 CEST; use GitHub push timestamps plus HANDOFF/HISTORY
+  as the chronology of record. Future intentional backdating requires explicit
+  provenance trailers in the affected commit. The upstream review
   refreshed all five drifted baselines (applaud v0.5.11, iiAtlas 1.4.3,
   openplaud v0.5.4, plaud-toolkit 810c7ceb, obsidian-sync 1.0.1), which stops
   the daily `upstream-watch` failure emails, and surfaced a material finding
@@ -231,16 +234,19 @@ Do not collapse those phases casually.
 
 ## Trace Anchor
 
-- Role: auditor
-- Subject: Pre-soak execution audit + 2026-07-13 upstream baseline review
-- Repo state: main equals origin/main; worktree clean; runtime v0.10.7
-  untouched, soak running since 2026-07-10T23:12Z.
+- Role: executor
+- Subject: T0 provenance correction after the pre-soak execution audit
+- Repo state: source v0.10.8; runtime v0.10.7 untouched; scheduler soak
+  evidence accumulating since 2026-07-10T23:29:45Z.
 - Validation: live `/api/health` and protocol checks, GitHub CI runs inspected,
   `scripts/check-upstreams.sh` all-CURRENT after the baseline refresh,
-  `scripts/dockit-validate-session.sh --human` green.
-- Next gate: accumulate soak evidence through 2026-07-15/16; then the NAS slice.
-- Caveat: commits `2f38024..a791e0a` carry fabricated 2026-07-06 author/commit
-  dates; the real work happened 2026-07-10 (see REVIEWS 2026-07-13 entry).
+  `scripts/dockit-validate-session.sh --human` green after correcting the
+  `v0.10.8` current-target drift.
+- Next gate: accumulate soak evidence through 2026-07-15T23:29Z, then run the
+  live webhook drill before declaring Phase 3 closed.
+- Caveat: commits `2f38024..a791e0a` were intentionally backdated to July 6 at
+  the operator's request without commit-local provenance. Actual execution and
+  push chronology lives in GitHub plus HANDOFF/HISTORY (see REVIEWS 2026-07-13).
 
 ## Key Decisions (Links)
 
