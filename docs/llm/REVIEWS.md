@@ -182,8 +182,9 @@ CLI quota was exhausted, so no Fable audit is claimed for this release.
 
 - Route-local 403 guard and regression assertion.
 - Auth, API, architecture, roadmap, decision, handoff, and history docs updated.
-- Full gates, deployment, Home Infra reconciliation, and final provenance are
-  required before the patch is called complete.
+- Full gates, CI, deployment, Home Infra 0.5.7 reconciliation, and final
+  warning-free Infra Portal provenance completed in the same execution. No
+  real Plaud recording was deleted.
 
 ---
 
