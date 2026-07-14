@@ -1,4 +1,4 @@
-<!-- doc-version: 0.10.8 -->
+<!-- doc-version: 0.11.0 -->
 # API Contract
 
 This document describes the HTTP and webhook surface that now exists in-repo. The current implementation covers the full Phase 2 slice plus the Phase 3 scheduler, durable webhook outbox, and full health observability. `v0.10.0` adds the `home-infra-protocol` sync-job surface; `v0.10.3` adds physical artifact reconciliation and explicit candidate failures; `v0.10.4` makes scheduler completion end-to-end truthful, exposes `health.outbox.delivering`, and enforces the one-hour whole-run ceiling. The five-screen UI consumes the app routes; protocol routes are for Infra Portal/Hermes style consumers.
@@ -29,7 +29,8 @@ This document describes the HTTP and webhook surface that now exists in-repo. Th
 | `GET` | `/api/recordings` | List recent mirrored recordings. Accepts `?limit=<n>` (max 200, default 50) and `?includeDismissed=true` to include locally dismissed rows (hidden by default). |
 | `GET` | `/api/recordings/:id/audio` | Stream the locally mirrored audio file for a single recording. Returns 404 if the recording is not tracked or has no local file. Response body is the raw audio bytes with the stored `Content-Type`. Supports HTTP Range (RFC 7233 single-range): advertises `Accept-Ranges: bytes`, includes `Content-Length`, and honors `Range: bytes=start-end` (plus suffix `bytes=-N` and open-ended `bytes=start-`) with `206 Partial Content`. Unsatisfiable ranges return `416` with `Content-Range: bytes */size`. Multipart byteranges are intentionally unsupported. |
 | `DELETE` | `/api/recordings/:id` | Local-only dismiss. Removes the audio file from disk, clears `localPath`/`bytesWritten`, and marks the row `dismissed=true`. Plaud is not touched. Subsequent sync/backfill runs skip dismissed rows. |
-| `POST` | `/api/recordings/:id/restore` | Clear the dismissed flag **and immediately re-download the audio** (fresh `/file/detail` + `/file/temp-url` against Plaud, artifact written to `recordings/<id>/audio.<ext>`). Returns 409 if the recording is not currently dismissed. If the immediate download fails (missing/invalid token, network error), the flag is still cleared and the error is surfaced so the caller can recover. |
+| `POST` | `/api/recordings/:id/restore` | Clear the dismissed flag **and immediately re-download the audio** (fresh `/file/detail` + `/file/temp-url` against Plaud, artifact written to `recordings/<id>/audio.<ext>`). Returns 409 if the recording is not currently dismissed and 410 after a permanent Plaud deletion. If the immediate download fails (missing/invalid token, network error), the flag is still cleared and the error is surfaced so the caller can recover. |
+| `DELETE` | `/api/recordings/:id/plaud` | Irreversibly delete an already-dismissed recording from the operator's Plaud account. Performs observed trash-then-delete mutations, persists `upstreamDeletedAt`, and is idempotent after success. Returns 409 unless locally dismissed. Operator-session-gated; never part of automated live validation. |
 | `GET` | `/api/outbox` | Return `{ items: OutboxItem[] }` with **only `permanently_failed` rows** from the durable webhook outbox (D-013). Pending, delivering, and retry-waiting work is visible through `health.outbox` counters. Empty array when the queue has no failed items. |
 | `POST` | `/api/outbox/:id/retry` | Reset a `permanently_failed` outbox row back to `pending` (clears `attempts` and `last_error`); the worker will re-attempt delivery on its next tick. Returns the updated `OutboxItem`. 400 on unsafe id shape, 404 on unknown id, 409 when the row is in any state other than `permanently_failed` (the FSM guard — the panel must not bypass `delivering` or restart `delivered` rows). |
 
@@ -200,6 +201,32 @@ No request body. Response:
 ```
 
 Returns 409 when called on a recording whose `dismissed` is already `false`.
+Returns 410 when `upstreamDeletedAt` proves the recording was permanently
+deleted from Plaud.
+
+### `DELETE /api/recordings/:id/plaud`
+
+No request body. This route is available only for a locally dismissed row. It
+uses the stored Plaud bearer to call the observed private mutation sequence:
+`POST /file/trash/` with `[id]` when the recording is not already trashed, then
+`DELETE /file/` with `[id]`.
+
+Response:
+
+```json
+{
+  "id": "plaud-recording-id",
+  "dismissed": true,
+  "upstreamDeletedAt": "2026-07-14T18:00:00.000Z"
+}
+```
+
+The SQLite row remains as an audit tombstone. A repeat call returns the same
+result without another Plaud mutation. Errors: `404` when the local row is
+unknown, `409` when it is not dismissed, `401` without an operator session,
+and `502`/upstream error when Plaud rejects or cannot complete the mutation.
+Because these are private Plaud endpoints, endpoint drift is an upstream-watch
+event rather than a stable public API guarantee.
 
 ### `GET /api/health`
 

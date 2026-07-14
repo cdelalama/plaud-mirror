@@ -238,6 +238,11 @@ const COPY = {
     deleteConfirmBody: "Esto borra el archivo de audio local y marca la grabación como descartada. Plaud mantiene la grabación en tu cuenta.",
     dismissedResult: "Descartada",
     restoredResult: "Restaurada y re-descargada",
+    deleteFromPlaud: "Eliminar de Plaud",
+    deleteFromPlaudConfirmPrefix: "¿Eliminar definitivamente de Plaud",
+    deleteFromPlaudConfirmBody: "La grabación original desaparecerá de tu cuenta de Plaud. Esta acción no se puede deshacer.",
+    deletedFromPlaudResult: "Eliminada definitivamente de Plaud",
+    deletedFromPlaudBadge: "eliminada de Plaud",
   },
   en: {
     loadingSession: "Checking session…",
@@ -420,6 +425,11 @@ const COPY = {
     deleteConfirmBody: "This removes the local audio file and marks the recording as dismissed. Plaud keeps the recording in your account.",
     dismissedResult: "Dismissed",
     restoredResult: "Restored and re-downloaded",
+    deleteFromPlaud: "Delete from Plaud",
+    deleteFromPlaudConfirmPrefix: "Permanently delete from Plaud",
+    deleteFromPlaudConfirmBody: "The original recording will disappear from your Plaud account. This action cannot be undone.",
+    deletedFromPlaudResult: "Permanently deleted from Plaud",
+    deletedFromPlaudBadge: "deleted from Plaud",
   },
 } satisfies Record<OperatorLanguage, Record<string, string>>;
 
@@ -933,6 +943,23 @@ function Panel({
     });
   }
 
+  async function handleDeleteFromPlaud(recording: RecordingMirror): Promise<void> {
+    const confirmed = window.confirm(
+      `${t.deleteFromPlaudConfirmPrefix} "${recording.title}"?\n\n${t.deleteFromPlaudConfirmBody}`,
+    );
+    if (!confirmed) {
+      return;
+    }
+
+    await runOperation(async () => {
+      await requestJson<unknown>(`/api/recordings/${encodeURIComponent(recording.id)}/plaud`, {
+        method: "DELETE",
+      });
+      await refreshSnapshot();
+      return `${t.deletedFromPlaudResult}: "${recording.title}".`;
+    });
+  }
+
   async function handleSaveToken(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
     if (!tokenInput.trim()) {
@@ -1434,6 +1461,7 @@ function Panel({
                       onStop={() => setPlayingRecordingId((current) => current === recording.id ? null : current)}
                       onDismiss={() => void handleDeleteRecording(recording)}
                       onRestore={() => void handleRestoreRecording(recording)}
+                      onDeleteFromPlaud={() => void handleDeleteFromPlaud(recording)}
                       busy={busy}
                       t={t}
                     />
@@ -1712,6 +1740,7 @@ function RecordingRow({
   onStop,
   onDismiss,
   onRestore,
+  onDeleteFromPlaud,
   busy,
   t,
 }: {
@@ -1723,6 +1752,7 @@ function RecordingRow({
   onStop: () => void;
   onDismiss: () => void;
   onRestore: () => void;
+  onDeleteFromPlaud: () => void;
   busy: boolean;
   t: Copy;
 }) {
@@ -1774,12 +1804,20 @@ function RecordingRow({
           <span className="mono no-copy">{t.noLocalCopy}</span>
         )}
       </div>
-      <StatePill tone={recording.dismissed ? "warn" : "good"} label={recording.dismissed ? t.dismissedBadge : t.localBadge} />
-      {recording.dismissed ? (
-        <button type="button" className="icon-button good" disabled={busy} onClick={onRestore} title={t.restore}>↻</button>
-      ) : (
-        <button type="button" className="icon-button danger" disabled={busy || !recording.localPath} onClick={onDismiss} title={t.dismiss}>×</button>
-      )}
+      <StatePill
+        tone={recording.upstreamDeletedAt ? "muted" : recording.dismissed ? "warn" : "good"}
+        label={recording.upstreamDeletedAt ? t.deletedFromPlaudBadge : recording.dismissed ? t.dismissedBadge : t.localBadge}
+      />
+      <div className="recording-actions">
+        {recording.dismissed && !recording.upstreamDeletedAt ? (
+          <>
+            <button type="button" className="icon-button good" disabled={busy} onClick={onRestore} title={t.restore} aria-label={t.restore}>↻</button>
+            <button type="button" className="recording-remote-delete" disabled={busy} onClick={onDeleteFromPlaud}>{t.deleteFromPlaud}</button>
+          </>
+        ) : !recording.dismissed ? (
+          <button type="button" className="icon-button danger" disabled={busy || !recording.localPath} onClick={onDismiss} title={t.dismiss} aria-label={t.dismiss}>×</button>
+        ) : null}
+      </div>
     </article>
   );
 }

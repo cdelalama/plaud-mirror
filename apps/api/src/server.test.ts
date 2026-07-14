@@ -312,6 +312,116 @@ test("createApp exposes audio streaming, delete, and restore routes for mirrored
   await app.close();
 });
 
+test("createApp exposes dismissed-only permanent Plaud deletion", async () => {
+  const root = await mkdtemp(join(tmpdir(), "plaud-mirror-server-upstream-delete-"));
+  const environment = createEnvironment(root);
+  const app = await createApp({
+    environment,
+    plaudFetchImpl: async (input, init) => {
+      const url = String(input);
+      if (url.endsWith("/user/me")) {
+        return createJsonResponse({ status: 0, data: { uid: "user-1" } });
+      }
+      if (url.endsWith("/file/detail/rec-remote")) {
+        return createJsonResponse({
+          status: 0,
+          data: {
+            file_id: "rec-remote",
+            file_name: "Remote delete",
+            duration: 1000,
+            is_trash: false,
+            start_time: 1713780000000,
+            serial_number: "PLAUD-1",
+          },
+        });
+      }
+      if (url.endsWith("/file/detail/rec-remote-fail")) {
+        return new Response("upstream unavailable", { status: 503 });
+      }
+      if (
+        (url.endsWith("/file/trash/") && init?.method === "POST")
+        || (url.endsWith("/file/") && init?.method === "DELETE")
+      ) {
+        return new Response(null, { status: 204 });
+      }
+      throw new Error(`Unexpected Plaud fetch: ${url}`);
+    },
+  });
+
+  const { RuntimeStore } = await import("./runtime/store.js");
+  const sideStore = new RuntimeStore({
+    dbPath: join(environment.dataDir, "app.db"),
+    dataDir: environment.dataDir,
+    recordingsDir: environment.recordingsDir,
+    defaultSyncLimit: environment.defaultSyncLimit,
+  });
+  sideStore.upsertRecording({
+    id: "rec-remote",
+    title: "Remote delete",
+    createdAt: null,
+    durationSeconds: 1,
+    serialNumber: "PLAUD-1",
+    scene: null,
+    localPath: null,
+    contentType: null,
+    bytesWritten: 0,
+    mirroredAt: null,
+    lastWebhookStatus: null,
+    lastWebhookAttemptAt: null,
+    dismissed: true,
+    dismissedAt: "2026-07-14T17:00:00.000Z",
+    sequenceNumber: 1,
+  });
+  sideStore.upsertRecording({
+    id: "rec-remote-fail",
+    title: "Remote failure",
+    createdAt: null,
+    durationSeconds: 1,
+    serialNumber: "PLAUD-1",
+    scene: null,
+    localPath: null,
+    contentType: null,
+    bytesWritten: 0,
+    mirroredAt: null,
+    lastWebhookStatus: null,
+    lastWebhookAttemptAt: null,
+    dismissed: true,
+    dismissedAt: "2026-07-14T17:00:00.000Z",
+    sequenceNumber: 2,
+  });
+  sideStore.close();
+
+  const tokenSave = await app.inject({
+    method: "POST",
+    url: "/api/auth/token",
+    payload: { accessToken: "token-value" },
+  });
+  assert.equal(tokenSave.statusCode, 200);
+
+  const deleteResponse = await app.inject({
+    method: "DELETE",
+    url: "/api/recordings/rec-remote/plaud",
+  });
+  assert.equal(deleteResponse.statusCode, 200);
+  assert.equal(deleteResponse.json().dismissed, true);
+  assert.ok(deleteResponse.json().upstreamDeletedAt);
+
+  const restoreResponse = await app.inject({
+    method: "POST",
+    url: "/api/recordings/rec-remote/restore",
+  });
+  assert.equal(restoreResponse.statusCode, 410);
+
+  const failedDeleteResponse = await app.inject({
+    method: "DELETE",
+    url: "/api/recordings/rec-remote-fail/plaud",
+  });
+  assert.equal(failedDeleteResponse.statusCode, 502);
+  assert.match(failedDeleteResponse.json().message, /Plaud deletion failed/);
+
+  await app.close();
+});
+
 test("buildContentDisposition emits ASCII + UTF-8 filenames and escapes unsafe chars", () => {
   assert.equal(
     buildContentDisposition("Weekly_meeting.mp3"),

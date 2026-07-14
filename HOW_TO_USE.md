@@ -1,11 +1,11 @@
-<!-- doc-version: 0.10.8 -->
+<!-- doc-version: 0.11.0 -->
 # How to Use This Repository
 
 This guide explains how Plaud Mirror is operated end-to-end and how it stays aligned with both `LLM-DocKit` (the governance scaffold it adopts) and the Plaud ecosystem upstreams it watches.
 
 ## Current Reality
 
-`v0.10.7` activates the soak schedule contract on the consolidated hardened runtime: `internal-loop` every 15 minutes with a two-hour freshness budget. **Operators upgrading from any `0.4.x`/`0.5.x` should go directly to `v0.10.7`.** Today the repository gives you:
+`v0.11.0` adds an explicit permanent-Plaud-delete workflow on top of the hardened `internal-loop` runtime. **Operators upgrading from any `0.4.x`/`0.5.x` should go directly to `v0.11.0`.** Today the repository gives you:
 
 - a Fastify API and React/Vite panel bundled in a single Docker container;
 - **operator access control** (v0.6.0): set `PLAUD_MIRROR_ADMIN_PASSPHRASE` and the panel asks for the passphrase once per device (30-day session cookie); without it the API runs open and `/api/health` warns;
@@ -15,7 +15,7 @@ This guide explains how Plaud Mirror is operated end-to-end and how it stays ali
 - **opt-in continuous sync scheduler** — configurable from the Configuration screen of the panel (set the interval in minutes, `0` disables); see "Configuring the scheduler" below;
 - a one-hour whole-run ceiling (`PLAUD_MIRROR_SYNC_MAX_RUNTIME_MS=3600000` by default) that cancels Plaud calls and audio streams instead of leaving a run active forever;
 - a cached device catalog that feeds a real device selector in the backfill form;
-- local recording index in SQLite with stable `#N` ranks, search, 50/100/150 pagination, compact/full inline audio playback with HTTP Range support, and local-only dismiss/restore;
+- local recording index in SQLite with stable `#N` ranks, search, 50/100/150 pagination, compact/full inline audio playback with HTTP Range support, reversible local dismiss/restore, and an optional permanent Plaud deletion for already-dismissed rows;
 - HMAC-signed webhook delivery via a **durable outbox**: every sync enqueues, the worker retries failures with exponential backoff, the panel exposes counters and a Retry button for permanently-failed items;
 - a `scheduler` block, an `outbox` counters block, plus the `lastErrors` ring buffer and `recentSyncRuns` list on `/api/health` (D-014 full from v0.5.5), now visible in the Main and Operations screens;
 - a `home-infra-protocol` sync-job surface: `infra.contract.yml` declares `plaud-mirror-recordings-sync`, and `/api/protocol/sync-jobs/plaud-mirror-recordings-sync/status` publishes a public sanitized status snapshot for Infra Portal/Hermes-style consumers;
@@ -36,6 +36,20 @@ doppler run --project plaud-mirror --config dev -- docker compose up -d --build
 ```
 
 Then open `http://localhost:3040`, sign in with the operator passphrase, reconnect Plaud from the Configuration screen (Chrome extension recommended, manual paste fallback), and trigger a sync from the Main screen.
+
+### Permanently deleting a dismissed recording from Plaud
+
+1. In Library, dismiss the recording with the `x` action. This removes only the
+   local audio and remains reversible.
+2. Enable **Show dismissed** / **Ver descartadas**.
+3. Press **Delete from Plaud** / **Eliminar de Plaud** on that dismissed row.
+4. Read the confirmation, which states that the original will disappear from
+   the Plaud account, then confirm once.
+
+The permanent command is unavailable on active rows. After success the row is
+kept as `deleted from Plaud`, Restore is removed, and scheduled syncs continue
+to skip it. There is no second typed confirmation and no automated validation
+ever invokes this action against a real recording.
 
 On `dev-vm`, the operator passphrase lives in Doppler (`plaud-mirror/dev`). Use the Doppler-wrapped compose command for every recreate unless the same secret is intentionally copied into the local gitignored `.env`.
 
@@ -182,7 +196,7 @@ Useful for live Plaud flow checks and metadata discovery without booting the pan
 npm test
 ```
 
-161 runtime tests at `v0.10.1`: 134 Node tests (shared schemas/formatting/protocol, Plaud client, runtime service/store/scheduler/outbox/auth/capture-session/protocol-status, server routes, integration smoke for built API/web, Chrome extension contract) + 27 web tests under Vitest+jsdom+@testing-library/react (D-015). The root `npm test` runs both the Node test runner and `npm run test:web`. Governance checks are separate: `scripts/dockit-validate-session.sh --human` runs 12 checks, `scripts/check-version-sync.sh` checks 23 version targets, and `scripts/test-validator.sh` currently has 32 smoke cases.
+179 runtime tests at `v0.11.0`: 150 Node/integration tests (shared schemas/formatting/protocol, Plaud client, runtime service/store/scheduler/outbox/auth/capture-session/protocol-status, server routes, built API/web smoke, Chrome extension contract) plus 29 web tests under Vitest+jsdom+@testing-library/react (D-015). The permanent-delete cases mock Plaud and never mutate a real account. The root `npm test` runs both groups plus build and web typecheck. Governance checks are separate: `scripts/dockit-validate-session.sh --human` runs 12 checks, `scripts/check-version-sync.sh` checks 23 version targets, and `scripts/test-validator.sh` has 32 smoke cases.
 
 ## Working With LLM-DocKit Upstream
 

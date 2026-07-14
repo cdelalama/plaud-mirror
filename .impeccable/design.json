@@ -1,0 +1,94 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-07-14T17:15:28Z",
+  "title": "Design System: Plaud Mirror Operator Panel",
+  "extensions": {
+    "colorMeta": {
+      "accent": {
+        "role": "primary",
+        "displayName": "Operator Green",
+        "canonical": "#0f7a5a",
+        "tonalRamp": ["#06251c", "#083d2e", "#0b5942", "#0f7a5a", "#2e9a77", "#67b99d", "#add9ca", "#e8f5f0"]
+      },
+      "danger": {
+        "role": "danger",
+        "displayName": "Irreversible Red",
+        "canonical": "#d1413b",
+        "tonalRamp": ["#38100f", "#64201d", "#92302c", "#d1413b", "#df716c", "#eaa19d", "#f4cfcc", "#fdf0ef"]
+      },
+      "surface": {
+        "role": "neutral",
+        "displayName": "Console Surface",
+        "canonical": "#fbfbfc",
+        "tonalRamp": ["#202124", "#414348", "#666970", "#8f939b", "#b8bbc1", "#d8dade", "#eceef0", "#fbfbfc"]
+      }
+    },
+    "typographyMeta": {
+      "heading": { "displayName": "View heading", "purpose": "Brand and view headings only." },
+      "body": { "displayName": "Operator body", "purpose": "Controls, labels, and explanatory copy." },
+      "mono": { "displayName": "Operational metadata", "purpose": "Ids, times, counts, and compact state." }
+    },
+    "shadows": [
+      { "name": "overlay", "value": "0 10px 34px rgba(30, 35, 45, 0.12)", "purpose": "Transient elevated tools only." }
+    ],
+    "motion": [
+      { "name": "state", "value": "180ms cubic-bezier(0.22, 1, 0.36, 1)", "purpose": "Hover and state feedback without decorative choreography." }
+    ],
+    "breakpoints": [
+      { "name": "phone", "value": "560px" },
+      { "name": "compact-shell", "value": "980px" },
+      { "name": "wide-library", "value": "1180px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The single primary command in an operator task.",
+      "html": "<button class=\"ds-primary\">Sync now</button>",
+      "css": ".ds-primary { background:#0f7a5a; color:#fbfbfc; border:0; border-radius:8px; padding:11px 18px; font:600 14px Archivo,system-ui,sans-serif; } .ds-primary:hover { background:#0b684c; } .ds-primary:focus-visible { outline:3px solid #add9ca; outline-offset:2px; }"
+    },
+    {
+      "name": "Destructive Secondary Button",
+      "kind": "button",
+      "refersTo": "button-danger-secondary",
+      "description": "Explicit text command for an irreversible Plaud mutation.",
+      "html": "<button class=\"ds-danger\">Delete from Plaud</button>",
+      "css": ".ds-danger { background:#fbfbfc; color:#a92b25; border:1px solid #ecd3d1; border-radius:8px; padding:6px 10px; min-height:32px; font:600 12px Archivo,system-ui,sans-serif; } .ds-danger:hover { background:#fff2f1; } .ds-danger:focus-visible { outline:3px solid #f4cfcc; outline-offset:2px; }"
+    },
+    {
+      "name": "State Pill",
+      "kind": "chip",
+      "description": "Compact text-backed recording or runtime state.",
+      "html": "<span class=\"ds-pill\">dismissed</span>",
+      "css": ".ds-pill { display:inline-flex; align-items:center; min-height:24px; border:1px solid #e1d1aa; border-radius:999px; padding:3px 8px; background:#fbf4df; color:#7c5a13; font:500 11px 'JetBrains Mono',ui-monospace,monospace; }"
+    },
+    {
+      "name": "Text Input",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Standard filter or configuration input.",
+      "html": "<input class=\"ds-input\" value=\"Planning note\" aria-label=\"Search recordings\">",
+      "css": ".ds-input { width:100%; border:1px solid #d8dbe0; border-radius:8px; padding:9px 12px; background:#fbfbfc; color:#1a1d21; font:400 14px Archivo,system-ui,sans-serif; } .ds-input:focus-visible { outline:3px solid #add9ca; outline-offset:1px; border-color:#0f7a5a; }"
+    },
+    {
+      "name": "Rail Navigation Item",
+      "kind": "nav",
+      "description": "Full-width view selector in the operator rail.",
+      "html": "<button class=\"ds-nav\">Library</button>",
+      "css": ".ds-nav { width:100%; border:0; border-radius:8px; padding:9px 11px; background:#f1f2f4; color:#4a4e55; text-align:left; font:500 14px Archivo,system-ui,sans-serif; } .ds-nav:hover { background:#e7e9ec; color:#1a1d21; } .ds-nav:focus-visible { outline:3px solid #add9ca; outline-offset:1px; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Quiet Operator Console",
+    "overview": "A full-viewport, restrained light console where state and ownership boundaries carry the visual hierarchy. It should disappear into repeated recording work and become more explicit only when an action is risky or the runtime is degraded.",
+    "keyCharacteristics": ["Dense but legible", "Evidence-bound state", "Explicit ownership", "Desktop and phone parity"],
+    "rules": [
+      { "name": "Ownership before action", "body": "Every command names whether it changes local storage, Plaud, or downstream state.", "section": "components" },
+      { "name": "Semantic restraint", "body": "Green, amber, red, and blue are reserved for real state or action meaning.", "section": "colors" }
+    ],
+    "dos": ["Keep actions beside their recording", "Use text for irreversible commands", "Keep mobile targets at least 44px"],
+    "donts": ["Conflate local dismissal with Plaud deletion", "Claim success before the API returns", "Add decorative cards or gradients"]
+  }
+}

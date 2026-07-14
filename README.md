@@ -1,4 +1,4 @@
-<!-- doc-version: 0.10.8 -->
+<!-- doc-version: 0.11.0 -->
 # Plaud Mirror
 
 Self-hosted Plaud audio mirror with a local operator panel, manual sync/backfill controls, and Docker deployment.
@@ -9,7 +9,7 @@ Self-hosted Plaud audio mirror with a local operator panel, manual sync/backfill
 
 Plaud Mirror is an operator-run service for mirroring Plaud recordings into local storage and notifying downstream systems through a generic webhook. It is intentionally audio-first: it validates auth, lists recordings, downloads the original artifact, stores it in a predictable layout, and hands off the result.
 
-The repository now contains the full Phase 2 slice, the complete Phase 3 runtime, the Phase 4 operator UX, and the first Phase 5 Home Infra Protocol integration: operator-controllable scheduler (since v0.5.2), durable webhook outbox (since v0.5.3), full health observability with cross-subsystem `lastErrors` ring buffer + `recentSyncRuns` history (since v0.5.5), browser-assisted re-auth (since v0.7.0/v0.8.0), a reference-driven five-screen panel (since v0.9.0), and a protocol sync-job status surface (since v0.10.0):
+The repository now contains the full Phase 2 slice, the complete Phase 3 runtime, the Phase 4 operator UX, the Phase 5 Home Infra Protocol integration, and the first Phase 6 operator fit-and-finish slice: operator-controllable scheduler (since v0.5.2), durable webhook outbox (since v0.5.3), full health observability with cross-subsystem `lastErrors` ring buffer + `recentSyncRuns` history (since v0.5.5), browser-assisted re-auth (since v0.7.0/v0.8.0), a reference-driven five-screen panel (since v0.9.0), a protocol sync-job status surface (since v0.10.0), and explicit permanent Plaud deletion for already-dismissed recordings (since v0.11.0):
 
 - Fastify admin API
 - React/Vite web panel with Main, Library, Backfill, Configuration, and Operations screens
@@ -20,7 +20,8 @@ The repository now contains the full Phase 2 slice, the complete Phase 3 runtime
 - cached device catalog populated from Plaud's `/device/list`, feeding a real device selector in the backfill form
 - local recording index in SQLite with stable `#N` ranks anchored to Plaud's full timeline
 - search, 50/100/150 pagination, and compact/full inline audio playback with HTTP Range support
-- local-only dismiss and restore (Plaud itself is never mutated)
+- reversible local dismiss/restore plus an optional, separately confirmed
+  permanent Plaud deletion available only after local dismissal
 - HMAC-signed webhook delivery via a **durable outbox** (v0.5.3+): each successful sync enqueues the payload, a worker uses eight exponential-backoff waits (30s → 8h) before a ninth final attempt, and Operations surfaces active/failed state plus Retry controls. Counters on `/api/health.outbox`.
 - **opt-in continuous sync scheduler** configured from the Configuration screen of the panel (interval in minutes, `0` disables, hot-applied without container restart); status surfaced via the `scheduler` block on `/api/health`
 - **Home Infra Protocol sync-job status**: `infra.contract.yml` declares `plaud-mirror-recordings-sync`, and `/api/protocol/sync-jobs/plaud-mirror-recordings-sync/status` publishes a sanitized `status-snapshot` for Infra Portal/Hermes-style consumers
@@ -110,7 +111,9 @@ scripts/dockit-validate-session.sh --human
 | [docs/operations/AUTH_AND_SYNC.md](docs/operations/AUTH_AND_SYNC.md) | Auth model and sync behavior |
 | [docs/operations/DEPLOY_PLAYBOOK.md](docs/operations/DEPLOY_PLAYBOOK.md) | Docker deployment and rollback |
 | [docs/UPSTREAMS.md](docs/UPSTREAMS.md) | Which upstreams are tracked, what is adopted, what is rejected |
-| [docs/llm/DECISIONS.md](docs/llm/DECISIONS.md) | Long-form rationale for non-obvious choices (D-001..D-020) |
+| [PRODUCT.md](PRODUCT.md) | Operator, product-purpose, and interaction principles |
+| [DESIGN.md](DESIGN.md) | Current operator-panel visual system and component rules |
+| [docs/llm/DECISIONS.md](docs/llm/DECISIONS.md) | Long-form rationale for non-obvious choices (D-001..D-021) |
 | [docs/llm/HANDOFF.md](docs/llm/HANDOFF.md) | Current implementation snapshot |
 
 ## Contributing

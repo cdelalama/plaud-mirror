@@ -149,6 +149,85 @@ describe("<App>", () => {
     expect(window.localStorage.getItem(STORAGE_KEYS.ACTIVE_TAB)).toBe("library");
   });
 
+  it("offers one-confirmation permanent Plaud deletion only for a dismissed row", async () => {
+    window.localStorage.setItem(STORAGE_KEYS.ACTIVE_TAB, "library");
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
+    let upstreamDeleted = false;
+    const dismissedRecording = {
+      ...recording,
+      localPath: null,
+      bytesWritten: 0,
+      dismissed: true,
+      dismissedAt: "2026-07-14T17:00:00.000Z",
+      upstreamDeletedAt: null,
+    };
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const path = String(input);
+      if (path === "/api/session") {
+        return jsonResponse({ authRequired: false, authenticated: true });
+      }
+      if (path === "/api/health") {
+        return jsonResponse({ ...health, dismissedCount: 1 });
+      }
+      if (path === "/api/config") {
+        return jsonResponse(config);
+      }
+      if (path === "/api/auth/status") {
+        return jsonResponse(authStatus);
+      }
+      if (path === "/api/recordings/recording-1/plaud" && init?.method === "DELETE") {
+        upstreamDeleted = true;
+        return jsonResponse({
+          id: "recording-1",
+          dismissed: true,
+          upstreamDeletedAt: "2026-07-14T18:00:00.000Z",
+        });
+      }
+      if (path.startsWith("/api/recordings")) {
+        const includeDismissed = path.includes("includeDismissed=true");
+        return jsonResponse({
+          recordings: includeDismissed
+            ? [{
+                ...dismissedRecording,
+                upstreamDeletedAt: upstreamDeleted ? "2026-07-14T18:00:00.000Z" : null,
+              }]
+            : [],
+          total: includeDismissed ? 1 : 0,
+          skip: 0,
+          limit: 50,
+        });
+      }
+      if (path === "/api/devices") {
+        return jsonResponse({ devices: [] });
+      }
+      if (path === "/api/outbox") {
+        return jsonResponse({ items: [] });
+      }
+      throw new Error(`Unexpected request: ${path}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole("checkbox", { name: "Ver descartadas" }));
+    const deleteButton = await screen.findByRole("button", { name: "Eliminar de Plaud" });
+    expect(screen.getByRole("button", { name: "Restaurar" })).toBeInTheDocument();
+    fireEvent.click(deleteButton);
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/recordings/recording-1/plaud",
+        expect.objectContaining({ method: "DELETE" }),
+      );
+    });
+    expect(confirmSpy).toHaveBeenCalledWith(
+      expect.stringContaining("La grabación original desaparecerá de tu cuenta de Plaud"),
+    );
+    expect(confirmSpy).toHaveBeenCalledTimes(1);
+    expect(await screen.findByText("eliminada de Plaud")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Restaurar" })).not.toBeInTheDocument();
+  });
+
   it("syncs every missing recording from Main instead of inheriting the Backfill limit", async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const path = String(input);

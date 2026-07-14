@@ -1,4 +1,4 @@
-<!-- doc-version: 0.10.8 -->
+<!-- doc-version: 0.11.0 -->
 # Project Context - Plaud Mirror
 
 ## Vision
@@ -24,7 +24,19 @@ Plaud Mirror is a server-first product with two runtime surfaces:
 
 Persistence is split between SQLite for state/indexes and the filesystem for mirrored audio artifacts. Secrets are encrypted at rest with a master key supplied by the surrounding deployment.
 
-## Current Status (2026-07-10, v0.10.7)
+## Current Status (2026-07-14, v0.11.0)
+
+Plaud Mirror `v0.11.0` begins Phase 6 with a bounded destructive workflow:
+only a locally dismissed row can be permanently removed from the operator's
+Plaud account, the panel asks for one clear confirmation, and SQLite retains a
+monotonic tombstone after success. Restore is then impossible and future syncs
+keep skipping the row. This adds no protocol field and changes no Home Infra
+producer/consumer boundary.
+
+The deployment restarts the runtime during an unfinished Phase 3 exit gate.
+Pre-change soak observations remain historical evidence, but Phase 3 is not
+declared complete until the post-deploy PT15M observation window and live
+webhook drill are recorded.
 
 Plaud Mirror `v0.10.7` activates the soak contract: the project-owned sync job
 is `internal-loop` at `PT15M`, with `stale_after: PT2H` exceeding cadence plus
@@ -101,15 +113,15 @@ The earlier `0.5.x` baseline still applies: in-process continuous sync scheduler
 
 Operators upgrading from `0.4.x` should skip `v0.5.0` (scheduler default-on regression + missing service-layer anti-overlap) and go directly to `v0.10.7`.
 
-The Phase 2 slice it inherits: a live Fastify API, a web panel for token setup, webhook configuration, sync/backfill controls, recordings visibility with inline audio playback, encrypted persisted manual bearer-token auth, manual sync and filtered historical backfill (async-202, with a `limit=0` "refresh server stats" path), SQLite-backed recording and delivery state (including `dismissed` / `dismissed_at` columns for local curation), immediate HMAC-signed webhook delivery with persisted attempt logging, a confirmed local-only dismiss/restore flow that never touches Plaud, Docker packaging for `dev-vm` running as non-root `USER 1000:1000`, and the original Phase 1 spike CLI for direct Plaud probing. Concretely:
+The Phase 2 slice it inherits: a live Fastify API, a web panel for token setup, webhook configuration, sync/backfill controls, recordings visibility with inline audio playback, encrypted persisted manual bearer-token auth, manual sync and filtered historical backfill (async-202, with a `limit=0` "refresh server stats" path), SQLite-backed recording and delivery state, immediate HMAC-signed webhook delivery with persisted attempt logging, reversible local dismiss/restore plus the v0.11.0 optional upstream deletion, Docker packaging for `dev-vm` running as non-root `USER 1000:1000`, and the original Phase 1 spike CLI for direct Plaud probing. Concretely:
 
 - a live Fastify API
 - a web panel for token setup, webhook configuration, sync/backfill controls, and recordings visibility
 - encrypted persisted manual bearer-token auth
 - manual sync and filtered historical backfill (async: 202-then-poll, with a `limit=0` "refresh server stats" path)
-- SQLite-backed recording and delivery state (including `dismissed`/`dismissed_at` columns for local curation)
+- SQLite-backed recording and delivery state (including `dismissed`, `dismissed_at`, and `upstream_deleted_at` for curation/audit)
 - immediate HMAC-signed webhook delivery with persisted attempt logging
-- inline audio playback per recording, with a confirmed local-only dismiss/restore flow that never touches Plaud
+- inline audio playback per recording, reversible local dismiss/restore, and an explicit permanent Plaud-delete action restricted to dismissed rows
 - Docker packaging for `dev-vm`, running as non-root `USER 1000:1000`
 - the original Phase 1 spike CLI for direct Plaud probing
 

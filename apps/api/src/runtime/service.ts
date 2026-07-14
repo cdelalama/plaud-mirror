@@ -10,6 +10,7 @@ import {
   RecordingListResponseSchema,
   RecordingMirrorSchema,
   RecordingRestoreResultSchema,
+  RecordingUpstreamDeleteResultSchema,
   SaveAccessTokenRequestSchema,
   ServiceHealthSchema,
   SyncFiltersSchema,
@@ -27,6 +28,7 @@ import {
   type RecordingDeleteResult,
   type RecordingMirror,
   type RecordingRestoreResult,
+  type RecordingUpstreamDeleteResult,
   type RuntimeConfig,
   type SchedulerStatus,
   type StartSyncRunResponse,
@@ -686,6 +688,9 @@ export class PlaudMirrorService {
     if (!recording.dismissed) {
       throw createHttpError(409, `Recording ${recordingId} is not dismissed`);
     }
+    if (recording.upstreamDeletedAt) {
+      throw createHttpError(410, `Recording ${recordingId} was permanently deleted from Plaud`);
+    }
 
     // Clear the dismissed flag first. Even if the immediate re-download below
     // fails, the operator's intent ("I want this back") is respected and the
@@ -721,6 +726,56 @@ export class PlaudMirrorService {
     return RecordingRestoreResultSchema.parse({
       id: recordingId,
       dismissed: false,
+    });
+  }
+
+  async permanentlyDeleteRecordingFromPlaud(
+    recordingId: string,
+  ): Promise<RecordingUpstreamDeleteResult> {
+    this.assertSafeRecordingId(recordingId);
+
+    const recording = this.store.getRecording(recordingId);
+    if (!recording) {
+      throw createHttpError(404, `Recording ${recordingId} is not tracked locally`);
+    }
+    if (!recording.dismissed) {
+      throw createHttpError(409, `Recording ${recordingId} must be dismissed locally before Plaud deletion`);
+    }
+    if (recording.upstreamDeletedAt) {
+      return RecordingUpstreamDeleteResultSchema.parse({
+        id: recordingId,
+        dismissed: true,
+        upstreamDeletedAt: recording.upstreamDeletedAt,
+      });
+    }
+
+    try {
+      const { client } = await this.loadValidatedClient();
+      const detail = await client.getFileDetail(recordingId);
+      if (!detail.is_trash) {
+        await client.trashRecordings([recordingId]);
+      }
+      await client.permanentlyDeleteRecordings([recordingId]);
+    } catch (error) {
+      if (error instanceof PlaudAuthError) {
+        throw createHttpError(502, "Plaud authentication failed; reconnect Plaud before deleting");
+      }
+      if (error instanceof PlaudApiError) {
+        throw createHttpError(502, `Plaud deletion failed: ${error.message}`);
+      }
+      throw error;
+    }
+
+    const upstreamDeletedAt = new Date().toISOString();
+    const updated = this.store.markRecordingUpstreamDeleted(recordingId, upstreamDeletedAt);
+    if (!updated) {
+      throw new Error(`Recording ${recordingId} disappeared after Plaud deletion`);
+    }
+
+    return RecordingUpstreamDeleteResultSchema.parse({
+      id: recordingId,
+      dismissed: true,
+      upstreamDeletedAt,
     });
   }
 

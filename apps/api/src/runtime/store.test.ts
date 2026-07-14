@@ -464,12 +464,31 @@ test("RuntimeStore can mark recordings dismissed and filter them from the defaul
   assert.equal(all.total, 2);
   const dismissedRow = all.recordings.find((row) => row.id === "rec-beta");
   assert.equal(dismissedRow?.dismissed, true);
+  assert.equal(dismissedRow?.upstreamDeletedAt, null);
 
   // Restore clears dismissed and timestamp.
   const restored = store.setRecordingDismissed("rec-beta", false);
   assert.equal(restored?.dismissed, false);
   assert.equal(restored?.dismissedAt, null);
   assert.equal(store.countRecordings(), 2);
+
+  store.setRecordingDismissed("rec-beta", true);
+  const upstreamDeleted = store.markRecordingUpstreamDeleted(
+    "rec-beta",
+    "2026-07-14T18:00:00.000Z",
+  );
+  assert.equal(upstreamDeleted?.dismissed, true);
+  assert.equal(upstreamDeleted?.upstreamDeletedAt, "2026-07-14T18:00:00.000Z");
+
+  store.upsertRecording({
+    ...upstreamDeleted!,
+    upstreamDeletedAt: null,
+  });
+  assert.equal(
+    store.getRecording("rec-beta")?.upstreamDeletedAt,
+    "2026-07-14T18:00:00.000Z",
+    "a later sync-style upsert must not erase the permanent-delete tombstone",
+  );
 
   store.close();
 });
@@ -533,6 +552,7 @@ test("RuntimeStore migrates pre-0.4.0 databases by adding the dismissed columns"
   assert.equal(rows.recordings[0]?.id, "rec-legacy");
   assert.equal(rows.recordings[0]?.dismissed, false);
   assert.equal(rows.recordings[0]?.dismissedAt, null);
+  assert.equal(rows.recordings[0]?.upstreamDeletedAt, null);
 
   const migratedRun = store.startSyncRun("sync", { limit: 0, forceDownload: false });
   assert.equal(store.getSyncRun(migratedRun.id)?.failed, 0, "legacy sync_runs table gains failed with default 0");

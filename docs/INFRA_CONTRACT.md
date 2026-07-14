@@ -1,8 +1,12 @@
-<!-- doc-version: 0.10.8 -->
+<!-- doc-version: 0.11.0 -->
 # Infra Contract
 
 Plaud Mirror publishes a `home-infra-protocol` project contract in
 `infra.contract.yml`.
+
+The source contract is reviewed against local protocol `0.9.0`. The v0.11.0
+permanent-delete workflow is intentionally absent from this contract because it
+is a project-local operator command, not a sync-status fact or infra policy.
 
 The contract is an upstream input to `home-infra`. Plaud Mirror owns the sync
 engine and its protocol status endpoint; `home-infra` owns the portal registry

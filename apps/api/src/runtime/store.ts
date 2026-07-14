@@ -66,6 +66,7 @@ interface RecordingRow {
   last_webhook_attempt_at: string | null;
   dismissed: number;
   dismissed_at: string | null;
+  upstream_deleted_at: string | null;
   sequence_number: number | null;
 }
 
@@ -315,6 +316,7 @@ export class RuntimeStore {
         last_webhook_attempt_at,
         dismissed,
         dismissed_at,
+        upstream_deleted_at,
         sequence_number
       FROM recordings
       ${whereClause}
@@ -342,6 +344,7 @@ export class RuntimeStore {
         last_webhook_attempt_at,
         dismissed,
         dismissed_at,
+        upstream_deleted_at,
         sequence_number
       FROM recordings
       WHERE id = ?
@@ -376,6 +379,18 @@ export class RuntimeStore {
     return this.getRecording(recordingId);
   }
 
+  markRecordingUpstreamDeleted(recordingId: string, upstreamDeletedAt: string): RecordingMirror | null {
+    this.db.prepare(`
+      UPDATE recordings
+      SET dismissed = 1,
+          dismissed_at = COALESCE(dismissed_at, ?),
+          upstream_deleted_at = ?
+      WHERE id = ?
+    `).run(upstreamDeletedAt, upstreamDeletedAt, recordingId);
+
+    return this.getRecording(recordingId);
+  }
+
   upsertRecording(recording: RecordingMirror): RecordingMirror {
     const normalized = RecordingMirrorSchema.parse(recording);
     this.db.prepare(`
@@ -394,6 +409,7 @@ export class RuntimeStore {
         last_webhook_attempt_at,
         dismissed,
         dismissed_at,
+        upstream_deleted_at,
         sequence_number
       ) VALUES (
         @id,
@@ -410,6 +426,7 @@ export class RuntimeStore {
         @lastWebhookAttemptAt,
         @dismissed,
         @dismissedAt,
+        @upstreamDeletedAt,
         @sequenceNumber
       )
       ON CONFLICT(id) DO UPDATE SET
@@ -426,6 +443,7 @@ export class RuntimeStore {
         last_webhook_attempt_at = excluded.last_webhook_attempt_at,
         dismissed = excluded.dismissed,
         dismissed_at = excluded.dismissed_at,
+        upstream_deleted_at = COALESCE(recordings.upstream_deleted_at, excluded.upstream_deleted_at),
         sequence_number = COALESCE(excluded.sequence_number, recordings.sequence_number)
     `).run({
       id: normalized.id,
@@ -442,6 +460,7 @@ export class RuntimeStore {
       lastWebhookAttemptAt: normalized.lastWebhookAttemptAt,
       dismissed: normalized.dismissed ? 1 : 0,
       dismissedAt: normalized.dismissedAt,
+      upstreamDeletedAt: normalized.upstreamDeletedAt ?? null,
       sequenceNumber: normalized.sequenceNumber,
     });
 
@@ -951,6 +970,7 @@ export class RuntimeStore {
         last_webhook_attempt_at TEXT,
         dismissed INTEGER NOT NULL DEFAULT 0,
         dismissed_at TEXT,
+        upstream_deleted_at TEXT,
         sequence_number INTEGER
       );
 
@@ -1023,6 +1043,9 @@ export class RuntimeStore {
     }
     if (!columnNames.has("dismissed_at")) {
       this.db.exec("ALTER TABLE recordings ADD COLUMN dismissed_at TEXT");
+    }
+    if (!columnNames.has("upstream_deleted_at")) {
+      this.db.exec("ALTER TABLE recordings ADD COLUMN upstream_deleted_at TEXT");
     }
     if (!columnNames.has("sequence_number")) {
       this.db.exec("ALTER TABLE recordings ADD COLUMN sequence_number INTEGER");
@@ -1122,6 +1145,7 @@ function mapRecordingRow(row: RecordingRow): RecordingMirror {
     lastWebhookAttemptAt: row.last_webhook_attempt_at,
     dismissed: Boolean(row.dismissed),
     dismissedAt: row.dismissed_at,
+    upstreamDeletedAt: row.upstream_deleted_at,
     sequenceNumber: row.sequence_number,
   });
 }

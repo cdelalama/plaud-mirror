@@ -1,4 +1,4 @@
-<!-- doc-version: 0.10.8 -->
+<!-- doc-version: 0.11.0 -->
 # Repository Structure Guide
 
 This document describes the actual Plaud Mirror repository layout as of the first usable Phase 2 slice.
@@ -8,6 +8,8 @@ This document describes the actual Plaud Mirror repository layout as of the firs
 ```text
 plaud-mirror/
 +- README.md
++- PRODUCT.md
++- DESIGN.md
 +- LLM_START_HERE.md
 +- VERSION
 +- CHANGELOG.md
@@ -61,6 +63,9 @@ plaud-mirror/
 |------|---------|-------|
 | `apps/api/` | Fastify API, Plaud adapter, encrypted secret handling, manual sync/backfill orchestration | Phase 2 runtime backend |
 | `apps/web/` | React + Vite operator panel | Served by the API container; v0.9.0 five-screen operator shell with the v0.9.1 full-viewport production frame and v0.9.2 Main sync UX fix. v0.9.3 is governance-only. |
+| `PRODUCT.md` | Durable product brief | Single-operator audience, purpose, voice, and interaction principles |
+| `DESIGN.md` | Current design system | Visual tokens, hierarchy, components, mobile rules, and destructive-action treatment |
+| `.impeccable/design.json` | Machine-readable design sidecar | Mirrors the durable visual system for future frontend sessions |
 | `apps/chrome-extension/` | Local Chrome companion extension for Plaud re-auth capture | Unpacked extension; sends the active Plaud tab's bearer through `/connect` |
 | `packages/shared/` | Shared Zod schemas and TypeScript contracts | Source of truth for Plaud, runtime payloads, and protocol status snapshots |
 | `infra.contract.yml` | Home Infra Protocol project contract | Declares `plaud-mirror-recordings-sync` for Home Infra / Infra Portal consumers |
@@ -91,7 +96,7 @@ These paths are expected at runtime and should remain uncommitted:
 - `packages/shared/src/protocol.ts`
   Minimal `home-infra-protocol` `status-snapshot` Zod schemas used by the Plaud Mirror protocol endpoint.
 - `apps/api/src/plaud/`
-  Plaud API client: auth headers, region-retry on `-302`, `listEverything` pagination, `listDevices`, `getFileDetail`, `getAudioTempUrl`. Wire→domain translation lives here.
+  Plaud API client: auth headers, region-retry on `-302`, `listEverything` pagination, `listDevices`, `getFileDetail`, `getAudioTempUrl`, and the observed trash/permanent-delete mutations. Wire-to-domain translation lives here.
 - `apps/api/src/phase1/`
   The original spike utilities (probe CLI). `applyLocalFilters` is reused by both the real sync path and the backfill preview.
 - `apps/api/src/runtime/`

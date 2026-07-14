@@ -905,7 +905,7 @@ button.mobile-status-chip:hover {
 
 .recording-line {
   display: grid;
-  grid-template-columns: 46px minmax(0, 1fr) 210px auto 32px;
+  grid-template-columns: 46px minmax(0, 1fr) 210px auto auto;
   gap: 14px;
   align-items: center;
   padding: 13px 8px;
@@ -913,7 +913,7 @@ button.mobile-status-chip:hover {
 }
 
 .recording-line-full {
-  grid-template-columns: 46px minmax(260px, 0.75fr) minmax(520px, 1.25fr) auto 32px;
+  grid-template-columns: 46px minmax(260px, 0.75fr) minmax(520px, 1.25fr) auto auto;
 }
 
 .recording-line:hover {
@@ -923,6 +923,28 @@ button.mobile-status-chip:hover {
 .recording-line.dismissed {
   opacity: 0.6;
   background: #fafafa;
+}
+
+.recording-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  min-width: 32px;
+}
+
+.recording-remote-delete {
+  min-height: 32px;
+  border: 1px solid #ecd3d1;
+  border-radius: 8px;
+  padding: 6px 10px;
+  background: #fff;
+  color: #a92b25;
+  font-size: 12px;
+}
+
+.recording-remote-delete:hover:not(:disabled) {
+  background: #fff2f1;
 }
 
 .recording-sequence {
@@ -1475,11 +1497,21 @@ button.mobile-status-chip:hover {
     grid-row: 1;
   }
 
-  .recording-line > .icon-button {
+  .recording-line > .recording-actions {
     grid-column: 3;
     grid-row: 1;
     justify-self: end;
     align-self: start;
+  }
+
+  .recording-actions .icon-button,
+  .recording-remote-delete {
+    min-height: 44px;
+  }
+
+  .recording-actions .icon-button {
+    width: 44px;
+    height: 44px;
   }
 
   .recording-player {
@@ -1507,7 +1539,7 @@ button.mobile-status-chip:hover {
 
 @media (max-width: 1180px) and (min-width: 981px) {
   .recording-line-full {
-    grid-template-columns: 46px minmax(220px, 0.8fr) minmax(340px, 1.2fr) auto 32px;
+    grid-template-columns: 46px minmax(220px, 0.8fr) minmax(340px, 1.2fr) auto auto;
   }
 }
 

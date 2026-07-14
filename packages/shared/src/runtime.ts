@@ -96,6 +96,10 @@ export const RecordingMirrorSchema = z.object({
   lastWebhookAttemptAt: z.string().nullable(),
   dismissed: z.boolean().default(false),
   dismissedAt: z.string().nullable().default(null),
+  // Tombstone for an operator-authorized permanent deletion from Plaud. The
+  // local row remains dismissed so delayed upstream listings cannot cause a
+  // scheduler re-download and the destructive action stays auditable.
+  upstreamDeletedAt: z.string().nullable().optional(),
   // Stable 1-based rank of the recording in the operator's full Plaud timeline,
   // sorted oldest-first. `#1` is the oldest recording ever made on the device,
   // `#N` is the newest. Updated at every sync; null on rows that predate v0.4.8
@@ -120,6 +124,12 @@ export const RecordingDeleteResultSchema = z.object({
 export const RecordingRestoreResultSchema = z.object({
   id: z.string(),
   dismissed: z.literal(false),
+}).strict();
+
+export const RecordingUpstreamDeleteResultSchema = z.object({
+  id: z.string(),
+  dismissed: z.literal(true),
+  upstreamDeletedAt: z.string(),
 }).strict();
 
 // Domain representation of a Plaud hardware device, decoupled from the wire
@@ -429,6 +439,7 @@ export type RecordingMirror = z.infer<typeof RecordingMirrorSchema>;
 export type RecordingListResponse = z.infer<typeof RecordingListResponseSchema>;
 export type RecordingDeleteResult = z.infer<typeof RecordingDeleteResultSchema>;
 export type RecordingRestoreResult = z.infer<typeof RecordingRestoreResultSchema>;
+export type RecordingUpstreamDeleteResult = z.infer<typeof RecordingUpstreamDeleteResultSchema>;
 export type Device = z.infer<typeof DeviceSchema>;
 export type DeviceListResponse = z.infer<typeof DeviceListResponseSchema>;
 export type BackfillCandidateState = z.infer<typeof BackfillCandidateStateSchema>;

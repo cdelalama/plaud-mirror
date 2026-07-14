@@ -1,4 +1,4 @@
-<!-- doc-version: 0.10.8 -->
+<!-- doc-version: 0.11.0 -->
 # LLM Start Guide - Plaud Mirror
 
 ## Read This First (Mandatory)
@@ -86,27 +86,17 @@ Recommended reading order:
 ## Current Focus (Snapshot)
 
 Source of truth: docs/llm/HANDOFF.md.
-- Last Updated: 2026-07-13 - GPT-5 Codex
-- Working on: **T0 provenance correction after the governance-only pre-soak
-  audit; runtime remains untouched mid-soak.** The soak keeps
-  running (live check 2026-07-13: v0.10.7, 619/619, PT15M ticks advancing,
-  outbox all-zero). The audit verified every v0.10.2–v0.10.7 fix in code and
-  against the live runtime. Its backdating caveat is corrected in
-  `docs/llm/REVIEWS.md` (2026-07-13): the operator explicitly requested July 6
-  dates and the executor set both Git date variables, but the commits lacked
-  provenance trailers and no warning recorded the forensic cost. Actual work
-  and pushes occurred July 10 UTC / July 11 CEST. Future intentional
-  backdating requires commit-local provenance trailers.
-  The upstream review refreshed all five drifted baselines (applaud v0.5.11,
-  iiAtlas 1.4.3, openplaud v0.5.4, plaud-toolkit 810c7ceb, obsidian-sync
-  1.0.1; stops the daily `upstream-watch` failure emails) and recorded a
-  D-019 amendment: Plaud is
-  retiring localStorage `pld_tokenstr` for new/migrated accounts in favor of
-  `pld_ut`/`pld_urt` cookies plus a refresh endpoint; the capture-path
-  adaptation is queued in HANDOFF Open Work and doubles as the first credible
-  fully-unattended renewal path. Cut as governance patch `v0.10.8`,
-  intentionally NOT deployed: the dev-vm runtime stays on `v0.10.7` until the
-  soak window closes.
+- Last Updated: 2026-07-14 - GPT-5 Codex
+- Working on: **v0.11.0 permanent Plaud deletion, authorized by the operator.**
+  Local dismiss remains reversible. Only an already-dismissed Library row
+  exposes the command; one normal confirmation states that the original
+  disappears from Plaud. The authenticated API performs the observed private
+  trash-then-delete flow and writes a monotonic tombstone. Restore is blocked
+  after success and sync continues to skip the row. Tests are mock-only and
+  live validation must not delete a real recording. The Home Infra Protocol
+  contract is unchanged. Deployment before the prior soak exit is an explicit
+  operator priority decision, so the Phase 3 post-deploy observation window and
+  live webhook drill remain required.
 - Previous (2026-07-10, v0.10.7 soak activation): Physical reconciliation examined all
   619 recordings with zero candidates/failures. The contract declares
   `internal-loop`, `cadence: PT15M`, and `stale_after: PT2H`. Runtime v0.10.7

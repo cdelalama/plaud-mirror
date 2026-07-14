@@ -1,4 +1,4 @@
-<!-- doc-version: 0.10.8 -->
+<!-- doc-version: 0.11.0 -->
 # Authentication and Sync Operations
 
 This runbook defines the live behavior of Plaud Mirror's auth and sync surface. Phase 2 is fully shipped. Phase 3 added the scheduler, durable outbox, health observability, and access/recovery timeouts. `v0.10.3` makes artifact integrity truthful; `v0.10.4` makes scheduler completion, runtime ceilings, outbox recovery, pagination, and shutdown truthful before the soak. Resumable backfill and fully unattended re-login stay deferred.
@@ -79,6 +79,23 @@ The service exposes:
 - `SyncRunSummary.failed` counts candidate processing failures. One bad Plaud
   recording does not block later candidates, but any non-zero `failed` closes
   the run as `failed` with recording-id context in `error`.
+
+### Permanent deletion from Plaud (v0.11.0)
+
+- Local dismiss remains the reversible first step and never mutates Plaud.
+- Only a row already marked `dismissed=true` may call
+  `DELETE /api/recordings/:id/plaud`; the operator session gate applies before
+  the service sees the request.
+- The panel uses one normal confirmation. Its copy names the Plaud account and
+  states that the original disappears and cannot be restored.
+- The server performs the observed private Plaud sequence: inspect detail,
+  trash if needed, then permanently delete. It rejects explicit non-zero Plaud
+  application statuses even when HTTP is 2xx.
+- Success writes a monotonic `upstream_deleted_at` tombstone. Restore returns
+  410, sync/backfill continue to skip the row, and repeat deletion is
+  idempotent without another upstream call.
+- Tests mock both Plaud mutations. Deployment verification may check auth,
+  schema migration, and UI availability, but must never delete a real recording.
 
 ### Phase 3 (in progress, `0.5.x` line)
 
@@ -191,6 +208,7 @@ Resumable backfill remains deferred (no firm release target).
 | Plaud request hangs | Aborted at the timeout; run recorded as failed with a `timed out` error | Re-run; check network/Plaud status if it repeats |
 | Webhook delivery failure | Attempt stored as failed, mirrored file kept locally | Fix webhook target/secret and re-run |
 | Process crash mid-run | Orphaned run/outbox rows recovered at next boot; entries in `health.lastErrors` | None required; review `recentSyncRuns` for the failed run |
+| Permanent Plaud delete fails | Row stays locally dismissed and Restore remains available | Retry later after checking Plaud auth/upstream drift; no local audio is recreated automatically |
 | Lost operator passphrase | Panel/API return 401 | Set a new `PLAUD_MIRROR_ADMIN_PASSPHRASE` and restart the container (old sessions invalidate automatically) |
 
 ## Security Rules

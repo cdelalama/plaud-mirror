@@ -1,4 +1,4 @@
-<!-- doc-version: 0.10.8 -->
+<!-- doc-version: 0.11.0 -->
 # Upstream Watch Playbook
 
 This runbook defines how Plaud Mirror detects and reviews changes in tracked upstream repositories.
@@ -43,6 +43,7 @@ Highest priority:
 - region handling changes
 - recording listing or export flow changes
 - download temp-URL changes
+- trash or permanent-delete endpoint changes
 
 Secondary priority:
 - operator UX improvements

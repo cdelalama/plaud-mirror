@@ -1,9 +1,9 @@
-<!-- doc-version: 0.10.8 -->
+<!-- doc-version: 0.11.0 -->
 # Plaud Mirror Architecture
 
-> Version: 0.10.7
-> Last Updated: 2026-07-10
-> Status: Phase 5 infra/protocol integration entered at `v0.10.0`; the Phase 3 soak starts at `v0.10.7` after evidence, integrity, and execution hardening. The contract declares a PT15M internal loop with PT2H freshness budget. Operators upgrading from any `0.4.x`/`0.5.x` release should go directly to `v0.10.7`.
+> Version: 0.11.0
+> Last Updated: 2026-07-14
+> Status: Phase 6 starts with an authenticated permanent-Plaud-delete workflow for already-dismissed recordings. The PT15M/PT2H protocol contract is unchanged; the independent Phase 3 post-deploy soak and live webhook exit gate remain open.
 
 ## Overview
 
@@ -15,7 +15,8 @@ Plaud Mirror is a single-operator, server-first service that:
 4. records local state in SQLite,
 5. emits a signed webhook for each mirrored recording,
 6. serves a local web panel for setup and manual control,
-7. publishes sync state through `home-infra-protocol` for infra consumers.
+7. publishes sync state through `home-infra-protocol` for infra consumers,
+8. optionally performs an explicit operator-authorized permanent deletion from Plaud after local dismissal.
 
 ## Runtime Shape
 
@@ -77,7 +78,7 @@ Phase 3 turns the manual slice into an unattended service. The later `0.7.x`-`0.
   the same Node 20 keepalive pattern. Runtime behavior remains unchanged.
 - **`v0.10.7`:** soak activation contract. `infra.contract.yml` moves from
   `manual/P1D` to `internal-loop`, `cadence: PT15M`, `stale_after: PT2H`, and
-  records Home Infra Protocol 0.7.1. Runtime scheduling remains owned by the
+  records Home Infra Protocol 0.9.0. Runtime scheduling remains owned by the
   existing in-process loop.
 - **`v0.10.2`:** pre-soak evidence patch. CI runs the complete Node 20 gate,
   the React panel is typechecked, Node/integration tests are discovered rather
@@ -85,6 +86,11 @@ Phase 3 turns the manual slice into an unattended service. The later `0.7.x`-`0.
   and idle panels discover scheduler-started runs before switching to fast
   polling. No backend API, persistence schema, or sync selection changed.
 - **`v0.10.1`:** sync-run summary counter patch. `ProcessRecordingResult.skipped` now means candidate-level sync skip only; disabled-webhook delivery still writes `RecordingMirror.lastWebhookStatus = "skipped"` but no longer increments `SyncRunSummary.skipped`. No API shape, sync selection, storage schema, protocol mapper, secret, or `.env` behavior changed.
+- **`v0.11.0`:** Phase 6 operator workflow. A dismissed row may issue one
+  authenticated permanent-Plaud-delete command after a single explicit
+  confirmation. The client performs Plaud's observed trash-then-delete sequence;
+  SQLite keeps an irreversible `upstream_deleted_at` tombstone and sync keeps
+  skipping the row. The Home Infra Protocol producer surface is unchanged.
 
 Still **not** in Phase 3 scope:
 
@@ -188,12 +194,20 @@ maximum runtime.
 6. The panel polls `health.outbox` (`pending` / `delivering` / `retryWaiting` / `permanentlyFailed` / `oldestPendingAgeMs`) and `GET /api/outbox` (the list of `permanently_failed` rows) to render the outbox section in Operations. `POST /api/outbox/:id/retry` resets a `permanently_failed` row to `pending` (`attempts = 0`, `last_error = null`) so the worker re-attempts on its next tick.
 7. The legacy `webhook_deliveries` table stays as-is (append-only audit log; every attempt records a row regardless of success/failure). The new `webhook_outbox` table holds live retry state — once a row reaches `delivered` or `permanently_failed`, the worker never touches it again.
 
-### Local curation (audition then dismiss)
+### Local curation (audition, dismiss, optionally delete upstream)
 
 1. The operator auditions an audio file inline in the web panel via `GET /api/recordings/<id>/audio`, which streams the local file with its original content-type. Recording ids are validated against a strict character allowlist before any filesystem access, and the resolved path is confirmed to stay inside the configured recordings directory.
-2. The operator may issue `DELETE /api/recordings/<id>`. The service unlinks the local audio file, clears `localPath` and `bytesWritten` on the SQLite row, and sets `dismissed=true` with a `dismissedAt` timestamp. Plaud itself is not touched.
+2. The operator may issue `DELETE /api/recordings/<id>`. The service unlinks the local audio file, clears `localPath` and `bytesWritten` on the SQLite row, and sets `dismissed=true` with a `dismissedAt` timestamp. Plaud itself is not touched by this command.
 3. Subsequent sync/backfill runs detect `dismissed=true` and skip the recording without attempting to re-download it.
 4. The operator can restore a dismissed recording via `POST /api/recordings/<id>/restore`. The service clears the `dismissed` flag **and immediately re-downloads the audio** (fetching fresh `/file/detail` and `/file/temp-url` from Plaud, then writing the artifact back to `recordings/<id>/audio.<ext>`). If the immediate download fails (e.g. missing or invalid token), the flag is still cleared so the next scheduled sync can retry, and the API surfaces the error so the operator can recover.
+5. A dismissed row also offers `DELETE /api/recordings/<id>/plaud`. The panel
+   asks once, explicitly stating that the original disappears from Plaud. The
+   server re-validates operator auth and dismissed state, places the remote
+   recording in Plaud trash when needed, then permanently deletes it.
+6. Success sets `upstream_deleted_at`. That tombstone is monotonic: later
+   UPSERTs cannot clear it, Restore returns `410`, and the row remains dismissed
+   so delayed listings cannot recreate local audio. Repeating the command is
+   idempotent and returns the existing tombstone without another Plaud call.
 
 ### Backfill preview (dry-run)
 
@@ -229,7 +243,7 @@ maximum runtime.
 ## Storage Layout
 
 - `data/app.db`
-  SQLite state for config, auth metadata, recordings (including `dismissed` / `dismissed_at` columns for local-only curation), devices (cached from `/device/list`), sync runs, and webhook delivery attempts
+  SQLite state for config, auth metadata, recordings (including `dismissed`, `dismissed_at`, and the irreversible `upstream_deleted_at` tombstone), devices (cached from `/device/list`), sync runs, and webhook delivery attempts
 - `data/secrets.enc`
   Encrypted secret blob containing the Plaud token and optional webhook secret
 - `recordings/<recording-id>/audio.<ext>`

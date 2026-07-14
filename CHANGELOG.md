@@ -4,6 +4,42 @@ All notable changes to Plaud Mirror are documented in this file.
 
 This project follows Semantic Versioning (SemVer): MAJOR.MINOR.PATCH.
 
+## [0.11.0] - 2026-07-14
+
+### Added
+
+- Dismissed Library rows now offer an explicit `Delete from Plaud` action. A
+  single confirmation names the irreversible Plaud-account consequence before
+  the authenticated API performs the request.
+- `DELETE /api/recordings/:id/plaud` implements Plaud's observed two-step
+  trash-then-delete flow and records a durable `upstream_deleted_at` tombstone.
+- Root `PRODUCT.md` and `DESIGN.md` plus the Impeccable design sidecar capture
+  the operator-panel product and visual rules for future UI work.
+
+### Changed
+
+- Local dismiss remains the required first step and remains reversible. A
+  successful permanent Plaud deletion removes Restore, keeps the local row as
+  an auditable tombstone, and makes later sync UPSERTs unable to erase it.
+- Phase 6 begins with operator-facing fit and finish while the independent
+  Phase 3 soak and live webhook exit gate remain open.
+
+### Fixed
+
+- The Plaud mutation client rejects explicit non-zero application statuses and
+  handles both empty success responses and normal Plaud envelopes.
+- Web UI tests use a repository-level 15-second limit so full App integration
+  cases remain stable on the shared dev VM without weakening assertions.
+- The anti-overlap service test now drains its captured background callbacks
+  instead of leaking a one-hour runtime timer after its assertions complete.
+
+### Notes
+
+- Validation uses mocks only for the destructive endpoint. No real Plaud
+  recording is deleted as part of automated or deployment verification.
+- Deploying this runtime restarts the continuous process. Existing soak
+  evidence remains historical evidence, but Phase 3 exit is not claimed until
+  the post-deploy observation window and live webhook drill are complete.
 ## [0.10.8] - 2026-07-13
 
 ### Changed

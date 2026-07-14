@@ -1,7 +1,7 @@
-<!-- doc-version: 0.10.8 -->
+<!-- doc-version: 0.11.0 -->
 # Upstream Strategy
 
-Last verified against GitHub: 2026-07-13
+Last verified against GitHub: 2026-07-14
 
 Plaud Mirror is its own project, but it is intentionally informed by existing work in the Plaud ecosystem. This document records:
 - which upstreams matter
@@ -46,6 +46,17 @@ Phase 4 adoption now landed in-repo (v0.7.0, v0.8.0, D-019):
 - the browser-side bearer-extraction logic (priority-keys → workspace-token → full-scan → cookie cascade, reading `localStorage.pld_tokenstr` and the `pld_<userId>:workspaceList` workspace tokens) is **adapted from the MIT-licensed `iiAtlas/plaud-recording-downloader`** (`extension/lib/auth-probe.js`, Copyright (c) 2025 Atlas Wegman). Reused **with attribution** per D-005 (MIT, attribution preserved) and D-007 (iiAtlas is the token-storage-keys reference). It is reimplemented in TypeScript (`apps/web/src/plaud-token.ts`), not copied verbatim, **with one deliberate divergence (v0.7.3):** iiAtlas prioritizes the per-workspace token (it targets file ops); Plaud Mirror prioritizes the global user token (`pld_tokenstr`) because it validates against `/user/me`, which rejects the workspace token with 403. **v0.7.6 added a second deliberate divergence in the fallback bookmarklet:** the bookmarklet itself is shorter and visible (known `pld_tokenstr` key first, full storage scan fallback, alert on every outcome) instead of carrying the full workspace-token heuristic silently. **v0.8.0 adds a small local Chrome companion extension** because React/Chrome made a draggable `javascript:` link unreliable. This does not overturn the server-first product decision: the extension only captures the browser bearer and hands it to the server's `/connect` handshake; the API, storage, sync, and UI remain in Plaud Mirror.
 - the email+password login endpoint (`POST /auth/access-token`, body `username`/`password`, returns `access_token`+`refresh_token`, ~300-day TTL, 10 logins/hour) was confirmed from the MIT-stack toolkits and a no-credential reachability probe; it is documented in D-019 as the path for email+password accounts but is **not used** here because the operator's account is Google SSO. Endpoint facts only; no client code copied.
 - Plaud's official CLI/MCP (`@plaud-ai/mcp`, OAuth) is recorded as **deferred/watch** in D-019, not adopted and not disproven.
+
+Phase 6 adoption landed in `v0.11.0` (D-021):
+
+- `JamesStuder/Plaud_API` documents the private recording mutation facts used
+  for the operator's permanent-delete command: `POST /file/trash/` with an
+  array of ids, followed by `DELETE /file/` with the same array.
+- Plaud Mirror independently implements those HTTP facts in its existing MIT
+  client. It does not import the upstream library or copy its control flow.
+- These endpoints are not a public Plaud contract. Any method, path, body, or
+  success-envelope change is a high-priority upstream-watch event; local
+  dismiss/restore remains the stable fallback.
 
 ## 2026-07-13 Baseline Review (five drifted upstreams)
 

@@ -418,6 +418,11 @@ export async function createApp(options: CreateAppOptions = {}) {
     return service.restoreRecording(id);
   });
 
+  app.delete("/api/recordings/:id/plaud", async (request) => {
+    const id = (request.params as { id: string }).id;
+    return service.permanentlyDeleteRecordingFromPlaud(id);
+  });
+
   // Outbox admin (D-013, v0.5.3). The list returns ONLY
   // permanently_failed items so the panel can render them with a Retry
   // button per row. Pending and retry_waiting items are visible only as

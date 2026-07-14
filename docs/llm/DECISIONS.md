@@ -700,3 +700,52 @@ remain sanitized:
 - YouTube2Text/Media2Text should consume webhook events for work creation and
   expose its own protocol job for transcription/archive state. It should not
   infer Plaud Mirror source freshness from webhook volume alone.
+
+## D-021 - Permanent Plaud deletion is an explicit post-dismiss operator command
+
+**Status:** accepted; implemented in `v0.11.0`
+
+### Decision
+
+Plaud Mirror may permanently delete a recording from the operator's Plaud
+account only when all of these conditions hold:
+
+1. the recording is already dismissed locally;
+2. the request is authenticated by the existing operator session;
+3. the panel presents one clear confirmation stating that the original will
+   disappear from Plaud and cannot be restored;
+4. the server performs the mutation and records a durable
+   `upstream_deleted_at` tombstone after success.
+
+The command is optional and separate from local dismiss. Local dismiss remains
+reversible and still does not mutate Plaud. The permanent command uses the
+observed private Plaud flow (`POST /file/trash/` then `DELETE /file/`, both with
+an id array), implemented independently from endpoint facts documented by the
+MIT-licensed `JamesStuder/Plaud_API` project.
+
+### Rationale
+
+The operator wants to curate locally first, then make a deliberate account-wide
+decision only for items already judged disposable. Making the irreversible
+action a second, text-labelled command preserves that review step without the
+friction of a typed phrase. A normal confirmation is enough for this
+single-operator console when its copy names the remote consequence precisely.
+
+Keeping a local tombstone solves two integrity problems: the scheduler cannot
+re-download a delayed upstream listing after deletion, and the interface keeps
+an audit fact instead of silently losing the row. The tombstone is monotonic;
+later UPSERTs cannot clear it, Restore returns 410, and repeating the deletion
+returns the stored result without another upstream request.
+
+### Implications
+
+- The browser never calls Plaud directly; all mutation stays behind the
+  operator-session-gated API.
+- Automated and deployment tests use mocks and must not delete a real Plaud
+  recording.
+- The private endpoint is an upstream risk tracked in `docs/UPSTREAMS.md` and
+  `docs/operations/UPSTREAM_WATCH.md`.
+- `home-infra-protocol` is unchanged. This is project-local operator behavior,
+  not infrastructure status or cross-project policy.
+- A failed upstream mutation leaves the row dismissed and does not fabricate a
+  tombstone. The operator may retry or restore while the tombstone is absent.

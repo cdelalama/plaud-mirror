@@ -258,6 +258,52 @@ test("PlaudClient throws PlaudApiError on non-JSON success body", async () => {
   );
 });
 
+test("PlaudClient sends trash then permanent-delete mutations with JSON id arrays", async () => {
+  const calls: Array<{ url: string; method: string; body: string; contentType: string | null }> = [];
+  const client = new PlaudClient({
+    accessToken: "token-value",
+    fetchImpl: async (input, init) => {
+      calls.push({
+        url: String(input),
+        method: init?.method ?? "GET",
+        body: String(init?.body ?? ""),
+        contentType: new Headers(init?.headers).get("content-type"),
+      });
+      return new Response(null, { status: 204 });
+    },
+  });
+
+  await client.trashRecordings(["rec-delete"]);
+  await client.permanentlyDeleteRecordings(["rec-delete"]);
+
+  assert.deepEqual(calls, [
+    {
+      url: "https://api.plaud.ai/file/trash/",
+      method: "POST",
+      body: '["rec-delete"]',
+      contentType: "application/json",
+    },
+    {
+      url: "https://api.plaud.ai/file/",
+      method: "DELETE",
+      body: '["rec-delete"]',
+      contentType: "application/json",
+    },
+  ]);
+});
+
+test("PlaudClient rejects an explicit failed application status from a mutation", async () => {
+  const client = new PlaudClient({
+    accessToken: "token-value",
+    fetchImpl: async () => createJsonResponse({ status: 7, msg: "failed" }),
+  });
+
+  await assert.rejects(
+    () => client.trashRecordings(["rec-delete"]),
+    (error: unknown) => error instanceof PlaudApiError && error.message.includes("application status 7"),
+  );
+});
+
 test("listDevices translates Plaud wire fields to the domain Device type", async () => {
   const fetchImpl = (async () => {
     return createJsonResponse({

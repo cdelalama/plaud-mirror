@@ -217,6 +217,14 @@ export class PlaudClient {
     return extractTempUrl(response, recordingId);
   }
 
+  async trashRecordings(recordingIds: string[]): Promise<void> {
+    await this.mutateRecordings("/file/trash/", "POST", recordingIds);
+  }
+
+  async permanentlyDeleteRecordings(recordingIds: string[]): Promise<void> {
+    await this.mutateRecordings("/file/", "DELETE", recordingIds);
+  }
+
   private async fetchJson<T>(
     path: string,
     parser: { parse(input: unknown): T },
@@ -257,6 +265,53 @@ export class PlaudClient {
     }
 
     return parser.parse(bundle.payload);
+  }
+
+  private async mutateRecordings(
+    path: string,
+    method: "POST" | "DELETE",
+    recordingIds: string[],
+  ): Promise<void> {
+    if (recordingIds.length === 0) {
+      throw new Error("Recording IDs cannot be empty");
+    }
+
+    const options: RequestInit = {
+      method,
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(recordingIds),
+    };
+    const initialBase = this.getResolvedApiBase();
+    let bundle = await this.request(path, initialBase, options);
+
+    const regionalApiBase = extractRegionalApiBase(bundle.payload);
+    if (shouldRetryWithRegionalApi(bundle.payload, initialBase, regionalApiBase)) {
+      this.preferredApiBase = regionalApiBase;
+      bundle = await this.request(path, regionalApiBase!, options);
+    }
+
+    if (bundle.response.status === 401) {
+      throw new PlaudAuthError("Plaud returned 401; the bearer token is invalid or expired");
+    }
+    if (!bundle.response.ok) {
+      throw new PlaudApiError(
+        `Plaud ${method} ${path} failed with HTTP ${bundle.response.status}`,
+        bundle.response.status,
+        snippet(bundle.text),
+      );
+    }
+
+    // The observed mutation endpoints may return either an empty success body
+    // or Plaud's normal { status, msg } envelope. Reject an explicit non-zero
+    // application status while allowing the documented no-body response.
+    const applicationStatus = readApplicationStatus(bundle.payload);
+    if (applicationStatus !== null && applicationStatus !== 0) {
+      throw new PlaudApiError(
+        `Plaud ${method} ${path} returned application status ${applicationStatus}`,
+        bundle.response.status,
+        snippet(bundle.text),
+      );
+    }
   }
 
   private async request(path: string, apiBase: string, options: RequestInit): Promise<PlaudResponseBundle> {
@@ -327,6 +382,20 @@ export function buildPlaudApiUrl(path: string, apiBase: string): string {
   }
 
   return `${normalizedBase}${path.startsWith("/") ? path : `/${path}`}`;
+}
+
+function readApplicationStatus(payload: unknown): number | null {
+  if (!payload || typeof payload !== "object" || !("status" in payload)) {
+    return null;
+  }
+  const raw = (payload as { status?: unknown }).status;
+  if (typeof raw === "number" && Number.isFinite(raw)) {
+    return raw;
+  }
+  if (typeof raw === "string" && /^-?\d+$/.test(raw.trim())) {
+    return Number(raw);
+  }
+  return null;
 }
 
 export function normalizeApiBase(candidate: string | null | undefined): string | null {

@@ -1,32 +1,23 @@
-<!-- doc-version: 0.10.8 -->
+<!-- doc-version: 0.11.0 -->
 # LLM Work Handoff
 
 This file is the live operational snapshot. Durable rationale lives in `docs/llm/DECISIONS.md`. Phase boundaries live in `docs/ROADMAP.md`.
 
 ## Current Status
 
-- Last Updated: 2026-07-13 - GPT-5 Codex
-- Session Focus: **T0 provenance correction after the governance-only pre-soak
-  audit; runtime remains untouched mid-soak.** The soak keeps
-  running (live check 2026-07-13: v0.10.7, 619/619, PT15M ticks advancing,
-  outbox all-zero, warnings empty). The audit verified every v0.10.2–v0.10.7
-  fix in code and against the live runtime. Its backdating caveat is corrected
-  in `docs/llm/REVIEWS.md` (2026-07-13 entry): the operator explicitly requested
-  July 6 dates and the executor set both Git date variables, but the commits did
-  not record that provenance or its forensic cost. The work and pushes occurred
-  on July 10 UTC / July 11 CEST; use GitHub push timestamps plus HANDOFF/HISTORY
-  as the chronology of record. Future intentional backdating requires explicit
-  provenance trailers in the affected commit. The upstream review
-  refreshed all five drifted baselines (applaud v0.5.11, iiAtlas 1.4.3,
-  openplaud v0.5.4, plaud-toolkit 810c7ceb, obsidian-sync 1.0.1), which stops
-  the daily `upstream-watch` failure emails, and surfaced a material finding
-  recorded as a D-019 amendment: Plaud is retiring localStorage `pld_tokenstr`
-  for new/migrated accounts in favor of `pld_ut`/`pld_urt` cookies plus a
-  refresh endpoint (applaud PR #32). The capture-path adaptation is queued in
-  Open Work — it also opens the first credible fully-unattended renewal path.
-  Cut as governance patch `v0.10.8` (pre-commit hook requires a bump for the
-  versioned baseline files); intentionally NOT deployed — the dev-vm runtime
-  stays on `v0.10.7` until the soak window closes.
+- Last Updated: 2026-07-14 - GPT-5 Codex
+- Session Focus: **v0.11.0 permanent Plaud deletion, authorized by the
+  operator.** Dismiss remains local and reversible. Only an already-dismissed
+  Library row exposes the text-labelled destructive command; one normal
+  confirmation states that the original disappears from Plaud. The
+  authenticated server performs the observed private trash-then-delete flow,
+  then stores a monotonic `upstream_deleted_at` tombstone. Restore is blocked
+  after success, repeated deletion is idempotent, and scheduled sync continues
+  to skip the row. Product/design rules now live in root `PRODUCT.md` and
+  `DESIGN.md`. The Home Infra Protocol contract is unchanged. Destructive tests
+  are mock-only; live verification must not delete a real recording. The
+  operator explicitly authorized deployment before the previous soak exit, so
+  the Phase 3 gate remains open and post-deploy evidence must accumulate again.
 - Previous Session Focus (2026-07-10, v0.10.7 soak activation): Physical reconciliation examined
   all 619 Plaud recordings with zero candidates/failures. The contract now
   declares Home Infra Protocol 0.7.1, `internal-loop`, `cadence: PT15M`, and
@@ -174,12 +165,14 @@ The six items GPT-5 flagged in the 2026-04-23 review are closed:
 ## Top Priorities
 
 0. ~~Arm operator access control~~ — DONE 2026-06-11. ~~Re-validate the Plaud bearer token~~ — DONE 2026-06-16 after Chrome extension capture + EU base + Plaud Web request fingerprint; `/api/health` reported `auth.state: healthy`.
-1. Observe the PT15M runtime for 3-5 days through `recentSyncRuns`, scheduler
-   status, Docker health, outbox counters, and Infra Portal freshness. Do not
-   claim the Phase 3 exit gate before that elapsed evidence exists.
-2. During the soak, keep the `App.tsx` decomposition, persistence decoders, and
-   token-capture consolidation on a separate branch so they do not contaminate
-   runtime evidence.
+1. Publish and deploy `v0.11.0` with a consistent SQLite backup, verify auth,
+   migration, UI availability, scheduler, protocol status, and Infra Portal
+   provenance without invoking a real permanent deletion.
+2. Observe the post-deploy PT15M runtime for 3-5 days through `recentSyncRuns`,
+   scheduler status, Docker health, outbox counters, and Infra Portal freshness;
+   then run the live webhook drill before claiming the Phase 3 exit gate.
+3. After the gate, adapt D-019 to Plaud's cookie/refresh-token model and pair it
+   with the pending scrypt secret-store upgrade.
 
 ## Open Questions
 
@@ -228,25 +221,24 @@ Do not collapse those phases casually.
   - Phase 1 spike tests
   - encrypted-secret/store/service/server tests
   - built API/web integration smoke tests
-- Current `v0.10.7` source test total is 173 runtime tests (145 Node/integration + 28 web). The root suite also runs the web typecheck and reports 20 discovered Node/integration test files. Governance checks should report `scripts/dockit-validate-session.sh --human` 12/12, `scripts/check-version-sync.sh` 23 targets, and `scripts/test-validator.sh` 32/32 smoke cases.
+- Current `v0.11.0` source total is 179 runtime tests (150 Node/integration +
+  29 web), reproduced by the root suite. Governance checks report
+  `scripts/dockit-validate-session.sh --human` 12/12,
+  `scripts/check-version-sync.sh` 23 targets, and
+  `scripts/test-validator.sh` 32/32 smoke cases.
 - Docker packaging includes a local-base fallback for this `dev-vm`; always verify the live `/api/health.version` after a Doppler-wrapped compose rebuild instead of trusting an older handoff snapshot.
 - Live Plaud re-auth through the Chrome extension still requires the operator's Chrome/Plaud session and cannot be completed by an agent without those browser credentials; the operator confirmed it healthy before this UI redesign.
 
 ## Trace Anchor
 
 - Role: executor
-- Subject: T0 provenance correction after the pre-soak execution audit
-- Repo state: source v0.10.8; runtime v0.10.7 untouched; scheduler soak
-  evidence accumulating since 2026-07-10T23:29:45Z.
-- Validation: live `/api/health` and protocol checks, GitHub CI runs inspected,
-  `scripts/check-upstreams.sh` all-CURRENT after the baseline refresh,
-  `scripts/dockit-validate-session.sh --human` green after correcting the
-  `v0.10.8` current-target drift.
-- Next gate: accumulate soak evidence through 2026-07-15T23:29Z, then run the
-  live webhook drill before declaring Phase 3 closed.
-- Caveat: commits `2f38024..a791e0a` were intentionally backdated to July 6 at
-  the operator's request without commit-local provenance. Actual execution and
-  push chronology lives in GitHub plus HANDOFF/HISTORY (see REVIEWS 2026-07-13).
+- Subject: v0.11.0 dismissed-to-permanent-Plaud-delete workflow
+- Repo state: source prepared at v0.11.0; runtime remains v0.10.7 until the
+  clean source commit is published and deployed.
+- Validation: mock-only destructive coverage plus full runtime, web, build,
+  dependency, version, and DocKit gates are required before publication.
+- Next gate: publish/deploy v0.11.0 without deleting a real recording, reconcile
+  Home Infra/provenance, then restart the Phase 3 observation window.
 
 ## Key Decisions (Links)
 
@@ -270,6 +262,7 @@ Do not collapse those phases casually.
 - D-018: operator access control is app-level (passphrase + signed session cookie)
 - D-019: browser-assisted bearer capture is the Phase 4 re-auth provider
 - D-020: Plaud recording sync publishes a Home Infra Protocol contract/status surface
+- D-021: permanent Plaud deletion is an explicit post-dismiss operator command
 
 ## Do Not Touch
 
