@@ -1,4 +1,4 @@
-<!-- doc-version: 0.11.0 -->
+<!-- doc-version: 0.11.1 -->
 # API Contract
 
 This document describes the HTTP and webhook surface that now exists in-repo. The current implementation covers the full Phase 2 slice plus the Phase 3 scheduler, durable webhook outbox, and full health observability. `v0.10.0` adds the `home-infra-protocol` sync-job surface; `v0.10.3` adds physical artifact reconciliation and explicit candidate failures; `v0.10.4` makes scheduler completion end-to-end truthful, exposes `health.outbox.delivering`, and enforces the one-hour whole-run ceiling. The five-screen UI consumes the app routes; protocol routes are for Infra Portal/Hermes style consumers.
@@ -222,9 +222,10 @@ Response:
 ```
 
 The SQLite row remains as an audit tombstone. A repeat call returns the same
-result without another Plaud mutation. Errors: `404` when the local row is
-unknown, `409` when it is not dismissed, `401` without an operator session,
-and `502`/upstream error when Plaud rejects or cannot complete the mutation.
+result without another Plaud mutation. Errors: `403` when operator access
+control is not configured, `401` without an operator session when it is
+configured, `404` when the local row is unknown, `409` when it is not
+dismissed, and `502`/upstream error when Plaud rejects or cannot complete the mutation.
 Because these are private Plaud endpoints, endpoint drift is an upstream-watch
 event rather than a stable public API guarantee.
 

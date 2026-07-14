@@ -1,4 +1,4 @@
-<!-- doc-version: 0.11.0 -->
+<!-- doc-version: 0.11.1 -->
 # LLM Start Guide - Plaud Mirror
 
 ## Read This First (Mandatory)
@@ -87,19 +87,17 @@ Recommended reading order:
 
 Source of truth: docs/llm/HANDOFF.md.
 - Last Updated: 2026-07-14 - GPT-5 Codex
-- Working on: **v0.11.0 permanent Plaud deletion is deployed and reconciled.**
-  Local dismiss remains reversible. Only an already-dismissed Library row
-  exposes the command; one normal confirmation states that the original
-  disappears from Plaud. The authenticated API performs the observed private
-  trash-then-delete flow and writes a monotonic tombstone. Restore is blocked
-  after success and sync continues to skip the row. Tests are mock-only and
-  live validation did not delete a real recording. Clean source commit
-  `bd88705`, runtime v0.11.0, the SQLite tombstone migration, Docker/Plaud
-  health, PT15M scheduling, desktop/Android visual gates, Home Infra 0.5.6
-  commit `887ffb0`, and warning-free Infra Portal provenance are verified. The
-  Home Infra Protocol contract is unchanged. Deployment before the prior soak
-  exit was an explicit operator priority decision, so the Phase 3 post-deploy
-  observation window and live webhook drill remain required.
+- Working on: **v0.11.1 fail-closed permanent-delete hardening is validated
+  and ready for publication and deployment.** The v0.11.0 UI and one-confirmation
+  workflow remain unchanged. A Claude Opus 4.8 backup audit found that the
+  irreversible route inherited open-development mode when the operator
+  passphrase was absent; v0.11.1 now returns 403 before service execution and
+  proves Plaud is not contacted. All 179 tests, build/typecheck, dependency
+  audit, version, validator smoke, and DocKit gates pass. Fable 5 was requested first but unavailable
+  because its CLI quota was exhausted. Runtime remains healthy v0.11.0 until
+  the patch is deployed; Home Infra remains 0.5.6 and Home Infra
+  Protocol is unchanged. No real deletion has been invoked. The post-deploy
+  soak and separately authorized live webhook drill remain required.
 - Previous (2026-07-10, v0.10.7 soak activation): Physical reconciliation examined all
   619 recordings with zero candidates/failures. The contract declares
   `internal-loop`, `cadence: PT15M`, and `stale_after: PT2H`. Runtime v0.10.7

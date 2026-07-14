@@ -1,9 +1,9 @@
-<!-- doc-version: 0.11.0 -->
+<!-- doc-version: 0.11.1 -->
 # Plaud Mirror Architecture
 
-> Version: 0.11.0
+> Version: 0.11.1
 > Last Updated: 2026-07-14
-> Status: Phase 6 starts with an authenticated permanent-Plaud-delete workflow for already-dismissed recordings. The PT15M/PT2H protocol contract is unchanged; the independent Phase 3 post-deploy soak and live webhook exit gate remain open.
+> Status: Phase 6 has an authenticated permanent-Plaud-delete workflow for already-dismissed recordings. v0.11.1 makes its route fail closed when operator access control is absent. The PT15M/PT2H protocol contract is unchanged; the independent Phase 3 post-deploy soak and live webhook exit gate remain open.
 
 ## Overview
 
@@ -91,6 +91,9 @@ Phase 3 turns the manual slice into an unattended service. The later `0.7.x`-`0.
   confirmation. The client performs Plaud's observed trash-then-delete sequence;
   SQLite keeps an irreversible `upstream_deleted_at` tombstone and sync keeps
   skipping the row. The Home Infra Protocol producer surface is unchanged.
+- **`v0.11.1`:** security patch. The irreversible upstream route rejects with
+  403 before service execution when operator access control is not configured,
+  even though non-destructive API routes may stay open for local development.
 
 Still **not** in Phase 3 scope:
 

@@ -418,7 +418,15 @@ export async function createApp(options: CreateAppOptions = {}) {
     return service.restoreRecording(id);
   });
 
-  app.delete("/api/recordings/:id/plaud", async (request) => {
+  app.delete("/api/recordings/:id/plaud", async (request, reply) => {
+    // Local development may keep the wider API open for compatibility, but an
+    // irreversible upstream mutation must never inherit that permissive mode.
+    if (!operatorAuthEnabled) {
+      return reply.code(403).send({
+        error: "Forbidden",
+        message: "Permanent Plaud deletion requires operator access control",
+      });
+    }
     const id = (request.params as { id: string }).id;
     return service.permanentlyDeleteRecordingFromPlaud(id);
   });

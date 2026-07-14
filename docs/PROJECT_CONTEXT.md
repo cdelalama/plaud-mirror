@@ -1,4 +1,4 @@
-<!-- doc-version: 0.11.0 -->
+<!-- doc-version: 0.11.1 -->
 # Project Context - Plaud Mirror
 
 ## Vision
@@ -24,9 +24,12 @@ Plaud Mirror is a server-first product with two runtime surfaces:
 
 Persistence is split between SQLite for state/indexes and the filesystem for mirrored audio artifacts. Secrets are encrypted at rest with a master key supplied by the surrounding deployment.
 
-## Current Status (2026-07-14, v0.11.0)
+## Current Status (2026-07-14, v0.11.1)
 
-Plaud Mirror `v0.11.0` begins Phase 6 with a bounded destructive workflow:
+Plaud Mirror `v0.11.1` hardens the bounded destructive workflow introduced in
+`v0.11.0`: permanent Plaud deletion now fails closed with HTTP 403 when
+operator access control is disabled, while the wider API retains its documented
+open-development compatibility mode. The underlying Phase 6 workflow remains:
 only a locally dismissed row can be permanently removed from the operator's
 Plaud account, the panel asks for one clear confirmation, and SQLite retains a
 monotonic tombstone after success. Restore is then impossible and future syncs

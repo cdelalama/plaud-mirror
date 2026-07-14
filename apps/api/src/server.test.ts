@@ -314,7 +314,10 @@ test("createApp exposes audio streaming, delete, and restore routes for mirrored
 
 test("createApp exposes dismissed-only permanent Plaud deletion", async () => {
   const root = await mkdtemp(join(tmpdir(), "plaud-mirror-server-upstream-delete-"));
-  const environment = createEnvironment(root);
+  const environment: ServerEnvironment = {
+    ...createEnvironment(root),
+    adminPassphrase: "correct-horse",
+  };
   const app = await createApp({
     environment,
     plaudFetchImpl: async (input, init) => {
@@ -391,9 +394,18 @@ test("createApp exposes dismissed-only permanent Plaud deletion", async () => {
   });
   sideStore.close();
 
+  const login = await app.inject({
+    method: "POST",
+    url: "/api/session/login",
+    payload: { passphrase: "correct-horse" },
+  });
+  assert.equal(login.statusCode, 200);
+  const cookie = String(login.headers["set-cookie"]).split(";")[0]!;
+
   const tokenSave = await app.inject({
     method: "POST",
     url: "/api/auth/token",
+    headers: { cookie },
     payload: { accessToken: "token-value" },
   });
   assert.equal(tokenSave.statusCode, 200);
@@ -401,6 +413,7 @@ test("createApp exposes dismissed-only permanent Plaud deletion", async () => {
   const deleteResponse = await app.inject({
     method: "DELETE",
     url: "/api/recordings/rec-remote/plaud",
+    headers: { cookie },
   });
   assert.equal(deleteResponse.statusCode, 200);
   assert.equal(deleteResponse.json().dismissed, true);
@@ -409,12 +422,14 @@ test("createApp exposes dismissed-only permanent Plaud deletion", async () => {
   const restoreResponse = await app.inject({
     method: "POST",
     url: "/api/recordings/rec-remote/restore",
+    headers: { cookie },
   });
   assert.equal(restoreResponse.statusCode, 410);
 
   const failedDeleteResponse = await app.inject({
     method: "DELETE",
     url: "/api/recordings/rec-remote-fail/plaud",
+    headers: { cookie },
   });
   assert.equal(failedDeleteResponse.statusCode, 502);
   assert.match(failedDeleteResponse.json().message, /Plaud deletion failed/);
@@ -825,6 +840,16 @@ test("operator auth disabled: routes stay open, session reports authRequired=fal
 
   const config = await app.inject({ method: "GET", url: "/api/config" });
   assert.equal(config.statusCode, 200);
+
+  const destructiveRequest = await app.inject({
+    method: "DELETE",
+    url: "/api/recordings/never-call-plaud/plaud",
+  });
+  assert.equal(destructiveRequest.statusCode, 403);
+  assert.match(
+    destructiveRequest.json().message,
+    /requires operator access control/,
+  );
 
   const health = await app.inject({ method: "GET", url: "/api/health" });
   assert.equal(health.statusCode, 200);

@@ -4,6 +4,23 @@ All notable changes to Plaud Mirror are documented in this file.
 
 This project follows Semantic Versioning (SemVer): MAJOR.MINOR.PATCH.
 
+## [0.11.1] - 2026-07-14
+
+### Added
+
+### Changed
+
+- Permanent Plaud deletion now has a route-local fail-closed authorization
+  guard in addition to the normal operator-session hook.
+
+### Fixed
+
+- `DELETE /api/recordings/:id/plaud` now returns `403` without contacting
+  Plaud when `PLAUD_MIRROR_ADMIN_PASSPHRASE` is absent. The rest of the API
+  retains its documented open-development compatibility mode.
+- Removed an unused delivery-record identity helper and aligned the local-file
+  deletion comment with the existing `localFileRemoved` response contract.
+
 ## [0.11.0] - 2026-07-14
 
 ### Added

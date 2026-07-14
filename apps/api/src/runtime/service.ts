@@ -42,7 +42,7 @@ import { PlaudApiError, PlaudAuthError, PlaudClient } from "../plaud/client.js";
 import { API_PACKAGE_VERSION } from "../version.js";
 import { type ServerEnvironment } from "./environment.js";
 import { SecretStore, type StoredSecrets } from "./secrets.js";
-import { type DeliveryAttemptRecord, RuntimeStore } from "./store.js";
+import { RuntimeStore } from "./store.js";
 import { buildWebhookSignature } from "./webhook-signature.js";
 
 export interface RuntimeServiceDependencies {
@@ -655,7 +655,7 @@ export class PlaudMirrorService {
           if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
             throw error;
           }
-          // File already absent — treat as removed for the purpose of the result.
+          // The file was already absent, so this request did not remove it.
           localFileRemoved = false;
         }
       }
@@ -1320,10 +1320,6 @@ export class PlaudMirrorService {
 
     return new PlaudClient(config);
   }
-}
-
-function createDeliveryAttemptRecord(input: DeliveryAttemptRecord): DeliveryAttemptRecord {
-  return input;
 }
 
 function normalizeObject(input: unknown): Record<string, unknown> {

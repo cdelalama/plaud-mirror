@@ -1,4 +1,4 @@
-<!-- doc-version: 0.11.0 -->
+<!-- doc-version: 0.11.1 -->
 # Authentication and Sync Operations
 
 This runbook defines the live behavior of Plaud Mirror's auth and sync surface. Phase 2 is fully shipped. Phase 3 added the scheduler, durable outbox, health observability, and access/recovery timeouts. `v0.10.3` makes artifact integrity truthful; `v0.10.4` makes scheduler completion, runtime ceilings, outbox recovery, pagination, and shutdown truthful before the soak. Resumable backfill and fully unattended re-login stay deferred.
@@ -86,6 +86,9 @@ The service exposes:
 - Only a row already marked `dismissed=true` may call
   `DELETE /api/recordings/:id/plaud`; the operator session gate applies before
   the service sees the request.
+- From `v0.11.1`, this route also rejects with HTTP 403 when operator access
+  control is disabled. The irreversible upstream command never inherits the
+  wider API's open-development compatibility mode.
 - The panel uses one normal confirmation. Its copy names the Plaud account and
   states that the original disappears and cannot be restored.
 - The server performs the observed private Plaud sequence: inspect detail,

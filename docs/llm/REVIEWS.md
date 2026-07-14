@@ -133,6 +133,60 @@ The goal is *referenceable analysis*, not full transcripts. If a point is decide
 
 ---
 
+## 2026-07-14 - Permanent Plaud Deletion Security Audit
+
+**Input:** Plaud Mirror v0.11.0 source and deployed behavior after the
+dismissed-to-permanent-delete rollout.
+**Reviewers:** Claude Opus 4.8 (read-only backup auditor) -> GPT-5 Codex
+(verification and remediation). Claude Fable 5 was requested first but its
+CLI quota was exhausted, so no Fable audit is claimed for this release.
+
+### Points of Agreement
+
+- The dismissed-only guard, trash-then-delete order, post-success monotonic
+  tombstone, restore 410, sequential idempotence, and no-reimport behavior are
+  coherent in the inspected implementation.
+- One normal confirmation is the operator's explicit UX decision. The action
+  remains a second step shown only after reversible local dismiss.
+- Production had operator access control enabled, warnings empty, and anonymous
+  deletion rejected; no real Plaud recording was deleted during validation.
+
+### Points Raised (Pushback / Additions)
+
+1. **Irreversible route inherited open-development mode.** With
+   `PLAUD_MIRROR_ADMIN_PASSPHRASE` absent, the global API hook allowed the
+   permanent upstream route through.
+   - Resolution: Adopted in v0.11.1.
+   - Rationale: compatibility mode remains useful for non-destructive local
+     development, but an irreversible upstream mutation must fail closed.
+2. **Single confirmation.** The auditor noted that local dismiss and permanent
+   deletion use the same dialog mechanism despite different consequences.
+   - Resolution: Retained by operator decision.
+   - Rationale: permanent deletion is already a separate post-dismiss action,
+     and its copy explicitly names the Plaud-account loss and irreversibility.
+3. **Minor code hygiene.** An unused identity helper and a misleading ENOENT
+   comment were present.
+   - Resolution: Adopted in v0.11.1.
+   - Rationale: remove dead code and keep comments aligned with the existing
+     `localFileRemoved` contract.
+
+### Summary Outcome
+
+- v0.11.0 was operationally safe in the configured deployment, but v0.11.1
+  removes the configuration-dependent authorization gap in code.
+- The backup audit could not verify every sibling-repo baseline or execute the
+  suites because of its read-only tool limits; Codex owns full local, CI, live,
+  and cross-repo verification before closure.
+
+### Follow-Through Landed
+
+- Route-local 403 guard and regression assertion.
+- Auth, API, architecture, roadmap, decision, handoff, and history docs updated.
+- Full gates, deployment, Home Infra reconciliation, and final provenance are
+  required before the patch is called complete.
+
+---
+
 ## Planned Reviews
 
 - Security review before implementing credential storage (recommend invoking `/security-review`).

@@ -705,6 +705,12 @@ remain sanitized:
 
 **Status:** accepted; implemented in `v0.11.0`
 
+**Amendment (2026-07-14, `v0.11.1`):** The route-local authorization check is
+fail closed. If `PLAUD_MIRROR_ADMIN_PASSPHRASE` is absent, permanent Plaud
+deletion returns HTTP 403 before the service or Plaud client runs. The broader
+API may retain its open-development compatibility mode, but an irreversible
+upstream mutation may not inherit it.
+
 ### Decision
 
 Plaud Mirror may permanently delete a recording from the operator's Plaud
@@ -741,6 +747,8 @@ returns the stored result without another upstream request.
 
 - The browser never calls Plaud directly; all mutation stays behind the
   operator-session-gated API.
+- Missing operator access-control configuration blocks this route even when
+  compatibility mode leaves non-destructive API routes open.
 - Automated and deployment tests use mocks and must not delete a real Plaud
   recording.
 - The private endpoint is an upstream risk tracked in `docs/UPSTREAMS.md` and
