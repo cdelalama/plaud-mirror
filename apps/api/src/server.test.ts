@@ -884,6 +884,11 @@ test("operator auth enabled: gates /api, login issues a session cookie, throttle
   assert.equal(blocked.statusCode, 401);
   const blockedSync = await app.inject({ method: "POST", url: "/api/sync/run", payload: {} });
   assert.equal(blockedSync.statusCode, 401);
+  const blockedPermanentDelete = await app.inject({
+    method: "DELETE",
+    url: "/api/recordings/never-call-plaud/plaud",
+  });
+  assert.equal(blockedPermanentDelete.statusCode, 401);
 
   // Health stays public for status probes, without the disabled-warning.
   const publicHealth = await app.inject({ method: "GET", url: "/api/health" });

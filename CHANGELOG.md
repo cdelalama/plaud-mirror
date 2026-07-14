@@ -4,6 +4,25 @@ All notable changes to Plaud Mirror are documented in this file.
 
 This project follows Semantic Versioning (SemVer): MAJOR.MINOR.PATCH.
 
+## [0.11.2] - 2026-07-14
+
+### Added
+
+- A route-specific regression assertion that the permanent Plaud DELETE returns
+  401 for an anonymous caller when operator auth is configured.
+
+### Changed
+
+- The fail-closed destructive authorization guard is now a named reusable
+  Fastify pre-handler instead of inline route logic.
+- The auth runbook now records the recoverable trash-succeeded/delete-failed
+  state and its safe retry behavior.
+
+### Fixed
+
+- Closed the two low hardening observations from the final Claude Opus backup
+  audit without changing UI, successful API, storage, or protocol behavior.
+
 ## [0.11.1] - 2026-07-14
 
 ### Added

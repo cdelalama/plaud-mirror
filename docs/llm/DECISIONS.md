@@ -711,6 +711,11 @@ deletion returns HTTP 403 before the service or Plaud client runs. The broader
 API may retain its open-development compatibility mode, but an irreversible
 upstream mutation may not inherit it.
 
+**Amendment (2026-07-14, `v0.11.2`):** The fail-closed rule is implemented as a
+named reusable destructive-route pre-handler. Regression coverage pins both
+states: 403 before any Plaud call when access control is absent, and 401 for an
+anonymous caller when it is configured.
+
 ### Decision
 
 Plaud Mirror may permanently delete a recording from the operator's Plaud

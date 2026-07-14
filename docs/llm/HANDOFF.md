@@ -1,4 +1,4 @@
-<!-- doc-version: 0.11.1 -->
+<!-- doc-version: 0.11.2 -->
 # LLM Work Handoff
 
 This file is the live operational snapshot. Durable rationale lives in `docs/llm/DECISIONS.md`. Phase boundaries live in `docs/ROADMAP.md`.
@@ -6,25 +6,22 @@ This file is the live operational snapshot. Durable rationale lives in `docs/llm
 ## Current Status
 
 - Last Updated: 2026-07-14 - GPT-5 Codex
-- Session Focus: **v0.11.1 fail-closed permanent-delete hardening is published,
-  deployed, and reconciled.** The v0.11.0 workflow remains unchanged in
+- Session Focus: **v0.11.2 final audit hardening is validated and ready for publication.**
+  The v0.11.0 workflow remains unchanged in
   the UI: local dismiss is reversible, permanent deletion is a separate action
   on dismissed rows, and one normal confirmation names the irreversible Plaud
   consequence. A Claude Opus 4.8 backup audit found that the route inherited
   open-development mode when `PLAUD_MIRROR_ADMIN_PASSPHRASE` was absent.
-  v0.11.1 adds a route-local 403 guard before service execution and a regression
-  assertion proving Plaud is not contacted. All 179 tests, build/typecheck,
-  dependency audit, version, validator smoke, DocKit, and CI gates pass. Fable 5
-  was requested first but its CLI quota was exhausted, so no Fable audit is
-  claimed. Clean source commit `de7095b` is live on dev-vm after consistent
-  backup `runtime/data/app.db.backup-20260714T190742Z-v0111-pre-auth-hardening`.
-  Docker and Plaud auth are healthy, warnings and outbox are empty, PT15M is
-  active, the public snapshot is `ok/none`, and anonymous DELETE returns 401.
-  Home Infra 0.5.7 commit `a08d7d2` is published and Infra Portal provenance
-  reports both commits with no warnings; strict browser auth egress remains
-  `{mode, assessment}`. Home Infra Protocol is unchanged and no real deletion
-  was invoked. The independent Phase 3 post-deploy soak and live webhook drill
-  remain open.
+  v0.11.1 added the route-local 403 guard. The final Claude Opus 4.8 backup
+  audit returned GO with no medium-or-higher findings and two low hardening
+  suggestions. v0.11.2 turns the guard into a reusable pre-handler, adds an
+  exact auth-enabled anonymous 401 assertion for this route, and documents the
+  safe retry after trash succeeds but permanent deletion fails. Fable 5 was
+  requested first but its CLI quota was exhausted, so no Fable audit is
+  claimed. Runtime remains healthy v0.11.1 and Home Infra remains 0.5.7 until
+  this patch is deployed. All 179 tests, build/typecheck, dependency audit,
+  version 23/23, validator smoke 32/32, DocKit 12/12, and diff checks pass.
+  Home Infra Protocol is unchanged and no real deletion has been invoked.
 - Previous Session Focus (2026-07-10, v0.10.7 soak activation): Physical reconciliation examined
   all 619 Plaud recordings with zero candidates/failures. The contract now
   declares Home Infra Protocol 0.7.1, `internal-loop`, `cadence: PT15M`, and
@@ -242,17 +239,15 @@ Do not collapse those phases casually.
 ## Trace Anchor
 
 - Role: executor
-- Subject: v0.11.1 fail-closed permanent-Plaud-delete hardening
-- Repo state: v0.11.1 source commit `de7095b` is published and deployed on
-  dev-vm; Home Infra 0.5.7 commit `a08d7d2` is published and synchronized.
+- Subject: v0.11.2 final permanent-delete audit hardening
+- Repo state: v0.11.2 source is locally validated; dev-vm remains on
+  verified v0.11.1 and Home Infra remains 0.5.7.
 - Validation: 179/179 tests, build/typecheck, dependency audit, version 23/23,
-  validator smoke 32/32, DocKit 12/12, diff, and CI pass. Consistent backup,
-  live health/auth/scheduler/protocol/schema, anonymous 401, Home Infra 24/24,
-  catalog/DocKit, and warning-free Infra Portal provenance pass. The isolated
-  no-auth regression proves 403 without a Plaud call. No real recording was
-  deleted.
-- Next gate: observe the restarted PT15M runtime for 3-5 days, then run the
-  separately authorized live webhook drill before claiming the Phase 3 exit.
+  validator smoke 32/32, DocKit 12/12, and diff checks pass. CI, deployment,
+  Home Infra reconciliation, and final portal provenance remain in this
+  execution. No real recording will be deleted.
+- Next gate: publish and deploy v0.11.2, then resume the restarted PT15M
+  observation window before the separately authorized live webhook drill.
 
 ## Key Decisions (Links)
 

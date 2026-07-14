@@ -3,7 +3,7 @@ import { access } from "node:fs/promises";
 import { join } from "node:path";
 
 import fastifyStatic from "@fastify/static";
-import Fastify, { type FastifyRequest } from "fastify";
+import Fastify, { type FastifyReply, type FastifyRequest } from "fastify";
 
 import { SessionLoginRequestSchema } from "@plaud-mirror/shared";
 
@@ -194,6 +194,18 @@ export async function createApp(options: CreateAppOptions = {}) {
       message: "Operator session required; log in via POST /api/session/login",
     });
   });
+
+  const requireDestructiveOperatorAuth = async (
+    _request: FastifyRequest,
+    reply: FastifyReply,
+  ) => {
+    if (!operatorAuthEnabled) {
+      return reply.code(403).send({
+        error: "Forbidden",
+        message: "Permanent Plaud deletion requires operator access control",
+      });
+    }
+  };
 
   // Stop the scheduler + outbox worker on shutdown so SIGTERM does not
   // leave half-fired ticks or dangling timers when the process unwinds.
@@ -418,18 +430,14 @@ export async function createApp(options: CreateAppOptions = {}) {
     return service.restoreRecording(id);
   });
 
-  app.delete("/api/recordings/:id/plaud", async (request, reply) => {
-    // Local development may keep the wider API open for compatibility, but an
-    // irreversible upstream mutation must never inherit that permissive mode.
-    if (!operatorAuthEnabled) {
-      return reply.code(403).send({
-        error: "Forbidden",
-        message: "Permanent Plaud deletion requires operator access control",
-      });
-    }
-    const id = (request.params as { id: string }).id;
-    return service.permanentlyDeleteRecordingFromPlaud(id);
-  });
+  app.delete(
+    "/api/recordings/:id/plaud",
+    { preHandler: requireDestructiveOperatorAuth },
+    async (request) => {
+      const id = (request.params as { id: string }).id;
+      return service.permanentlyDeleteRecordingFromPlaud(id);
+    },
+  );
 
   // Outbox admin (D-013, v0.5.3). The list returns ONLY
   // permanently_failed items so the panel can render them with a Retry

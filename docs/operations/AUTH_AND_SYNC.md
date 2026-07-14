@@ -1,4 +1,4 @@
-<!-- doc-version: 0.11.1 -->
+<!-- doc-version: 0.11.2 -->
 # Authentication and Sync Operations
 
 This runbook defines the live behavior of Plaud Mirror's auth and sync surface. Phase 2 is fully shipped. Phase 3 added the scheduler, durable outbox, health observability, and access/recovery timeouts. `v0.10.3` makes artifact integrity truthful; `v0.10.4` makes scheduler completion, runtime ceilings, outbox recovery, pagination, and shutdown truthful before the soak. Resumable backfill and fully unattended re-login stay deferred.
@@ -94,6 +94,9 @@ The service exposes:
 - The server performs the observed private Plaud sequence: inspect detail,
   trash if needed, then permanently delete. It rejects explicit non-zero Plaud
   application statuses even when HTTP is 2xx.
+- If trash succeeds but permanent delete fails, no tombstone is written and the
+  row stays dismissed. A retry is safe: detail reports the recording already in
+  trash, so the service skips that step and retries permanent deletion.
 - Success writes a monotonic `upstream_deleted_at` tombstone. Restore returns
   410, sync/backfill continue to skip the row, and repeat deletion is
   idempotent without another upstream call.

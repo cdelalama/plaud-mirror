@@ -1,4 +1,4 @@
-<!-- doc-version: 0.11.1 -->
+<!-- doc-version: 0.11.2 -->
 # LLM Start Guide - Plaud Mirror
 
 ## Read This First (Mandatory)
@@ -87,18 +87,18 @@ Recommended reading order:
 
 Source of truth: docs/llm/HANDOFF.md.
 - Last Updated: 2026-07-14 - GPT-5 Codex
-- Working on: **v0.11.1 fail-closed permanent-delete hardening is published,
-  deployed, and reconciled.** The v0.11.0 UI and one-confirmation
+- Working on: **v0.11.2 final audit hardening is validated and ready for publication.**
+  The v0.11.0 UI and one-confirmation
   workflow remain unchanged. A Claude Opus 4.8 backup audit found that the
   irreversible route inherited open-development mode when the operator
-  passphrase was absent; v0.11.1 now returns 403 before service execution and
-  proves Plaud is not contacted. All 179 tests, build/typecheck, dependency
-  audit, version, validator smoke, DocKit, and CI gates pass. Fable 5 was
-  requested first but unavailable because its CLI quota was exhausted. Clean
-  source `de7095b` is live and healthy on dev-vm; Home Infra 0.5.7 `a08d7d2`
-  and warning-free Infra Portal provenance are synchronized. Home Infra
-  Protocol is unchanged and no real deletion was invoked. The post-deploy soak
-  and separately authorized live webhook drill remain required.
+  passphrase was absent; v0.11.1 closed that gap. After a final Claude Opus 4.8
+  backup-auditor GO, v0.11.2 makes the guard reusable, pins the configured-auth
+  anonymous 401 for this route, and documents partial-failure retry. Fable 5 was
+  requested first but unavailable because its CLI quota was exhausted. Runtime
+  remains healthy v0.11.1 and Home Infra remains 0.5.7 until this patch is
+  deployed. All 179 tests, build/typecheck, dependency audit, version 23/23,
+  validator smoke 32/32, DocKit 12/12, and diff checks pass. Home Infra
+  Protocol is unchanged and no real deletion was invoked.
 - Previous (2026-07-10, v0.10.7 soak activation): Physical reconciliation examined all
   619 recordings with zero candidates/failures. The contract declares
   `internal-loop`, `cadence: PT15M`, and `stale_after: PT2H`. Runtime v0.10.7

@@ -185,6 +185,11 @@ CLI quota was exhausted, so no Fable audit is claimed for this release.
 - Full gates, CI, deployment, Home Infra 0.5.7 reconciliation, and final
   warning-free Infra Portal provenance completed in the same execution. No
   real Plaud recording was deleted.
+- A final read-only Claude Opus 4.8 pass returned GO with no medium-or-higher
+  findings. Its two low suggestions were adopted in v0.11.2: a named reusable
+  destructive-route pre-handler and exact anonymous-401 coverage for this
+  endpoint. Its informational partial trash/delete state is documented in the
+  auth runbook.
 
 ---
 

@@ -1,9 +1,9 @@
-<!-- doc-version: 0.11.1 -->
+<!-- doc-version: 0.11.2 -->
 # Plaud Mirror Architecture
 
-> Version: 0.11.1
+> Version: 0.11.2
 > Last Updated: 2026-07-14
-> Status: Phase 6 has an authenticated permanent-Plaud-delete workflow for already-dismissed recordings. v0.11.1 makes its route fail closed when operator access control is absent. The PT15M/PT2H protocol contract is unchanged; the independent Phase 3 post-deploy soak and live webhook exit gate remain open.
+> Status: Phase 6 has an authenticated permanent-Plaud-delete workflow for already-dismissed recordings. v0.11.2 makes its fail-closed guard reusable and pins both 403/401 authorization modes in tests. The PT15M/PT2H protocol contract is unchanged; the independent Phase 3 post-deploy soak and live webhook exit gate remain open.
 
 ## Overview
 
@@ -94,6 +94,9 @@ Phase 3 turns the manual slice into an unattended service. The later `0.7.x`-`0.
 - **`v0.11.1`:** security patch. The irreversible upstream route rejects with
   403 before service execution when operator access control is not configured,
   even though non-destructive API routes may stay open for local development.
+- **`v0.11.2`:** audit hardening patch. The destructive guard is a reusable
+  pre-handler, the configured-auth anonymous 401 has route-specific coverage,
+  and the recoverable partial trash/delete state is documented.
 
 Still **not** in Phase 3 scope:
 

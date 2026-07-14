@@ -1,4 +1,4 @@
-<!-- doc-version: 0.11.1 -->
+<!-- doc-version: 0.11.2 -->
 # Infra Contract
 
 Plaud Mirror publishes a `home-infra-protocol` project contract in
