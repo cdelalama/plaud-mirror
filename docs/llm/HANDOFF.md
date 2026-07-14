@@ -6,7 +6,7 @@ This file is the live operational snapshot. Durable rationale lives in `docs/llm
 ## Current Status
 
 - Last Updated: 2026-07-14 - GPT-5 Codex
-- Session Focus: **v0.11.2 final audit hardening is validated and ready for publication.**
+- Session Focus: **v0.11.2 final audit hardening is published, deployed, and reconciled.**
   The v0.11.0 workflow remains unchanged in
   the UI: local dismiss is reversible, permanent deletion is a separate action
   on dismissed rows, and one normal confirmation names the irreversible Plaud
@@ -18,10 +18,14 @@ This file is the live operational snapshot. Durable rationale lives in `docs/llm
   exact auth-enabled anonymous 401 assertion for this route, and documents the
   safe retry after trash succeeds but permanent deletion fails. Fable 5 was
   requested first but its CLI quota was exhausted, so no Fable audit is
-  claimed. Runtime remains healthy v0.11.1 and Home Infra remains 0.5.7 until
-  this patch is deployed. All 179 tests, build/typecheck, dependency audit,
-  version 23/23, validator smoke 32/32, DocKit 12/12, and diff checks pass.
-  Home Infra Protocol is unchanged and no real deletion has been invoked.
+  claimed. Clean commit `f356522` is live on dev-vm after consistent backup
+  `runtime/data/app.db.backup-20260714T193840Z-v0112-pre-final-auth-hardening`.
+  All 179 tests, build/typecheck, dependency audit, version 23/23, validator
+  smoke 32/32, DocKit 12/12, diff, and CI pass. Docker/Plaud auth are healthy,
+  warnings/outbox are empty, PT15M is active, protocol is `ok/none`, and
+  anonymous DELETE is 401. Home Infra 0.5.8 `7379a5e` and Infra Portal
+  provenance are synchronized without warnings. Home Infra Protocol is
+  unchanged and no real deletion was invoked.
 - Previous Session Focus (2026-07-10, v0.10.7 soak activation): Physical reconciliation examined
   all 619 Plaud recordings with zero candidates/failures. The contract now
   declares Home Infra Protocol 0.7.1, `internal-loop`, `cadence: PT15M`, and
@@ -240,14 +244,15 @@ Do not collapse those phases casually.
 
 - Role: executor
 - Subject: v0.11.2 final permanent-delete audit hardening
-- Repo state: v0.11.2 source is locally validated; dev-vm remains on
-  verified v0.11.1 and Home Infra remains 0.5.7.
+- Repo state: v0.11.2 source commit `f356522` is published and deployed on
+  dev-vm; Home Infra 0.5.8 commit `7379a5e` is published and synchronized.
 - Validation: 179/179 tests, build/typecheck, dependency audit, version 23/23,
-  validator smoke 32/32, DocKit 12/12, and diff checks pass. CI, deployment,
-  Home Infra reconciliation, and final portal provenance remain in this
-  execution. No real recording will be deleted.
-- Next gate: publish and deploy v0.11.2, then resume the restarted PT15M
-  observation window before the separately authorized live webhook drill.
+  validator smoke 32/32, DocKit 12/12, diff, and CI pass. Consistent backup,
+  live health/auth/scheduler/protocol, anonymous 401, Home Infra 24/24,
+  catalog/DocKit, and warning-free Portal provenance pass. The isolated no-auth
+  test proves 403 before Plaud execution. No real recording was deleted.
+- Next gate: observe the restarted PT15M runtime for 3-5 days, then run the
+  separately authorized live webhook drill before claiming the Phase 3 exit.
 
 ## Key Decisions (Links)
 
