@@ -87,16 +87,19 @@ Recommended reading order:
 
 Source of truth: docs/llm/HANDOFF.md.
 - Last Updated: 2026-07-14 - GPT-5 Codex
-- Working on: **v0.11.0 permanent Plaud deletion, authorized by the operator.**
+- Working on: **v0.11.0 permanent Plaud deletion is deployed and reconciled.**
   Local dismiss remains reversible. Only an already-dismissed Library row
   exposes the command; one normal confirmation states that the original
   disappears from Plaud. The authenticated API performs the observed private
   trash-then-delete flow and writes a monotonic tombstone. Restore is blocked
   after success and sync continues to skip the row. Tests are mock-only and
-  live validation must not delete a real recording. The Home Infra Protocol
-  contract is unchanged. Deployment before the prior soak exit is an explicit
-  operator priority decision, so the Phase 3 post-deploy observation window and
-  live webhook drill remain required.
+  live validation did not delete a real recording. Clean source commit
+  `bd88705`, runtime v0.11.0, the SQLite tombstone migration, Docker/Plaud
+  health, PT15M scheduling, desktop/Android visual gates, Home Infra 0.5.6
+  commit `887ffb0`, and warning-free Infra Portal provenance are verified. The
+  Home Infra Protocol contract is unchanged. Deployment before the prior soak
+  exit was an explicit operator priority decision, so the Phase 3 post-deploy
+  observation window and live webhook drill remain required.
 - Previous (2026-07-10, v0.10.7 soak activation): Physical reconciliation examined all
   619 recordings with zero candidates/failures. The contract declares
   `internal-loop`, `cadence: PT15M`, and `stale_after: PT2H`. Runtime v0.10.7

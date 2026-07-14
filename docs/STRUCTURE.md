@@ -48,6 +48,8 @@ plaud-mirror/
 |  +- STRUCTURE.md
 |  +- VERSIONING_RULES.md
 |  +- UPSTREAMS.md
+|  +- visual-gates/
+|  |  +- 0.11.0/
 |  +- llm/
 |  +- operations/
 +- scripts/
@@ -71,6 +73,7 @@ plaud-mirror/
 | `infra.contract.yml` | Home Infra Protocol project contract | Declares `plaud-mirror-recordings-sync` for Home Infra / Infra Portal consumers |
 | `docs/INFRA_CONTRACT.md` | Human explanation of `infra.contract.yml` | Explains producer/consumer boundary and status snapshot semantics |
 | `docs/design/reference/` | Visual reference artifacts | `plaud-mirror-panel-standalone.html` is the v0.9.0 operator-panel source reference |
+| `docs/visual-gates/0.11.0/` | Deployed UI evidence | Desktop and Android captures of the dismissed-only permanent Plaud deletion action; no action was invoked during capture |
 | `tests/integration/` | Post-build integration smoke tests | Exercises built API and web artifacts |
 | `scripts/run-node-tests.mjs` | Automatic Node/integration test discovery | Recursively runs every compiled `*.test.js` and integration `*.test.mjs` file |
 | `.github/workflows/ci.yml` | Repository CI gate | Runs `npm test` on Node 20 for `main` and pull requests |
@@ -104,9 +107,9 @@ These paths are expected at runtime and should remain uncommitted:
 - `apps/api/src/runtime/protocol-status.ts`
   Maps `ServiceHealth` to the sanitized `home-infra-protocol` status snapshot for `plaud-mirror-recordings-sync`.
 - `apps/api/src/server.ts`
-  Fastify app factory: operator-session gate on `/api/*` (D-018) + session routes, public sanitized protocol status routes (`/api/protocol/status`, `/api/protocol/sync-jobs/plaud-mirror-recordings-sync/status`), browser-assisted re-auth routes (`/api/connect/start` + `/api/connect/complete`, D-019), auth, config, sync (`POST /api/sync/run` returns 202), backfill, `GET /api/sync/runs/:id`, `GET /api/devices`, `GET /api/backfill/candidates`, recordings listing + audio streaming with HTTP Range, delete/restore, outbox admin.
+  Fastify app factory: operator-session gate on `/api/*` (D-018) + session routes, public sanitized protocol status routes (`/api/protocol/status`, `/api/protocol/sync-jobs/plaud-mirror-recordings-sync/status`), browser-assisted re-auth routes (`/api/connect/start` + `/api/connect/complete`, D-019), auth, config, sync (`POST /api/sync/run` returns 202), backfill, `GET /api/sync/runs/:id`, `GET /api/devices`, `GET /api/backfill/candidates`, recordings listing + audio streaming with HTTP Range, local dismiss/restore, authenticated dismissed-only permanent Plaud deletion, and outbox admin.
 - `apps/web/src/App.tsx`
-  Product panel behind a session gate (`LoginGate` when operator auth is enabled) plus the `/connect` capture landing (`ConnectPlaud`, D-019). The v0.9.0 shell absorbs `docs/design/reference/plaud-mirror-panel-standalone.html`, v0.9.1 makes that shell full-viewport in production, and v0.9.2 makes Main's "Sync missing" action download the displayed missing count instead of inheriting Backfill's conservative draft limit: rail navigation, Main cockpit, Library, Backfill, Configuration, Operations, ES/EN operator chrome, live sync progress, status segments, recent errors/runs, outbox retry, and local-storage UI preferences. v0.9.3 changes DocKit/governance scripts only. The Configuration screen starts the re-auth capture session and points the operator at the local Chrome extension; copy-only bookmarklet fallback + token extraction live in `apps/web/src/plaud-token.ts` (adapted from MIT iiAtlas).
+  Product panel behind a session gate (`LoginGate` when operator auth is enabled) plus the `/connect` capture landing (`ConnectPlaud`, D-019). The full-viewport five-screen shell includes Main, Library, Backfill, Configuration, Operations, ES/EN operator chrome, live sync progress, playback, local dismiss/restore, outbox retry, and local-storage UI preferences. Since v0.11.0, a text-labelled permanent Plaud deletion action appears only on dismissed rows, requires one explicit confirmation, and becomes a neutral tombstone state after success. The Configuration screen starts the re-auth capture session and points the operator at the local Chrome extension; copy-only bookmarklet fallback + token extraction live in `apps/web/src/plaud-token.ts` (adapted from MIT iiAtlas).
 - `apps/chrome-extension/`
   Manifest V3 local extension ("Plaud Mirror Connector"). It injects a storage reader into the active Plaud tab, extracts the user bearer, and redirects to the mirror's `/connect#token=...` page. It stores only the mirror origin, not the token.
 

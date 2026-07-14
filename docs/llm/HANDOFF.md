@@ -6,18 +6,25 @@ This file is the live operational snapshot. Durable rationale lives in `docs/llm
 ## Current Status
 
 - Last Updated: 2026-07-14 - GPT-5 Codex
-- Session Focus: **v0.11.0 permanent Plaud deletion, authorized by the
-  operator.** Dismiss remains local and reversible. Only an already-dismissed
+- Session Focus: **v0.11.0 permanent Plaud deletion is deployed and
+  reconciled.** Clean source commit `bd88705` passed CI and 179/179 local
+  tests. Dismiss remains local and reversible. Only an already-dismissed
   Library row exposes the text-labelled destructive command; one normal
   confirmation states that the original disappears from Plaud. The
   authenticated server performs the observed private trash-then-delete flow,
   then stores a monotonic `upstream_deleted_at` tombstone. Restore is blocked
   after success, repeated deletion is idempotent, and scheduled sync continues
   to skip the row. Product/design rules now live in root `PRODUCT.md` and
-  `DESIGN.md`. The Home Infra Protocol contract is unchanged. Destructive tests
-  are mock-only; live verification must not delete a real recording. The
-  operator explicitly authorized deployment before the previous soak exit, so
-  the Phase 3 gate remains open and post-deploy evidence must accumulate again.
+  `DESIGN.md`. A consistent pre-migration backup lives at
+  `runtime/data/app.db.backup-20260714T180056Z-v0110-pre-delete`. The live
+  container reports v0.11.0, Docker and Plaud auth healthy, PT15M scheduling,
+  zero outbox backlog, and 622 of 623 Plaud records with one dismissed entry.
+  The migration, anonymous 401 boundary, desktop/Android rendering, and
+  warning-free Infra Portal provenance all pass; no real deletion was invoked.
+  Home Infra 0.5.6 commit `887ffb0` records the rollout, while the Home Infra
+  Protocol contract remains unchanged. The operator explicitly authorized
+  deployment before the previous soak exit, so the Phase 3 gate remains open
+  and post-deploy evidence must accumulate again.
 - Previous Session Focus (2026-07-10, v0.10.7 soak activation): Physical reconciliation examined
   all 619 Plaud recordings with zero candidates/failures. The contract now
   declares Home Infra Protocol 0.7.1, `internal-loop`, `cadence: PT15M`, and
@@ -165,9 +172,9 @@ The six items GPT-5 flagged in the 2026-04-23 review are closed:
 ## Top Priorities
 
 0. ~~Arm operator access control~~ — DONE 2026-06-11. ~~Re-validate the Plaud bearer token~~ — DONE 2026-06-16 after Chrome extension capture + EU base + Plaud Web request fingerprint; `/api/health` reported `auth.state: healthy`.
-1. Publish and deploy `v0.11.0` with a consistent SQLite backup, verify auth,
-   migration, UI availability, scheduler, protocol status, and Infra Portal
-   provenance without invoking a real permanent deletion.
+1. ~~Publish and deploy `v0.11.0` with a consistent SQLite backup and verify
+   the full non-destructive rollout boundary.~~ Done 2026-07-14 from clean
+   commit `bd88705`; no real permanent deletion was invoked.
 2. Observe the post-deploy PT15M runtime for 3-5 days through `recentSyncRuns`,
    scheduler status, Docker health, outbox counters, and Infra Portal freshness;
    then run the live webhook drill before claiming the Phase 3 exit gate.
@@ -200,12 +207,15 @@ Do not collapse those phases casually.
 
 ## Next Session
 
-- If the stack is not already running, start it with:
-  `doppler run --project plaud-mirror --config dev -- docker compose up -d --build`
+- The stack is deployed at v0.11.0. Rebuild only for a deliberate new release,
+  always with `doppler run --project plaud-mirror --config dev -- docker compose up -d --build`.
 - If Docker Hub pulls time out on `dev-vm`, the Dockerfile still accepts `PLAUD_MIRROR_DOCKER_BUILD_IMAGE` and `PLAUD_MIRROR_DOCKER_RUNTIME_IMAGE` build-arg overrides. Valid fallbacks: a locally cached Node slim/alpine image from another project, a home-infra-local registry mirror (see the open registry-mirror item in `~/src/home-infra/docs/PROJECTS.md`), or a side-loaded `node:20-bookworm-slim` via `docker save`/`docker load`. Do **not** substitute a pentesting distribution such as `vxcontrol/kali-linux:latest` — it inflates the attack surface, bloats the image, and ships tooling that has no place in a Plaud mirror's runtime.
 - Verify the protocol status endpoint after deploy:
   `curl -fsS http://127.0.0.1:3040/api/protocol/sync-jobs/plaud-mirror-recordings-sync/status`
-- Open the UI and visually smoke-test the full-viewport desktop shell plus phone-width shell. Re-auth through the Chrome extension only if Plaud auth has drifted back out of `healthy` (manual paste fallback).
+- Desktop and Android captures for the dismissed-only permanent-delete row are
+  stored in `docs/visual-gates/0.11.0/`. Continue the broader human visual smoke
+  when using the real operator devices. Re-auth through the Chrome extension
+  only if Plaud auth drifts out of `healthy` (manual paste fallback).
 - Run a filtered backfill from the panel.
 - Inspect:
   - `/api/health`
@@ -233,12 +243,14 @@ Do not collapse those phases casually.
 
 - Role: executor
 - Subject: v0.11.0 dismissed-to-permanent-Plaud-delete workflow
-- Repo state: source prepared at v0.11.0; runtime remains v0.10.7 until the
-  clean source commit is published and deployed.
-- Validation: mock-only destructive coverage plus full runtime, web, build,
-  dependency, version, and DocKit gates are required before publication.
-- Next gate: publish/deploy v0.11.0 without deleting a real recording, reconcile
-  Home Infra/provenance, then restart the Phase 3 observation window.
+- Repo state: v0.11.0 source commit `bd88705` is published and deployed on
+  dev-vm; Home Infra 0.5.6 commit `887ffb0` is published and synchronized.
+- Validation: CI, 179/179 tests, build, dependency audit, version/DocKit gates,
+  consistent SQLite backup, live health/auth/scheduler/protocol/schema checks,
+  anonymous mutation rejection, desktop/Android captures, and warning-free
+  Infra Portal provenance pass. No real recording was deleted.
+- Next gate: observe the restarted PT15M runtime for 3-5 days, then run the
+  separately authorized live webhook drill before claiming the Phase 3 exit.
 
 ## Key Decisions (Links)
 
