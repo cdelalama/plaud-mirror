@@ -15,6 +15,10 @@ This file is the live operational snapshot. Durable rationale lives in `docs/llm
   leaves freshness and severity unchanged. Home Infra 0.6.10 input `015d7ee`
   is synchronized, and Infra Portal 0.20.2 observes the current future
   `nextRunAt` with no provenance warnings.
+  Final independent Fable audit returned GO with no blockers and reproduced all
+  194 tests. Same-instance stop/start while an old callback is already queued
+  remains a theoretical reuse hazard, but production always replaces the
+  stopped scheduler instance; harden it only in a separate future patch.
 - Previous Session Focus: **v0.12.0 integrity release is deployed and reconciled.** The operator's
   first real deletion on 2026-07-15 exposed that v0.11.2 accepted any HTTP 2xx
   as mutation success and mixed a historical tombstone into current Plaud
@@ -299,7 +303,8 @@ Do not collapse those phases casually.
   coverage, and warning-free provenance pass.
 - Next gate: preserve the runtime for the multi-day
   soak and separately wait for Media2Text contract revision/re-review before
-  any adapter implementation.
+  any adapter implementation. Keep the unreachable same-instance restart case
+  as explicit hardening backlog rather than changing this validated runtime.
 
 ## Key Decisions (Links)
 
