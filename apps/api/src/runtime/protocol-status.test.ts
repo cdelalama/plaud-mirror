@@ -87,6 +87,27 @@ test("buildPlaudMirrorProtocolStatus maps healthy complete sync to ok snapshot",
   });
 });
 
+test("buildPlaudMirrorProtocolStatus publishes scheduler-owned next_run_at", () => {
+  const snapshot = buildPlaudMirrorProtocolStatus(createHealth({
+    scheduler: {
+      enabled: true,
+      intervalMs: 900_000,
+      nextTickAt: "2026-06-21T10:17:00.000Z",
+      lastTickAt: "2026-06-21T10:02:00.000Z",
+      lastTickStatus: "completed",
+      lastTickError: null,
+    },
+  }));
+
+  assert.equal(snapshot.next_run_at, "2026-06-21T10:17:00.000Z");
+});
+
+test("buildPlaudMirrorProtocolStatus omits next_run_at when scheduler has no plan", () => {
+  const snapshot = buildPlaudMirrorProtocolStatus(createHealth());
+
+  assert.equal("next_run_at" in snapshot, false);
+});
+
 test("buildPlaudMirrorProtocolStatus excludes tombstones from remote coverage", () => {
   const snapshot = buildPlaudMirrorProtocolStatus(createHealth({
     recordingsCount: 10,

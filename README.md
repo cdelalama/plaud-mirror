@@ -1,4 +1,4 @@
-<!-- doc-version: 0.12.0 -->
+<!-- doc-version: 0.13.0 -->
 # Plaud Mirror
 
 Self-hosted Plaud audio mirror with a local operator panel, manual sync/backfill controls, and Docker deployment.
@@ -9,7 +9,7 @@ Self-hosted Plaud audio mirror with a local operator panel, manual sync/backfill
 
 Plaud Mirror is an operator-run service for mirroring Plaud recordings into local storage and notifying downstream systems through a generic webhook. It is intentionally audio-first: it validates auth, lists recordings, downloads the original artifact, stores it in a predictable layout, and hands off the result.
 
-The repository now contains the full Phase 2 slice, the complete Phase 3 runtime, the Phase 4 operator UX, the Phase 5 Home Infra Protocol integration, and the first Phase 6 operator fit-and-finish slice: operator-controllable scheduler (since v0.5.2), durable webhook outbox (since v0.5.3), full health observability with cross-subsystem `lastErrors` ring buffer + `recentSyncRuns` history (since v0.5.5), browser-assisted re-auth (since v0.7.0/v0.8.0), a reference-driven five-screen panel (since v0.9.0), a protocol sync-job status surface (since v0.10.0), and explicit permanent Plaud deletion for already-dismissed recordings (since v0.11.0):
+The repository now contains the full Phase 2 slice, the complete Phase 3 runtime, the Phase 4 operator UX, the Phase 5 Home Infra Protocol integration, and the first Phase 6 operator fit-and-finish slice: operator-controllable scheduler (since v0.5.2), durable webhook outbox (since v0.5.3), full health observability with cross-subsystem `lastErrors` ring buffer + `recentSyncRuns` history (since v0.5.5), browser-assisted re-auth (since v0.7.0/v0.8.0), a reference-driven five-screen panel (since v0.9.0), a protocol sync-job status surface (since v0.10.0) with authoritative next-run evidence (since v0.13.0), and explicit permanent Plaud deletion for already-dismissed recordings (since v0.11.0):
 
 - Fastify admin API
 - React/Vite web panel with Main, Library, Backfill, Configuration, and Operations screens

@@ -1,4 +1,4 @@
-<!-- doc-version: 0.12.0 -->
+<!-- doc-version: 0.13.0 -->
 # Project Context - Plaud Mirror
 
 ## Vision
@@ -24,7 +24,13 @@ Plaud Mirror is a server-first product with two runtime surfaces:
 
 Persistence is split between SQLite for state/indexes and the filesystem for mirrored audio artifacts. Secrets are encrypted at rest with a master key supplied by the surrounding deployment.
 
-## Current Status (2026-07-16, v0.12.0)
+## Current Status (2026-07-16, v0.13.0)
+
+Plaud Mirror `v0.13.0` is prepared to publish the active scheduler's authoritative next tick
+as Home Infra Protocol 0.10.0 `next_run_at`. The field is omitted when no plan
+exists and never changes freshness or severity. This restores useful countdown
+UX in generic consumers without asking them to reconstruct a schedule from
+cadence. The deployed runtime remains v0.12.0 until the release gate completes.
 
 Plaud Mirror `v0.12.0` is the integrity follow-up to the first real operator
 deletion on 2026-07-15. That event exposed two assumptions that mocked happy

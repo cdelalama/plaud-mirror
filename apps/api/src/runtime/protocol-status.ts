@@ -48,6 +48,9 @@ export function buildPlaudMirrorProtocolStatus(
 
   return ProtocolStatusSnapshotSchema.parse({
     observed_at: observedAt,
+    ...(health.scheduler.nextTickAt
+      ? { next_run_at: health.scheduler.nextTickAt }
+      : {}),
     condition,
     severity,
     summary,

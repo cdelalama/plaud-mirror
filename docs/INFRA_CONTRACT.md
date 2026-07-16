@@ -1,14 +1,14 @@
-<!-- doc-version: 0.12.0 -->
+<!-- doc-version: 0.13.0 -->
 # Infra Contract
 
 Plaud Mirror publishes a `home-infra-protocol` project contract in
 `infra.contract.yml`.
 
-The source contract is reviewed against local protocol `0.9.0`. The
+The source contract is reviewed against local protocol `0.10.0`. The
 permanent-delete workflow is intentionally absent from this contract because
 it is a project-local operator command, not a sync-status action or infra
-policy. v0.12.0 improves the existing coverage fact without changing schedule,
-ownership, status URL, or the protocol schema.
+policy. v0.13.0 publishes the scheduler's authoritative next execution without
+changing cadence, freshness, ownership, or the sync engine.
 
 The contract is an upstream input to `home-infra`. Plaud Mirror owns the sync
 engine and its protocol status endpoint; `home-infra` owns the portal registry
@@ -41,6 +41,7 @@ The status URL returns `schemas/status-snapshot.schema.json` shape from
 `home-infra-protocol`:
 
 - `observed_at`
+- `next_run_at` when the live scheduler has an authoritative next tick
 - `condition`
 - `severity`
 - `summary`
@@ -60,6 +61,11 @@ error bodies.
 This keeps consumer freshness meaningful: Infra Portal or Hermes can join the
 snapshot's `observed_at` with the contract's `stale_after` instead of treating
 every HTTP read as a fresh sync event.
+
+`next_run_at` comes directly from the active `SchedulerManager`; it is omitted
+when scheduling is disabled or no next tick is known. It is a plan, not health
+evidence. Consumers may show a countdown, but only `observed_at + stale_after`
+determines whether the snapshot is stale.
 
 ## Producer / Consumer Boundary
 

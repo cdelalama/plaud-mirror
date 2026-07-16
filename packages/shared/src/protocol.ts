@@ -13,6 +13,7 @@ export const ProtocolStatusCheckSchema = z.object({
 
 export const ProtocolStatusSnapshotSchema = z.object({
   observed_at: z.string().datetime({ offset: true }).regex(/Z$/),
+  next_run_at: z.string().datetime({ offset: true }).regex(/Z$/).optional(),
   condition: ProtocolStatusConditionSchema,
   severity: ProtocolSeveritySchema,
   summary: z.string().min(1),

@@ -1,4 +1,4 @@
-<!-- doc-version: 0.12.0 -->
+<!-- doc-version: 0.13.0 -->
 # LLM Work Handoff
 
 This file is the live operational snapshot. Durable rationale lives in `docs/llm/DECISIONS.md`. Phase boundaries live in `docs/ROADMAP.md`.
@@ -6,7 +6,14 @@ This file is the live operational snapshot. Durable rationale lives in `docs/llm
 ## Current Status
 
 - Last Updated: 2026-07-16 - GPT-5 Codex
-- Session Focus: **v0.12.0 integrity release is deployed and reconciled.** The operator's
+- Session Focus: **v0.13.0 authoritative next-run evidence is prepared.** The
+  protocol snapshot maps the active scheduler's exact `nextTickAt` to optional
+  Home Infra Protocol 0.10.0 `next_run_at`, omits it when no plan exists, and
+  leaves freshness and severity unchanged. Tests cover authoritative
+  publication and omission. Runtime remains v0.12.0 until the release is
+  committed, published, deployed, and reconciled through Home Infra and Infra
+  Portal.
+- Previous Session Focus: **v0.12.0 integrity release is deployed and reconciled.** The operator's
   first real deletion on 2026-07-15 exposed that v0.11.2 accepted any HTTP 2xx
   as mutation success and mixed a historical tombstone into current Plaud
   coverage. v0.12.0 accepts only empty or explicit status-zero mutation

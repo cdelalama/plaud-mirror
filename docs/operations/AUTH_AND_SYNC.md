@@ -1,4 +1,4 @@
-<!-- doc-version: 0.12.0 -->
+<!-- doc-version: 0.13.0 -->
 # Authentication and Sync Operations
 
 This runbook defines the live behavior of Plaud Mirror's auth and sync surface. Phase 2 is fully shipped. Phase 3 added the scheduler, durable outbox, health observability, and access/recovery timeouts. `v0.10.3` makes artifact integrity truthful; `v0.10.4` makes scheduler completion, runtime ceilings, outbox recovery, pagination, and shutdown truthful before the soak. Resumable backfill and fully unattended re-login stay deferred.
@@ -173,7 +173,8 @@ Plaud Mirror now exposes the Plaud recording sync as a
 - Alias: `/api/protocol/status`.
 
 The endpoint returns `schemas/status-snapshot.schema.json` shape:
-`observed_at`, `condition`, `severity`, `summary`, and `checks[]`. It is public
+`observed_at`, optional scheduler-owned `next_run_at`, `condition`, `severity`,
+`summary`, and `checks[]`. It is public
 like `/api/health` so Infra Portal can read it without an operator session, but
 it is sanitized: no Plaud account summary, no bearer, no webhook secret, and no
 raw Plaud rejection body.
@@ -192,6 +193,10 @@ The snapshot is built from existing `/api/health` runtime truth:
 request time: active run `startedAt`, latest sync `finishedAt`, auth validation
 time, then current time only as first-boot fallback. Consumers derive freshness
 by joining this timestamp with `infra.contract.yml` `stale_after`.
+
+The live scheduler's exact `nextTickAt` is published as `next_run_at` only when
+known. It supports an attributed countdown in consumers, but it never replaces
+`observed_at + stale_after` and an expired plan does not mean the job is late.
 
 The soak contract declares `schedule.mode: internal-loop`, `cadence: PT15M`,
 and `stale_after: PT2H`. The freshness budget exceeds cadence plus the one-hour

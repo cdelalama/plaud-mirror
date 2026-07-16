@@ -4,6 +4,25 @@ All notable changes to Plaud Mirror are documented in this file.
 
 This project follows Semantic Versioning (SemVer): MAJOR.MINOR.PATCH.
 
+## [0.13.0] - 2026-07-16
+
+### Added
+
+- Optional public protocol `next_run_at`, sourced directly from the active
+  scheduler's next tick.
+- Producer/schema regressions for UTC validation, authoritative publication,
+  and omission when no schedule is known.
+
+### Changed
+
+- Review the project contract against Home Infra Protocol 0.10.0 and document
+  planned execution separately from freshness.
+
+### Fixed
+
+- Give generic consumers a truthful countdown source without requiring them to
+  estimate the next run from cadence.
+
 ## [0.12.0] - 2026-07-16
 
 ### Added

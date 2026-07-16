@@ -6,6 +6,7 @@ import { ProtocolStatusSnapshotSchema } from "./protocol.js";
 test("ProtocolStatusSnapshotSchema accepts home-infra-protocol status snapshots", () => {
   const snapshot = ProtocolStatusSnapshotSchema.parse({
     observed_at: "2026-06-21T10:15:30.000Z",
+    next_run_at: "2026-06-21T10:30:00.000Z",
     condition: "ok",
     severity: "none",
     summary: "Plaud Mirror sync ok",
@@ -21,6 +22,7 @@ test("ProtocolStatusSnapshotSchema accepts home-infra-protocol status snapshots"
   });
 
   assert.equal(snapshot.condition, "ok");
+  assert.equal(snapshot.next_run_at, "2026-06-21T10:30:00.000Z");
   assert.equal(snapshot.job_id, "plaud-mirror-recordings-sync");
 });
 
@@ -30,5 +32,15 @@ test("ProtocolStatusSnapshotSchema requires UTC observed_at", () => {
     condition: "ok",
     severity: "none",
     summary: "offset timestamp is not a snapshot anchor",
+}));
+});
+
+test("ProtocolStatusSnapshotSchema requires UTC next_run_at when present", () => {
+  assert.throws(() => ProtocolStatusSnapshotSchema.parse({
+    observed_at: "2026-06-21T10:15:30.000Z",
+    next_run_at: "2026-06-21T12:30:00.000+02:00",
+    condition: "ok",
+    severity: "none",
+    summary: "offset timestamp is not an authoritative UTC plan",
   }));
 });

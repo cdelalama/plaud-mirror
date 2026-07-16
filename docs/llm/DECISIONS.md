@@ -646,9 +646,9 @@ GET /api/protocol/status
 ```
 
 The snapshot conforms to `home-infra-protocol`
-`schemas/status-snapshot.schema.json`: `observed_at`, `condition`, `severity`,
-`summary`, and optional shaped `checks[]`, with Plaud Mirror-specific detail
-blocks allowed by the protocol's additive schema.
+`schemas/status-snapshot.schema.json`: `observed_at`, optional `next_run_at`,
+`condition`, `severity`, `summary`, and optional shaped `checks[]`, with Plaud
+Mirror-specific detail blocks allowed by the protocol's additive schema.
 
 ### Rationale
 
@@ -669,6 +669,11 @@ Plaud Mirror already owns all runtime facts needed for the protocol:
 The protocol layer normalizes those facts into the shared status vocabulary.
 Consumers derive freshness and policy from `observed_at + stale_after`; Plaud
 Mirror does not self-declare freshness and does not alert by itself.
+
+From v0.13.0, Plaud Mirror also maps the live scheduler's existing
+`nextTickAt` to protocol 0.10.0 `next_run_at`. It omits the field when no
+authoritative plan exists. This timestamp is scheduling evidence only and does
+not change the freshness or severity boundary above.
 
 ### Schedule mode
 

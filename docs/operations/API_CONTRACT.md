@@ -1,4 +1,4 @@
-<!-- doc-version: 0.12.0 -->
+<!-- doc-version: 0.13.0 -->
 # API Contract
 
 This document describes the HTTP and webhook surface that now exists in-repo. The current implementation covers the full Phase 2 slice plus the Phase 3 scheduler, durable webhook outbox, and full health observability. `v0.10.0` adds the `home-infra-protocol` sync-job surface; `v0.10.3` adds physical artifact reconciliation and explicit candidate failures; `v0.10.4` makes scheduler completion end-to-end truthful, exposes `health.outbox.delivering`, and enforces the one-hour whole-run ceiling. The five-screen UI consumes the app routes; protocol routes are for Infra Portal/Hermes style consumers.

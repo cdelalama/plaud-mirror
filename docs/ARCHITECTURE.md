@@ -1,9 +1,9 @@
-<!-- doc-version: 0.12.0 -->
+<!-- doc-version: 0.13.0 -->
 # Plaud Mirror Architecture
 
-> Version: 0.12.0
+> Version: 0.13.0
 > Last Updated: 2026-07-16
-> Status: v0.12.0 is deployed with durable deletion recovery and generation-based physical mirror coverage. The PT15M/PT2H protocol contract is unchanged; the independent Phase 3 post-deploy soak and live webhook exit gate remain open. Plaud-first Media2Text integration is the next product contract gate, but the draft Media Intake v1 needs the D-022 producer-review changes before implementation.
+> Status: v0.13.0 is prepared to publish scheduler-owned `next_run_at` through Home Infra Protocol 0.10.0; deployed runtime remains v0.12.0 until the release gate completes. Cadence, freshness, sync execution, deletion integrity, and the independent soak/webhook gates are unchanged.
 
 ## Overview
 
@@ -78,7 +78,7 @@ Phase 3 turns the manual slice into an unattended service. The later `0.7.x`-`0.
   the same Node 20 keepalive pattern. Runtime behavior remains unchanged.
 - **`v0.10.7`:** soak activation contract. `infra.contract.yml` moves from
   `manual/P1D` to `internal-loop`, `cadence: PT15M`, `stale_after: PT2H`, and
-  records Home Infra Protocol 0.9.0. Runtime scheduling remains owned by the
+  records the then-current Home Infra Protocol contract. Runtime scheduling remains owned by the
   existing in-process loop.
 - **`v0.10.2`:** pre-soak evidence patch. CI runs the complete Node 20 gate,
   the React panel is typechecked, Node/integration tests are discovered rather
@@ -104,6 +104,9 @@ Phase 3 turns the manual slice into an unattended service. The later `0.7.x`-`0.
   explicit `{ status: 0 }`. Full sync commits a single inventory generation
   only after physical artifact checks, so current remote coverage excludes
   historical tombstones and local-only tracked rows without losing either fact.
+- **`v0.13.0`:** protocol scheduling-evidence release. The status snapshot maps
+  the scheduler's existing `nextTickAt` to optional protocol 0.10.0
+  `next_run_at`; it is omitted when unknown and never changes freshness.
 
 Still **not** in Phase 3 scope:
 
@@ -187,8 +190,9 @@ The status endpoint is public like `/api/health`, but sanitized:
 - `GET /api/protocol/sync-jobs/plaud-mirror-recordings-sync/status`
 - `GET /api/protocol/status` (alias)
 
-Both routes return the protocol `status-snapshot` shape: `observed_at`,
-`condition`, `severity`, `summary`, and `checks[]`. The snapshot is derived
+Both routes return the protocol `status-snapshot` shape: `observed_at`, optional
+producer-owned `next_run_at`, `condition`, `severity`, `summary`, and
+`checks[]`. The snapshot is derived
 from existing runtime truth (`ServiceHealth`), not a second database or a new
 sync mechanism. It includes Plaud auth state, latest/active sync, coverage
 counts, scheduler state, and webhook outbox state.
@@ -198,6 +202,10 @@ counts, scheduler state, and webhook outbox state.
 only as first-boot fallback. Consumers therefore derive freshness from
 `observed_at + stale_after` without every HTTP read pretending to be a fresh
 source sync.
+
+When enabled, the scheduler's existing `nextTickAt` is exported as
+`next_run_at`. The field is omitted when unknown. Consumers may render that
+plan, but an expired plan is not `DUE` and does not alter freshness.
 
 The soak contract declares `schedule.mode: internal-loop`, `cadence: PT15M`,
 and `stale_after: PT2H`. The freshness budget exceeds cadence plus the one-hour
