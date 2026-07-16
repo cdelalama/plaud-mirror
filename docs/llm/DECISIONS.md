@@ -222,7 +222,7 @@ The `/device/list` endpoint in `v0.4.11` is the first real exercise of this dist
 
 ## D-012 - Continuous sync scheduler runs in-process with anti-overlap protection
 
-**Status:** accepted; **implemented across v0.5.0 → v0.5.2** (`apps/api/src/runtime/scheduler.ts`, `apps/api/src/runtime/scheduler-manager.ts`, hot-reconfigure via `service.setSchedulerReconfigureHook`). v0.5.0 introduced the timer + tick path (regressed: default-on without opt-in, missing service-level anti-overlap); v0.5.1 fixed the regressions; v0.5.2 made the interval panel-driven via `RuntimeConfig.schedulerIntervalMs` persisted in SQLite.
+**Status:** accepted; **implemented across v0.5.0 → v0.5.2 and shutdown-hardened in v0.13.1** (`apps/api/src/runtime/scheduler.ts`, `apps/api/src/runtime/scheduler-manager.ts`, hot-reconfigure via `service.setSchedulerReconfigureHook`). v0.5.0 introduced the timer + tick path (regressed: default-on without opt-in, missing service-level anti-overlap); v0.5.1 fixed the regressions; v0.5.2 made the interval panel-driven via `RuntimeConfig.schedulerIntervalMs` persisted in SQLite. v0.13.1 makes stop terminal for already-queued callbacks and unrefs runtime timers.
 
 ### Decision
 
@@ -248,9 +248,9 @@ The interval-from-boot semantics (rather than absolute-cadence wall-clock) is de
 ### Implications
 
 - `RuntimeServiceDependencies` gains an optional `scheduler` injection point already (used by tests). Phase 3's scheduler implementation is a new module that consumes the service via dependency injection — it does not bake the timer into `service.runMirror`.
-- The scheduler must be cancellable cleanly on process shutdown so SIGTERM does not leave a half-finished run.
+- The scheduler must be cancellable cleanly on process shutdown so SIGTERM does not leave a half-finished run. `stop()` marks the instance stopped before clearing its timer; a callback already queued by the event loop cannot rearm or execute work. A later explicit `start()` may activate the instance again.
 - Anti-overlap protection means an unusually long sync (e.g. backfilling 1000 missing recordings) blocks subsequent ticks until it finishes. That is the correct behavior — overlapping runs would corrupt the `sync_runs` row that polling relies on.
-- Test surface: a deterministic scheduler injection (similar to the one already in `service.test.ts`) lets tests fast-forward through ticks without real timers.
+- Test surface: a deterministic scheduler injection (similar to the one already in `service.test.ts`) lets tests fast-forward through ticks without real timers. HTTP app fixtures register `t.after(app.close)` immediately so failed assertions cannot strand background workers.
 
 ## D-013 - Webhook outbox is a separate SQLite table with explicit state transitions
 

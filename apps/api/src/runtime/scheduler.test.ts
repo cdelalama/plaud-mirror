@@ -214,6 +214,37 @@ test("Scheduler.start is idempotent — a second start() does not double the cad
   assert.equal(harness.pendingCount(), 1, "second start() must be a no-op, not schedule a parallel timer");
 });
 
+test("Scheduler.stop prevents an already-queued callback from rearming", async () => {
+  let queuedHandler: (() => void) | undefined;
+  let scheduled = 0;
+  let calls = 0;
+  const scheduler = new Scheduler({
+    intervalMs: 60_000,
+    runTick: async () => {
+      calls += 1;
+    },
+    setTimer: (handler) => {
+      queuedHandler = handler;
+      scheduled += 1;
+      return scheduled;
+    },
+    clearTimer: () => {
+      // Simulate a timeout callback already queued in the event loop.
+    },
+  });
+
+  scheduler.start();
+  assert.equal(scheduled, 1);
+  scheduler.stop();
+  queuedHandler?.();
+  await Promise.resolve();
+
+  assert.equal(scheduled, 1, "a queued callback must not schedule another timer");
+  assert.equal(calls, 0, "a queued callback must not run work after stop");
+  assert.equal(scheduler.status().enabled, false);
+  assert.equal(scheduler.status().nextTickAt, null);
+});
+
 test("Scheduler constructor rejects non-positive intervalMs", () => {
   assert.throws(() => new Scheduler({ intervalMs: 0, runTick: async () => {} }));
   assert.throws(() => new Scheduler({ intervalMs: -1, runTick: async () => {} }));

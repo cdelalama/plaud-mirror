@@ -97,6 +97,7 @@ export class Scheduler {
   private readonly clearTimer: (timer: unknown) => void;
 
   private timer: unknown = null;
+  private stopped = true;
   private inflight = false;
   private nextTickAtMs: number | null = null;
   private lastTickAtMs: number | null = null;
@@ -115,15 +116,17 @@ export class Scheduler {
   }
 
   start(): void {
-    if (this.timer !== null) {
+    if (!this.stopped || this.timer !== null) {
       // start() is idempotent: a second call is a no-op rather than
       // doubling the cadence.
       return;
     }
+    this.stopped = false;
     this.scheduleNext();
   }
 
   stop(): void {
+    this.stopped = true;
     if (this.timer !== null) {
       this.clearTimer(this.timer);
       this.timer = null;
@@ -152,8 +155,11 @@ export class Scheduler {
   }
 
   private scheduleNext(): void {
+    if (this.stopped) return;
     this.nextTickAtMs = Date.now() + this.intervalMs;
     this.timer = this.setTimer(() => {
+      this.timer = null;
+      if (this.stopped) return;
       // Schedule the next tick BEFORE awaiting the current one. Otherwise
       // a long-running tick (e.g. backfilling 500 recordings) would delay
       // the next tick by its full duration instead of skipping it. The
@@ -224,7 +230,9 @@ export class Scheduler {
 }
 
 function defaultSetTimer(handler: () => void, ms: number): NodeJS.Timeout {
-  return setTimeout(handler, ms);
+  const timer = setTimeout(handler, ms);
+  timer.unref();
+  return timer;
 }
 
 function defaultClearTimer(timer: unknown): void {

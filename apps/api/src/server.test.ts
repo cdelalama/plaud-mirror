@@ -3,9 +3,21 @@ import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
+import type { TestContext } from "node:test";
 
 import { buildContentDisposition, createApp, parseByteRange } from "./server.js";
 import type { ServerEnvironment } from "./runtime/environment.js";
+
+async function createTestApp(
+  t: TestContext,
+  options: Parameters<typeof createApp>[0],
+) {
+  const app = await createApp(options);
+  t.after(async () => {
+    await app.close();
+  });
+  return app;
+}
 
 function createJsonResponse(payload: unknown, status = 200): Response {
   return new Response(JSON.stringify(payload), {
@@ -32,10 +44,10 @@ function createEnvironment(root: string): ServerEnvironment {
   };
 }
 
-test("createApp wires auth and config routes", async () => {
+test("createApp wires auth and config routes", async (t) => {
   const root = await mkdtemp(join(tmpdir(), "plaud-mirror-server-"));
   const environment = createEnvironment(root);
-  const app = await createApp({
+  const app = await createTestApp(t, {
     environment,
     plaudFetchImpl: async (input) => {
       const url = String(input);
@@ -86,17 +98,16 @@ test("createApp wires auth and config routes", async () => {
   assert.equal(authStatusResponse.statusCode, 200);
   assert.equal(authStatusResponse.json().configured, true);
 
-  await app.close();
 });
 
-test("createApp exposes outbox routes: list shows only permanently_failed; force-retry rejects non-failed items", async () => {
+test("createApp exposes outbox routes: list shows only permanently_failed; force-retry rejects non-failed items", async (t) => {
   // The HTTP surface for D-013: GET /api/outbox returns the failed
   // backlog so the panel can render Retry buttons; POST /api/outbox/:id/retry
   // resurrects a permanently_failed row, and refuses to touch any other
   // state (panel must not bypass the FSM).
   const root = await mkdtemp(join(tmpdir(), "plaud-mirror-server-outbox-"));
   const environment = createEnvironment(root);
-  const app = await createApp({
+  const app = await createTestApp(t, {
     environment,
     plaudFetchImpl: async () => {
       throw new Error("Unexpected Plaud fetch in outbox-route test");
@@ -183,10 +194,9 @@ test("createApp exposes outbox routes: list shows only permanently_failed; force
   });
   assert.equal(badIdResponse.statusCode, 400);
 
-  await app.close();
 });
 
-test("createApp exposes audio streaming, delete, and restore routes for mirrored recordings", async () => {
+test("createApp exposes audio streaming, delete, and restore routes for mirrored recordings", async (t) => {
   const { mkdir, writeFile } = await import("node:fs/promises");
 
   const root = await mkdtemp(join(tmpdir(), "plaud-mirror-server-recordings-"));
@@ -199,7 +209,7 @@ test("createApp exposes audio streaming, delete, and restore routes for mirrored
   const audioPath = join(recordingDir, "audio.mp3");
   await writeFile(audioPath, "AUDIO_BYTES");
 
-  const app = await createApp({
+  const app = await createTestApp(t, {
     environment,
     plaudFetchImpl: async (input) => {
       const url = String(input);
@@ -309,16 +319,15 @@ test("createApp exposes audio streaming, delete, and restore routes for mirrored
   assert.equal(audioAfterRestore.statusCode, 200);
   assert.equal(audioAfterRestore.body, "RESTORED_BYTES");
 
-  await app.close();
 });
 
-test("createApp exposes dismissed-only permanent Plaud deletion", async () => {
+test("createApp exposes dismissed-only permanent Plaud deletion", async (t) => {
   const root = await mkdtemp(join(tmpdir(), "plaud-mirror-server-upstream-delete-"));
   const environment: ServerEnvironment = {
     ...createEnvironment(root),
     adminPassphrase: "correct-horse",
   };
-  const app = await createApp({
+  const app = await createTestApp(t, {
     environment,
     plaudFetchImpl: async (input, init) => {
       const url = String(input);
@@ -434,7 +443,6 @@ test("createApp exposes dismissed-only permanent Plaud deletion", async () => {
   assert.equal(failedDeleteResponse.statusCode, 502);
   assert.match(failedDeleteResponse.json().message, /Plaud deletion failed/);
 
-  await app.close();
 });
 
 test("buildContentDisposition emits ASCII + UTF-8 filenames and escapes unsafe chars", () => {
@@ -468,7 +476,7 @@ test("parseByteRange handles the four RFC 7233 single-range shapes and rejects g
   assert.equal(parseByteRange("bytes=0-999", 0), null);
 });
 
-test("audio endpoint supports HTTP Range requests with 206 Partial Content", async () => {
+test("audio endpoint supports HTTP Range requests with 206 Partial Content", async (t) => {
   const { mkdir, writeFile } = await import("node:fs/promises");
 
   const root = await mkdtemp(join(tmpdir(), "plaud-mirror-server-range-"));
@@ -482,7 +490,7 @@ test("audio endpoint supports HTTP Range requests with 206 Partial Content", asy
   const fileBody = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"; // 36 bytes
   await writeFile(audioPath, fileBody);
 
-  const app = await createApp({ environment });
+  const app = await createTestApp(t, { environment });
 
   const { RuntimeStore } = await import("./runtime/store.js");
   const sideStore = new RuntimeStore({
@@ -549,13 +557,12 @@ test("audio endpoint supports HTTP Range requests with 206 Partial Content", asy
   assert.equal(unsatisfiable.statusCode, 416);
   assert.equal(unsatisfiable.headers["content-range"], `bytes */${fileBody.length}`);
 
-  await app.close();
 });
 
-test("createApp returns 202 from POST /api/sync/run and exposes status via GET /api/sync/runs/:id", async () => {
+test("createApp returns 202 from POST /api/sync/run and exposes status via GET /api/sync/runs/:id", async (t) => {
   const root = await mkdtemp(join(tmpdir(), "plaud-mirror-server-async-"));
   const environment = createEnvironment(root);
-  const app = await createApp({
+  const app = await createTestApp(t, {
     environment,
     plaudFetchImpl: async (input) => {
       const url = String(input);
@@ -604,14 +611,13 @@ test("createApp returns 202 from POST /api/sync/run and exposes status via GET /
   const unknownResponse = await app.inject({ method: "GET", url: "/api/sync/runs/does-not-exist" });
   assert.equal(unknownResponse.statusCode, 404);
 
-  await app.close();
 });
 
-test("createApp rejects a backfill that collides with an active sync", async () => {
+test("createApp rejects a backfill that collides with an active sync", async (t) => {
   const root = await mkdtemp(join(tmpdir(), "plaud-mirror-server-backfill-conflict-"));
   const environment = createEnvironment(root);
   const queued: Array<() => Promise<unknown>> = [];
-  const app = await createApp({
+  const app = await createTestApp(t, {
     environment,
     scheduler: (work) => {
       queued.push(work);
@@ -634,13 +640,12 @@ test("createApp rejects a backfill that collides with an active sync", async () 
   assert.match(backfillResponse.json().message, /Cannot start backfill/);
   assert.equal(queued.length, 1, "conflicting backfill must not dispatch background work");
 
-  await app.close();
 });
 
-test("createApp rejects audio requests for unsafe ids", async () => {
+test("createApp rejects audio requests for unsafe ids", async (t) => {
   const root = await mkdtemp(join(tmpdir(), "plaud-mirror-server-unsafe-"));
   const environment = createEnvironment(root);
-  const app = await createApp({ environment });
+  const app = await createTestApp(t, { environment });
 
   const response = await app.inject({
     method: "GET",
@@ -648,13 +653,12 @@ test("createApp rejects audio requests for unsafe ids", async () => {
   });
   assert.equal(response.statusCode, 400);
 
-  await app.close();
 });
 
-test("createApp exposes GET /api/devices populated by a sync refresh", async () => {
+test("createApp exposes GET /api/devices populated by a sync refresh", async (t) => {
   const root = await mkdtemp(join(tmpdir(), "plaud-mirror-server-devices-"));
   const environment = createEnvironment(root);
-  const app = await createApp({
+  const app = await createTestApp(t, {
     environment,
     plaudFetchImpl: async (input) => {
       const url = String(input);
@@ -720,13 +724,12 @@ test("createApp exposes GET /api/devices populated by a sync refresh", async () 
   assert.equal(office?.firmwareVersion, 131400);
   assert.equal(typeof office?.lastSeenAt, "string");
 
-  await app.close();
 });
 
-test("createApp GET /api/backfill/candidates previews recordings with state annotations", async () => {
+test("createApp GET /api/backfill/candidates previews recordings with state annotations", async (t) => {
   const root = await mkdtemp(join(tmpdir(), "plaud-mirror-server-preview-"));
   const environment = createEnvironment(root);
-  const app = await createApp({
+  const app = await createTestApp(t, {
     environment,
     plaudFetchImpl: async (input) => {
       const url = String(input);
@@ -821,13 +824,12 @@ test("createApp GET /api/backfill/candidates previews recordings with state anno
   assert.equal(filtered.recordings[0]?.id, "rec-new");
   assert.equal(filtered.recordings[0]?.serialNumber, "PLAUD-X");
 
-  await app.close();
 });
 
-test("operator auth disabled: routes stay open, session reports authRequired=false, health warns", async () => {
+test("operator auth disabled: routes stay open, session reports authRequired=false, health warns", async (t) => {
   const root = await mkdtemp(join(tmpdir(), "plaud-mirror-server-noauth-"));
   const environment = createEnvironment(root);
-  const app = await createApp({
+  const app = await createTestApp(t, {
     environment,
     plaudFetchImpl: async () => {
       throw new Error("Unexpected Plaud fetch in auth-disabled test");
@@ -859,16 +861,15 @@ test("operator auth disabled: routes stay open, session reports authRequired=fal
     "health must surface the disabled access control so the gap is visible",
   );
 
-  await app.close();
 });
 
-test("operator auth enabled: gates /api, login issues a session cookie, throttles brute force, redacts health PII", async () => {
+test("operator auth enabled: gates /api, login issues a session cookie, throttles brute force, redacts health PII", async (t) => {
   const root = await mkdtemp(join(tmpdir(), "plaud-mirror-server-auth-"));
   const environment: ServerEnvironment = {
     ...createEnvironment(root),
     adminPassphrase: "correct-horse",
   };
-  const app = await createApp({
+  const app = await createTestApp(t, {
     environment,
     plaudFetchImpl: async (input) => {
       const url = String(input);
@@ -965,16 +966,15 @@ test("operator auth enabled: gates /api, login issues a session cookie, throttle
   });
   assert.equal(throttled.statusCode, 429);
 
-  await app.close();
 });
 
-test("operator auth enabled: protocol status stays public and sanitized", async () => {
+test("operator auth enabled: protocol status stays public and sanitized", async (t) => {
   const root = await mkdtemp(join(tmpdir(), "plaud-mirror-server-protocol-public-"));
   const environment: ServerEnvironment = {
     ...createEnvironment(root),
     adminPassphrase: "correct-horse",
   };
-  const app = await createApp({
+  const app = await createTestApp(t, {
     environment,
     plaudFetchImpl: async () => {
       throw new Error("Unexpected Plaud fetch in protocol status public test");
@@ -1006,16 +1006,15 @@ test("operator auth enabled: protocol status stays public and sanitized", async 
   assert.equal(body.userSummary, undefined);
   assert.ok(body.summary.includes("Plaud auth is missing"));
 
-  await app.close();
 });
 
-test("connect flow: start mints a captureId, complete validates it and stores the captured token", async () => {
+test("connect flow: start mints a captureId, complete validates it and stores the captured token", async (t) => {
   const root = await mkdtemp(join(tmpdir(), "plaud-mirror-server-connect-"));
   const environment: ServerEnvironment = {
     ...createEnvironment(root),
     adminPassphrase: "correct-horse",
   };
-  const app = await createApp({
+  const app = await createTestApp(t, {
     environment,
     plaudFetchImpl: async (input) => {
       const url = String(input);
@@ -1062,16 +1061,15 @@ test("connect flow: start mints a captureId, complete validates it and stores th
   });
   assert.equal(replay.statusCode, 409);
 
-  await app.close();
 });
 
-test("connect flow: complete without a live captureId is rejected (token-fixation defence)", async () => {
+test("connect flow: complete without a live captureId is rejected (token-fixation defence)", async (t) => {
   const root = await mkdtemp(join(tmpdir(), "plaud-mirror-server-connect-nofix-"));
   const environment: ServerEnvironment = {
     ...createEnvironment(root),
     adminPassphrase: "correct-horse",
   };
-  const app = await createApp({
+  const app = await createTestApp(t, {
     environment,
     plaudFetchImpl: async () => {
       throw new Error("Plaud must NOT be called when the captureId is missing/invalid");
@@ -1093,5 +1091,4 @@ test("connect flow: complete without a live captureId is rejected (token-fixatio
   });
   assert.equal(forged.statusCode, 409);
 
-  await app.close();
 });

@@ -1,9 +1,9 @@
-<!-- doc-version: 0.13.0 -->
+<!-- doc-version: 0.13.1 -->
 # Plaud Mirror Architecture
 
-> Version: 0.13.0
+> Version: 0.13.1 prepared; production remains 0.13.0
 > Last Updated: 2026-07-16
-> Status: v0.13.0 is deployed from clean source `31d9602` and publishes scheduler-owned `next_run_at` through Home Infra Protocol 0.10.0. Cadence, freshness, sync execution, deletion integrity, and the independent soak/webhook gates are unchanged.
+> Status: v0.13.1 prevents queued scheduler callbacks from rearming after stop and makes test-app cleanup unconditional. Production remains on v0.13.0 source `31d9602` until deployment; protocol scheduling evidence, cadence, freshness, deletion integrity, and soak/webhook gates are unchanged.
 
 ## Overview
 
@@ -272,7 +272,7 @@ maximum runtime.
    - **Scheduler-level (second guardrail).** `Scheduler.executeTick` keeps an `inflight` flag: if the timer fires while the previous tick's promise has not resolved, the new fire is also recorded as `skipped` and discarded. This case is rare in practice (it requires a tick to take longer than `intervalMs`), but it is the second guardrail that protects against a silent backlog if Plaud responses degrade or the service-level reuse fails for some unforeseen reason.
 4. The next tick is scheduled **before** the current `runTick` is awaited. This means a long-running tick (large limit, slow Plaud responses) does not push subsequent ticks back; the cadence is always `intervalMs` from the previous fire, regardless of how long the work took. Anti-overlap absorbs the case where the work outlasts the interval.
 5. `Scheduler.status()` returns `{ enabled, intervalMs, nextTickAt, lastTickAt, lastTickStatus, lastTickError }`. `getHealth()` calls the registered status provider and includes the result as `scheduler` in the `/api/health` response. When the scheduler is enabled, `phase` reads `"Phase 3 - unattended operation"`; when it is disabled, `phase` falls back to the historical `"Phase 2 - first usable slice"` string. Older clients that read `health.scheduler` get the disabled-shape default `{ enabled: false, intervalMs: 0, nextTickAt: null, lastTickAt: null, lastTickStatus: null, lastTickError: null }` thanks to Zod's `.default(...)` on `ServiceHealthSchema.scheduler`.
-6. SIGTERM/SIGINT call `app.close()`. The close hook stops new scheduler/outbox ticks, waits for any outbox request, aborts active sync work through the whole-run signal, waits for it to settle, and only then closes SQLite. The CLI keeps a 75-second hard-stop guard.
+6. SIGTERM/SIGINT call `app.close()`. The close hook stops new scheduler/outbox ticks, waits for any outbox request, aborts active sync work through the whole-run signal, waits for it to settle, and only then closes SQLite. From v0.13.1, stop marks each scheduler inactive before clearing its timer, so an already-queued callback cannot rearm or execute; timers are unref'd and do not keep a process alive alone. The CLI keeps a 75-second hard-stop guard.
 
 ### Device catalog
 

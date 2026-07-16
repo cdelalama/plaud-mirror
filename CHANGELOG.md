@@ -4,6 +4,24 @@ All notable changes to Plaud Mirror are documented in this file.
 
 This project follows Semantic Versioning (SemVer): MAJOR.MINOR.PATCH.
 
+## [0.13.1] - 2026-07-16
+
+### Added
+
+- A deterministic regression test for a timer callback that was already
+  queued when the scheduler stopped.
+- Test-context cleanup for every HTTP application fixture, including failed
+  assertions.
+
+### Changed
+
+- Runtime scheduler timers no longer keep a Node process alive by themselves.
+
+### Fixed
+
+- Prevent a queued scheduler callback from rearming work after `stop()`,
+  eliminating an intermittent test-process hang and tightening shutdown.
+
 ## [0.13.0] - 2026-07-16
 
 ### Added

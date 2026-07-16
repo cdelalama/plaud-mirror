@@ -1,4 +1,4 @@
-<!-- doc-version: 0.13.0 -->
+<!-- doc-version: 0.13.1 -->
 # LLM Work Handoff
 
 This file is the live operational snapshot. Durable rationale lives in `docs/llm/DECISIONS.md`. Phase boundaries live in `docs/ROADMAP.md`.
@@ -6,9 +6,11 @@ This file is the live operational snapshot. Durable rationale lives in `docs/llm
 ## Current Status
 
 - Last Updated: 2026-07-16 - GPT-5 Codex
-- Session Focus: **v0.13.0 authoritative next-run evidence is deployed and
-  reconciled.** The
-  protocol snapshot maps the active scheduler's exact `nextTickAt` to optional
+- Session Focus: **v0.13.1 shutdown hardening is prepared.** The scheduler now
+  makes `stop()` terminal for callbacks already queued in the event loop, and
+  every HTTP app test registers unconditional cleanup. Production remains
+  v0.13.0 until the Doppler-wrapped deploy. The protocol snapshot still maps
+  the active scheduler's exact `nextTickAt` to optional
   Home Infra Protocol 0.10.0 `next_run_at`, omits it when no plan exists, and
   leaves freshness and severity unchanged. Runtime source `31d9602` is Docker
   healthy; Home Infra 0.6.8 input `e8774d5` is synchronized, and Infra Portal
@@ -247,8 +249,9 @@ Do not collapse those phases casually.
 
 ## Next Session
 
-- The stack is deployed at v0.12.0. Rebuild only for a deliberate new release,
-  always with `doppler run --project plaud-mirror --config dev -- docker compose up -d --build`.
+- The stack is deployed at v0.13.0; v0.13.1 is the deliberate prepared patch.
+  Rebuild only with
+  `doppler run --project plaud-mirror --config dev -- docker compose up -d --build`.
 - Do not implement the Media2Text adapter, artifact endpoint, receiver, canary,
   or replay until Media2Text resolves the 2026-07-16 producer review and the
   operator ratifies a frozen Media Intake v1 commit SHA.
@@ -274,7 +277,7 @@ Do not collapse those phases casually.
   - Phase 1 spike tests
   - encrypted-secret/store/service/server tests
   - built API/web integration smoke tests
-- Current `v0.12.0` source total is 190 runtime tests (160 Node/integration +
+- Current `v0.13.1` source total is 194 runtime tests (164 Node/integration +
   30 web), reproduced by the root suite. Governance checks report
   `scripts/dockit-validate-session.sh --human` 12/12,
   `scripts/check-version-sync.sh` 23 targets, and
@@ -286,18 +289,15 @@ Do not collapse those phases casually.
 
 - Role: executor
 - Subject: Deploy authoritative next-run evidence
-- Release target: Plaud Mirror 0.13.0.
-- Commit: `31d9602`.
-- Commit subject: `feat: publish authoritative next-run evidence`.
-- Commit time: 2026-07-16 16:45:02 UTC.
-- Repo state: release commit published and deployed; documentation-only
-  evidence follow-up is the only later repository change.
-- Validation: 193 tests, build/typecheck, audit 0, version 23/23, validator
-  32/32, DocKit, SQLite backup/integrity, Docker health, auth, PT15M scheduler,
-  627/627 coverage, protocol `next_run_at`, Home Infra provenance, and Portal
-  observation pass.
-- Next gate: preserve the runtime for the multi-day soak and separately wait
-  for Media2Text contract revision/re-review before any adapter implementation.
+- Release target: Plaud Mirror 0.13.1.
+- Commit: pending clean release publication.
+- Repo state: patch prepared; production remains 0.13.0.
+- Validation: 164/164 Node/integration tests pass, including the queued-callback
+  stop race and unconditional HTTP fixture cleanup. Full root, governance,
+  backup, deployment, and runtime gates remain before publication closes.
+- Next gate: publish/deploy 0.13.1, then preserve the runtime for the multi-day
+  soak and separately wait for Media2Text contract revision/re-review before
+  any adapter implementation.
 
 ## Key Decisions (Links)
 

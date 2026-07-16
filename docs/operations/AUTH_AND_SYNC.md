@@ -1,4 +1,4 @@
-<!-- doc-version: 0.13.0 -->
+<!-- doc-version: 0.13.1 -->
 # Authentication and Sync Operations
 
 This runbook defines the live behavior of Plaud Mirror's auth and sync surface. Phase 2 is fully shipped. Phase 3 added the scheduler, durable outbox, health observability, and access/recovery timeouts. `v0.10.3` makes artifact integrity truthful; `v0.10.4` makes scheduler completion, runtime ceilings, outbox recovery, pagination, and shutdown truthful before the soak. Resumable backfill and fully unattended re-login stay deferred.
@@ -133,7 +133,7 @@ Operational properties:
 - **Cadence is from-fire, not from-completion.** The next tick is scheduled before the current tick is awaited, so a slow run does not push the cadence back; anti-overlap absorbs the case where work outlasts the interval.
 - **Observability.** `/api/health` exposes the scheduler block — `enabled`, `intervalMs`, `nextTickAt` (ISO), `lastTickAt` (ISO), `lastTickStatus` (`completed` / `failed` / `skipped` / `null`), `lastTickError` (string or `null`). From `v0.10.4`, a started tick stays in-flight until its mirror run finishes: `completed` no longer means merely dispatched. Absorbed active runs remain `skipped` with an operator-readable reason.
 - **Whole-run ceiling.** `PLAUD_MIRROR_SYNC_MAX_RUNTIME_MS` defaults to `3600000` (one hour). Its abort signal reaches Plaud API calls and audio streams; timeout closes the durable run as failed.
-- **Shutdown.** SIGTERM/SIGINT stop new ticks, await the outbox, cancel and await active sync work, and close SQLite last. The CLI has a 75-second hard-stop guard.
+- **Shutdown.** SIGTERM/SIGINT stop new ticks, await the outbox, cancel and await active sync work, and close SQLite last. From v0.13.1, an already-queued timer callback observes the stopped state and cannot rearm or execute work; runtime timers are unref'd. The CLI has a 75-second hard-stop guard.
 
 #### Webhook outbox — shipped in `v0.5.3`
 
