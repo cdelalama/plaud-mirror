@@ -87,12 +87,13 @@ Recommended reading order:
 
 Source of truth: docs/llm/HANDOFF.md.
 - Last Updated: 2026-07-16 - GPT-5 Codex
-- Working on: **v0.13.0 authoritative next-run evidence is prepared.** The
+- Working on: **v0.13.0 authoritative next-run evidence is deployed and
+  reconciled.** The
   public protocol snapshot maps the live scheduler's existing `nextTickAt` to
   optional Home Infra Protocol 0.10.0 `next_run_at`, omits it when unknown, and
-  keeps freshness exclusively on `observed_at + stale_after`. Local validation
-  and deployment reconciliation remain the current gate; runtime is still
-  v0.12.0.
+  keeps freshness exclusively on `observed_at + stale_after`. Runtime source
+  `31d9602` is Docker healthy; Home Infra 0.6.8 input `e8774d5` is synchronized
+  and Infra Portal 0.20.0 observes the future plan with no provenance warnings.
 - Previous: **v0.12.0 destructive-operation and coverage integrity is
   deployed and reconciled.** The first real
   operator deletion exposed weak 2xx acknowledgement and a false remote

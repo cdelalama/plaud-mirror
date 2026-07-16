@@ -12,7 +12,7 @@ This document is the canonical phase boundary for Plaud Mirror. If implementatio
 
 ## Current Target
 
-- Current deployed release: `v0.12.0` from runtime source `8df5c35`.
+- Current deployed release: `v0.13.0` from runtime source `31d9602`.
 - Current operational gate: preserve the deployed runtime while it accumulates
   3-5 days of post-release PT15M evidence, then run the separately authorized
   live webhook drill before closing Phase 3.

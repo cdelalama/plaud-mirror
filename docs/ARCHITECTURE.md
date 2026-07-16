@@ -3,7 +3,7 @@
 
 > Version: 0.13.0
 > Last Updated: 2026-07-16
-> Status: v0.13.0 is prepared to publish scheduler-owned `next_run_at` through Home Infra Protocol 0.10.0; deployed runtime remains v0.12.0 until the release gate completes. Cadence, freshness, sync execution, deletion integrity, and the independent soak/webhook gates are unchanged.
+> Status: v0.13.0 is deployed from clean source `31d9602` and publishes scheduler-owned `next_run_at` through Home Infra Protocol 0.10.0. Cadence, freshness, sync execution, deletion integrity, and the independent soak/webhook gates are unchanged.
 
 ## Overview
 
@@ -314,7 +314,7 @@ maximum runtime.
 The architecture is not waiting for another internal redesign. The next work is
 ordered by evidence and product contracts:
 
-1. **Close Phase 3 honestly:** leave deployed v0.12.0 untouched during the
+1. **Close Phase 3 honestly:** leave deployed v0.13.0 untouched during the
    3-5 day PT15M soak, then run the separately authorized live webhook drill.
 2. **Freeze the Plaud-first Media2Text contract:** Media Intake v1 at
    Media2Text `c982ced` has the correct durable-202 and network-transfer base,

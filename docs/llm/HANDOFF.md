@@ -6,13 +6,13 @@ This file is the live operational snapshot. Durable rationale lives in `docs/llm
 ## Current Status
 
 - Last Updated: 2026-07-16 - GPT-5 Codex
-- Session Focus: **v0.13.0 authoritative next-run evidence is prepared.** The
+- Session Focus: **v0.13.0 authoritative next-run evidence is deployed and
+  reconciled.** The
   protocol snapshot maps the active scheduler's exact `nextTickAt` to optional
   Home Infra Protocol 0.10.0 `next_run_at`, omits it when no plan exists, and
-  leaves freshness and severity unchanged. Tests cover authoritative
-  publication and omission. Runtime remains v0.12.0 until the release is
-  committed, published, deployed, and reconciled through Home Infra and Infra
-  Portal.
+  leaves freshness and severity unchanged. Runtime source `31d9602` is Docker
+  healthy; Home Infra 0.6.8 input `e8774d5` is synchronized, and Infra Portal
+  0.20.0 observes the current future `nextRunAt` with no provenance warnings.
 - Previous Session Focus: **v0.12.0 integrity release is deployed and reconciled.** The operator's
   first real deletion on 2026-07-15 exposed that v0.11.2 accepted any HTTP 2xx
   as mutation success and mixed a historical tombstone into current Plaud
@@ -134,11 +134,11 @@ This is now verified on the actual `dev-vm`, not assumed.
 
 ## Verified Runtime State
 
-- Container `plaud-mirror-plaud-mirror-1` is up and Docker healthy on `dev-vm`, port `3040` bound, running Plaud Mirror 0.12.0 from source `8df5c35`.
-- `GET /api/health` returns `200` with auth healthy against the EU Plaud API, PT15M enabled, `warnings: []`, empty outbox, no active run, and exact coverage `{ remoteTotal: 626, mirrored: 626, dismissed: 0, missing: 0, localOnly: 0, upstreamDeleted: 1 }` after full run `2f623141-1896-4da8-a6c0-9be3dd804651`.
-- `GET /api/protocol/sync-jobs/plaud-mirror-recordings-sync/status` returns `version: "0.12.0"`, `condition: "ok"`, `severity: "none"`, and summary "Plaud Mirror sync ok: 626/626 recording(s) mirrored." The one historical deletion is reported separately as a confirmed local tombstone.
-- SQLite contains one current generation with 626 physically verified artifact rows plus one generation-less legacy tombstone. `PRAGMA integrity_check` is `ok`; migration seeded that tombstone as one confirmed operation with a `legacy_tombstone_imported` event.
-- Home Infra 0.6.6 external commit f161f39 is synchronized to NAS. Infra Portal provenance reports Home Infra f161f39 and Plaud Mirror `8df5c35` with no warnings; the Plaud observation is current `ok/none` at 626/626 and not stale.
+- Container `plaud-mirror-plaud-mirror-1` is up and Docker healthy on `dev-vm`, port `3040` bound, running Plaud Mirror 0.13.0 from source `31d9602`.
+- `GET /api/health` returns `200` with auth healthy against the EU Plaud API, PT15M enabled, `warnings: []`, empty outbox, no active run, and exact coverage `{ remoteTotal: 627, mirrored: 627, dismissed: 0, missing: 0, localOnly: 0, upstreamDeleted: 1 }` after scheduled run `4bc81d89-cb60-44bc-a0b5-02e3aaba0094`.
+- `GET /api/protocol/sync-jobs/plaud-mirror-recordings-sync/status` returns `version: "0.13.0"`, a future scheduler-owned `next_run_at`, `condition: "ok"`, `severity: "none"`, and summary "Plaud Mirror sync ok: 627/627 recording(s) mirrored." The historical deletion is reported separately as a confirmed local tombstone.
+- SQLite contains one current generation with 627 physically verified artifact rows plus one historical tombstone. `PRAGMA integrity_check` is `ok`; the pre-deploy backup is `runtime/data/app.db.backup-20260716T170235Z-v0130-pre-next-run`.
+- Home Infra 0.6.8 input release e8774d5 is synchronized to NAS. Infra Portal 0.20.0 provenance reports Home Infra e8774d5 and Plaud Mirror `31d9602` with no warnings; the Plaud observation is current `ok/none` at 627/627, not stale, and carries `nextRunAt`.
 - Bearer token saved via the web UI, auth validated with `/user/me`, encrypted at rest, survives restarts.
 - Manual sync and filtered backfill exercised against live Plaud. Latest confirmed sync run `5a970a84-3f44-4602-b727-3d1d12179349` examined 514 Plaud recordings, matched/downloaded 165 missing local audio files, skipped webhook enqueue because no webhook is configured, and completed without error; `plaudTotal` + stable `#N` ranks populate correctly.
 - Device catalog populates after sync via `/device/list`; the backfill selector renders operator nicknames.
@@ -150,7 +150,7 @@ This is now verified on the actual `dev-vm`, not assumed.
 ## What Is Still Not Verified
 
 - **Real webhook delivery against a live downstream receiver.** No webhook URL has been configured in this environment yet; all recordings carry `lastWebhookStatus: "skipped"` because the service short-circuits when no URL is set. Once a receiver exists, confirm HMAC signature verification and persisted delivery attempts end-to-end.
-- **Post-v0.12.0 multi-day scheduler behavior.** Earlier PT15M soak evidence remains useful, but the integrity release restarted the container. Accumulate another 3-5 days of clean `recentSyncRuns`, Docker health, exact coverage, outbox counters, and Portal freshness before closing the current soak gate.
+- **Post-v0.13.0 multi-day scheduler behavior.** Earlier PT15M soak evidence remains useful, but this protocol release restarted the container. Accumulate another 3-5 days of clean `recentSyncRuns`, Docker health, exact coverage, outbox counters, Portal freshness, and honest next-run advancement before closing the current soak gate.
 - **Durable webhook outbox.** Shipped in `v0.5.3` with 11 deterministic tests (FSM transitions, atomic claim, exponential backoff, monotonic `deliveryAttempt`, `MAX_ATTEMPTS` escalation, unconfigured-webhook escalation, HTTP shape including 400 / 404 / 409 guards). Pending: a live multi-day soak run that exercises a real downstream — every test path uses an injected `webhookFetchImpl`.
 - **Full health observability — surfaced in v0.9.0.** `/api/health` returns `lastErrors` (cross-subsystem ring buffer, capped at 20) and `recentSyncRuns` (last 5 finished runs), and the redesigned panel now renders those signals in Main/Operations. Pending: a live multi-subsystem failure exercise to verify all three error sources (scheduler tick failure, outbox delivery escalation, sync run failure) feed the buffer in production.
 - **Fully unattended SSO renewal.** Browser-assisted re-auth exists, but no background OAuth/MCP auto-renewal has been implemented.
@@ -284,16 +284,20 @@ Do not collapse those phases casually.
 
 ## Trace Anchor
 
-- Role: auditor
-- Subject: Media Intake v1 producer review at Media2Text `c982ced`
-- Repo state: v0.12.0 runtime source `8df5c35` remains deployed and untouched;
-  Plaud Mirror documentation records REQUEST CHANGES and D-022.
-- Validation: frozen Media2Text schema/semantics plus Plaud Mirror identity,
-  outbox, artifact, replay, dismissal, deletion, and privacy paths reviewed;
-  documentation validators pass. No runtime test or deployment was required.
-- Next gate: Media2Text revises the contract; Plaud Mirror re-reviews it; the
-  operator ratifies a frozen version + SHA before implementation. The runtime
-  independently completes its soak and live webhook gate.
+- Role: executor
+- Subject: Deploy authoritative next-run evidence
+- Release target: Plaud Mirror 0.13.0.
+- Commit: `31d9602`.
+- Commit subject: `feat: publish authoritative next-run evidence`.
+- Commit time: 2026-07-16 16:45:02 UTC.
+- Repo state: release commit published and deployed; documentation-only
+  evidence follow-up is the only later repository change.
+- Validation: 193 tests, build/typecheck, audit 0, version 23/23, validator
+  32/32, DocKit, SQLite backup/integrity, Docker health, auth, PT15M scheduler,
+  627/627 coverage, protocol `next_run_at`, Home Infra provenance, and Portal
+  observation pass.
+- Next gate: preserve the runtime for the multi-day soak and separately wait
+  for Media2Text contract revision/re-review before any adapter implementation.
 
 ## Key Decisions (Links)
 

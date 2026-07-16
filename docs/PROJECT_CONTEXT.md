@@ -26,11 +26,12 @@ Persistence is split between SQLite for state/indexes and the filesystem for mir
 
 ## Current Status (2026-07-16, v0.13.0)
 
-Plaud Mirror `v0.13.0` is prepared to publish the active scheduler's authoritative next tick
+Plaud Mirror `v0.13.0` publishes the active scheduler's authoritative next tick
 as Home Infra Protocol 0.10.0 `next_run_at`. The field is omitted when no plan
 exists and never changes freshness or severity. This restores useful countdown
 UX in generic consumers without asking them to reconstruct a schedule from
-cadence. The deployed runtime remains v0.12.0 until the release gate completes.
+cadence. It is deployed from clean source `31d9602`; live health and protocol
+status report 627/627 current coverage, `ok/none`, and a future next run.
 
 Plaud Mirror `v0.12.0` is the integrity follow-up to the first real operator
 deletion on 2026-07-15. That event exposed two assumptions that mocked happy
