@@ -133,6 +133,7 @@ export class PlaudMirrorService {
   private activeMirrorRun: ActiveMirrorRun | null = null;
   private schedulerStatusProvider: SchedulerStatusProvider | null = null;
   private schedulerReconfigureHook: ((intervalMs: number) => void) | null = null;
+  private readonly activeUpstreamDeletionIds = new Set<string>();
   // D-014 full (v0.5.5). Cross-subsystem error ring buffer. Most-recent-first;
   // older entries fall off the back when length exceeds LAST_ERRORS_CAP. In-
   // memory by design — errors that need to survive a container restart belong
@@ -308,6 +309,7 @@ export class PlaudMirrorService {
       recentSyncRuns: this.store.getRecentSyncRuns(5),
       recordingsCount: this.store.countRecordings(),
       dismissedCount: this.store.countDismissed(),
+      coverage: this.store.getCoverage(),
       webhookConfigured: Boolean(config.webhookUrl),
       warnings,
     });
@@ -691,6 +693,12 @@ export class PlaudMirrorService {
     if (recording.upstreamDeletedAt) {
       throw createHttpError(410, `Recording ${recordingId} was permanently deleted from Plaud`);
     }
+    if (recording.upstreamDeletion) {
+      throw createHttpError(
+        409,
+        `Recording ${recordingId} has an unresolved Plaud deletion; retry deletion before restoring`,
+      );
+    }
 
     // Clear the dismissed flag first. Even if the immediate re-download below
     // fails, the operator's intent ("I want this back") is respected and the
@@ -713,13 +721,17 @@ export class PlaudMirrorService {
     if (artifact) {
       const current = this.store.getRecording(recordingId);
       if (current) {
-        this.store.upsertRecording(RecordingMirrorSchema.parse({
+        const restored = this.store.upsertRecording(RecordingMirrorSchema.parse({
           ...current,
           localPath: artifact.localPath,
           contentType: artifact.contentType,
           bytesWritten: artifact.bytesWritten,
           mirroredAt: new Date().toISOString(),
         }));
+        const inventoryGeneration = this.store.getCurrentInventoryGeneration();
+        if (inventoryGeneration) {
+          this.store.markRecordingArtifactVerified(restored.id, inventoryGeneration);
+        }
       }
     }
 
@@ -733,7 +745,21 @@ export class PlaudMirrorService {
     recordingId: string,
   ): Promise<RecordingUpstreamDeleteResult> {
     this.assertSafeRecordingId(recordingId);
+    if (this.activeUpstreamDeletionIds.has(recordingId)) {
+      throw createHttpError(409, `Recording ${recordingId} already has a Plaud deletion in progress`);
+    }
 
+    this.activeUpstreamDeletionIds.add(recordingId);
+    try {
+      return await this.executePermanentPlaudDeletion(recordingId);
+    } finally {
+      this.activeUpstreamDeletionIds.delete(recordingId);
+    }
+  }
+
+  private async executePermanentPlaudDeletion(
+    recordingId: string,
+  ): Promise<RecordingUpstreamDeleteResult> {
     const recording = this.store.getRecording(recordingId);
     if (!recording) {
       throw createHttpError(404, `Recording ${recordingId} is not tracked locally`);
@@ -742,32 +768,107 @@ export class PlaudMirrorService {
       throw createHttpError(409, `Recording ${recordingId} must be dismissed locally before Plaud deletion`);
     }
     if (recording.upstreamDeletedAt) {
+      let operation = this.store.getUpstreamDeletionOperation(recordingId);
+      if (!operation) {
+        this.store.markRecordingUpstreamDeleted(recordingId, recording.upstreamDeletedAt);
+        operation = this.store.getUpstreamDeletionOperation(recordingId);
+      }
+      if (!operation) {
+        throw new Error(`Recording ${recordingId} tombstone has no deletion operation`);
+      }
       return RecordingUpstreamDeleteResultSchema.parse({
         id: recordingId,
         dismissed: true,
         upstreamDeletedAt: recording.upstreamDeletedAt,
+        operationId: operation.operationId,
       });
     }
 
+    let operation = this.store.getUpstreamDeletionOperation(recordingId);
+    if (operation) {
+      operation = this.store.beginUpstreamDeletion(recordingId);
+    }
     try {
       const { client } = await this.loadValidatedClient();
-      const detail = await client.getFileDetail(recordingId);
+      let detail;
+      try {
+        detail = await client.getFileDetail(recordingId);
+      } catch (error) {
+        if (error instanceof PlaudApiError && error.status === 404 && operation) {
+          const upstreamDeletedAt = new Date().toISOString();
+          const reconciled = this.store.confirmUpstreamDeletion(recordingId, upstreamDeletedAt);
+          if (!reconciled) {
+            throw new Error(`Recording ${recordingId} disappeared while reconciling Plaud deletion`);
+          }
+          return RecordingUpstreamDeleteResultSchema.parse({
+            id: recordingId,
+            dismissed: true,
+            upstreamDeletedAt,
+            operationId: operation.operationId,
+          });
+        }
+        throw error;
+      }
+      if (!operation) {
+        operation = this.store.beginUpstreamDeletion(recordingId);
+      }
       if (!detail.is_trash) {
+        operation = this.store.advanceUpstreamDeletion(recordingId, "trash_attempted");
         await client.trashRecordings([recordingId]);
       }
+      operation = this.store.advanceUpstreamDeletion(recordingId, "trash_confirmed");
+      operation = this.store.advanceUpstreamDeletion(recordingId, "delete_attempted");
       await client.permanentlyDeleteRecordings([recordingId]);
     } catch (error) {
+      if (operation) {
+        try {
+          operation = this.store.failUpstreamDeletion(recordingId, toErrorMessage(error));
+        } catch (persistenceError) {
+          console.error(
+            `Failed to persist upstream deletion failure for ${recordingId}:`,
+            persistenceError instanceof Error ? persistenceError.message : persistenceError,
+          );
+        }
+      }
       if (error instanceof PlaudAuthError) {
         throw createHttpError(502, "Plaud authentication failed; reconnect Plaud before deleting");
       }
       if (error instanceof PlaudApiError) {
-        throw createHttpError(502, `Plaud deletion failed: ${error.message}`);
+        const prefix = operation?.stage === "delete_attempted"
+          ? "Plaud deletion was not confirmed; retry will reconcile"
+          : "Plaud deletion failed";
+        throw createHttpError(502, `${prefix}: ${error.message}`);
+      }
+      if (operation?.stage === "delete_attempted") {
+        throw createHttpError(
+          500,
+          "Plaud deletion may have succeeded but local confirmation failed; retry to reconcile",
+        );
       }
       throw error;
     }
 
+    if (!operation) {
+      throw new Error(`Recording ${recordingId} reached Plaud deletion without a durable operation`);
+    }
+
     const upstreamDeletedAt = new Date().toISOString();
-    const updated = this.store.markRecordingUpstreamDeleted(recordingId, upstreamDeletedAt);
+    let updated: RecordingMirror | null;
+    try {
+      updated = this.store.confirmUpstreamDeletion(recordingId, upstreamDeletedAt);
+    } catch (error) {
+      try {
+        this.store.failUpstreamDeletion(recordingId, toErrorMessage(error));
+      } catch {
+        // The durable delete-attempted stage was written before the remote
+        // request. Even if this secondary write also fails, retry can inspect
+        // that stage and reconcile an upstream 404.
+      }
+      throw createHttpError(
+        500,
+        "Plaud deletion may have succeeded but local confirmation failed; retry to reconcile",
+      );
+    }
     if (!updated) {
       throw new Error(`Recording ${recordingId} disappeared after Plaud deletion`);
     }
@@ -776,6 +877,7 @@ export class PlaudMirrorService {
       id: recordingId,
       dismissed: true,
       upstreamDeletedAt,
+      operationId: operation.operationId,
     });
   }
 
@@ -925,6 +1027,33 @@ export class PlaudMirrorService {
         ranks.set(remoteRecordings[index]!.id, plaudTotal - index);
       }
 
+      // Publish coverage from one coherent remote generation. Every known
+      // active row is physically checked before the generation pointer moves;
+      // new remote ids remain unrepresented and therefore count as missing.
+      const existingById = new Map<string, RecordingMirror | null>();
+      const artifactPresentById = new Map<string, boolean>();
+      const artifactVerifiedIds: string[] = [];
+      for (const remoteRecording of remoteRecordings) {
+        signal?.throwIfAborted();
+        const existing = this.store.getRecording(remoteRecording.id);
+        existingById.set(remoteRecording.id, existing);
+        const artifactPresent = Boolean(
+          !existing?.dismissed
+          && existing?.localPath
+          && await hasLocalArtifact(existing.localPath, existing.bytesWritten),
+        );
+        artifactPresentById.set(remoteRecording.id, artifactPresent);
+        if (artifactPresent) {
+          artifactVerifiedIds.push(remoteRecording.id);
+        }
+      }
+      const inventory = this.store.commitUpstreamInventory(
+        remoteRecordings.map((recording) => recording.id),
+        artifactVerifiedIds,
+        new Date().toISOString(),
+        plaudTotal,
+      );
+
       const probeFilters: Parameters<typeof applyLocalFilters>[1] = {
         limit: normalizedFilters.limit,
         recordingsDir: this.environment.recordingsDir,
@@ -955,7 +1084,7 @@ export class PlaudMirrorService {
         if (candidates.length >= normalizedFilters.limit) {
           break;
         }
-        const existing = this.store.getRecording(recording.id);
+        const existing = existingById.get(recording.id) ?? null;
         if (existing?.dismissed) {
           continue;
         }
@@ -965,8 +1094,7 @@ export class PlaudMirrorService {
         // Forcing a re-download is what `forceDownload` is for.
         if (
           !normalizedFilters.forceDownload
-          && existing?.localPath
-          && await hasLocalArtifact(existing.localPath, existing.bytesWritten)
+          && artifactPresentById.get(recording.id) === true
         ) {
           continue;
         }
@@ -992,6 +1120,7 @@ export class PlaudMirrorService {
             recording,
             mode,
             normalizedFilters.forceDownload,
+            inventory.generation,
             signal,
           );
           if (result.downloaded) {
@@ -1082,6 +1211,7 @@ export class PlaudMirrorService {
     recording: RemoteRecordingShape,
     mode: SyncRunMode,
     forceDownload: boolean,
+    inventoryGeneration: string,
     signal?: AbortSignal,
   ): Promise<ProcessRecordingResult> {
     const existing = this.store.getRecording(recording.id);
@@ -1166,6 +1296,7 @@ export class PlaudMirrorService {
       lastWebhookStatus: enqueueDecision.status,
       lastWebhookAttemptAt: enqueueDecision.attemptedAt,
     });
+    this.store.markRecordingArtifactVerified(persisted.id, inventoryGeneration);
 
     return {
       downloaded: true,

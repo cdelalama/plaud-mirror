@@ -193,6 +193,57 @@ CLI quota was exhausted, so no Fable audit is claimed for this release.
 
 ---
 
+## 2026-07-16 - First Live Deletion Integrity Re-audit
+
+**Input:** v0.11.2 source, the persisted tombstone created by the operator's
+first real Plaud deletion on 2026-07-15, live SQLite/health/protocol state, and
+the current Home Infra, Home Infra Protocol, Infra Portal, Cortex, and
+Media2Text boundaries.
+**Reviewers:** GPT-5 Codex (audit, design, implementation).
+
+### Points of Agreement
+
+- The single-operator Fastify + SQLite architecture remains correctly sized;
+  no external queue, distributed transaction, or cross-project redesign is
+  justified.
+- Home Infra Protocol status details are additive passthrough data, Infra
+  Portal does not parse Plaud-private counts, and the Cortex/Media2Text Plaud
+  contracts are still drafts. The correction belongs in Plaud Mirror first.
+- The real tombstone is valid operational evidence and must be preserved; no
+  additional live deletion is appropriate for validation.
+
+### Points Raised (Pushback / Additions)
+
+1. **HTTP 2xx was treated as destructive success.** HTML or unknown JSON could
+   authorize a tombstone without proving Plaud accepted the mutation.
+   - Resolution: Adopted in v0.12.0. Empty body and explicit status zero are the
+     only accepted acknowledgements.
+2. **A tombstone polluted current remote coverage.** The mapper subtracted all
+   historical dismissed rows from the current Plaud total, producing a
+   partition larger than the remote inventory after actual deletion.
+   - Resolution: Adopted in v0.12.0. Full sync commits one inventory generation
+     after physical artifact verification; local-only and confirmed-deleted
+     counts are separate.
+3. **Partial deletion state was not durable.** A process/DB failure between
+   trash, DELETE, and tombstone persistence could not be reconstructed safely.
+   - Resolution: Adopted in v0.12.0. Current operation state and append-only
+     events are persisted around side effects; retry reconciles before repeat.
+4. **Dismissed-row opacity muted the destructive command.** Parent opacity
+   reduced contrast on the control that most needs legibility.
+   - Resolution: Adopted. Only passive recording content is muted; actions keep
+     full contrast.
+
+### Summary Outcome
+
+- This is a backward-compatible minor capability, not a patch-only cosmetic
+  fix: additive persistence and API fields establish explicit recovery and
+  coverage contracts.
+- Sibling contracts do not require a coordinated protocol or Cortex change.
+  Home Infra must only be reconciled after the new runtime is deployed and its
+  first complete inventory generation is observed.
+
+---
+
 ## Planned Reviews
 
 - Security review before implementing credential storage (recommend invoking `/security-review`).

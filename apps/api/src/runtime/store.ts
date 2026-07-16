@@ -7,13 +7,16 @@ import Database from "better-sqlite3";
 import {
   AuthStatusSchema,
   DeviceSchema,
+  MirrorCoverageSchema,
   OutboxItemSchema,
   RecordingMirrorSchema,
   RuntimeConfigSchema,
   SyncFiltersSchema,
   SyncRunSummarySchema,
+  UpstreamDeletionOperationSchema,
   type AuthStatus,
   type Device,
+  type MirrorCoverage,
   type OutboxHealth,
   type OutboxItem,
   type OutboxState,
@@ -22,6 +25,8 @@ import {
   type SyncFilters,
   type SyncRunMode,
   type SyncRunSummary,
+  type UpstreamDeletionOperation,
+  type UpstreamDeletionStage,
   type WebhookPayload,
 } from "@plaud-mirror/shared";
 
@@ -68,6 +73,28 @@ interface RecordingRow {
   dismissed_at: string | null;
   upstream_deleted_at: string | null;
   sequence_number: number | null;
+  upstream_delete_operation_id: string | null;
+  upstream_delete_stage: string | null;
+  upstream_delete_requested_at: string | null;
+  upstream_delete_updated_at: string | null;
+  upstream_delete_attempt_count: number | null;
+  upstream_delete_last_error: string | null;
+}
+
+interface UpstreamDeletionOperationRow {
+  operation_id: string;
+  recording_id: string;
+  stage: string;
+  requested_at: string;
+  updated_at: string;
+  attempt_count: number;
+  last_error: string | null;
+}
+
+interface UpstreamInventorySnapshot {
+  generation: string;
+  observedAt: string;
+  total: number;
 }
 
 export interface DeliveryAttemptRecord {
@@ -78,6 +105,13 @@ export interface DeliveryAttemptRecord {
   errorMessage: string | null;
   payloadJson: string;
   attemptedAt: string;
+}
+
+export interface UpstreamDeletionEventRecord {
+  eventType: string;
+  stage: UpstreamDeletionStage;
+  occurredAt: string;
+  errorMessage: string | null;
 }
 
 export interface RuntimeStoreConfig {
@@ -200,6 +234,105 @@ export class RuntimeStore {
     return row.count;
   }
 
+  commitUpstreamInventory(
+    remoteRecordingIds: string[],
+    artifactVerifiedIds: string[],
+    observedAt: string,
+    total: number,
+  ): { generation: string; coverage: MirrorCoverage } {
+    const generation = randomUUID();
+    const markSeen = this.db.prepare(`
+      UPDATE recordings
+      SET upstream_inventory_generation = ?, upstream_last_seen_at = ?
+      WHERE id = ?
+    `);
+    const markVerified = this.db.prepare(`
+      UPDATE recordings
+      SET artifact_verified_generation = ?
+      WHERE id = ?
+    `);
+    const transaction = this.db.transaction(() => {
+      for (const recordingId of remoteRecordingIds) {
+        markSeen.run(generation, observedAt, recordingId);
+      }
+      for (const recordingId of artifactVerifiedIds) {
+        markVerified.run(generation, recordingId);
+      }
+      this.setJsonSetting("upstream.inventory", { generation, observedAt, total });
+    });
+    transaction();
+    return { generation, coverage: this.getCoverage() };
+  }
+
+  markRecordingArtifactVerified(recordingId: string, generation: string): void {
+    this.db.prepare(`
+      UPDATE recordings
+      SET upstream_inventory_generation = ?,
+          artifact_verified_generation = ?
+      WHERE id = ?
+    `).run(generation, generation, recordingId);
+  }
+
+  getCurrentInventoryGeneration(): string | null {
+    return this.getInventorySnapshot()?.generation ?? null;
+  }
+
+  getCoverage(): MirrorCoverage {
+    const inventory = this.getInventorySnapshot();
+    const upstreamDeleted = this.db.prepare(`
+      SELECT COUNT(*) AS count
+      FROM recordings
+      WHERE upstream_deleted_at IS NOT NULL
+    `).get() as { count: number };
+
+    if (!inventory) {
+      return MirrorCoverageSchema.parse({
+        observedAt: null,
+        remoteTotal: null,
+        mirrored: 0,
+        dismissed: 0,
+        missing: null,
+        localOnly: 0,
+        upstreamDeleted: upstreamDeleted.count,
+      });
+    }
+
+    const counts = this.db.prepare(`
+      SELECT
+        SUM(CASE
+          WHEN dismissed = 0
+            AND upstream_inventory_generation = @generation
+            AND artifact_verified_generation = @generation
+          THEN 1 ELSE 0 END) AS mirrored,
+        SUM(CASE
+          WHEN dismissed = 1
+            AND upstream_inventory_generation = @generation
+          THEN 1 ELSE 0 END) AS dismissed,
+        SUM(CASE
+          WHEN dismissed = 0
+            AND local_path IS NOT NULL
+            AND (upstream_inventory_generation IS NULL OR upstream_inventory_generation != @generation)
+          THEN 1 ELSE 0 END) AS local_only
+      FROM recordings
+    `).get({ generation: inventory.generation }) as {
+      mirrored: number | null;
+      dismissed: number | null;
+      local_only: number | null;
+    };
+    const mirrored = counts.mirrored ?? 0;
+    const dismissed = counts.dismissed ?? 0;
+
+    return MirrorCoverageSchema.parse({
+      observedAt: inventory.observedAt,
+      remoteTotal: inventory.total,
+      mirrored,
+      dismissed,
+      missing: Math.max(0, inventory.total - mirrored - dismissed),
+      localOnly: counts.local_only ?? 0,
+      upstreamDeleted: upstreamDeleted.count,
+    });
+  }
+
   upsertDevice(device: Device): Device {
     const normalized = DeviceSchema.parse(device);
     this.db.prepare(`
@@ -293,7 +426,7 @@ export class RuntimeStore {
     limit: number,
     options: { includeDismissed?: boolean; skip?: number } = {},
   ): { recordings: RecordingMirror[]; total: number } {
-    const whereClause = options.includeDismissed ? "" : "WHERE dismissed = 0";
+    const whereClause = options.includeDismissed ? "" : "WHERE recordings.dismissed = 0";
     const skip = Math.max(0, options.skip ?? 0);
 
     const totalRow = this.db.prepare(`
@@ -302,25 +435,33 @@ export class RuntimeStore {
 
     const rows = this.db.prepare(`
       SELECT
-        id,
-        title,
-        created_at,
-        duration_seconds,
-        serial_number,
-        scene,
-        local_path,
-        content_type,
-        bytes_written,
-        mirrored_at,
-        last_webhook_status,
-        last_webhook_attempt_at,
-        dismissed,
-        dismissed_at,
-        upstream_deleted_at,
-        sequence_number
+        recordings.id,
+        recordings.title,
+        recordings.created_at,
+        recordings.duration_seconds,
+        recordings.serial_number,
+        recordings.scene,
+        recordings.local_path,
+        recordings.content_type,
+        recordings.bytes_written,
+        recordings.mirrored_at,
+        recordings.last_webhook_status,
+        recordings.last_webhook_attempt_at,
+        recordings.dismissed,
+        recordings.dismissed_at,
+        recordings.upstream_deleted_at,
+        recordings.sequence_number,
+        upstream_deletion_operations.operation_id AS upstream_delete_operation_id,
+        upstream_deletion_operations.stage AS upstream_delete_stage,
+        upstream_deletion_operations.requested_at AS upstream_delete_requested_at,
+        upstream_deletion_operations.updated_at AS upstream_delete_updated_at,
+        upstream_deletion_operations.attempt_count AS upstream_delete_attempt_count,
+        upstream_deletion_operations.last_error AS upstream_delete_last_error
       FROM recordings
+      LEFT JOIN upstream_deletion_operations
+        ON upstream_deletion_operations.recording_id = recordings.id
       ${whereClause}
-      ORDER BY created_at DESC, id DESC
+      ORDER BY recordings.created_at DESC, recordings.id DESC
       LIMIT ? OFFSET ?
     `).all(limit, skip) as RecordingRow[];
 
@@ -330,24 +471,32 @@ export class RuntimeStore {
   getRecording(recordingId: string): RecordingMirror | null {
     const row = this.db.prepare(`
       SELECT
-        id,
-        title,
-        created_at,
-        duration_seconds,
-        serial_number,
-        scene,
-        local_path,
-        content_type,
-        bytes_written,
-        mirrored_at,
-        last_webhook_status,
-        last_webhook_attempt_at,
-        dismissed,
-        dismissed_at,
-        upstream_deleted_at,
-        sequence_number
+        recordings.id,
+        recordings.title,
+        recordings.created_at,
+        recordings.duration_seconds,
+        recordings.serial_number,
+        recordings.scene,
+        recordings.local_path,
+        recordings.content_type,
+        recordings.bytes_written,
+        recordings.mirrored_at,
+        recordings.last_webhook_status,
+        recordings.last_webhook_attempt_at,
+        recordings.dismissed,
+        recordings.dismissed_at,
+        recordings.upstream_deleted_at,
+        recordings.sequence_number,
+        upstream_deletion_operations.operation_id AS upstream_delete_operation_id,
+        upstream_deletion_operations.stage AS upstream_delete_stage,
+        upstream_deletion_operations.requested_at AS upstream_delete_requested_at,
+        upstream_deletion_operations.updated_at AS upstream_delete_updated_at,
+        upstream_deletion_operations.attempt_count AS upstream_delete_attempt_count,
+        upstream_deletion_operations.last_error AS upstream_delete_last_error
       FROM recordings
-      WHERE id = ?
+      LEFT JOIN upstream_deletion_operations
+        ON upstream_deletion_operations.recording_id = recordings.id
+      WHERE recordings.id = ?
     `).get(recordingId) as RecordingRow | undefined;
 
     return row ? mapRecordingRow(row) : null;
@@ -380,14 +529,152 @@ export class RuntimeStore {
   }
 
   markRecordingUpstreamDeleted(recordingId: string, upstreamDeletedAt: string): RecordingMirror | null {
-    this.db.prepare(`
-      UPDATE recordings
-      SET dismissed = 1,
-          dismissed_at = COALESCE(dismissed_at, ?),
-          upstream_deleted_at = ?
-      WHERE id = ?
-    `).run(upstreamDeletedAt, upstreamDeletedAt, recordingId);
+    this.beginUpstreamDeletion(recordingId, upstreamDeletedAt);
+    return this.confirmUpstreamDeletion(recordingId, upstreamDeletedAt);
+  }
 
+  getUpstreamDeletionOperation(recordingId: string): UpstreamDeletionOperation | null {
+    const row = this.db.prepare(`
+      SELECT operation_id, recording_id, stage, requested_at, updated_at,
+             attempt_count, last_error
+      FROM upstream_deletion_operations
+      WHERE recording_id = ?
+    `).get(recordingId) as UpstreamDeletionOperationRow | undefined;
+    return row ? mapUpstreamDeletionOperation(row) : null;
+  }
+
+  listUpstreamDeletionEvents(recordingId: string): UpstreamDeletionEventRecord[] {
+    const rows = this.db.prepare(`
+      SELECT event_type, stage, occurred_at, error_message
+      FROM upstream_deletion_events
+      WHERE recording_id = ?
+      ORDER BY rowid ASC
+    `).all(recordingId) as Array<{
+      event_type: string;
+      stage: string;
+      occurred_at: string;
+      error_message: string | null;
+    }>;
+    return rows.map((row) => ({
+      eventType: row.event_type,
+      stage: row.stage as UpstreamDeletionStage,
+      occurredAt: row.occurred_at,
+      errorMessage: row.error_message,
+    }));
+  }
+
+  beginUpstreamDeletion(recordingId: string, nowIso = new Date().toISOString()): UpstreamDeletionOperation {
+    const existing = this.getUpstreamDeletionOperation(recordingId);
+    if (existing?.stage === "confirmed") {
+      return existing;
+    }
+
+    if (existing) {
+      const transaction = this.db.transaction(() => {
+        this.db.prepare(`
+          UPDATE upstream_deletion_operations
+          SET updated_at = ?, attempt_count = attempt_count + 1, last_error = NULL
+          WHERE recording_id = ?
+        `).run(nowIso, recordingId);
+        this.appendUpstreamDeletionEvent(existing.operationId, recordingId, "retry_started", existing.stage, nowIso, null);
+      });
+      transaction();
+      return this.requireUpstreamDeletionOperation(recordingId);
+    }
+
+    const operationId = randomUUID();
+    const transaction = this.db.transaction(() => {
+      this.db.prepare(`
+        INSERT INTO upstream_deletion_operations (
+          operation_id, recording_id, stage, requested_at, updated_at,
+          attempt_count, last_error
+        ) VALUES (?, ?, 'requested', ?, ?, 1, NULL)
+      `).run(operationId, recordingId, nowIso, nowIso);
+      this.appendUpstreamDeletionEvent(operationId, recordingId, "requested", "requested", nowIso, null);
+    });
+    transaction();
+    return this.requireUpstreamDeletionOperation(recordingId);
+  }
+
+  advanceUpstreamDeletion(
+    recordingId: string,
+    stage: Exclude<UpstreamDeletionStage, "requested" | "confirmed">,
+    nowIso = new Date().toISOString(),
+  ): UpstreamDeletionOperation {
+    const operation = this.requireUpstreamDeletionOperation(recordingId);
+    const eventType = stage === "trash_attempted"
+      ? "trash_attempted"
+      : stage === "trash_confirmed"
+        ? "trash_confirmed"
+        : "delete_attempted";
+    const transaction = this.db.transaction(() => {
+      this.db.prepare(`
+        UPDATE upstream_deletion_operations
+        SET stage = ?, updated_at = ?, last_error = NULL
+        WHERE recording_id = ?
+      `).run(stage, nowIso, recordingId);
+      this.appendUpstreamDeletionEvent(operation.operationId, recordingId, eventType, stage, nowIso, null);
+    });
+    transaction();
+    return this.requireUpstreamDeletionOperation(recordingId);
+  }
+
+  failUpstreamDeletion(
+    recordingId: string,
+    errorMessage: string,
+    nowIso = new Date().toISOString(),
+  ): UpstreamDeletionOperation {
+    const operation = this.requireUpstreamDeletionOperation(recordingId);
+    const transaction = this.db.transaction(() => {
+      this.db.prepare(`
+        UPDATE upstream_deletion_operations
+        SET updated_at = ?, last_error = ?
+        WHERE recording_id = ?
+      `).run(nowIso, errorMessage, recordingId);
+      this.appendUpstreamDeletionEvent(
+        operation.operationId,
+        recordingId,
+        "failed",
+        operation.stage,
+        nowIso,
+        errorMessage,
+      );
+    });
+    transaction();
+    return this.requireUpstreamDeletionOperation(recordingId);
+  }
+
+  confirmUpstreamDeletion(
+    recordingId: string,
+    upstreamDeletedAt: string,
+  ): RecordingMirror | null {
+    const operation = this.requireUpstreamDeletionOperation(recordingId);
+    const transaction = this.db.transaction(() => {
+      const result = this.db.prepare(`
+        UPDATE recordings
+        SET dismissed = 1,
+            dismissed_at = COALESCE(dismissed_at, ?),
+            upstream_deleted_at = COALESCE(upstream_deleted_at, ?)
+        WHERE id = ?
+      `).run(upstreamDeletedAt, upstreamDeletedAt, recordingId);
+      if (result.changes !== 1) {
+        throw new Error(`Recording ${recordingId} disappeared while confirming Plaud deletion`);
+      }
+      this.db.prepare(`
+        UPDATE upstream_deletion_operations
+        SET stage = 'confirmed', updated_at = ?, last_error = NULL
+        WHERE recording_id = ?
+      `).run(upstreamDeletedAt, recordingId);
+      this.appendUpstreamDeletionEvent(
+        operation.operationId,
+        recordingId,
+        "confirmed",
+        "confirmed",
+        upstreamDeletedAt,
+        null,
+      );
+    });
+    transaction();
     return this.getRecording(recordingId);
   }
 
@@ -948,6 +1235,44 @@ export class RuntimeStore {
     return item;
   }
 
+  private getInventorySnapshot(): UpstreamInventorySnapshot | null {
+    const stored = this.getJsonSetting<UpstreamInventorySnapshot>("upstream.inventory");
+    if (
+      !stored
+      || typeof stored.generation !== "string"
+      || typeof stored.observedAt !== "string"
+      || !Number.isInteger(stored.total)
+      || stored.total < 0
+    ) {
+      return null;
+    }
+    return stored;
+  }
+
+  private requireUpstreamDeletionOperation(recordingId: string): UpstreamDeletionOperation {
+    const operation = this.getUpstreamDeletionOperation(recordingId);
+    if (!operation) {
+      throw new Error(`Upstream deletion operation for ${recordingId} is missing`);
+    }
+    return operation;
+  }
+
+  private appendUpstreamDeletionEvent(
+    operationId: string,
+    recordingId: string,
+    eventType: string,
+    stage: UpstreamDeletionStage,
+    occurredAt: string,
+    errorMessage: string | null,
+  ): void {
+    this.db.prepare(`
+      INSERT INTO upstream_deletion_events (
+        id, operation_id, recording_id, event_type, stage, occurred_at,
+        error_message
+      ) VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(randomUUID(), operationId, recordingId, eventType, stage, occurredAt, errorMessage);
+  }
+
   private migrate(): void {
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS settings (
@@ -971,8 +1296,36 @@ export class RuntimeStore {
         dismissed INTEGER NOT NULL DEFAULT 0,
         dismissed_at TEXT,
         upstream_deleted_at TEXT,
+        upstream_inventory_generation TEXT,
+        upstream_last_seen_at TEXT,
+        artifact_verified_generation TEXT,
         sequence_number INTEGER
       );
+
+      CREATE TABLE IF NOT EXISTS upstream_deletion_operations (
+        operation_id TEXT PRIMARY KEY,
+        recording_id TEXT NOT NULL UNIQUE,
+        stage TEXT NOT NULL CHECK (stage IN ('requested','trash_attempted','trash_confirmed','delete_attempted','confirmed')),
+        requested_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        attempt_count INTEGER NOT NULL DEFAULT 1,
+        last_error TEXT,
+        FOREIGN KEY(recording_id) REFERENCES recordings(id)
+      );
+
+      CREATE TABLE IF NOT EXISTS upstream_deletion_events (
+        id TEXT PRIMARY KEY,
+        operation_id TEXT NOT NULL,
+        recording_id TEXT NOT NULL,
+        event_type TEXT NOT NULL,
+        stage TEXT NOT NULL,
+        occurred_at TEXT NOT NULL,
+        error_message TEXT,
+        FOREIGN KEY(operation_id) REFERENCES upstream_deletion_operations(operation_id),
+        FOREIGN KEY(recording_id) REFERENCES recordings(id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_upstream_deletion_events_operation
+        ON upstream_deletion_events (operation_id, occurred_at);
 
       CREATE TABLE IF NOT EXISTS sync_runs (
         id TEXT PRIMARY KEY,
@@ -1047,6 +1400,15 @@ export class RuntimeStore {
     if (!columnNames.has("upstream_deleted_at")) {
       this.db.exec("ALTER TABLE recordings ADD COLUMN upstream_deleted_at TEXT");
     }
+    if (!columnNames.has("upstream_inventory_generation")) {
+      this.db.exec("ALTER TABLE recordings ADD COLUMN upstream_inventory_generation TEXT");
+    }
+    if (!columnNames.has("upstream_last_seen_at")) {
+      this.db.exec("ALTER TABLE recordings ADD COLUMN upstream_last_seen_at TEXT");
+    }
+    if (!columnNames.has("artifact_verified_generation")) {
+      this.db.exec("ALTER TABLE recordings ADD COLUMN artifact_verified_generation TEXT");
+    }
     if (!columnNames.has("sequence_number")) {
       this.db.exec("ALTER TABLE recordings ADD COLUMN sequence_number INTEGER");
     }
@@ -1066,6 +1428,49 @@ export class RuntimeStore {
     if (!syncRunColumnNames.has("failed")) {
       this.db.exec("ALTER TABLE sync_runs ADD COLUMN failed INTEGER NOT NULL DEFAULT 0");
     }
+
+    this.seedLegacyUpstreamDeletionOperations();
+  }
+
+  private seedLegacyUpstreamDeletionOperations(): void {
+    const rows = this.db.prepare(`
+      SELECT recordings.id, recordings.upstream_deleted_at
+      FROM recordings
+      LEFT JOIN upstream_deletion_operations
+        ON upstream_deletion_operations.recording_id = recordings.id
+      WHERE recordings.upstream_deleted_at IS NOT NULL
+        AND upstream_deletion_operations.recording_id IS NULL
+    `).all() as Array<{ id: string; upstream_deleted_at: string }>;
+    if (rows.length === 0) {
+      return;
+    }
+
+    const insertOperation = this.db.prepare(`
+      INSERT INTO upstream_deletion_operations (
+        operation_id, recording_id, stage, requested_at, updated_at,
+        attempt_count, last_error
+      ) VALUES (?, ?, 'confirmed', ?, ?, 1, NULL)
+    `);
+    const transaction = this.db.transaction(() => {
+      for (const row of rows) {
+        const operationId = randomUUID();
+        insertOperation.run(
+          operationId,
+          row.id,
+          row.upstream_deleted_at,
+          row.upstream_deleted_at,
+        );
+        this.appendUpstreamDeletionEvent(
+          operationId,
+          row.id,
+          "legacy_tombstone_imported",
+          "confirmed",
+          row.upstream_deleted_at,
+          null,
+        );
+      }
+    });
+    transaction();
   }
 
   private getSetting<T = string>(key: string): T | null {
@@ -1146,7 +1551,30 @@ function mapRecordingRow(row: RecordingRow): RecordingMirror {
     dismissed: Boolean(row.dismissed),
     dismissedAt: row.dismissed_at,
     upstreamDeletedAt: row.upstream_deleted_at,
+    upstreamDeletion: row.upstream_delete_operation_id
+      ? {
+          operationId: row.upstream_delete_operation_id,
+          stage: row.upstream_delete_stage,
+          requestedAt: row.upstream_delete_requested_at,
+          updatedAt: row.upstream_delete_updated_at,
+          attemptCount: row.upstream_delete_attempt_count,
+          lastError: row.upstream_delete_last_error,
+        }
+      : null,
     sequenceNumber: row.sequence_number,
+  });
+}
+
+function mapUpstreamDeletionOperation(
+  row: UpstreamDeletionOperationRow,
+): UpstreamDeletionOperation {
+  return UpstreamDeletionOperationSchema.parse({
+    operationId: row.operation_id,
+    stage: row.stage as UpstreamDeletionStage,
+    requestedAt: row.requested_at,
+    updatedAt: row.updated_at,
+    attemptCount: row.attempt_count,
+    lastError: row.last_error,
   });
 }
 

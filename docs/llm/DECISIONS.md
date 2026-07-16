@@ -716,6 +716,13 @@ named reusable destructive-route pre-handler. Regression coverage pins both
 states: 403 before any Plaud call when access control is absent, and 401 for an
 anonymous caller when it is configured.
 
+**Amendment (2026-07-16, `v0.12.0`):** Destructive success requires more than
+HTTP 2xx. Plaud Mirror accepts only an empty response body or explicit
+`{ status: 0 }`, journals intent and transitions before remote side effects,
+and treats any uncertain DELETE as a durable retry state. A retry first reads
+Plaud detail; 404 after `delete_attempted` confirms the tombstone without a
+second DELETE. Restore is blocked while any deletion operation is unresolved.
+
 ### Decision
 
 Plaud Mirror may permanently delete a recording from the operator's Plaud
@@ -760,5 +767,13 @@ returns the stored result without another upstream request.
   `docs/operations/UPSTREAM_WATCH.md`.
 - `home-infra-protocol` is unchanged. This is project-local operator behavior,
   not infrastructure status or cross-project policy.
-- A failed upstream mutation leaves the row dismissed and does not fabricate a
-  tombstone. The operator may retry or restore while the tombstone is absent.
+- A failure before durable mutation intent leaves the row normally dismissed.
+  Once an operation exists, failure leaves it dismissed in a retry-only state
+  and never fabricates a tombstone. Restore cannot race an uncertain remote
+  mutation.
+- `upstream_deletion_operations` stores current recovery state;
+  `upstream_deletion_events` is append-only evidence. Legacy tombstones are
+  imported as confirmed operations by an additive migration.
+- Current remote coverage is a separate generation-based fact. Historical
+  tombstones remain auditable but do not count as dismissed remote rows after
+  Plaud no longer lists them.

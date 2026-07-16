@@ -301,17 +301,28 @@ export class PlaudClient {
       );
     }
 
-    // The observed mutation endpoints may return either an empty success body
-    // or Plaud's normal { status, msg } envelope. Reject an explicit non-zero
-    // application status while allowing the documented no-body response.
+    // These private mutation endpoints have only two recognized success
+    // shapes: an empty body or Plaud's explicit { status: 0 } envelope. A 2xx
+    // HTML page or an unknown JSON object must not authorize a tombstone.
+    if (bundle.text.trim() === "") {
+      return;
+    }
     const applicationStatus = readApplicationStatus(bundle.payload);
-    if (applicationStatus !== null && applicationStatus !== 0) {
+    if (applicationStatus === 0) {
+      return;
+    }
+    if (applicationStatus !== null) {
       throw new PlaudApiError(
         `Plaud ${method} ${path} returned application status ${applicationStatus}`,
         bundle.response.status,
         snippet(bundle.text),
       );
     }
+    throw new PlaudApiError(
+      `Plaud ${method} ${path} returned an unrecognized success response`,
+      bundle.response.status,
+      snippet(bundle.text),
+    );
   }
 
   private async request(path: string, apiBase: string, options: RequestInit): Promise<PlaudResponseBundle> {

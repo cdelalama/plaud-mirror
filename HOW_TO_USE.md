@@ -1,11 +1,11 @@
-<!-- doc-version: 0.11.2 -->
+<!-- doc-version: 0.12.0 -->
 # How to Use This Repository
 
 This guide explains how Plaud Mirror is operated end-to-end and how it stays aligned with both `LLM-DocKit` (the governance scaffold it adopts) and the Plaud ecosystem upstreams it watches.
 
 ## Current Reality
 
-`v0.11.0` adds an explicit permanent-Plaud-delete workflow on top of the hardened `internal-loop` runtime. **Operators upgrading from any `0.4.x`/`0.5.x` should go directly to `v0.11.0`.** Today the repository gives you:
+`v0.12.0` hardens the explicit permanent-Plaud-delete workflow and makes mirror coverage generation-based. **Operators upgrading from any `0.4.x`/`0.5.x` should go directly to `v0.12.0`.** Today the repository gives you:
 
 - a Fastify API and React/Vite panel bundled in a single Docker container;
 - **operator access control** (v0.6.0): set `PLAUD_MIRROR_ADMIN_PASSPHRASE` and the panel asks for the passphrase once per device (30-day session cookie); without it the API runs open and `/api/health` warns;
@@ -49,7 +49,10 @@ Then open `http://localhost:3040`, sign in with the operator passphrase, reconne
 The permanent command is unavailable on active rows. After success the row is
 kept as `deleted from Plaud`, Restore is removed, and scheduled syncs continue
 to skip it. There is no second typed confirmation and no automated validation
-ever invokes this action against a real recording.
+ever invokes this action against a real recording. If Plaud's response is
+ambiguous, the row changes to `Plaud deletion pending`: Restore stays disabled
+and **Retry deletion** first checks Plaud so a prior successful DELETE can be
+confirmed without sending another destructive request.
 
 On `dev-vm`, the operator passphrase lives in Doppler (`plaud-mirror/dev`). Use the Doppler-wrapped compose command for every recreate unless the same secret is intentionally copied into the local gitignored `.env`.
 
@@ -196,7 +199,7 @@ Useful for live Plaud flow checks and metadata discovery without booting the pan
 npm test
 ```
 
-179 runtime tests at `v0.11.0`: 150 Node/integration tests (shared schemas/formatting/protocol, Plaud client, runtime service/store/scheduler/outbox/auth/capture-session/protocol-status, server routes, built API/web smoke, Chrome extension contract) plus 29 web tests under Vitest+jsdom+@testing-library/react (D-015). The permanent-delete cases mock Plaud and never mutate a real account. The root `npm test` runs both groups plus build and web typecheck. Governance checks are separate: `scripts/dockit-validate-session.sh --human` runs 12 checks, `scripts/check-version-sync.sh` checks 23 version targets, and `scripts/test-validator.sh` has 32 smoke cases.
+190 runtime tests at `v0.12.0`: 160 Node/integration tests (shared schemas/formatting/protocol, Plaud client, runtime service/store/scheduler/outbox/auth/capture-session/protocol-status, server routes, built API/web smoke, Chrome extension contract) plus 30 web tests under Vitest+jsdom+@testing-library/react (D-015). The permanent-delete cases mock Plaud and never mutate a real account. The root `npm test` runs both groups plus build and web typecheck. Governance checks are separate: `scripts/dockit-validate-session.sh --human` runs 12 checks, `scripts/check-version-sync.sh` checks 23 version targets, and `scripts/test-validator.sh` has 32 smoke cases.
 
 ## Working With LLM-DocKit Upstream
 

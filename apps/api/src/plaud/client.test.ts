@@ -304,6 +304,33 @@ test("PlaudClient rejects an explicit failed application status from a mutation"
   );
 });
 
+test("PlaudClient accepts an explicit successful mutation envelope", async () => {
+  const client = new PlaudClient({
+    accessToken: "token-value",
+    fetchImpl: async () => createJsonResponse({ status: 0, msg: "success" }),
+  });
+
+  await client.trashRecordings(["rec-delete"]);
+});
+
+test("PlaudClient rejects 2xx HTML and unknown JSON mutation responses", async () => {
+  for (const response of [
+    new Response("<html>not deleted</html>", { status: 200 }),
+    createJsonResponse({ msg: "failed" }),
+  ]) {
+    const client = new PlaudClient({
+      accessToken: "token-value",
+      fetchImpl: async () => response.clone(),
+    });
+
+    await assert.rejects(
+      () => client.permanentlyDeleteRecordings(["rec-delete"]),
+      (error: unknown) => error instanceof PlaudApiError
+        && error.message.includes("unrecognized success response"),
+    );
+  }
+});
+
 test("listDevices translates Plaud wire fields to the domain Device type", async () => {
   const fetchImpl = (async () => {
     return createJsonResponse({

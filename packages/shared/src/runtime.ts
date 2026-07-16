@@ -62,6 +62,23 @@ export const SessionLoginRequestSchema = z.object({
   passphrase: z.string().trim().min(1),
 }).strict();
 
+export const UpstreamDeletionStageSchema = z.enum([
+  "requested",
+  "trash_attempted",
+  "trash_confirmed",
+  "delete_attempted",
+  "confirmed",
+]);
+
+export const UpstreamDeletionOperationSchema = z.object({
+  operationId: z.string().uuid(),
+  stage: UpstreamDeletionStageSchema,
+  requestedAt: z.string(),
+  updatedAt: z.string(),
+  attemptCount: z.number().int().positive(),
+  lastError: z.string().nullable(),
+}).strict();
+
 const isoDateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 
 export const SyncFiltersSchema = z.object({
@@ -100,6 +117,10 @@ export const RecordingMirrorSchema = z.object({
   // local row remains dismissed so delayed upstream listings cannot cause a
   // scheduler re-download and the destructive action stays auditable.
   upstreamDeletedAt: z.string().nullable().optional(),
+  // Durable current state for the irreversible Plaud mutation. The operation
+  // is written before the first remote side effect and survives uncertain
+  // responses so a retry can reconcile instead of starting blind.
+  upstreamDeletion: UpstreamDeletionOperationSchema.nullable().optional(),
   // Stable 1-based rank of the recording in the operator's full Plaud timeline,
   // sorted oldest-first. `#1` is the oldest recording ever made on the device,
   // `#N` is the newest. Updated at every sync; null on rows that predate v0.4.8
@@ -130,6 +151,7 @@ export const RecordingUpstreamDeleteResultSchema = z.object({
   id: z.string(),
   dismissed: z.literal(true),
   upstreamDeletedAt: z.string(),
+  operationId: z.string().uuid(),
 }).strict();
 
 // Domain representation of a Plaud hardware device, decoupled from the wire
@@ -359,6 +381,19 @@ export const SchedulerStatusSchema = z.object({
   lastTickError: z.string().nullable(),
 }).strict();
 
+export const MirrorCoverageSchema = z.object({
+  // A committed full Plaud listing plus physical-artifact verification. Until
+  // the first post-upgrade run publishes a generation, coverage is unknown
+  // rather than inferred from unrelated local-row totals.
+  observedAt: z.string().nullable(),
+  remoteTotal: z.number().int().nonnegative().nullable(),
+  mirrored: z.number().int().nonnegative(),
+  dismissed: z.number().int().nonnegative(),
+  missing: z.number().int().nonnegative().nullable(),
+  localOnly: z.number().int().nonnegative(),
+  upstreamDeleted: z.number().int().nonnegative(),
+}).strict();
+
 export const ServiceHealthSchema = z.object({
   version: z.string(),
   phase: z.string(),
@@ -404,6 +439,15 @@ export const ServiceHealthSchema = z.object({
   recentSyncRuns: z.array(SyncRunSummarySchema).default([]),
   recordingsCount: z.number().int().nonnegative(),
   dismissedCount: z.number().int().nonnegative().default(0),
+  coverage: MirrorCoverageSchema.default({
+    observedAt: null,
+    remoteTotal: null,
+    mirrored: 0,
+    dismissed: 0,
+    missing: null,
+    localOnly: 0,
+    upstreamDeleted: 0,
+  }),
   webhookConfigured: z.boolean(),
   warnings: z.array(z.string()),
 }).strict();
@@ -434,6 +478,8 @@ export type UpdateRuntimeConfigRequest = z.infer<typeof UpdateRuntimeConfigReque
 export type SaveAccessTokenRequest = z.infer<typeof SaveAccessTokenRequestSchema>;
 export type SessionStatus = z.infer<typeof SessionStatusSchema>;
 export type SessionLoginRequest = z.infer<typeof SessionLoginRequestSchema>;
+export type UpstreamDeletionStage = z.infer<typeof UpstreamDeletionStageSchema>;
+export type UpstreamDeletionOperation = z.infer<typeof UpstreamDeletionOperationSchema>;
 export type SyncFilters = z.infer<typeof SyncFiltersSchema>;
 export type RecordingMirror = z.infer<typeof RecordingMirrorSchema>;
 export type RecordingListResponse = z.infer<typeof RecordingListResponseSchema>;
@@ -451,6 +497,7 @@ export type SyncRunStatus = z.infer<typeof SyncRunStatusSchema>;
 export type SyncRunSummary = z.infer<typeof SyncRunSummarySchema>;
 export type StartSyncRunResponse = z.infer<typeof StartSyncRunResponseSchema>;
 export type SchedulerStatus = z.infer<typeof SchedulerStatusSchema>;
+export type MirrorCoverage = z.infer<typeof MirrorCoverageSchema>;
 export type OutboxState = z.infer<typeof OutboxStateSchema>;
 export type OutboxItem = z.infer<typeof OutboxItemSchema>;
 export type OutboxListResponse = z.infer<typeof OutboxListResponseSchema>;

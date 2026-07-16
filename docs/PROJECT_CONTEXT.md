@@ -1,4 +1,4 @@
-<!-- doc-version: 0.11.2 -->
+<!-- doc-version: 0.12.0 -->
 # Project Context - Plaud Mirror
 
 ## Vision
@@ -24,20 +24,26 @@ Plaud Mirror is a server-first product with two runtime surfaces:
 
 Persistence is split between SQLite for state/indexes and the filesystem for mirrored audio artifacts. Secrets are encrypted at rest with a master key supplied by the surrounding deployment.
 
-## Current Status (2026-07-14, v0.11.2)
+## Current Status (2026-07-16, v0.12.0)
 
-Plaud Mirror `v0.11.2` completes the audit hardening of the bounded destructive
-workflow introduced in
-`v0.11.0`: permanent Plaud deletion now fails closed with HTTP 403 when
-operator access control is disabled, while the wider API retains its documented
-open-development compatibility mode. The guard is a reusable route pre-handler,
-and tests pin both no-auth 403 and configured-auth anonymous 401. The underlying
-Phase 6 workflow remains:
-only a locally dismissed row can be permanently removed from the operator's
-Plaud account, the panel asks for one clear confirmation, and SQLite retains a
-monotonic tombstone after success. Restore is then impossible and future syncs
-keep skipping the row. This adds no protocol field and changes no Home Infra
-producer/consumer boundary.
+Plaud Mirror `v0.12.0` is the integrity follow-up to the first real operator
+deletion on 2026-07-15. That event exposed two assumptions that mocked happy
+paths could not justify: any 2xx response was accepted as Plaud success, and a
+historical tombstone was subtracted from the current remote total even after it
+had disappeared upstream. The release fixes the model rather than hiding the
+count: each full Plaud listing commits one inventory generation after physical
+artifact verification, while deletion intent and every transition are stored
+durably before remote side effects. Unknown mutation responses fail closed;
+retry inspects Plaud and reconciles a prior uncertain delete without blindly
+repeating it. Historical tombstones and local-only tracked rows remain visible but
+outside the current remote coverage partition.
+
+This is a backward-compatible minor release: SQLite changes are additive,
+legacy tombstones are imported as confirmed operations, existing API fields are
+preserved, and Home Infra Protocol still consumes the same status-snapshot
+contract. The additional count detail is private passthrough data that protocol
+consumers already tolerate. Cortex and Media2Text remain unaffected: their
+Plaud-related contracts are drafts, not live dependencies on this runtime.
 
 The deployment restarts the runtime during an unfinished Phase 3 exit gate.
 Pre-change soak observations remain historical evidence, but Phase 3 is not

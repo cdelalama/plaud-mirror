@@ -1,4 +1,4 @@
-<!-- doc-version: 0.11.2 -->
+<!-- doc-version: 0.12.0 -->
 # Deploy Playbook
 
 This runbook describes the current Docker deployment path for Plaud Mirror.
@@ -64,10 +64,14 @@ doppler run --project plaud-mirror --config dev -- docker compose up -d --build
 5. Token can be saved from the UI
 6. Manual sync or backfill can be triggered
 7. Mirrored files appear in `runtime/recordings`
-8. For `v0.11.0+`, `PRAGMA table_info(recordings)` includes
-   `upstream_deleted_at`; an authenticated Library view shows the permanent
-   delete action only for dismissed rows. Do not invoke it during deployment
-   validation.
+8. For `v0.12.0+`, `PRAGMA table_info(recordings)` includes
+   `upstream_deleted_at` and the inventory-generation columns; SQLite contains
+   `upstream_deletion_operations` plus `upstream_deletion_events`, and legacy
+   tombstones appear as confirmed operations. After one full sync,
+   `/api/health.coverage` satisfies
+   `mirrored + dismissed + missing = remoteTotal`. An authenticated Library
+   view shows the permanent delete action only for dismissed rows. Do not
+   invoke it during deployment validation.
 
 ## Rollback
 

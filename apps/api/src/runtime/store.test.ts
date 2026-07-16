@@ -92,6 +92,122 @@ test("RuntimeStore persists config, recordings, and sync summaries", async () =>
   store.close();
 });
 
+test("RuntimeStore publishes exact remote coverage from one inventory generation", async () => {
+  const root = await mkdtemp(join(tmpdir(), "plaud-mirror-store-coverage-"));
+  const store = new RuntimeStore({
+    dbPath: join(root, "data", "app.db"),
+    dataDir: join(root, "data"),
+    recordingsDir: join(root, "recordings"),
+    defaultSyncLimit: 100,
+  });
+  const base = {
+    title: "Recording",
+    createdAt: "2026-07-16T10:00:00.000Z",
+    durationSeconds: 10,
+    serialNumber: "PLAUD-1",
+    scene: null,
+    localPath: "recordings/audio.mp3",
+    contentType: "audio/mpeg",
+    bytesWritten: 10,
+    mirroredAt: "2026-07-16T10:01:00.000Z",
+    lastWebhookStatus: "skipped" as const,
+    lastWebhookAttemptAt: "2026-07-16T10:01:00.000Z",
+    dismissed: false,
+    dismissedAt: null,
+    sequenceNumber: null,
+  };
+  store.upsertRecording({ ...base, id: "rec-mirrored" });
+  store.upsertRecording({
+    ...base,
+    id: "rec-dismissed",
+    localPath: null,
+    bytesWritten: 0,
+    dismissed: true,
+    dismissedAt: "2026-07-16T10:02:00.000Z",
+  });
+  store.upsertRecording({ ...base, id: "rec-local-only" });
+  store.upsertRecording({
+    ...base,
+    id: "rec-tombstone",
+    localPath: null,
+    bytesWritten: 0,
+    dismissed: true,
+    dismissedAt: "2026-07-16T10:02:00.000Z",
+  });
+  store.markRecordingUpstreamDeleted("rec-tombstone", "2026-07-16T10:03:00.000Z");
+
+  const inventory = store.commitUpstreamInventory(
+    ["rec-mirrored", "rec-dismissed", "rec-new"],
+    ["rec-mirrored"],
+    "2026-07-16T10:04:00.000Z",
+    3,
+  );
+  assert.deepEqual(inventory.coverage, {
+    observedAt: "2026-07-16T10:04:00.000Z",
+    remoteTotal: 3,
+    mirrored: 1,
+    dismissed: 1,
+    missing: 1,
+    localOnly: 1,
+    upstreamDeleted: 1,
+  });
+
+  store.upsertRecording({ ...base, id: "rec-new" });
+  store.markRecordingArtifactVerified("rec-new", inventory.generation);
+  assert.equal(store.getCoverage().mirrored, 2);
+  assert.equal(store.getCoverage().missing, 0);
+  store.close();
+});
+
+test("RuntimeStore journals deletion stages and preserves uncertain work for retry", async () => {
+  const root = await mkdtemp(join(tmpdir(), "plaud-mirror-store-delete-journal-"));
+  const store = new RuntimeStore({
+    dbPath: join(root, "data", "app.db"),
+    dataDir: join(root, "data"),
+    recordingsDir: join(root, "recordings"),
+    defaultSyncLimit: 100,
+  });
+  store.upsertRecording({
+    id: "rec-delete-journal",
+    title: "Delete journal",
+    createdAt: null,
+    durationSeconds: 10,
+    serialNumber: null,
+    scene: null,
+    localPath: null,
+    contentType: null,
+    bytesWritten: 0,
+    mirroredAt: null,
+    lastWebhookStatus: null,
+    lastWebhookAttemptAt: null,
+    dismissed: true,
+    dismissedAt: "2026-07-16T11:00:00.000Z",
+    sequenceNumber: null,
+  });
+
+  const started = store.beginUpstreamDeletion("rec-delete-journal", "2026-07-16T11:01:00.000Z");
+  store.advanceUpstreamDeletion("rec-delete-journal", "trash_attempted", "2026-07-16T11:02:00.000Z");
+  const failed = store.failUpstreamDeletion("rec-delete-journal", "response lost", "2026-07-16T11:03:00.000Z");
+  assert.equal(failed.stage, "trash_attempted");
+  assert.equal(failed.lastError, "response lost");
+
+  const retried = store.beginUpstreamDeletion("rec-delete-journal", "2026-07-16T11:04:00.000Z");
+  assert.equal(retried.operationId, started.operationId);
+  assert.equal(retried.attemptCount, 2);
+  assert.equal(retried.stage, "trash_attempted");
+  store.advanceUpstreamDeletion("rec-delete-journal", "trash_confirmed", "2026-07-16T11:05:00.000Z");
+  store.advanceUpstreamDeletion("rec-delete-journal", "delete_attempted", "2026-07-16T11:06:00.000Z");
+  store.confirmUpstreamDeletion("rec-delete-journal", "2026-07-16T11:07:00.000Z");
+
+  assert.equal(store.getUpstreamDeletionOperation("rec-delete-journal")?.stage, "confirmed");
+  assert.deepEqual(
+    store.listUpstreamDeletionEvents("rec-delete-journal").map((event) => event.eventType),
+    ["requested", "trash_attempted", "failed", "retry_started", "trash_confirmed", "delete_attempted", "confirmed"],
+  );
+  assert.equal(store.getRecording("rec-delete-journal")?.upstreamDeletion?.operationId, started.operationId);
+  store.close();
+});
+
 test("RuntimeStore persists schedulerIntervalMs through saveConfig and only seeds once", async () => {
   // Regression test for v0.5.2: the panel-driven scheduler config has to
   // round-trip through SQLite, and `seedSchedulerDefaults` must NOT

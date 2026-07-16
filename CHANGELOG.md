@@ -4,6 +4,44 @@ All notable changes to Plaud Mirror are documented in this file.
 
 This project follows Semantic Versioning (SemVer): MAJOR.MINOR.PATCH.
 
+## [0.12.0] - 2026-07-16
+
+### Added
+
+- Durable `upstream_deletion_operations` state plus append-only
+  `upstream_deletion_events`, including operation ids, retry counts, stages,
+  and the last reconciliation error.
+- Generation-based mirror coverage on `/api/health`, with explicit remote,
+  mirrored, dismissed, missing, local-only, and confirmed-deleted counts.
+
+### Changed
+
+- Permanent deletion now journals intent before each Plaud mutation and
+  reconciles a prior uncertain DELETE through Plaud detail before issuing any
+  second destructive request.
+- Concurrent deletion requests for the same recording are serialized in the
+  service, and remote absence after any durable deletion intent is reconciled
+  without another mutation.
+- Library rows with an unresolved Plaud deletion expose a retry-only state;
+  Restore is unavailable until the deletion is reconciled.
+- Protocol coverage uses the committed remote inventory generation rather than
+  subtracting all historical tombstones from the current Plaud total.
+
+### Fixed
+
+- Reject 2xx HTML and unrecognized JSON mutation responses instead of treating
+  HTTP status alone as proof that Plaud accepted a destructive command.
+- Keep historical tombstones and local-only tracked rows outside the current
+  remote coverage partition, so mirrored + dismissed + missing equals the
+  current Plaud listing exactly.
+- Preserve full contrast for destructive controls on dismissed Library rows.
+
+### Notes
+
+- The SQLite migration is additive and old tombstones are imported as
+  confirmed deletion operations. No real Plaud deletion is part of automated
+  or deployment validation.
+
 ## [0.11.2] - 2026-07-14
 
 ### Added

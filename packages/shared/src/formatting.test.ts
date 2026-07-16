@@ -51,7 +51,7 @@ test("formatRecordingsMetric shows local/remote when both are known", () => {
   assert.equal(formatRecordingsMetric(0, 0), "0 / 0");
 });
 
-test("computeMissing clamps negative arithmetic and surfaces staleness", () => {
+test("computeMissing reads the committed inventory coverage", () => {
   const withPlaudTotal = (plaudTotal: number | null, recordingsCount: number, dismissedCount: number): ServiceHealth => ({
     version: "test",
     phase: "Phase 2",
@@ -101,6 +101,15 @@ test("computeMissing clamps negative arithmetic and surfaces staleness", () => {
     recentSyncRuns: [],
     recordingsCount,
     dismissedCount,
+    coverage: {
+      observedAt: plaudTotal === null ? null : "2026-04-24T10:01:00.000Z",
+      remoteTotal: plaudTotal,
+      mirrored: recordingsCount,
+      dismissed: dismissedCount,
+      missing: plaudTotal === null ? null : Math.max(0, plaudTotal - recordingsCount - dismissedCount),
+      localOnly: 0,
+      upstreamDeleted: 0,
+    },
     webhookConfigured: false,
     warnings: [],
   });
@@ -109,8 +118,7 @@ test("computeMissing clamps negative arithmetic and surfaces staleness", () => {
   assert.equal(computeMissing(withPlaudTotal(null, 10, 0)), "unknown until first sync");
   assert.equal(computeMissing(withPlaudTotal(308, 215, 0)), "93");
   assert.equal(computeMissing(withPlaudTotal(308, 215, 12)), "81");
-  // plaud deleted a recording after our last sync → arithmetic goes negative.
-  assert.equal(computeMissing(withPlaudTotal(10, 20, 0)), "0 (last sync may be stale)");
+  assert.equal(computeMissing(withPlaudTotal(10, 20, 0)), "0");
 });
 
 test("formatDeviceLabel prefers nickname with model tail, falls back sensibly", () => {

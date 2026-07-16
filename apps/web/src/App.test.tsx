@@ -78,6 +78,15 @@ const health = {
   recentSyncRuns: [completedRun],
   recordingsCount: 3,
   dismissedCount: 0,
+  coverage: {
+    observedAt: "2026-06-18T09:00:01.000Z",
+    remoteTotal: 10,
+    mirrored: 3,
+    dismissed: 0,
+    missing: 7,
+    localOnly: 0,
+    upstreamDeleted: 0,
+  },
   webhookConfigured: false,
   warnings: [],
 };
@@ -181,6 +190,7 @@ describe("<App>", () => {
           id: "recording-1",
           dismissed: true,
           upstreamDeletedAt: "2026-07-14T18:00:00.000Z",
+          operationId: "11111111-1111-4111-8111-111111111111",
         });
       }
       if (path.startsWith("/api/recordings")) {
@@ -225,6 +235,65 @@ describe("<App>", () => {
     );
     expect(confirmSpy).toHaveBeenCalledTimes(1);
     expect(await screen.findByText("eliminada de Plaud")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Restaurar" })).not.toBeInTheDocument();
+  });
+
+  it("shows a durable pending Plaud deletion as retry-only", async () => {
+    window.localStorage.setItem(STORAGE_KEYS.ACTIVE_TAB, "library");
+    const pendingRecording = {
+      ...recording,
+      localPath: null,
+      bytesWritten: 0,
+      dismissed: true,
+      dismissedAt: "2026-07-14T17:00:00.000Z",
+      upstreamDeletedAt: null,
+      upstreamDeletion: {
+        operationId: "11111111-1111-4111-8111-111111111111",
+        stage: "delete_attempted",
+        attemptCount: 1,
+        requestedAt: "2026-07-14T18:00:00.000Z",
+        updatedAt: "2026-07-14T18:00:01.000Z",
+        lastError: "Plaud returned an unrecognized success response",
+      },
+    };
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const path = String(input);
+      if (path === "/api/session") {
+        return jsonResponse({ authRequired: false, authenticated: true });
+      }
+      if (path === "/api/health") {
+        return jsonResponse({ ...health, dismissedCount: 1 });
+      }
+      if (path === "/api/config") {
+        return jsonResponse(config);
+      }
+      if (path === "/api/auth/status") {
+        return jsonResponse(authStatus);
+      }
+      if (path.startsWith("/api/recordings")) {
+        const includeDismissed = path.includes("includeDismissed=true");
+        return jsonResponse({
+          recordings: includeDismissed ? [pendingRecording] : [],
+          total: includeDismissed ? 1 : 0,
+          skip: 0,
+          limit: 50,
+        });
+      }
+      if (path === "/api/devices") {
+        return jsonResponse({ devices: [] });
+      }
+      if (path === "/api/outbox") {
+        return jsonResponse({ items: [] });
+      }
+      throw new Error(`Unexpected request: ${path}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<App />);
+    fireEvent.click(await screen.findByRole("checkbox", { name: "Ver descartadas" }));
+
+    expect(await screen.findByText("borrado de Plaud pendiente")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Reintentar borrado" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Restaurar" })).not.toBeInTheDocument();
   });
 

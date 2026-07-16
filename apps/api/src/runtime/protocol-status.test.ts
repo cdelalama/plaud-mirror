@@ -54,6 +54,15 @@ function createHealth(overrides: Partial<ServiceHealth> = {}): ServiceHealth {
     recentSyncRuns: [],
     recordingsCount: 10,
     dismissedCount: 0,
+    coverage: {
+      observedAt: "2026-06-21T10:02:00.000Z",
+      remoteTotal: 10,
+      mirrored: 10,
+      dismissed: 0,
+      missing: 0,
+      localOnly: 0,
+      upstreamDeleted: 0,
+    },
     webhookConfigured: false,
     warnings: [],
   };
@@ -73,7 +82,29 @@ test("buildPlaudMirrorProtocolStatus maps healthy complete sync to ok snapshot",
     mirrored: 10,
     dismissed: 0,
     missing: 0,
+    local_only: 0,
+    upstream_deleted: 0,
   });
+});
+
+test("buildPlaudMirrorProtocolStatus excludes tombstones from remote coverage", () => {
+  const snapshot = buildPlaudMirrorProtocolStatus(createHealth({
+    recordingsCount: 10,
+    dismissedCount: 1,
+    coverage: {
+      observedAt: "2026-06-21T10:02:00.000Z",
+      remoteTotal: 11,
+      mirrored: 10,
+      dismissed: 0,
+      missing: 1,
+      localOnly: 0,
+      upstreamDeleted: 1,
+    },
+  }));
+
+  assert.equal(snapshot.condition, "degraded");
+  assert.equal((snapshot.counts as { missing: number }).missing, 1);
+  assert.equal((snapshot.counts as { upstream_deleted: number }).upstream_deleted, 1);
 });
 
 test("buildPlaudMirrorProtocolStatus degrades when Plaud auth is unhealthy", () => {

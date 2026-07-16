@@ -64,24 +64,14 @@ export function formatRecordingsMetric(
 }
 
 /**
- * "Missing recordings" figure for the Manual sync card. plaudTotal at the
- * last sync minus what we have locally (mirrored + dismissed). Reads from
- * the health payload directly so callers don't rewire the shape.
- *
- * If plaudTotal is stale (Plaud deleted a recording after our last sync),
- * the arithmetic can go negative; we clamp and surface the staleness in
- * the rendered text rather than showing a misleading minus number.
+ * "Missing recordings" figure for the Manual sync card. Coverage is computed
+ * by the runtime from one committed full Plaud inventory generation, not from
+ * unrelated aggregate local-row counts.
  */
 export function computeMissing(health: ServiceHealth | null): string {
-  const plaudTotal = health?.lastSync?.plaudTotal ?? null;
-  if (plaudTotal === null) {
+  const missing = health?.coverage?.missing ?? null;
+  if (missing === null) {
     return "unknown until first sync";
-  }
-  const mirrored = health?.recordingsCount ?? 0;
-  const dismissed = health?.dismissedCount ?? 0;
-  const missing = plaudTotal - mirrored - dismissed;
-  if (missing < 0) {
-    return "0 (last sync may be stale)";
   }
   return String(missing);
 }

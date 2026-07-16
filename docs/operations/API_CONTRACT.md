@@ -1,4 +1,4 @@
-<!-- doc-version: 0.11.2 -->
+<!-- doc-version: 0.12.0 -->
 # API Contract
 
 This document describes the HTTP and webhook surface that now exists in-repo. The current implementation covers the full Phase 2 slice plus the Phase 3 scheduler, durable webhook outbox, and full health observability. `v0.10.0` adds the `home-infra-protocol` sync-job surface; `v0.10.3` adds physical artifact reconciliation and explicit candidate failures; `v0.10.4` makes scheduler completion end-to-end truthful, exposes `health.outbox.delivering`, and enforces the one-hour whole-run ceiling. The five-screen UI consumes the app routes; protocol routes are for Infra Portal/Hermes style consumers.
@@ -29,8 +29,8 @@ This document describes the HTTP and webhook surface that now exists in-repo. Th
 | `GET` | `/api/recordings` | List recent mirrored recordings. Accepts `?limit=<n>` (max 200, default 50) and `?includeDismissed=true` to include locally dismissed rows (hidden by default). |
 | `GET` | `/api/recordings/:id/audio` | Stream the locally mirrored audio file for a single recording. Returns 404 if the recording is not tracked or has no local file. Response body is the raw audio bytes with the stored `Content-Type`. Supports HTTP Range (RFC 7233 single-range): advertises `Accept-Ranges: bytes`, includes `Content-Length`, and honors `Range: bytes=start-end` (plus suffix `bytes=-N` and open-ended `bytes=start-`) with `206 Partial Content`. Unsatisfiable ranges return `416` with `Content-Range: bytes */size`. Multipart byteranges are intentionally unsupported. |
 | `DELETE` | `/api/recordings/:id` | Local-only dismiss. Removes the audio file from disk, clears `localPath`/`bytesWritten`, and marks the row `dismissed=true`. Plaud is not touched. Subsequent sync/backfill runs skip dismissed rows. |
-| `POST` | `/api/recordings/:id/restore` | Clear the dismissed flag **and immediately re-download the audio** (fresh `/file/detail` + `/file/temp-url` against Plaud, artifact written to `recordings/<id>/audio.<ext>`). Returns 409 if the recording is not currently dismissed and 410 after a permanent Plaud deletion. If the immediate download fails (missing/invalid token, network error), the flag is still cleared and the error is surfaced so the caller can recover. |
-| `DELETE` | `/api/recordings/:id/plaud` | Irreversibly delete an already-dismissed recording from the operator's Plaud account. Performs observed trash-then-delete mutations, persists `upstreamDeletedAt`, and is idempotent after success. Returns 409 unless locally dismissed. Operator-session-gated; never part of automated live validation. |
+| `POST` | `/api/recordings/:id/restore` | Clear the dismissed flag **and immediately re-download the audio**. Returns 409 if the row is not dismissed or has any unresolved Plaud deletion operation, and 410 after confirmed permanent deletion. |
+| `DELETE` | `/api/recordings/:id/plaud` | Irreversibly delete an already-dismissed recording from Plaud. Journals the operation before side effects, performs/reconciles the observed trash-then-delete flow, persists `upstreamDeletedAt` only after confirmation, and is idempotent after success. Operator-session-gated; never part of automated live validation. |
 | `GET` | `/api/outbox` | Return `{ items: OutboxItem[] }` with **only `permanently_failed` rows** from the durable webhook outbox (D-013). Pending, delivering, and retry-waiting work is visible through `health.outbox` counters. Empty array when the queue has no failed items. |
 | `POST` | `/api/outbox/:id/retry` | Reset a `permanently_failed` outbox row back to `pending` (clears `attempts` and `last_error`); the worker will re-attempt delivery on its next tick. Returns the updated `OutboxItem`. 400 on unsafe id shape, 404 on unknown id, 409 when the row is in any state other than `permanently_failed` (the FSM guard — the panel must not bypass `delivering` or restart `delivered` rows). |
 
@@ -201,6 +201,8 @@ No request body. Response:
 ```
 
 Returns 409 when called on a recording whose `dismissed` is already `false`.
+It also returns 409 while any Plaud deletion operation is unresolved; the
+operator must retry deletion so the service can reconcile remote state first.
 Returns 410 when `upstreamDeletedAt` proves the recording was permanently
 deleted from Plaud.
 
@@ -217,15 +219,26 @@ Response:
 {
   "id": "plaud-recording-id",
   "dismissed": true,
-  "upstreamDeletedAt": "2026-07-14T18:00:00.000Z"
+  "upstreamDeletedAt": "2026-07-14T18:00:00.000Z",
+  "operationId": "11111111-1111-4111-8111-111111111111"
 }
 ```
 
-The SQLite row remains as an audit tombstone. A repeat call returns the same
-result without another Plaud mutation. Errors: `403` when operator access
-control is not configured, `401` without an operator session when it is
-configured, `404` when the local row is unknown, `409` when it is not
-dismissed, and `502`/upstream error when Plaud rejects or cannot complete the mutation.
+`GET /api/recordings` exposes an optional `upstreamDeletion` object while an
+operation exists: `operationId`, `stage`, `attemptCount`, `requestedAt`,
+`updatedAt`, and `lastError`. Stages are
+`requested`, `trash_attempted`, `trash_confirmed`, `delete_attempted`, and
+`confirmed`.
+
+Plaud mutation success is recognized only for an empty body or explicit
+`{ "status": 0 }`; a 2xx HTML or unknown JSON response is an error. A durable
+deletion operation plus a later detail 404 is reconciled as success without a
+second destructive request. The SQLite row remains as an audit tombstone and a repeat call
+returns the same result without another Plaud mutation. Errors: `403` when
+operator access control is not configured, `401` without an operator session,
+`404` when the local row is unknown, `409` when it is not dismissed or another
+deletion for the same recording is in flight, and
+`502`/upstream error when Plaud rejects or cannot confirm the mutation.
 Because these are private Plaud endpoints, endpoint drift is an upstream-watch
 event rather than a stable public API guarantee.
 
@@ -264,6 +277,15 @@ No request body. Response (200 OK):
   },
   "recordingsCount": 215,
   "dismissedCount": 12,
+  "coverage": {
+    "observedAt": "2026-04-25T10:00:00.000Z",
+    "remoteTotal": 227,
+    "mirrored": 215,
+    "dismissed": 12,
+    "missing": 0,
+    "localOnly": 1,
+    "upstreamDeleted": 1
+  },
   "webhookConfigured": true,
   "warnings": []
 }
@@ -275,7 +297,14 @@ Fields:
 - `lastSync` holds the last **completed** run (`status` ∈ `"completed"` / `"failed"`). It stays pinned through subsequent runs so the panel's hero metric does not flicker to zero. `null` until any run finishes.
 - `activeRun` holds the currently-running run (only when `status === "running"`); `null` otherwise. The panel polls `/api/health` every 2 s while `activeRun !== null` and stops once it clears.
 - The example above shows the **enabled** shape; by default the scheduler is **disabled** (operators must opt in via `PLAUD_MIRROR_SCHEDULER_INTERVAL_MS`), in which case `scheduler` reads `{ enabled: false, intervalMs: 0, nextTickAt: null, lastTickAt: null, lastTickStatus: null, lastTickError: null }` and `phase` reads `"Phase 2 - first usable slice"`. The field is the partial D-014 surface introduced in `v0.5.0` and stabilized in `v0.5.1`. `lastTickStatus` is one of `"completed"` / `"failed"` / `"skipped"` or `null` (no tick yet in this process). A `"skipped"` tick has two possible meanings: either this scheduler's previous tick was still in flight (internal anti-overlap), or the service-level `getActiveSyncRun` reuse absorbed the tick because a manual sync was already running (external anti-overlap). In both skip cases, `lastTickError` carries an operator-readable reason rather than an actual error. `nextTickAt` and `lastTickAt` are ISO 8601 strings or `null`. For genuine `"failed"` ticks, `lastTickError` holds `Error.message`.
-- `recordingsCount` excludes dismissed rows; `dismissedCount` is the dismissed-only count.
+- `recordingsCount` excludes dismissed rows; `dismissedCount` includes every
+  historical dismissed/tombstone row and is not a current-remote partition.
+- `coverage` is the exact latest committed full-list generation. When
+  `remoteTotal` is non-null, `mirrored + dismissed + missing = remoteTotal`.
+  `localOnly` counts active SQLite rows with a local path that are absent from
+  the current remote generation; `upstreamDeleted` counts confirmed
+  tombstones. Both are separate historical/local facts. Before
+  the first v0.12.0 sync, `observedAt`, `remoteTotal`, and `missing` are null.
 - `warnings` is a free-form string array reserved for non-fatal operator-visible signals.
 
 ### `GET /api/protocol/sync-jobs/plaud-mirror-recordings-sync/status`
@@ -303,7 +332,9 @@ Example:
     "plaud_total": 584,
     "mirrored": 584,
     "dismissed": 0,
-    "missing": 0
+    "missing": 0,
+    "local_only": 1,
+    "upstream_deleted": 1
   },
   "latest_sync": {
     "id": "sync-run-id",

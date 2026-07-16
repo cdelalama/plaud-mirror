@@ -424,6 +424,12 @@ test("PlaudMirrorService backfill downloads audio and enqueues the webhook paylo
   assert.equal(summary.enqueued, 1, "the run pushed exactly one payload into the outbox");
   assert.equal(summary.skipped, 0, "queued webhook delivery is not a skipped sync candidate");
   assert.equal(summary.plaudTotal, 1, "sync summary should carry Plaud's data_file_total");
+  const coverage = (await service.getHealth()).coverage;
+  assert.ok(coverage.observedAt);
+  assert.equal(coverage.remoteTotal, 1);
+  assert.equal(coverage.mirrored, 1);
+  assert.equal(coverage.dismissed, 0);
+  assert.equal(coverage.missing, 0);
 
   const recordings = await service.listRecordings(10);
   assert.equal(recordings.recordings.length, 1);
@@ -1397,6 +1403,7 @@ test("PlaudMirrorService permanently deletes only a dismissed recording and keep
   const result = await service.permanentlyDeleteRecordingFromPlaud("rec-upstream-delete");
   assert.equal(result.dismissed, true);
   assert.ok(result.upstreamDeletedAt);
+  assert.match(result.operationId, /^[0-9a-f-]{36}$/);
   assert.deepEqual(mutationCalls, [
     {
       url: "https://api.plaud.ai/file/trash/",
@@ -1413,6 +1420,7 @@ test("PlaudMirrorService permanently deletes only a dismissed recording and keep
   const stored = store.getRecording("rec-upstream-delete");
   assert.equal(stored?.dismissed, true);
   assert.equal(stored?.upstreamDeletedAt, result.upstreamDeletedAt);
+  assert.equal(stored?.upstreamDeletion?.stage, "confirmed");
   await assert.rejects(
     service.restoreRecording("rec-upstream-delete"),
     /permanently deleted from Plaud/,
@@ -1420,8 +1428,361 @@ test("PlaudMirrorService permanently deletes only a dismissed recording and keep
 
   const repeated = await service.permanentlyDeleteRecordingFromPlaud("rec-upstream-delete");
   assert.equal(repeated.upstreamDeletedAt, result.upstreamDeletedAt);
+  assert.equal(repeated.operationId, result.operationId);
   assert.equal(mutationCalls.length, 2, "a persisted tombstone makes retries idempotent");
 
+  service.close();
+});
+
+test("PlaudMirrorService does not create a deletion operation when authentication fails before Plaud mutation", async () => {
+  const root = await mkdtemp(join(tmpdir(), "plaud-mirror-service-upstream-delete-no-auth-"));
+  const environment = createEnvironment(root);
+  const store = new RuntimeStore({
+    dbPath: join(environment.dataDir, "app.db"),
+    dataDir: environment.dataDir,
+    recordingsDir: environment.recordingsDir,
+    defaultSyncLimit: environment.defaultSyncLimit,
+  });
+  const secrets = new SecretStore(join(environment.dataDir, "secrets.enc"), environment.masterKey);
+  const service = new PlaudMirrorService(environment, store, secrets);
+  await service.initialize();
+  store.upsertRecording({
+    id: "rec-delete-no-auth",
+    title: "Keep deletion intent clean",
+    createdAt: null,
+    durationSeconds: 12,
+    serialNumber: "PLAUD-1",
+    scene: 3,
+    localPath: null,
+    contentType: null,
+    bytesWritten: 0,
+    mirroredAt: null,
+    lastWebhookStatus: null,
+    lastWebhookAttemptAt: null,
+    dismissed: true,
+    dismissedAt: "2026-07-16T12:00:00.000Z",
+    sequenceNumber: null,
+  });
+
+  await assert.rejects(
+    service.permanentlyDeleteRecordingFromPlaud("rec-delete-no-auth"),
+    /Plaud authentication failed/,
+  );
+  assert.equal(store.getUpstreamDeletionOperation("rec-delete-no-auth"), null);
+  assert.deepEqual(store.listUpstreamDeletionEvents("rec-delete-no-auth"), []);
+  service.close();
+});
+
+test("PlaudMirrorService serializes concurrent upstream deletion for one recording", async () => {
+  const root = await mkdtemp(join(tmpdir(), "plaud-mirror-service-upstream-delete-concurrent-"));
+  const environment = createEnvironment(root);
+  const store = new RuntimeStore({
+    dbPath: join(environment.dataDir, "app.db"),
+    dataDir: environment.dataDir,
+    recordingsDir: environment.recordingsDir,
+    defaultSyncLimit: environment.defaultSyncLimit,
+  });
+  const secrets = new SecretStore(join(environment.dataDir, "secrets.enc"), environment.masterKey);
+  let releaseTrash!: () => void;
+  let markTrashStarted!: () => void;
+  const trashStarted = new Promise<void>((resolve) => {
+    markTrashStarted = resolve;
+  });
+  let trashCalls = 0;
+  let deleteCalls = 0;
+  const service = new PlaudMirrorService(environment, store, secrets, {
+    plaudFetchImpl: async (input) => {
+      const url = String(input);
+      if (url.endsWith("/user/me")) {
+        return createJsonResponse({ status: 0, data: { uid: "user-1" } });
+      }
+      if (url.endsWith("/file/detail/rec-delete-concurrent")) {
+        return createJsonResponse({
+          status: 0,
+          data: {
+            file_id: "rec-delete-concurrent",
+            file_name: "Concurrent delete",
+            duration: 12,
+            is_trash: false,
+            start_time: 1713780000000,
+            scene: 3,
+            serial_number: "PLAUD-1",
+          },
+        });
+      }
+      if (url.endsWith("/file/trash/")) {
+        trashCalls += 1;
+        markTrashStarted();
+        await new Promise<void>((resolve) => {
+          releaseTrash = resolve;
+        });
+        return new Response(null, { status: 204 });
+      }
+      if (url.endsWith("/file/")) {
+        deleteCalls += 1;
+        return new Response(null, { status: 204 });
+      }
+      throw new Error(`Unexpected Plaud fetch: ${url}`);
+    },
+  });
+  await service.initialize();
+  await service.saveAccessToken({ accessToken: "token-value" });
+  store.upsertRecording({
+    id: "rec-delete-concurrent",
+    title: "Concurrent delete",
+    createdAt: null,
+    durationSeconds: 12,
+    serialNumber: "PLAUD-1",
+    scene: 3,
+    localPath: null,
+    contentType: null,
+    bytesWritten: 0,
+    mirroredAt: null,
+    lastWebhookStatus: null,
+    lastWebhookAttemptAt: null,
+    dismissed: true,
+    dismissedAt: "2026-07-16T12:00:00.000Z",
+    sequenceNumber: null,
+  });
+
+  const first = service.permanentlyDeleteRecordingFromPlaud("rec-delete-concurrent");
+  await trashStarted;
+  await assert.rejects(
+    service.permanentlyDeleteRecordingFromPlaud("rec-delete-concurrent"),
+    /already has a Plaud deletion in progress/,
+  );
+  releaseTrash();
+  await first;
+  assert.equal(trashCalls, 1);
+  assert.equal(deleteCalls, 1);
+  service.close();
+});
+
+test("PlaudMirrorService reconciles upstream absence after any durable deletion intent", async () => {
+  const root = await mkdtemp(join(tmpdir(), "plaud-mirror-service-upstream-delete-absent-"));
+  const environment = createEnvironment(root);
+  const store = new RuntimeStore({
+    dbPath: join(environment.dataDir, "app.db"),
+    dataDir: environment.dataDir,
+    recordingsDir: environment.recordingsDir,
+    defaultSyncLimit: environment.defaultSyncLimit,
+  });
+  const secrets = new SecretStore(join(environment.dataDir, "secrets.enc"), environment.masterKey);
+  let mutationCalls = 0;
+  const service = new PlaudMirrorService(environment, store, secrets, {
+    plaudFetchImpl: async (input) => {
+      const url = String(input);
+      if (url.endsWith("/user/me")) {
+        return createJsonResponse({ status: 0, data: { uid: "user-1" } });
+      }
+      if (url.endsWith("/file/detail/rec-delete-absent")) {
+        return createJsonResponse({ status: 404, msg: "not found" }, 404);
+      }
+      mutationCalls += 1;
+      return new Response(null, { status: 204 });
+    },
+  });
+  await service.initialize();
+  await service.saveAccessToken({ accessToken: "token-value" });
+  store.upsertRecording({
+    id: "rec-delete-absent",
+    title: "Already absent",
+    createdAt: null,
+    durationSeconds: 12,
+    serialNumber: "PLAUD-1",
+    scene: 3,
+    localPath: null,
+    contentType: null,
+    bytesWritten: 0,
+    mirroredAt: null,
+    lastWebhookStatus: null,
+    lastWebhookAttemptAt: null,
+    dismissed: true,
+    dismissedAt: "2026-07-16T12:00:00.000Z",
+    sequenceNumber: null,
+  });
+  store.beginUpstreamDeletion("rec-delete-absent");
+  store.advanceUpstreamDeletion("rec-delete-absent", "trash_attempted");
+
+  const result = await service.permanentlyDeleteRecordingFromPlaud("rec-delete-absent");
+  assert.ok(result.upstreamDeletedAt);
+  assert.equal(mutationCalls, 0, "reconciliation must not issue a second destructive request");
+  assert.equal(store.getUpstreamDeletionOperation("rec-delete-absent")?.stage, "confirmed");
+  service.close();
+});
+
+test("PlaudMirrorService retries from an already-trashed recording after an uncertain delete", async () => {
+  const root = await mkdtemp(join(tmpdir(), "plaud-mirror-service-upstream-delete-retry-"));
+  const environment = createEnvironment(root);
+  const store = new RuntimeStore({
+    dbPath: join(environment.dataDir, "app.db"),
+    dataDir: environment.dataDir,
+    recordingsDir: environment.recordingsDir,
+    defaultSyncLimit: environment.defaultSyncLimit,
+  });
+  const secrets = new SecretStore(join(environment.dataDir, "secrets.enc"), environment.masterKey);
+  let trashed = false;
+  let deleteCalls = 0;
+  let trashCalls = 0;
+  const service = new PlaudMirrorService(environment, store, secrets, {
+    plaudFetchImpl: async (input) => {
+      const url = String(input);
+      if (url.endsWith("/user/me")) {
+        return createJsonResponse({ status: 0, data: { uid: "user-1" } });
+      }
+      if (url.endsWith("/file/detail/rec-delete-retry")) {
+        return createJsonResponse({
+          status: 0,
+          data: {
+            file_id: "rec-delete-retry",
+            file_name: "Retry delete",
+            duration: 12,
+            is_trash: trashed,
+            start_time: 1713780000000,
+            scene: 3,
+            serial_number: "PLAUD-1",
+          },
+        });
+      }
+      if (url.endsWith("/file/trash/")) {
+        trashCalls += 1;
+        trashed = true;
+        return new Response(null, { status: 204 });
+      }
+      if (url.endsWith("/file/")) {
+        deleteCalls += 1;
+        return deleteCalls === 1
+          ? createJsonResponse({ status: 7, msg: "temporary failure" })
+          : new Response(null, { status: 204 });
+      }
+      throw new Error(`Unexpected Plaud fetch: ${url}`);
+    },
+  });
+  await service.initialize();
+  await service.saveAccessToken({ accessToken: "token-value" });
+  store.upsertRecording({
+    id: "rec-delete-retry",
+    title: "Retry delete",
+    createdAt: null,
+    durationSeconds: 12,
+    serialNumber: "PLAUD-1",
+    scene: 3,
+    localPath: null,
+    contentType: null,
+    bytesWritten: 0,
+    mirroredAt: null,
+    lastWebhookStatus: null,
+    lastWebhookAttemptAt: null,
+    dismissed: true,
+    dismissedAt: "2026-07-16T12:00:00.000Z",
+    sequenceNumber: null,
+  });
+
+  await assert.rejects(
+    service.permanentlyDeleteRecordingFromPlaud("rec-delete-retry"),
+    /not confirmed; retry will reconcile/,
+  );
+  assert.equal(store.getUpstreamDeletionOperation("rec-delete-retry")?.stage, "delete_attempted");
+  assert.equal(store.getUpstreamDeletionOperation("rec-delete-retry")?.lastError?.includes("status 7"), true);
+  await assert.rejects(
+    service.restoreRecording("rec-delete-retry"),
+    /unresolved Plaud deletion; retry deletion before restoring/,
+  );
+
+  const result = await service.permanentlyDeleteRecordingFromPlaud("rec-delete-retry");
+  assert.ok(result.upstreamDeletedAt);
+  assert.equal(trashCalls, 1, "retry must not trash a recording that detail already reports in trash");
+  assert.equal(deleteCalls, 2);
+  assert.equal(store.getUpstreamDeletionOperation("rec-delete-retry")?.attemptCount, 2);
+  service.close();
+});
+
+test("PlaudMirrorService reconciles a lost delete response after local confirmation fails", async () => {
+  const root = await mkdtemp(join(tmpdir(), "plaud-mirror-service-upstream-delete-reconcile-"));
+  const environment = createEnvironment(root);
+  const store = new RuntimeStore({
+    dbPath: join(environment.dataDir, "app.db"),
+    dataDir: environment.dataDir,
+    recordingsDir: environment.recordingsDir,
+    defaultSyncLimit: environment.defaultSyncLimit,
+  });
+  const secrets = new SecretStore(join(environment.dataDir, "secrets.enc"), environment.masterKey);
+  let remotelyDeleted = false;
+  let deleteCalls = 0;
+  const service = new PlaudMirrorService(environment, store, secrets, {
+    plaudFetchImpl: async (input) => {
+      const url = String(input);
+      if (url.endsWith("/user/me")) {
+        return createJsonResponse({ status: 0, data: { uid: "user-1" } });
+      }
+      if (url.endsWith("/file/detail/rec-delete-reconcile")) {
+        return remotelyDeleted
+          ? createJsonResponse({ status: 404, msg: "not found" }, 404)
+          : createJsonResponse({
+              status: 0,
+              data: {
+                file_id: "rec-delete-reconcile",
+                file_name: "Reconcile delete",
+                duration: 12,
+                is_trash: true,
+                start_time: 1713780000000,
+                scene: 3,
+                serial_number: "PLAUD-1",
+              },
+            });
+      }
+      if (url.endsWith("/file/")) {
+        deleteCalls += 1;
+        remotelyDeleted = true;
+        return new Response(null, { status: 204 });
+      }
+      throw new Error(`Unexpected Plaud fetch: ${url}`);
+    },
+  });
+  await service.initialize();
+  await service.saveAccessToken({ accessToken: "token-value" });
+  store.upsertRecording({
+    id: "rec-delete-reconcile",
+    title: "Reconcile delete",
+    createdAt: null,
+    durationSeconds: 12,
+    serialNumber: "PLAUD-1",
+    scene: 3,
+    localPath: null,
+    contentType: null,
+    bytesWritten: 0,
+    mirroredAt: null,
+    lastWebhookStatus: null,
+    lastWebhookAttemptAt: null,
+    dismissed: true,
+    dismissedAt: "2026-07-16T13:00:00.000Z",
+    sequenceNumber: null,
+  });
+
+  const confirm = store.confirmUpstreamDeletion.bind(store);
+  let failConfirmation = true;
+  Object.defineProperty(store, "confirmUpstreamDeletion", {
+    configurable: true,
+    value: (recordingId: string, upstreamDeletedAt: string) => {
+      if (failConfirmation) {
+        failConfirmation = false;
+        throw new Error("simulated SQLite write failure");
+      }
+      return confirm(recordingId, upstreamDeletedAt);
+    },
+  });
+
+  await assert.rejects(
+    service.permanentlyDeleteRecordingFromPlaud("rec-delete-reconcile"),
+    /local confirmation failed; retry to reconcile/,
+  );
+  assert.equal(store.getUpstreamDeletionOperation("rec-delete-reconcile")?.stage, "delete_attempted");
+  assert.equal(store.getRecording("rec-delete-reconcile")?.upstreamDeletedAt, null);
+
+  const reconciled = await service.permanentlyDeleteRecordingFromPlaud("rec-delete-reconcile");
+  assert.ok(reconciled.upstreamDeletedAt);
+  assert.equal(deleteCalls, 1, "404 after a durable prior attempt confirms without a second destructive call");
+  assert.equal(store.getUpstreamDeletionOperation("rec-delete-reconcile")?.stage, "confirmed");
   service.close();
 });
 

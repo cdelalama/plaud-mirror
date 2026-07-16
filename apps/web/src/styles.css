@@ -921,8 +921,13 @@ button.mobile-status-chip:hover {
 }
 
 .recording-line.dismissed {
-  opacity: 0.6;
   background: #fafafa;
+}
+
+.recording-line.dismissed .recording-sequence,
+.recording-line.dismissed .recording-copy,
+.recording-line.dismissed .recording-player {
+  opacity: 0.62;
 }
 
 .recording-actions {
@@ -939,7 +944,7 @@ button.mobile-status-chip:hover {
   border-radius: 8px;
   padding: 6px 10px;
   background: #fff;
-  color: #a92b25;
+  color: #8f211c;
   font-size: 12px;
 }
 

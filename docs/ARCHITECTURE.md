@@ -1,9 +1,9 @@
-<!-- doc-version: 0.11.2 -->
+<!-- doc-version: 0.12.0 -->
 # Plaud Mirror Architecture
 
 > Version: 0.11.2
 > Last Updated: 2026-07-14
-> Status: Phase 6 has an authenticated permanent-Plaud-delete workflow for already-dismissed recordings. v0.11.2 makes its fail-closed guard reusable and pins both 403/401 authorization modes in tests. The PT15M/PT2H protocol contract is unchanged; the independent Phase 3 post-deploy soak and live webhook exit gate remain open.
+> Status: Phase 6 has an authenticated permanent-Plaud-delete workflow for already-dismissed recordings. v0.12.0 adds a durable deletion state/event journal, fail-closed mutation acknowledgements, retry reconciliation, and generation-based physical mirror coverage. The PT15M/PT2H protocol contract is unchanged; the independent Phase 3 post-deploy soak and live webhook exit gate remain open.
 
 ## Overview
 
@@ -97,6 +97,13 @@ Phase 3 turns the manual slice into an unattended service. The later `0.7.x`-`0.
 - **`v0.11.2`:** audit hardening patch. The destructive guard is a reusable
   pre-handler, the configured-auth anonymous 401 has route-specific coverage,
   and the recoverable partial trash/delete state is documented.
+- **`v0.12.0`:** destructive-operation and coverage integrity release. A
+  deletion operation is stored before Plaud side effects, each state transition
+  is appended to an event journal, and an uncertain prior DELETE is reconciled
+  through detail before any retry. Mutation success requires an empty body or
+  explicit `{ status: 0 }`. Full sync commits a single inventory generation
+  only after physical artifact checks, so current remote coverage excludes
+  historical tombstones and local-only tracked rows without losing either fact.
 
 Still **not** in Phase 3 scope:
 
@@ -153,13 +160,19 @@ The language selector only translates operator chrome. Recording titles, raw err
 3. Background work validates the stored token.
 4. `client.listEverything()` paginates Plaud's full listing (`/file/simple/web?skip=N&limit=500`) until a page arrives shorter than 500 — signal of the last page. Every recording in the account is captured in date-desc order, plus the authoritative `plaudTotal`. Stable sequence numbers are recomputed from the oldest-first order.
 5. Local filters are applied (date range, serial number, scene) if any.
-6. Candidate selection walks the filtered list newest-first and keeps a recording when it is **not dismissed** AND (if `forceDownload=false`) lacks a verified local artifact. Verification requires a regular non-empty file whose size matches `bytesWritten`; a stale SQLite `localPath` alone is not coverage. Webhook state remains unrelated. Stops at `limit` candidates. `limit=0` is legal and means "refresh listing and ranks, download nothing."
-7. Each candidate resolves detail and temp URL, downloads the artifact, writes:
+6. Before candidate selection, every row in the complete remote listing is
+   joined to SQLite and physically verified. The store then commits one
+   inventory generation containing the observed ids, observation time, remote
+   total, and verified artifact ids. Coverage is derived only from that
+   generation: `mirrored + dismissed + missing = remoteTotal`; local-only rows
+   and historical upstream tombstones are separate facts.
+7. Candidate selection walks the filtered list newest-first and keeps a recording when it is **not dismissed** AND (if `forceDownload=false`) lacks a verified local artifact. Verification requires a regular non-empty file whose size matches `bytesWritten`; a stale SQLite `localPath` alone is not coverage. Webhook state remains unrelated. Stops at `limit` candidates. `limit=0` is legal and means "refresh listing and ranks, download nothing."
+8. Each candidate resolves detail and temp URL, downloads the artifact, writes:
    - `recordings/<recording-id>/audio.<ext>` via same-directory temporary file,
      file `fsync`, then atomic rename
    - `recordings/<recording-id>/metadata.json`
    - After each candidate the run row is updated via `store.updateSyncRunProgress` so the panel sees `downloaded` and `failed` move in real time.
-8. A candidate error is recorded with its recording id and processing continues. Recording state is upserted only after a successful atomic download. The summary records `examined`, `matched`, `downloaded`, `failed`, and `plaudTotal`; any non-zero `failed` finalizes the run as `failed` with a durable error summary, even when later candidates succeeded.
+9. A candidate error is recorded with its recording id and processing continues. Recording state is upserted only after a successful atomic download. The summary records `examined`, `matched`, `downloaded`, `failed`, and `plaudTotal`; any non-zero `failed` finalizes the run as `failed` with a durable error summary, even when later candidates succeeded.
 
 The web panel polls `GET /api/health` every 2 s while a run is active. The health payload splits state into two fields: `lastSync` holds the last COMPLETED run (drives "Last run" stats, "Plaud total", and the hero metric) and stays pinned while a new run is in flight; `activeRun` holds the running run (drives the progress banner). Polling stops once `activeRun` becomes `null` — at that point `lastSync.id` matches the run's id and the final summary is surfaced. The pre-0.4.7 semantics ("look at the N newest recordings Plaud has and skip ones that are already mirrored") silently did nothing when the N newest were all already local. Mode B instead walks as deep as needed to find N genuine gaps.
 
@@ -205,12 +218,26 @@ maximum runtime.
 1. The operator auditions an audio file inline in the web panel via `GET /api/recordings/<id>/audio`, which streams the local file with its original content-type. Recording ids are validated against a strict character allowlist before any filesystem access, and the resolved path is confirmed to stay inside the configured recordings directory.
 2. The operator may issue `DELETE /api/recordings/<id>`. The service unlinks the local audio file, clears `localPath` and `bytesWritten` on the SQLite row, and sets `dismissed=true` with a `dismissedAt` timestamp. Plaud itself is not touched by this command.
 3. Subsequent sync/backfill runs detect `dismissed=true` and skip the recording without attempting to re-download it.
-4. The operator can restore a dismissed recording via `POST /api/recordings/<id>/restore`. The service clears the `dismissed` flag **and immediately re-downloads the audio** (fetching fresh `/file/detail` and `/file/temp-url` from Plaud, then writing the artifact back to `recordings/<id>/audio.<ext>`). If the immediate download fails (e.g. missing or invalid token), the flag is still cleared so the next scheduled sync can retry, and the API surfaces the error so the operator can recover.
+4. The operator can restore a dismissed recording via `POST /api/recordings/<id>/restore` only while no upstream deletion operation exists. The service clears the `dismissed` flag **and immediately re-downloads the audio** (fetching fresh `/file/detail` and `/file/temp-url` from Plaud, then writing the artifact back to `recordings/<id>/audio.<ext>`). If the immediate download fails (e.g. missing or invalid token), the flag is still cleared so the next scheduled sync can retry, and the API surfaces the error so the operator can recover.
 5. A dismissed row also offers `DELETE /api/recordings/<id>/plaud`. The panel
    asks once, explicitly stating that the original disappears from Plaud. The
    server re-validates operator auth and dismissed state, places the remote
    recording in Plaud trash when needed, then permanently deletes it.
-6. Success sets `upstream_deleted_at`. That tombstone is monotonic: later
+6. SQLite creates one `upstream_deletion_operations` row before the first
+   mutation and appends every transition to `upstream_deletion_events`:
+   `requested -> trash_attempted -> trash_confirmed -> delete_attempted -> confirmed`.
+   The current row carries retry count and last error; the event table is the
+   append-only forensic trail.
+7. Plaud mutation success is accepted only for an empty body or explicit
+   `{ status: 0 }`. A 2xx HTML page or unknown JSON leaves the operation at its
+   last durable stage. On retry, a prior `delete_attempted` state first checks
+   detail: 404 confirms the tombstone without a second DELETE; a present record
+   resumes the sequence from its observed trash state.
+8. An in-process per-recording guard rejects a second concurrent deletion with
+   409. If detail reports 404 after any durable deletion intent, absence is the
+   requested final state and the service confirms locally without another
+   mutation.
+9. Success sets `upstream_deleted_at`. That tombstone is monotonic: later
    UPSERTs cannot clear it, Restore returns `410`, and the row remains dismissed
    so delayed listings cannot recreate local audio. Repeating the command is
    idempotent and returns the existing tombstone without another Plaud call.
@@ -249,7 +276,10 @@ maximum runtime.
 ## Storage Layout
 
 - `data/app.db`
-  SQLite state for config, auth metadata, recordings (including `dismissed`, `dismissed_at`, and the irreversible `upstream_deleted_at` tombstone), devices (cached from `/device/list`), sync runs, and webhook delivery attempts
+  SQLite state for config, auth metadata, recordings (including current
+  inventory/physical-verification generations and the irreversible
+  `upstream_deleted_at` tombstone), durable upstream deletion operations and
+  events, devices, sync runs, and webhook delivery attempts
 - `data/secrets.enc`
   Encrypted secret blob containing the Plaud token and optional webhook secret
 - `recordings/<recording-id>/audio.<ext>`

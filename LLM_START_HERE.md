@@ -1,4 +1,4 @@
-<!-- doc-version: 0.11.2 -->
+<!-- doc-version: 0.12.0 -->
 # LLM Start Guide - Plaud Mirror
 
 ## Read This First (Mandatory)
@@ -86,19 +86,16 @@ Recommended reading order:
 ## Current Focus (Snapshot)
 
 Source of truth: docs/llm/HANDOFF.md.
-- Last Updated: 2026-07-14 - GPT-5 Codex
-- Working on: **v0.11.2 final audit hardening is published, deployed, and reconciled.**
-  The v0.11.0 UI and one-confirmation
-  workflow remain unchanged. A Claude Opus 4.8 backup audit found that the
-  irreversible route inherited open-development mode when the operator
-  passphrase was absent; v0.11.1 closed that gap. After a final Claude Opus 4.8
-  backup-auditor GO, v0.11.2 makes the guard reusable, pins the configured-auth
-  anonymous 401 for this route, and documents partial-failure retry. Fable 5 was
-  requested first but unavailable because its CLI quota was exhausted. Clean
-  source `f356522` is live and healthy on dev-vm; all 179 tests and CI pass.
-  Home Infra 0.5.8 `7379a5e` and warning-free Infra Portal provenance are
-  synchronized. Home Infra Protocol is unchanged and no real deletion was
-  invoked.
+- Last Updated: 2026-07-16 - GPT-5 Codex
+- Working on: **v0.12.0 destructive-operation and coverage integrity is
+  implemented and locally validated; deployment is next.** The first real
+  operator deletion exposed weak 2xx acknowledgement and a false remote
+  coverage partition. The new release journals deletion state/events,
+  reconciles uncertain outcomes before retry, accepts only explicit mutation
+  success, blocks Restore during unresolved deletion, and commits physical
+  coverage by full-list generation. All 190 tests pass. Home Infra Protocol,
+  Infra Portal, Cortex, and Media2Text require no code change; Home Infra is
+  reconciled after live deployment. No additional real deletion was invoked.
 - Previous (2026-07-10, v0.10.7 soak activation): Physical reconciliation examined all
   619 recordings with zero candidates/failures. The contract declares
   `internal-loop`, `cadence: PT15M`, and `stale_after: PT2H`. Runtime v0.10.7

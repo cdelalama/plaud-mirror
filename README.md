@@ -1,4 +1,4 @@
-<!-- doc-version: 0.11.2 -->
+<!-- doc-version: 0.12.0 -->
 # Plaud Mirror
 
 Self-hosted Plaud audio mirror with a local operator panel, manual sync/backfill controls, and Docker deployment.
@@ -21,10 +21,13 @@ The repository now contains the full Phase 2 slice, the complete Phase 3 runtime
 - local recording index in SQLite with stable `#N` ranks anchored to Plaud's full timeline
 - search, 50/100/150 pagination, and compact/full inline audio playback with HTTP Range support
 - reversible local dismiss/restore plus an optional, separately confirmed
-  permanent Plaud deletion available only after local dismissal
+  permanent Plaud deletion available only after local dismissal; deletion
+  attempts are journaled and uncertain outcomes become explicit retry states
 - HMAC-signed webhook delivery via a **durable outbox** (v0.5.3+): each successful sync enqueues the payload, a worker uses eight exponential-backoff waits (30s → 8h) before a ninth final attempt, and Operations surfaces active/failed state plus Retry controls. Counters on `/api/health.outbox`.
 - **opt-in continuous sync scheduler** configured from the Configuration screen of the panel (interval in minutes, `0` disables, hot-applied without container restart); status surfaced via the `scheduler` block on `/api/health`
 - **Home Infra Protocol sync-job status**: `infra.contract.yml` declares `plaud-mirror-recordings-sync`, and `/api/protocol/sync-jobs/plaud-mirror-recordings-sync/status` publishes a sanitized `status-snapshot` for Infra Portal/Hermes-style consumers
+- generation-based coverage that proves the current Plaud inventory against
+  physical local artifacts while reporting historical tombstones separately
 - Spanish/English operator chrome persisted in browser storage, with a labeled mobile view selector and compact mobile status chips
 - Docker packaging for `dev-vm`, running as non-root `USER 1000:1000`
 

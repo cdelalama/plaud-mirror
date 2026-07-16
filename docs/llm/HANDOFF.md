@@ -1,31 +1,27 @@
-<!-- doc-version: 0.11.2 -->
+<!-- doc-version: 0.12.0 -->
 # LLM Work Handoff
 
 This file is the live operational snapshot. Durable rationale lives in `docs/llm/DECISIONS.md`. Phase boundaries live in `docs/ROADMAP.md`.
 
 ## Current Status
 
-- Last Updated: 2026-07-14 - GPT-5 Codex
-- Session Focus: **v0.11.2 final audit hardening is published, deployed, and reconciled.**
-  The v0.11.0 workflow remains unchanged in
-  the UI: local dismiss is reversible, permanent deletion is a separate action
-  on dismissed rows, and one normal confirmation names the irreversible Plaud
-  consequence. A Claude Opus 4.8 backup audit found that the route inherited
-  open-development mode when `PLAUD_MIRROR_ADMIN_PASSPHRASE` was absent.
-  v0.11.1 added the route-local 403 guard. The final Claude Opus 4.8 backup
-  audit returned GO with no medium-or-higher findings and two low hardening
-  suggestions. v0.11.2 turns the guard into a reusable pre-handler, adds an
-  exact auth-enabled anonymous 401 assertion for this route, and documents the
-  safe retry after trash succeeds but permanent deletion fails. Fable 5 was
-  requested first but its CLI quota was exhausted, so no Fable audit is
-  claimed. Clean commit `f356522` is live on dev-vm after consistent backup
-  `runtime/data/app.db.backup-20260714T193840Z-v0112-pre-final-auth-hardening`.
-  All 179 tests, build/typecheck, dependency audit, version 23/23, validator
-  smoke 32/32, DocKit 12/12, diff, and CI pass. Docker/Plaud auth are healthy,
-  warnings/outbox are empty, PT15M is active, protocol is `ok/none`, and
-  anonymous DELETE is 401. Home Infra 0.5.8 `7379a5e` and Infra Portal
-  provenance are synchronized without warnings. Home Infra Protocol is
-  unchanged and no real deletion was invoked.
+- Last Updated: 2026-07-16 - GPT-5 Codex
+- Session Focus: **v0.12.0 integrity release is implemented and locally
+  validated; deployment/reconciliation is the next action.** The operator's
+  first real deletion on 2026-07-15 exposed that v0.11.2 accepted any HTTP 2xx
+  as mutation success and mixed a historical tombstone into current Plaud
+  coverage. v0.12.0 accepts only empty or explicit status-zero mutation
+  responses, journals deletion operations/events around side effects,
+  reconciles uncertain DELETE outcomes before any retry, and blocks Restore
+  while an operation is unresolved. Full sync now commits a generation only
+  after physical artifact checks, so current remote coverage partitions
+  exactly while local-only rows and tombstones remain separately observable.
+  The UI exposes a retry-only pending state and keeps destructive controls at
+  full contrast. SQLite/API changes are additive and backward compatible.
+  Home Infra Protocol and Infra Portal need no code change; Home Infra will be
+  reconciled only after live deployment. Cortex and Media2Text remain outside
+  this slice because their Plaud contracts are drafts. All 190 tests pass (160
+  Node/integration + 30 web). No additional real deletion was invoked.
 - Previous Session Focus (2026-07-10, v0.10.7 soak activation): Physical reconciliation examined
   all 619 Plaud recordings with zero candidates/failures. The contract now
   declares Home Infra Protocol 0.7.1, `internal-loop`, `cadence: PT15M`, and
@@ -208,7 +204,7 @@ Do not collapse those phases casually.
 
 ## Next Session
 
-- The stack is deployed at v0.11.0. Rebuild only for a deliberate new release,
+- The stack is deployed at v0.11.2 until this v0.12.0 rollout completes. Rebuild only for a deliberate new release,
   always with `doppler run --project plaud-mirror --config dev -- docker compose up -d --build`.
 - If Docker Hub pulls time out on `dev-vm`, the Dockerfile still accepts `PLAUD_MIRROR_DOCKER_BUILD_IMAGE` and `PLAUD_MIRROR_DOCKER_RUNTIME_IMAGE` build-arg overrides. Valid fallbacks: a locally cached Node slim/alpine image from another project, a home-infra-local registry mirror (see the open registry-mirror item in `~/src/home-infra/docs/PROJECTS.md`), or a side-loaded `node:20-bookworm-slim` via `docker save`/`docker load`. Do **not** substitute a pentesting distribution such as `vxcontrol/kali-linux:latest` — it inflates the attack surface, bloats the image, and ships tooling that has no place in a Plaud mirror's runtime.
 - Verify the protocol status endpoint after deploy:
@@ -232,8 +228,8 @@ Do not collapse those phases casually.
   - Phase 1 spike tests
   - encrypted-secret/store/service/server tests
   - built API/web integration smoke tests
-- Current `v0.11.0` source total is 179 runtime tests (150 Node/integration +
-  29 web), reproduced by the root suite. Governance checks report
+- Current `v0.12.0` source total is 190 runtime tests (160 Node/integration +
+  30 web), reproduced by the root suite. Governance checks report
   `scripts/dockit-validate-session.sh --human` 12/12,
   `scripts/check-version-sync.sh` 23 targets, and
   `scripts/test-validator.sh` 32/32 smoke cases.
@@ -243,16 +239,14 @@ Do not collapse those phases casually.
 ## Trace Anchor
 
 - Role: executor
-- Subject: v0.11.2 final permanent-delete audit hardening
-- Repo state: v0.11.2 source commit `f356522` is published and deployed on
-  dev-vm; Home Infra 0.5.8 commit `7379a5e` is published and synchronized.
-- Validation: 179/179 tests, build/typecheck, dependency audit, version 23/23,
-  validator smoke 32/32, DocKit 12/12, diff, and CI pass. Consistent backup,
-  live health/auth/scheduler/protocol, anonymous 401, Home Infra 24/24,
-  catalog/DocKit, and warning-free Portal provenance pass. The isolated no-auth
-  test proves 403 before Plaud execution. No real recording was deleted.
-- Next gate: observe the restarted PT15M runtime for 3-5 days, then run the
-  separately authorized live webhook drill before claiming the Phase 3 exit.
+- Subject: v0.12.0 destructive-operation and coverage integrity
+- Repo state: v0.12.0 is implemented and locally validated on top of published
+  v0.11.2; source commit, deployment, and Home Infra reconciliation pending.
+- Validation: 190/190 tests plus build and web typecheck pass. Destructive
+  endpoint tests are mocked; no additional real recording was deleted.
+- Next gate: complete repository validators, commit/push/CI, create a consistent
+  SQLite backup, deploy without invoking DELETE, run one full inventory sync,
+  verify exact coverage and legacy tombstone import, then reconcile Home Infra.
 
 ## Key Decisions (Links)
 

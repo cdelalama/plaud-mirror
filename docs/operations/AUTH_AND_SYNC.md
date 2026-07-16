@@ -1,4 +1,4 @@
-<!-- doc-version: 0.11.2 -->
+<!-- doc-version: 0.12.0 -->
 # Authentication and Sync Operations
 
 This runbook defines the live behavior of Plaud Mirror's auth and sync surface. Phase 2 is fully shipped. Phase 3 added the scheduler, durable outbox, health observability, and access/recovery timeouts. `v0.10.3` makes artifact integrity truthful; `v0.10.4` makes scheduler completion, runtime ceilings, outbox recovery, pagination, and shutdown truthful before the soak. Resumable backfill and fully unattended re-login stay deferred.
@@ -80,7 +80,7 @@ The service exposes:
   recording does not block later candidates, but any non-zero `failed` closes
   the run as `failed` with recording-id context in `error`.
 
-### Permanent deletion from Plaud (v0.11.0)
+### Permanent deletion from Plaud (v0.11.0; durable reconciliation in v0.12.0)
 
 - Local dismiss remains the reversible first step and never mutates Plaud.
 - Only a row already marked `dismissed=true` may call
@@ -92,11 +92,17 @@ The service exposes:
 - The panel uses one normal confirmation. Its copy names the Plaud account and
   states that the original disappears and cannot be restored.
 - The server performs the observed private Plaud sequence: inspect detail,
-  trash if needed, then permanently delete. It rejects explicit non-zero Plaud
-  application statuses even when HTTP is 2xx.
-- If trash succeeds but permanent delete fails, no tombstone is written and the
-  row stays dismissed. A retry is safe: detail reports the recording already in
-  trash, so the service skips that step and retries permanent deletion.
+  trash if needed, then permanently delete. Success requires an empty response
+  body or an explicit `{ status: 0 }`; 2xx HTML and unknown JSON fail closed.
+- From v0.12.0, SQLite journals `requested`, `trash_attempted`,
+  `trash_confirmed`, `delete_attempted`, and `confirmed` before/after the
+  corresponding side effects, with an append-only event trail and retry count.
+- If the outcome of permanent DELETE is uncertain, no tombstone is fabricated.
+  The row stays dismissed in a visible retry-only state and Restore is blocked.
+  Retry checks detail first: a 404 after durable deletion intent confirms the
+  tombstone without issuing another destructive request; a present recording
+  resumes from its observed trash state. Concurrent requests for one recording
+  are rejected with 409 while the first request is active.
 - Success writes a monotonic `upstream_deleted_at` tombstone. Restore returns
   410, sync/backfill continue to skip the row, and repeat deletion is
   idempotent without another upstream call.
@@ -176,7 +182,9 @@ The snapshot is built from existing `/api/health` runtime truth:
 
 - Plaud auth -> `plaud-auth` check.
 - Latest/active sync -> `latest-sync` check.
-- Plaud/local/dismissed/missing counts -> `coverage` check.
+- Current-generation Plaud/mirrored/dismissed/missing counts -> `coverage`
+  check. Historical tombstones and local-only artifacts are reported
+  separately and are not subtracted from the remote total.
 - Scheduler state -> `scheduler` check.
 - Durable webhook outbox -> `webhook-outbox` check.
 
@@ -214,7 +222,8 @@ Resumable backfill remains deferred (no firm release target).
 | Plaud request hangs | Aborted at the timeout; run recorded as failed with a `timed out` error | Re-run; check network/Plaud status if it repeats |
 | Webhook delivery failure | Attempt stored as failed, mirrored file kept locally | Fix webhook target/secret and re-run |
 | Process crash mid-run | Orphaned run/outbox rows recovered at next boot; entries in `health.lastErrors` | None required; review `recentSyncRuns` for the failed run |
-| Permanent Plaud delete fails | Row stays locally dismissed and Restore remains available | Retry later after checking Plaud auth/upstream drift; no local audio is recreated automatically |
+| Permanent Plaud delete fails before any operation is stored | Row stays locally dismissed and Restore remains available | Fix auth/upstream access and retry |
+| Permanent Plaud delete has an uncertain remote outcome | Row stays dismissed with `Plaud deletion pending`; Restore is blocked | Use Retry deletion so the service reconciles Plaud before any second DELETE |
 | Lost operator passphrase | Panel/API return 401 | Set a new `PLAUD_MIRROR_ADMIN_PASSPHRASE` and restart the container (old sessions invalidate automatically) |
 
 ## Security Rules

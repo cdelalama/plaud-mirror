@@ -1,4 +1,4 @@
-<!-- doc-version: 0.11.2 -->
+<!-- doc-version: 0.12.0 -->
 # Upstream Strategy
 
 Last verified against GitHub: 2026-07-14
@@ -57,6 +57,15 @@ Phase 6 adoption landed in `v0.11.0` (D-021):
 - These endpoints are not a public Plaud contract. Any method, path, body, or
   success-envelope change is a high-priority upstream-watch event; local
   dismiss/restore remains the stable fallback.
+
+v0.12.0 does not change the upstream baseline or adopt new code. It tightens
+the interpretation of the same private endpoints after an operator-driven live
+deletion showed that HTTP 2xx alone is insufficient evidence. Empty response
+and explicit `{ status: 0 }` are the only accepted acknowledgements. Any other
+2xx body leaves a durable uncertain operation; retry reconciles through
+`GET /file/detail/<id>` before deciding whether another DELETE is necessary.
+This is a local fail-closed policy, not a claim that Plaud has published a
+stable mutation response contract.
 
 ## 2026-07-13 Baseline Review (five drifted upstreams)
 

@@ -1,4 +1,4 @@
-<!-- doc-version: 0.11.2 -->
+<!-- doc-version: 0.12.0 -->
 # Repository Structure Guide
 
 This document describes the actual Plaud Mirror repository layout as of the first usable Phase 2 slice.
@@ -103,13 +103,17 @@ These paths are expected at runtime and should remain uncommitted:
 - `apps/api/src/phase1/`
   The original spike utilities (probe CLI). `applyLocalFilters` is reused by both the real sync path and the backfill preview.
 - `apps/api/src/runtime/`
-  SQLite store (recordings, devices, sync_runs, webhook_deliveries, webhook_outbox), encrypted secret storage, sync/backfill service with pluggable scheduler, scheduler + outbox worker, operator access control primitives (`operator-auth.ts`: signed session cookies, login throttle), browser-assisted re-auth capture sessions (`capture-session.ts`, D-019), and runtime tests.
+  SQLite store (recordings, inventory generations, durable upstream deletion
+  operations/events, devices, sync_runs, webhook_deliveries, webhook_outbox),
+  encrypted secret storage, sync/backfill service with pluggable scheduler,
+  scheduler + outbox worker, operator access control primitives, browser-assisted
+  re-auth capture sessions, and runtime tests.
 - `apps/api/src/runtime/protocol-status.ts`
   Maps `ServiceHealth` to the sanitized `home-infra-protocol` status snapshot for `plaud-mirror-recordings-sync`.
 - `apps/api/src/server.ts`
   Fastify app factory: operator-session gate on `/api/*` (D-018) + session routes, public sanitized protocol status routes (`/api/protocol/status`, `/api/protocol/sync-jobs/plaud-mirror-recordings-sync/status`), browser-assisted re-auth routes (`/api/connect/start` + `/api/connect/complete`, D-019), auth, config, sync (`POST /api/sync/run` returns 202), backfill, `GET /api/sync/runs/:id`, `GET /api/devices`, `GET /api/backfill/candidates`, recordings listing + audio streaming with HTTP Range, local dismiss/restore, authenticated dismissed-only permanent Plaud deletion, and outbox admin.
 - `apps/web/src/App.tsx`
-  Product panel behind a session gate (`LoginGate` when operator auth is enabled) plus the `/connect` capture landing (`ConnectPlaud`, D-019). The full-viewport five-screen shell includes Main, Library, Backfill, Configuration, Operations, ES/EN operator chrome, live sync progress, playback, local dismiss/restore, outbox retry, and local-storage UI preferences. Since v0.11.0, a text-labelled permanent Plaud deletion action appears only on dismissed rows, requires one explicit confirmation, and becomes a neutral tombstone state after success. The Configuration screen starts the re-auth capture session and points the operator at the local Chrome extension; copy-only bookmarklet fallback + token extraction live in `apps/web/src/plaud-token.ts` (adapted from MIT iiAtlas).
+  Product panel behind a session gate (`LoginGate` when operator auth is enabled) plus the `/connect` capture landing (`ConnectPlaud`, D-019). The full-viewport five-screen shell includes Main, Library, Backfill, Configuration, Operations, ES/EN operator chrome, live sync progress, playback, local dismiss/restore, outbox retry, and local-storage UI preferences. Since v0.12.0, uncertain Plaud deletion appears as a retry-only pending state and destructive controls retain full contrast on dismissed rows. The Configuration screen starts the re-auth capture session and points the operator at the local Chrome extension; copy-only bookmarklet fallback + token extraction live in `apps/web/src/plaud-token.ts` (adapted from MIT iiAtlas).
 - `apps/chrome-extension/`
   Manifest V3 local extension ("Plaud Mirror Connector"). It injects a storage reader into the active Plaud tab, extracts the user bearer, and redirects to the mirror's `/connect#token=...` page. It stores only the mirror origin, not the token.
 

@@ -20,11 +20,10 @@ export function buildPlaudMirrorProtocolStatus(
   health: ServiceHealth,
   nowIso = new Date().toISOString(),
 ): ProtocolStatusSnapshot {
-  const plaudTotal = health.lastSync?.plaudTotal ?? null;
-  const missingCount = plaudTotal === null
-    ? null
-    : Math.max(0, plaudTotal - health.recordingsCount - health.dismissedCount);
+  const plaudTotal = health.coverage.remoteTotal;
+  const missingCount = health.coverage.missing;
   const observedAt = health.activeRun?.startedAt
+    ?? health.coverage.observedAt
     ?? health.lastSync?.finishedAt
     ?? health.auth.lastValidatedAt
     ?? nowIso;
@@ -32,7 +31,13 @@ export function buildPlaudMirrorProtocolStatus(
   const checks: ProtocolStatusCheck[] = [
     buildAuthCheck(health),
     buildSyncCheck(health),
-    buildCoverageCheck(plaudTotal, health.recordingsCount, health.dismissedCount, missingCount),
+    buildCoverageCheck(
+      plaudTotal,
+      health.coverage.mirrored,
+      health.coverage.dismissed,
+      missingCount,
+      health.coverage.upstreamDeleted,
+    ),
     buildSchedulerCheck(health),
     buildOutboxCheck(health),
   ];
@@ -55,9 +60,11 @@ export function buildPlaudMirrorProtocolStatus(
     },
     counts: {
       plaud_total: plaudTotal,
-      mirrored: health.recordingsCount,
-      dismissed: health.dismissedCount,
+      mirrored: health.coverage.mirrored,
+      dismissed: health.coverage.dismissed,
       missing: missingCount,
+      local_only: health.coverage.localOnly,
+      upstream_deleted: health.coverage.upstreamDeleted,
     },
     latest_sync: health.lastSync
       ? {
@@ -164,6 +171,7 @@ function buildCoverageCheck(
   mirrored: number,
   dismissed: number,
   missing: number | null,
+  upstreamDeleted: number,
 ): ProtocolStatusCheck {
   if (plaudTotal === null || missing === null) {
     return {
@@ -183,11 +191,14 @@ function buildCoverageCheck(
     };
   }
 
+  const tombstoneSuffix = upstreamDeleted > 0
+    ? ` ${upstreamDeleted} confirmed upstream deletion(s) remain as local tombstones.`
+    : "";
   return {
     name: "coverage",
     condition: "ok",
     severity: "none",
-    summary: `Local mirror covers ${mirrored}/${plaudTotal} Plaud recording(s), with ${dismissed} dismissed.`,
+    summary: `Local mirror covers ${mirrored}/${plaudTotal} Plaud recording(s), with ${dismissed} still dismissed in Plaud.${tombstoneSuffix}`,
   };
 }
 
@@ -277,6 +288,6 @@ function buildSummary(
     return `Plaud Mirror sync completed, but ${missing} recording(s) are still missing locally.`;
   }
 
-  const denominator = plaudTotal ?? health.recordingsCount;
-  return `Plaud Mirror sync ok: ${health.recordingsCount}/${denominator} recording(s) mirrored.`;
+  const denominator = plaudTotal ?? health.coverage.mirrored;
+  return `Plaud Mirror sync ok: ${health.coverage.mirrored}/${denominator} recording(s) mirrored.`;
 }

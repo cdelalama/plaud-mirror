@@ -123,6 +123,8 @@ const COPY = {
     local: "Local",
     missing: "Faltan",
     dismissed: "Descartadas",
+    dismissedInPlaud: "Descartadas en Plaud",
+    deletedFromPlaud: "Eliminadas de Plaud",
     coverage: "Cobertura del espejo local",
     lastSync: "Último sync",
     completed: "completado",
@@ -243,6 +245,8 @@ const COPY = {
     deleteFromPlaudConfirmBody: "La grabación original desaparecerá de tu cuenta de Plaud. Esta acción no se puede deshacer.",
     deletedFromPlaudResult: "Eliminada definitivamente de Plaud",
     deletedFromPlaudBadge: "eliminada de Plaud",
+    deletePendingBadge: "borrado de Plaud pendiente",
+    retryDeleteFromPlaud: "Reintentar borrado",
   },
   en: {
     loadingSession: "Checking session…",
@@ -310,6 +314,8 @@ const COPY = {
     local: "Local",
     missing: "Missing",
     dismissed: "Dismissed",
+    dismissedInPlaud: "Dismissed in Plaud",
+    deletedFromPlaud: "Deleted from Plaud",
     coverage: "Local mirror coverage",
     lastSync: "Last sync",
     completed: "completed",
@@ -430,6 +436,8 @@ const COPY = {
     deleteFromPlaudConfirmBody: "The original recording will disappear from your Plaud account. This action cannot be undone.",
     deletedFromPlaudResult: "Permanently deleted from Plaud",
     deletedFromPlaudBadge: "deleted from Plaud",
+    deletePendingBadge: "Plaud deletion pending",
+    retryDeleteFromPlaud: "Retry deletion",
   },
 } satisfies Record<OperatorLanguage, Record<string, string>>;
 
@@ -952,10 +960,13 @@ function Panel({
     }
 
     await runOperation(async () => {
-      await requestJson<unknown>(`/api/recordings/${encodeURIComponent(recording.id)}/plaud`, {
-        method: "DELETE",
-      });
-      await refreshSnapshot();
+      try {
+        await requestJson<unknown>(`/api/recordings/${encodeURIComponent(recording.id)}/plaud`, {
+          method: "DELETE",
+        });
+      } finally {
+        await refreshSnapshot();
+      }
       return `${t.deletedFromPlaudResult}: "${recording.title}".`;
     });
   }
@@ -1173,9 +1184,12 @@ function Panel({
   const authMissing = !authConfigured || authState === "missing";
   const localCount = health?.recordingsCount ?? recordings.length;
   const dismissedCount = health?.dismissedCount ?? 0;
-  const plaudTotal = health?.lastSync?.plaudTotal ?? null;
-  const missingCount = plaudTotal == null ? null : Math.max(0, plaudTotal - localCount - dismissedCount);
-  const coverage = plaudTotal && plaudTotal > 0 ? Math.max(0, Math.min(100, (localCount / plaudTotal) * 100)) : 0;
+  const remoteMirroredCount = health?.coverage?.mirrored ?? localCount;
+  const remoteDismissedCount = health?.coverage?.dismissed ?? dismissedCount;
+  const upstreamDeletedCount = health?.coverage?.upstreamDeleted ?? 0;
+  const plaudTotal = health?.coverage?.remoteTotal ?? health?.lastSync?.plaudTotal ?? null;
+  const missingCount = health?.coverage?.missing ?? null;
+  const coverage = plaudTotal && plaudTotal > 0 ? Math.max(0, Math.min(100, (remoteMirroredCount / plaudTotal) * 100)) : 0;
   const coverageLabel = plaudTotal == null ? "--" : coverage.toFixed(1) + "%";
   const outboxTotal = (health?.outbox.pending ?? 0) + (health?.outbox.delivering ?? 0) + (health?.outbox.retryWaiting ?? 0) + (health?.outbox.permanentlyFailed ?? 0);
   const outboxProblem = (health?.outbox.permanentlyFailed ?? 0) > 0 || (health?.outbox.retryWaiting ?? 0) > 0;
@@ -1381,15 +1395,18 @@ function Panel({
 
                     <div className="metric-grid">
                       <MetricTile label={t.inPlaud} value={plaudTotal == null ? "--" : formatInteger(plaudTotal)} />
-                      <MetricTile label={t.local} value={formatInteger(localCount)} tone="good" />
+                      <MetricTile label={t.local} value={formatInteger(remoteMirroredCount)} tone="good" />
                       <MetricTile label={t.missing} value={missingCount == null ? "--" : formatInteger(missingCount)} tone="warn" />
-                      <MetricTile label={t.dismissed} value={formatInteger(dismissedCount)} tone="muted" />
+                      <MetricTile label={t.dismissedInPlaud} value={formatInteger(remoteDismissedCount)} tone="muted" />
                     </div>
 
                     <section className="panel-card coverage-card">
                       <div className="split-row">
                         <strong>{t.coverage}</strong>
-                        <span className="mono">{coverageLabel} · {formatRecordingsMetric(localCount, plaudTotal)}</span>
+                        <span className="mono">
+                          {coverageLabel} · {formatRecordingsMetric(remoteMirroredCount, plaudTotal)}
+                          {upstreamDeletedCount > 0 ? ` · ${upstreamDeletedCount} ${t.deletedFromPlaud.toLowerCase()}` : ""}
+                        </span>
                       </div>
                       <ProgressBar value={coverage} />
                     </section>
@@ -1806,13 +1823,23 @@ function RecordingRow({
       </div>
       <StatePill
         tone={recording.upstreamDeletedAt ? "muted" : recording.dismissed ? "warn" : "good"}
-        label={recording.upstreamDeletedAt ? t.deletedFromPlaudBadge : recording.dismissed ? t.dismissedBadge : t.localBadge}
+        label={recording.upstreamDeletedAt
+          ? t.deletedFromPlaudBadge
+          : recording.upstreamDeletion
+            ? t.deletePendingBadge
+            : recording.dismissed
+              ? t.dismissedBadge
+              : t.localBadge}
       />
       <div className="recording-actions">
         {recording.dismissed && !recording.upstreamDeletedAt ? (
           <>
-            <button type="button" className="icon-button good" disabled={busy} onClick={onRestore} title={t.restore} aria-label={t.restore}>↻</button>
-            <button type="button" className="recording-remote-delete" disabled={busy} onClick={onDeleteFromPlaud}>{t.deleteFromPlaud}</button>
+            {!recording.upstreamDeletion ? (
+              <button type="button" className="icon-button good" disabled={busy} onClick={onRestore} title={t.restore} aria-label={t.restore}>↻</button>
+            ) : null}
+            <button type="button" className="recording-remote-delete" disabled={busy} onClick={onDeleteFromPlaud}>
+              {recording.upstreamDeletion ? t.retryDeleteFromPlaud : t.deleteFromPlaud}
+            </button>
           </>
         ) : !recording.dismissed ? (
           <button type="button" className="icon-button danger" disabled={busy || !recording.localPath} onClick={onDismiss} title={t.dismiss} aria-label={t.dismiss}>×</button>

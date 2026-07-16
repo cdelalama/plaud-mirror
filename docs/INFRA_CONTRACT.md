@@ -1,12 +1,14 @@
-<!-- doc-version: 0.11.2 -->
+<!-- doc-version: 0.12.0 -->
 # Infra Contract
 
 Plaud Mirror publishes a `home-infra-protocol` project contract in
 `infra.contract.yml`.
 
-The source contract is reviewed against local protocol `0.9.0`. The v0.11.0
-permanent-delete workflow is intentionally absent from this contract because it
-is a project-local operator command, not a sync-status fact or infra policy.
+The source contract is reviewed against local protocol `0.9.0`. The
+permanent-delete workflow is intentionally absent from this contract because
+it is a project-local operator command, not a sync-status action or infra
+policy. v0.12.0 improves the existing coverage fact without changing schedule,
+ownership, status URL, or the protocol schema.
 
 The contract is an upstream input to `home-infra`. Plaud Mirror owns the sync
 engine and its protocol status endpoint; `home-infra` owns the portal registry
@@ -65,7 +67,11 @@ Plaud Mirror is the producer. It reports its own local sync condition:
 
 - Plaud auth state.
 - Latest sync run state.
-- Mirror coverage (`plaud_total`, mirrored, dismissed, missing).
+- Mirror coverage from one committed full-list generation (`plaud_total`,
+  mirrored, dismissed, missing). Its four current-remote values partition the
+  listing exactly.
+- Private additive `local_only` and `upstream_deleted` count details. Protocol
+  consumers already tolerate unknown fields; these are not registry policy.
 - Scheduler state.
 - Webhook outbox state.
 
