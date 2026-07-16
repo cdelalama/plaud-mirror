@@ -12,8 +12,8 @@ This document is the canonical phase boundary for Plaud Mirror. If implementatio
 
 ## Current Target
 
-- Current deployed release: `v0.13.0` from runtime source `31d9602`; `v0.13.1`
-  shutdown hardening is prepared for deployment.
+- Current deployed release: `v0.13.1` from runtime source `d00ca3e`; shutdown
+  hardening and Home Infra reconciliation are complete.
 - Current operational gate: preserve the deployed runtime while it accumulates
   3-5 days of post-release PT15M evidence, then run the separately authorized
   live webhook drill before closing Phase 3.

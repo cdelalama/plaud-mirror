@@ -29,12 +29,12 @@ Persistence is split between SQLite for state/indexes and the filesystem for mir
 Plaud Mirror `v0.13.1` hardens scheduler shutdown after independent audit:
 `stop()` now prevents an already-queued callback from rearming or running
 work, and every HTTP application test registers unconditional cleanup. The
-patch is prepared; production remains on `v0.13.0` until the Doppler-wrapped
-deployment. Plaud Mirror `v0.13.0` publishes the active scheduler's authoritative next tick
+patch is deployed from clean source `d00ca3e` and reconciled through Home Infra
+0.6.10. Plaud Mirror `v0.13.0` publishes the active scheduler's authoritative next tick
 as Home Infra Protocol 0.10.0 `next_run_at`. The field is omitted when no plan
 exists and never changes freshness or severity. This restores useful countdown
 UX in generic consumers without asking them to reconstruct a schedule from
-cadence. Production source `31d9602` currently reports 627/627 current
+cadence. Production v0.13.1 currently reports 627/627 current
 coverage, `ok/none`, and a future next run.
 
 Plaud Mirror `v0.12.0` is the integrity follow-up to the first real operator

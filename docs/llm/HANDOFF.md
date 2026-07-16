@@ -6,15 +6,15 @@ This file is the live operational snapshot. Durable rationale lives in `docs/llm
 ## Current Status
 
 - Last Updated: 2026-07-16 - GPT-5 Codex
-- Session Focus: **v0.13.1 shutdown hardening is prepared.** The scheduler now
+- Session Focus: **v0.13.1 shutdown hardening is deployed and reconciled.** The scheduler now
   makes `stop()` terminal for callbacks already queued in the event loop, and
-  every HTTP app test registers unconditional cleanup. Production remains
-  v0.13.0 until the Doppler-wrapped deploy. The protocol snapshot still maps
+  every HTTP app test registers unconditional cleanup. Production runs clean
+  source `d00ca3e`. The protocol snapshot still maps
   the active scheduler's exact `nextTickAt` to optional
   Home Infra Protocol 0.10.0 `next_run_at`, omits it when no plan exists, and
-  leaves freshness and severity unchanged. Runtime source `31d9602` is Docker
-  healthy; Home Infra 0.6.8 input `e8774d5` is synchronized, and Infra Portal
-  0.20.0 observes the current future `nextRunAt` with no provenance warnings.
+  leaves freshness and severity unchanged. Home Infra 0.6.10 input `015d7ee`
+  is synchronized, and Infra Portal 0.20.2 observes the current future
+  `nextRunAt` with no provenance warnings.
 - Previous Session Focus: **v0.12.0 integrity release is deployed and reconciled.** The operator's
   first real deletion on 2026-07-15 exposed that v0.11.2 accepted any HTTP 2xx
   as mutation success and mixed a historical tombstone into current Plaud
@@ -136,11 +136,11 @@ This is now verified on the actual `dev-vm`, not assumed.
 
 ## Verified Runtime State
 
-- Container `plaud-mirror-plaud-mirror-1` is up and Docker healthy on `dev-vm`, port `3040` bound, running Plaud Mirror 0.13.0 from source `31d9602`.
+- Container `plaud-mirror-plaud-mirror-1` is up and Docker healthy on `dev-vm`, port `3040` bound, running Plaud Mirror 0.13.1 from source `d00ca3e`.
 - `GET /api/health` returns `200` with auth healthy against the EU Plaud API, PT15M enabled, `warnings: []`, empty outbox, no active run, and exact coverage `{ remoteTotal: 627, mirrored: 627, dismissed: 0, missing: 0, localOnly: 0, upstreamDeleted: 1 }` after scheduled run `4bc81d89-cb60-44bc-a0b5-02e3aaba0094`.
-- `GET /api/protocol/sync-jobs/plaud-mirror-recordings-sync/status` returns `version: "0.13.0"`, a future scheduler-owned `next_run_at`, `condition: "ok"`, `severity: "none"`, and summary "Plaud Mirror sync ok: 627/627 recording(s) mirrored." The historical deletion is reported separately as a confirmed local tombstone.
-- SQLite contains one current generation with 627 physically verified artifact rows plus one historical tombstone. `PRAGMA integrity_check` is `ok`; the pre-deploy backup is `runtime/data/app.db.backup-20260716T170235Z-v0130-pre-next-run`.
-- Home Infra 0.6.8 input release e8774d5 is synchronized to NAS. Infra Portal 0.20.0 provenance reports Home Infra e8774d5 and Plaud Mirror `31d9602` with no warnings; the Plaud observation is current `ok/none` at 627/627, not stale, and carries `nextRunAt`.
+- `GET /api/protocol/sync-jobs/plaud-mirror-recordings-sync/status` returns `version: "0.13.1"`, a future scheduler-owned `next_run_at`, `condition: "ok"`, `severity: "none"`, and summary "Plaud Mirror sync ok: 627/627 recording(s) mirrored." The historical deletion is reported separately as a confirmed local tombstone.
+- SQLite contains one current generation with 627 physically verified artifact rows plus one historical tombstone. `PRAGMA integrity_check` is `ok`; the pre-deploy backup is `runtime/data/app.db.backup-20260716T195327Z-v0131-pre-shutdown-hardening`.
+- Home Infra 0.6.10 input release 015d7ee is synchronized to NAS. Infra Portal 0.20.2 provenance reports Home Infra 015d7ee and Plaud Mirror `d00ca3e` with no warnings; the Plaud observation is current `ok/none` at 627/627, not stale, and carries `nextRunAt`.
 - Bearer token saved via the web UI, auth validated with `/user/me`, encrypted at rest, survives restarts.
 - Manual sync and filtered backfill exercised against live Plaud. Latest confirmed sync run `5a970a84-3f44-4602-b727-3d1d12179349` examined 514 Plaud recordings, matched/downloaded 165 missing local audio files, skipped webhook enqueue because no webhook is configured, and completed without error; `plaudTotal` + stable `#N` ranks populate correctly.
 - Device catalog populates after sync via `/device/list`; the backfill selector renders operator nicknames.
@@ -249,8 +249,7 @@ Do not collapse those phases casually.
 
 ## Next Session
 
-- The stack is deployed at v0.13.0; v0.13.1 is the deliberate prepared patch.
-  Rebuild only with
+- The stack is deployed at v0.13.1 from clean source `d00ca3e`. Rebuild only with
   `doppler run --project plaud-mirror --config dev -- docker compose up -d --build`.
 - Do not implement the Media2Text adapter, artifact endpoint, receiver, canary,
   or replay until Media2Text resolves the 2026-07-16 producer review and the
@@ -290,12 +289,15 @@ Do not collapse those phases casually.
 - Role: executor
 - Subject: Deploy authoritative next-run evidence
 - Release target: Plaud Mirror 0.13.1.
-- Commit: pending clean release publication.
-- Repo state: patch prepared; production remains 0.13.0.
-- Validation: 164/164 Node/integration tests pass, including the queued-callback
-  stop race and unconditional HTTP fixture cleanup. Full root, governance,
-  backup, deployment, and runtime gates remain before publication closes.
-- Next gate: publish/deploy 0.13.1, then preserve the runtime for the multi-day
+- Commit: release `d00ca3e`.
+- Release commit subject: fix: make scheduler shutdown terminal
+- Release commit time: 2026-07-16 19:51:23 UTC
+- Repo state: patch published, deployed, and reconciled through Home Infra
+  0.6.10 input 015d7ee and Infra Portal 0.20.2.
+- Validation: 194/194 tests, build/typecheck, audit 0, version 23/23, validator
+  32/32, DocKit, CI, consistent backup, live health, protocol status, exact
+  coverage, and warning-free provenance pass.
+- Next gate: preserve the runtime for the multi-day
   soak and separately wait for Media2Text contract revision/re-review before
   any adapter implementation.
 
