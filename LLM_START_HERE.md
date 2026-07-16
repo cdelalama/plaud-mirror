@@ -88,14 +88,19 @@ Recommended reading order:
 Source of truth: docs/llm/HANDOFF.md.
 - Last Updated: 2026-07-16 - GPT-5 Codex
 - Working on: **v0.12.0 destructive-operation and coverage integrity is
-  implemented and locally validated; deployment is next.** The first real
+  deployed and reconciled.** The first real
   operator deletion exposed weak 2xx acknowledgement and a false remote
   coverage partition. The new release journals deletion state/events,
   reconciles uncertain outcomes before retry, accepts only explicit mutation
   success, blocks Restore during unresolved deletion, and commits physical
-  coverage by full-list generation. All 190 tests pass. Home Infra Protocol,
-  Infra Portal, Cortex, and Media2Text require no code change; Home Infra is
-  reconciled after live deployment. No additional real deletion was invoked.
+  coverage by full-list generation. Runtime source `8df5c35` passed all 190
+  tests, CI, backup, audits, and visual gates before deployment. Live health is
+  exact at 626/626 current remote rows, zero dismissed/missing/local-only, and
+  one confirmed upstream tombstone; auth, PT15M, SQLite integrity, warnings,
+  outbox, and protocol `ok/none` pass. Home Infra 0.6.6 external commit
+  f161f39 is synchronized with warning-free Portal provenance. Home Infra
+  Protocol, Infra Portal, Cortex, and Media2Text required no code change. No
+  additional real deletion was invoked.
 - Previous (2026-07-10, v0.10.7 soak activation): Physical reconciliation examined all
   619 recordings with zero candidates/failures. The contract declares
   `internal-loop`, `cadence: PT15M`, and `stale_after: PT2H`. Runtime v0.10.7

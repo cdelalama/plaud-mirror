@@ -6,8 +6,7 @@ This file is the live operational snapshot. Durable rationale lives in `docs/llm
 ## Current Status
 
 - Last Updated: 2026-07-16 - GPT-5 Codex
-- Session Focus: **v0.12.0 integrity release is implemented and locally
-  validated; deployment/reconciliation is the next action.** The operator's
+- Session Focus: **v0.12.0 integrity release is deployed and reconciled.** The operator's
   first real deletion on 2026-07-15 exposed that v0.11.2 accepted any HTTP 2xx
   as mutation success and mixed a historical tombstone into current Plaud
   coverage. v0.12.0 accepts only empty or explicit status-zero mutation
@@ -18,10 +17,19 @@ This file is the live operational snapshot. Durable rationale lives in `docs/llm
   exactly while local-only rows and tombstones remain separately observable.
   The UI exposes a retry-only pending state and keeps destructive controls at
   full contrast. SQLite/API changes are additive and backward compatible.
-  Home Infra Protocol and Infra Portal need no code change; Home Infra will be
-  reconciled only after live deployment. Cortex and Media2Text remain outside
-  this slice because their Plaud contracts are drafts. All 190 tests pass (160
-  Node/integration + 30 web). No additional real deletion was invoked.
+  Runtime source `8df5c35` passed 190 tests (160 Node/integration + 30 web),
+  build/typecheck, dependency audits, visual checks, DocKit, CI, and a
+  consistent SQLite backup before Doppler-wrapped deployment. The live
+  zero-download full sync reports 626/626 current Plaud rows mirrored, zero
+  dismissed/missing/local-only, and one confirmed upstream deletion retained
+  as a local tombstone; the legacy row was imported as a confirmed operation
+  event. Docker, Plaud auth, PT15M scheduling, SQLite integrity, warnings,
+  outbox, and the public protocol snapshot all pass. Home Infra 0.6.6 at
+  external commit f161f39 is synchronized to NAS; Infra Portal provenance has
+  no warnings and observes `ok/none`, not stale. Home Infra Protocol and Infra
+  Portal required no code change. Cortex and Media2Text remain outside this
+  slice because their Plaud contracts are drafts. No additional real deletion
+  was invoked.
 - Previous Session Focus (2026-07-10, v0.10.7 soak activation): Physical reconciliation examined
   all 619 Plaud recordings with zero candidates/failures. The contract now
   declares Home Infra Protocol 0.7.1, `internal-loop`, `cadence: PT15M`, and
@@ -114,10 +122,11 @@ This is now verified on the actual `dev-vm`, not assumed.
 
 ## Verified Runtime State
 
-- Container `plaud-mirror-plaud-mirror-1` is up on `dev-vm`, port `3040` bound, running as `USER 1000:1000`.
-- `GET /api/health` returns `200` locally with `{ version: "0.10.1", auth.state: "healthy" }` against the operator's real Plaud account. Current live check on 2026-06-29 after deploy: EU API base `https://api-euc1.plaud.ai`, `warnings: []`, `recordingsCount: 606`, `plaudTotal: 606`, latest sync `completed` with `examined=606`, `matched=21`, `downloaded=21`, `skipped=0`, and `activeRun: null`.
-- `GET /api/protocol/sync-jobs/plaud-mirror-recordings-sync/status` returns `200` locally with `version: "0.10.1"`, `condition: "ok"`, `severity: "none"`, `observed_at: "2026-06-29T21:59:19.791Z"`, latest sync `downloaded=21`, `skipped=0`, and summary "Plaud Mirror sync ok: 606/606 recording(s) mirrored." The previous degraded 585/586 protocol warning has been cleared by the operator's authenticated sync.
-- Home Infra / Infra Portal registration verified: `home-infra` commit `5df02e3` registers the project contract; `scripts/sync-portal-inputs-to-nas.sh` copied `plaud-mirror fcbb7d9 infra.contract.yml`; `https://infra.lamanoriega.com/api/sync-jobs` includes `plaud-mirror-recordings-sync` with producer severity `warning` and `stale: false`.
+- Container `plaud-mirror-plaud-mirror-1` is up and Docker healthy on `dev-vm`, port `3040` bound, running Plaud Mirror 0.12.0 from source `8df5c35`.
+- `GET /api/health` returns `200` with auth healthy against the EU Plaud API, PT15M enabled, `warnings: []`, empty outbox, no active run, and exact coverage `{ remoteTotal: 626, mirrored: 626, dismissed: 0, missing: 0, localOnly: 0, upstreamDeleted: 1 }` after full run `2f623141-1896-4da8-a6c0-9be3dd804651`.
+- `GET /api/protocol/sync-jobs/plaud-mirror-recordings-sync/status` returns `version: "0.12.0"`, `condition: "ok"`, `severity: "none"`, and summary "Plaud Mirror sync ok: 626/626 recording(s) mirrored." The one historical deletion is reported separately as a confirmed local tombstone.
+- SQLite contains one current generation with 626 physically verified artifact rows plus one generation-less legacy tombstone. `PRAGMA integrity_check` is `ok`; migration seeded that tombstone as one confirmed operation with a `legacy_tombstone_imported` event.
+- Home Infra 0.6.6 external commit f161f39 is synchronized to NAS. Infra Portal provenance reports Home Infra f161f39 and Plaud Mirror `8df5c35` with no warnings; the Plaud observation is current `ok/none` at 626/626 and not stale.
 - Bearer token saved via the web UI, auth validated with `/user/me`, encrypted at rest, survives restarts.
 - Manual sync and filtered backfill exercised against live Plaud. Latest confirmed sync run `5a970a84-3f44-4602-b727-3d1d12179349` examined 514 Plaud recordings, matched/downloaded 165 missing local audio files, skipped webhook enqueue because no webhook is configured, and completed without error; `plaudTotal` + stable `#N` ranks populate correctly.
 - Device catalog populates after sync via `/device/list`; the backfill selector renders operator nicknames.
@@ -129,12 +138,12 @@ This is now verified on the actual `dev-vm`, not assumed.
 ## What Is Still Not Verified
 
 - **Real webhook delivery against a live downstream receiver.** No webhook URL has been configured in this environment yet; all recordings carry `lastWebhookStatus: "skipped"` because the service short-circuits when no URL is set. Once a receiver exists, confirm HMAC signature verification and persisted delivery attempts end-to-end.
-- **Multi-day scheduler-driven unattended behavior.** The scheduler ships in `v0.5.0` (regressed), `v0.5.1` (regressions fixed), and `v0.5.2` (panel-driven config). Backed by 18 deterministic tests across `scheduler.test.ts`, `scheduler-manager.test.ts`, `environment.test.ts`, and the relevant `service.test.ts` cases, but no live multi-day soak run has been measured yet. Once an operator sets a non-zero interval from the panel, observe the `health.scheduler` block over several ticks before declaring "unattended on `dev-vm` works."
+- **Post-v0.12.0 multi-day scheduler behavior.** Earlier PT15M soak evidence remains useful, but the integrity release restarted the container. Accumulate another 3-5 days of clean `recentSyncRuns`, Docker health, exact coverage, outbox counters, and Portal freshness before closing the current soak gate.
 - **Durable webhook outbox.** Shipped in `v0.5.3` with 11 deterministic tests (FSM transitions, atomic claim, exponential backoff, monotonic `deliveryAttempt`, `MAX_ATTEMPTS` escalation, unconfigured-webhook escalation, HTTP shape including 400 / 404 / 409 guards). Pending: a live multi-day soak run that exercises a real downstream — every test path uses an injected `webhookFetchImpl`.
 - **Full health observability — surfaced in v0.9.0.** `/api/health` returns `lastErrors` (cross-subsystem ring buffer, capped at 20) and `recentSyncRuns` (last 5 finished runs), and the redesigned panel now renders those signals in Main/Operations. Pending: a live multi-subsystem failure exercise to verify all three error sources (scheduler tick failure, outbox delivery escalation, sync run failure) feed the buffer in production.
 - **Fully unattended SSO renewal.** Browser-assisted re-auth exists, but no background OAuth/MCP auto-renewal has been implemented.
 - **Older pre-v0.10.1 sync rows may still carry the old webhook-skipped counter.** The operator-reported latest row was corrected from `skipped=21` to `skipped=0` after backup, but the broader historical table was not mass-migrated.
-- **v0.9.5+ UI operator visual smoke.** The full-viewport shell, Main sync, Library playback/scroll, and mobile shell behavior are regression-tested, but the authenticated operator browser still needs a human visual pass on the real monitor and a real phone. Check that the rail touches the desktop left edge, wide monitors no longer show grey card margins, Main labels the download count honestly, ES/EN toggle works, Library Compact Play starts audio, Full mode uses a wide player, Library pages scroll, mobile navigation shows the labeled `Vista` / `View` selector, mobile status is one compact chip row, Library mobile actions sit top-right, Backfill preview recalculates, Configuration reconnect copy is intact, and Operations outbox/errors render.
+- **Authenticated operator-device visual smoke.** Automated desktop/mobile v0.12.0 captures verified the pending deletion row, retry-only action, normal Restore/Delete actions, contrast, wrapping, and no overlap. A human pass on the real authenticated monitor and phone remains useful for playback, scrolling, and device-specific interaction.
 - **Multi-day stability.** The service has been restarted many times across sessions; no long uninterrupted run has been measured.
 
 ## Roadmap Boundary
@@ -149,11 +158,11 @@ This is now verified on the actual `dev-vm`, not assumed.
 - **D-018 ARMED (2026-06-11).** The operator stored the passphrase via `scripts/set-admin-passphrase.sh` (Doppler `plaud-mirror/dev` in the secondary "Startup Embassy" account; repo dir scoped via `doppler login --scope ~/src/plaud-mirror`; multi-account convention in `~/src/home-infra/docs/CONVENTIONS.md`) and restarted with the doppler-wrapped `up -d`. Verified: `/api/session` → `authRequired: true`, `/api/config` and audio routes → 401 without cookie (local AND through `https://plaud.lamanoriega.com/`), `userSummary` redacted, access-control warning gone from `health.warnings`, panel login works. **Operational rule from now on: every container recreate must be `doppler run --project plaud-mirror --config dev -- docker compose up -d`** — a bare `up -d` disarms the lock (see DEPLOY_PLAYBOOK). Optional future hardening: a gitignored compose override file on this host making the env var required.
 - File downstream feedback to LLM-DocKit about the clobber-on-sync pattern: `dockit-sync --apply` overwrites scripts that carry local extensions (`copy` strategy), forcing a manual re-merge every sync (happened 2026-05-13, 2026-06-10 with v0.6.1, 2026-06-18 before v0.9.3, and again during the v0.9.6 sync on 2026-06-19). Proposal: a `merge`/`copy-with-markers` strategy for `scripts/dockit-validate-session.sh` and version scripts, or upstream absorption of the local checks (DF-028 already covers `scripts/check-prose-drift.sh`).
 - Home Infra Protocol adoption is registered: `~/src/home-infra/catalog/project-contracts.yml` lists `plaud-mirror`, the NAS portal inputs include a bundled Plaud Mirror contract copy, and Infra Portal reads `plaud-mirror-recordings-sync` from `/api/sync-jobs`.
-- Protocol warning cleared 2026-06-29 by an authenticated Plaud sync from the panel: local/protocol status now reports 606/606 and `condition=ok`. The latest affected sync row was corrected after backup; do not mass-backfill older `skipped` counters without a separate data-repair decision.
+- Protocol status is current at 626/626 with `condition=ok`, zero missing, and one confirmed upstream tombstone outside the current remote total. Do not mass-backfill older `skipped` counters without a separate data-repair decision.
 - Operator visual-smoke `v0.9.5+`: runtime is deployed and health-verified; open the panel in the operator browser and verify Main, Library, Backfill, Configuration, Operations, ES/EN switching, phone width, reconnect copy, Operations outbox/errors, especially that desktop still uses the full viewport, Main labels `Descargar N` / `Download N`, Compact Play starts audio, Full mode uses a wide player, Library pages scroll, mobile navigation has the labeled selector, mobile status uses one compact chip row, and Library mobile actions stay top-right.
 - Scrypt KDF upgrade for `data/secrets.enc` (H2 from the 2026-06-10 review): replace `sha256(masterKey)` with scrypt + persisted salt. Deprioritized behind the items above while the master key is strong/random.
 - Re-auth path status: the operator has already verified the Chrome extension path and the backend is healthy on the EU base after the v0.8.1 fingerprint fix. Re-test only after extension/auth code changes or after Plaud frontend/API drift.
-- Phase 3 exit remains a live soak, not documentation: the catalog was complete at the last live check (`606/606`, missing `0`), so configure the scheduler from the panel, observe `/api/health`, and record the result in `docs/llm/HISTORY.md`.
+- Phase 3 exit remains a live soak, not documentation: the scheduler is already PT15M and coverage is 626/626 with missing 0. Observe `/api/health` and Infra Portal for 3-5 days after the v0.12.0 restart, then record the result in `docs/llm/HISTORY.md`.
 
 ## Governance Cleanup Landed in 0.4.1
 
@@ -169,9 +178,10 @@ The six items GPT-5 flagged in the 2026-04-23 review are closed:
 ## Top Priorities
 
 0. ~~Arm operator access control~~ — DONE 2026-06-11. ~~Re-validate the Plaud bearer token~~ — DONE 2026-06-16 after Chrome extension capture + EU base + Plaud Web request fingerprint; `/api/health` reported `auth.state: healthy`.
-1. ~~Publish and deploy `v0.11.0` with a consistent SQLite backup and verify
-   the full non-destructive rollout boundary.~~ Done 2026-07-14 from clean
-   commit `bd88705`; no real permanent deletion was invoked.
+1. ~~Publish and deploy `v0.12.0` with a consistent SQLite backup and verify
+   exact coverage plus legacy tombstone migration without another destructive
+   call.~~ Done 2026-07-16 from clean source `8df5c35`; Home Infra 0.6.6 and
+   live Portal provenance are reconciled.
 2. Observe the post-deploy PT15M runtime for 3-5 days through `recentSyncRuns`,
    scheduler status, Docker health, outbox counters, and Infra Portal freshness;
    then run the live webhook drill before claiming the Phase 3 exit gate.
@@ -204,10 +214,10 @@ Do not collapse those phases casually.
 
 ## Next Session
 
-- The stack is deployed at v0.11.2 until this v0.12.0 rollout completes. Rebuild only for a deliberate new release,
+- The stack is deployed at v0.12.0. Rebuild only for a deliberate new release,
   always with `doppler run --project plaud-mirror --config dev -- docker compose up -d --build`.
 - If Docker Hub pulls time out on `dev-vm`, the Dockerfile still accepts `PLAUD_MIRROR_DOCKER_BUILD_IMAGE` and `PLAUD_MIRROR_DOCKER_RUNTIME_IMAGE` build-arg overrides. Valid fallbacks: a locally cached Node slim/alpine image from another project, a home-infra-local registry mirror (see the open registry-mirror item in `~/src/home-infra/docs/PROJECTS.md`), or a side-loaded `node:20-bookworm-slim` via `docker save`/`docker load`. Do **not** substitute a pentesting distribution such as `vxcontrol/kali-linux:latest` — it inflates the attack surface, bloats the image, and ships tooling that has no place in a Plaud mirror's runtime.
-- Verify the protocol status endpoint after deploy:
+- Verify the protocol status endpoint during the soak:
   `curl -fsS http://127.0.0.1:3040/api/protocol/sync-jobs/plaud-mirror-recordings-sync/status`
 - Desktop and Android captures for the dismissed-only permanent-delete row are
   stored in `docs/visual-gates/0.11.0/`. Continue the broader human visual smoke
@@ -240,13 +250,14 @@ Do not collapse those phases casually.
 
 - Role: executor
 - Subject: v0.12.0 destructive-operation and coverage integrity
-- Repo state: v0.12.0 is implemented and locally validated on top of published
-  v0.11.2; source commit, deployment, and Home Infra reconciliation pending.
-- Validation: 190/190 tests plus build and web typecheck pass. Destructive
-  endpoint tests are mocked; no additional real recording was deleted.
-- Next gate: complete repository validators, commit/push/CI, create a consistent
-  SQLite backup, deploy without invoking DELETE, run one full inventory sync,
-  verify exact coverage and legacy tombstone import, then reconcile Home Infra.
+- Repo state: v0.12.0 runtime source `8df5c35` is published and deployed;
+  Home Infra 0.6.6 external commit f161f39 is published and synchronized.
+- Validation: 190/190 tests, build/typecheck, audits, CI, backup, visual gates,
+  Docker health, auth, PT15M, SQLite integrity, exact 626/626 coverage, legacy
+  tombstone import, Portal provenance, and current `ok/none` observation pass.
+  Destructive endpoint tests are mocked; no additional recording was deleted.
+- Next gate: accumulate 3-5 days of post-v0.12.0 PT15M evidence, then execute
+  the separately authorized live webhook drill before closing Phase 3.
 
 ## Key Decisions (Links)
 
