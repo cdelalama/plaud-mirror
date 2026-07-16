@@ -322,9 +322,10 @@ Do not collapse those phases casually.
 - Role: executor
 - Subject: Prepare provider-neutral Transcription Intake v1
 - Release target: Plaud Mirror 0.14.0 source; deployment remains 0.13.1.
-- Commit: release commit pending publication.
+- Commit: release `c4310ac`.
 - Release commit subject: feat: add provider-neutral transcription intake
-- Repo state: source prepared locally; no deploy, restart, destination enable,
+- Release commit time: 2026-07-16 23:38:15 UTC
+- Repo state: source published; no deploy, restart, destination enable,
   canary, replay, or sibling-repository edit occurred.
 - Validation: 206/206 tests, build/typecheck, contract JSON, dependency audits,
   version 23/23, validator 32/32, DocKit PASS across 12 checks with the expected
