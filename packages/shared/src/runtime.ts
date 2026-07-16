@@ -351,7 +351,7 @@ const DISABLED_OUTBOX_HEALTH = {
  */
 export const LastErrorEntrySchema = z.object({
   occurredAt: z.string(),
-  subsystem: z.enum(["scheduler", "outbox", "sync", "auth"]),
+  subsystem: z.enum(["scheduler", "outbox", "sync", "auth", "transcription"]),
   message: z.string(),
   // Optional structured context: stable string keys/values. Subsystems use
   // this to convey the failing run id, outbox row id, attempt count, etc.

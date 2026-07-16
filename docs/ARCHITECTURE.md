@@ -1,4 +1,4 @@
-<!-- doc-version: 0.13.1 -->
+<!-- doc-version: 0.14.0 -->
 # Plaud Mirror Architecture
 
 > Version: 0.13.1 deployed and reconciled
@@ -21,7 +21,7 @@ Plaud Mirror is a single-operator, server-first service that:
 ## Runtime Shape
 
 - **Backend:** Fastify in `apps/api`
-- **Panel:** React + Vite in `apps/web`; as of `v0.9.0` it uses a reference-driven five-screen operator shell (Main, Library, Backfill, Configuration, Operations) with ES/EN chrome persisted in browser storage
+- **Panel:** React + Vite in `apps/web`; the reference-driven operator shell now has six screens (Main, Library, Backfill, Integrations, Configuration, Operations) with ES/EN chrome persisted in browser storage
 - **Plaud connector:** local unpacked Chrome extension in `apps/chrome-extension`
 - **Shared contracts:** Zod schemas in `packages/shared`, including runtime and `home-infra-protocol` status snapshot schemas
 - **Infra contract:** `infra.contract.yml` plus `docs/INFRA_CONTRACT.md`
@@ -221,6 +221,50 @@ maximum runtime.
 6. The panel polls `health.outbox` (`pending` / `delivering` / `retryWaiting` / `permanentlyFailed` / `oldestPendingAgeMs`) and `GET /api/outbox` (the list of `permanently_failed` rows) to render the outbox section in Operations. `POST /api/outbox/:id/retry` resets a `permanently_failed` row to `pending` (`attempts = 0`, `last_error = null`) so the worker re-attempts on its next tick.
 7. The legacy `webhook_deliveries` table stays as-is (append-only audit log; every attempt records a row regardless of success/failure). The new `webhook_outbox` table holds live retry state — once a row reaches `delivered` or `permanently_failed`, the worker never touches it again.
 
+### Optional transcription destinations (D-023, v0.14.0)
+
+Transcription is an optional provider-neutral lane, not part of Plaud mirroring
+and not an extension of the generic webhook. A fresh or unconfigured instance
+creates no transcription work, emits no transcription warning, and preserves
+all existing sync, curation, protocol, and webhook behavior.
+
+1. The operator creates a named destination in **Integrations** with two exact
+   origins and three separately provisioned machine secrets: provider intake
+   bearer, producer artifact bearer, and status HMAC secret. `secrets.enc`
+   stores them under the destination id; SQLite stores presence flags only.
+2. `GET /v1/intake-capabilities` must advertise the exact v1 intake/status
+   contracts before the destination can be enabled. Changing the provider
+   origin or intake credential disables it and requires a new test.
+3. Enqueue selects only current-inventory recordings whose local bytes were
+   physically verified. `pinRecordingArtifact` hashes the bytes and creates a
+   content-addressed hard link under
+   `recordings/.delivery-artifacts/<sha256>`; atomic copy + fsync + rename is the
+   cross-filesystem fallback.
+4. One SQLite transaction creates `media_deliveries` plus
+   `media_delivery_outbox`. The payload uses stable installation collection
+   identity, Plaud recording id, and `sha256:<hash>` revision. It contains a
+   network URL, never `localPath`, shared-volume coupling, or credentials.
+5. `TranscriptionWorker` claims one due row every five seconds, POSTs it at
+   least once to `/v1/intakes`, and uses the generic outbox's full nine-attempt
+   schedule. Crashes recover `delivering` rows to retry; HTTP 409 is a terminal
+   identity conflict. Admission and processing failures are distinguished so
+   the UI only offers valid producer-side retries.
+6. An admitted delivery is reconciled both by HMAC callback and by scoped
+   `GET /v1/intakes/:id`. Full source identity and optional record hash must
+   match. Status writes and event deduplication are one SQLite transaction, and
+   transitions cannot regress.
+7. The artifact route requires the destination-specific artifact bearer and an
+   active lease. A destination disable stops new network work but intentionally
+   does not revoke an already accepted lease. Terminal delivery removes the
+   pinned file only when no other destination still needs the same revision.
+8. Historical replay previews all eligible recordings without a 1,000-row
+   count cap, then enqueues operator-bounded batches of at most 100. It hashes
+   local audio and never calls Plaud for a re-download.
+
+The published provider contract and conformance gate live in
+`docs/contracts/README.md`. Media2Text is the first intended implementation;
+Cortex remains downstream of the provider's separate transcript-ready output.
+
 ### Local curation (audition, dismiss, optionally delete upstream)
 
 1. The operator auditions an audio file inline in the web panel via `GET /api/recordings/<id>/audio`, which streams the local file with its original content-type. Recording ids are validated against a strict character allowlist before any filesystem access, and the resolved path is confirmed to stay inside the configured recordings directory.
@@ -287,19 +331,26 @@ maximum runtime.
   SQLite state for config, auth metadata, recordings (including current
   inventory/physical-verification generations and the irreversible
   `upstream_deleted_at` tombstone), durable upstream deletion operations and
-  events, devices, sync runs, and webhook delivery attempts
+  events, devices, sync runs, webhook delivery attempts, transcription
+  destinations, artifact metadata, delivery/outbox state, and status events
 - `data/secrets.enc`
-  Encrypted secret blob containing the Plaud token and optional webhook secret
+  Encrypted secret blob containing the Plaud token, optional webhook secret,
+  and per-transcription-destination machine credentials
 - `recordings/<recording-id>/audio.<ext>`
   Original downloaded audio
 - `recordings/<recording-id>/metadata.json`
   Mirror metadata written at download time
+- `recordings/.delivery-artifacts/<sha256>`
+  Temporary content-addressed leases for active transcription deliveries
 - `.state/phase1/latest-report.json`
   Optional spike artifact from the Phase 1 CLI
 
 ## Security Notes
 
 - Tokens and webhook secrets are never stored in plaintext.
+- Transcription intake credentials, artifact bearers, and status HMAC secrets
+  are encrypted at rest and never returned after initial provisioning except
+  when rotating the artifact bearer.
 - Temporary Plaud download URLs must not be logged in full.
 - This remains a single-operator service, but from v0.6.0 it protects itself: operator access control (D-018) gates the panel/API when `PLAUD_MIRROR_ADMIN_PASSPHRASE` is set. Network position (LAN, edge-caddy) is no longer the only boundary.
 - `/api/health` is public by design (status probes); its `auth.userSummary` is redacted for unauthenticated callers, and error strings surfaced there must never contain secrets.
@@ -316,16 +367,12 @@ ordered by evidence and product contracts:
 
 1. **Close Phase 3 honestly:** leave deployed v0.13.1 untouched during the
    3-5 day PT15M soak, then run the separately authorized live webhook drill.
-2. **Freeze the Plaud-first Media2Text contract:** Media Intake v1 at
-   Media2Text `c982ced` has the correct durable-202 and network-transfer base,
-   but D-022 requires collection-aware identity, authenticated artifact fetch,
-   pinned artifact lifetime, and completion/status reconciliation back to
-   Plaud Mirror. No adapter is implemented against the draft.
-3. **Implement the adapter only after freeze:** hash and pin verified local
-   audio, publish an additive intake outbox lane without `localPath`, serve
-   immutable artifacts with a least-privilege credential, replay historical
-   local artifacts without Plaud downloads, and reconcile terminal Media2Text
-   status so the panel can show exact transcription coverage.
+2. **Publish without deploying v0.14.0:** Plaud Mirror now owns provider-neutral
+   Transcription Intake v1 and its standalone-compatible implementation. Keep
+   deployed v0.13.1 untouched until its soak/generic-webhook evidence closes.
+3. **Prove one conforming provider:** Media2Text may become the first provider
+   after capability discovery and the complete canary gate. Only then authorize
+   bounded historical replay and verify source-to-transcript coverage.
 4. **Continue queued hardening:** adapt D-019 to Plaud's first-party refresh
    tokens together with scrypt, complete the NAS deployment slice, and finish
    OSS documentation. Resumable backfill remains deferred without a release

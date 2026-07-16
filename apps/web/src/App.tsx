@@ -1,6 +1,8 @@
 import { FormEvent, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { buildBookmarklet, PLAUD_WEB_APP_URL } from "./plaud-token.js";
+import { requestJson, UnauthorizedError } from "./api-client.js";
+import { TranscriptionIntegrations } from "./TranscriptionIntegrations.js";
 import { readLanguage, readTab, STORAGE_KEYS, type ActiveTab, type OperatorLanguage } from "./storage.js";
 
 // localStorage key (mirror origin) where the panel stashes the one-time
@@ -21,17 +23,16 @@ import {
   type BackfillCandidateState,
   type BackfillPreviewResponse,
   type Device,
+  type MediaDelivery,
   type OutboxItem,
   type RecordingMirror,
   type RuntimeConfig,
   type ServiceHealth,
   type SessionStatus,
   type SyncRunSummary,
+  type TranscriptionDestinationSummary,
+  type TranscriptionOverview,
 } from "@plaud-mirror/shared";
-
-interface ApiErrorResponse {
-  message?: string;
-}
 
 interface BackfillDraft {
   from: string;
@@ -52,7 +53,7 @@ const DEFAULT_BACKFILL_DRAFT: BackfillDraft = {
   forceDownload: false,
 };
 
-const TAB_ORDER: ActiveTab[] = ["main", "library", "backfill", "config", "ops"];
+const TAB_ORDER: ActiveTab[] = ["main", "library", "backfill", "integrations", "config", "ops"];
 const MAIN_SYNC_CONFIRM_THRESHOLD = 25;
 const MAX_SYNC_DOWNLOAD_LIMIT = 1000;
 
@@ -79,6 +80,7 @@ const COPY = {
     navMain: "Main",
     navLibrary: "Library",
     navBackfill: "Backfill",
+    navIntegrations: "Integraciones",
     navConfig: "Configuration",
     navOps: "Operations",
     viewMenu: "Vista",
@@ -136,6 +138,9 @@ const COPY = {
     queued: "en cola",
     recentErrors: "Errores recientes",
     noRecentErrors: "Sin errores recientes.",
+    transcriptionPipeline: "Pipeline de transcripción",
+    transcriptionCoverage: "Cobertura del destino",
+    openIntegrations: "Abrir integraciones",
     librarySubtitle: "grabaciones locales",
     searchPlaceholder: "Buscar por título o id…",
     scanPlaud: "Escanear Plaud",
@@ -270,6 +275,7 @@ const COPY = {
     navMain: "Main",
     navLibrary: "Library",
     navBackfill: "Backfill",
+    navIntegrations: "Integrations",
     navConfig: "Configuration",
     navOps: "Operations",
     viewMenu: "View",
@@ -327,6 +333,9 @@ const COPY = {
     queued: "queued",
     recentErrors: "Recent errors",
     noRecentErrors: "No recent errors.",
+    transcriptionPipeline: "Transcription pipeline",
+    transcriptionCoverage: "Destination coverage",
+    openIntegrations: "Open integrations",
     librarySubtitle: "local recordings",
     searchPlaceholder: "Search by title or id…",
     scanPlaud: "Scan Plaud",
@@ -732,6 +741,15 @@ function Panel({
   const [libraryQuery, setLibraryQuery] = useState("");
   const [playerMode, setPlayerMode] = useState<"compact" | "full">("compact");
   const [playingRecordingId, setPlayingRecordingId] = useState<string | null>(null);
+  const [transcriptionOverview, setTranscriptionOverview] = useState<TranscriptionOverview>({ destinations: [] });
+  const [recordingDeliveries, setRecordingDeliveries] = useState<Record<string, MediaDelivery>>({});
+  const primaryTranscription = useMemo(
+    () => transcriptionOverview.destinations.find((item) => item.destination.primary)
+      ?? transcriptionOverview.destinations[0]
+      ?? null,
+    [transcriptionOverview.destinations],
+  );
+  const recordingIdsKey = useMemo(() => recordings.map((recording) => recording.id).join(","), [recordings]);
 
   useEffect(() => {
     try {
@@ -752,6 +770,47 @@ function Panel({
   useEffect(() => {
     void refreshSnapshot();
   }, [showDismissed, page, pageSize]);
+
+  useEffect(() => {
+    if (activeTab !== "main" && activeTab !== "library") {
+      return;
+    }
+    let cancelled = false;
+    const tick = async () => {
+      try {
+        const overview = await requestJson<TranscriptionOverview>("/api/transcription");
+        if (cancelled) return;
+        setTranscriptionOverview(overview);
+        const primary = overview.destinations.find((item) => item.destination.primary)
+          ?? overview.destinations[0]
+          ?? null;
+        if (activeTab !== "library" || !primary || !recordingIdsKey) {
+          setRecordingDeliveries({});
+          return;
+        }
+        const query = new URLSearchParams({
+          destinationId: primary.destination.id,
+          recordingIds: recordingIdsKey,
+        });
+        const response = await requestJson<{ items: MediaDelivery[] }>(
+          `/api/transcription/recording-deliveries?${query.toString()}`,
+        );
+        if (!cancelled) {
+          setRecordingDeliveries(Object.fromEntries(response.items.map((item) => [item.recordingId, item])));
+        }
+      } catch (error) {
+        if (!cancelled && error instanceof UnauthorizedError) {
+          onUnauthorized();
+        }
+      }
+    };
+    void tick();
+    const interval = window.setInterval(() => void tick(), 10_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
+  }, [activeTab, recordingIdsKey, onUnauthorized]);
 
   const observedRunId = activeRunId ?? health?.activeRun?.id ?? null;
 
@@ -1411,6 +1470,15 @@ function Panel({
                       <ProgressBar value={coverage} />
                     </section>
 
+                    {primaryTranscription ? (
+                      <TranscriptionPipelineCard
+                        summary={primaryTranscription}
+                        language={language}
+                        t={t}
+                        onOpen={() => setActiveTab("integrations")}
+                      />
+                    ) : null}
+
                     <div className="main-lower-grid">
                       <section className="panel-card table-card">
                         <div className="card-title-row">
@@ -1479,8 +1547,11 @@ function Panel({
                       onDismiss={() => void handleDeleteRecording(recording)}
                       onRestore={() => void handleRestoreRecording(recording)}
                       onDeleteFromPlaud={() => void handleDeleteFromPlaud(recording)}
+                      transcriptionDelivery={recordingDeliveries[recording.id]}
+                      transcriptionDestinationName={primaryTranscription?.destination.name ?? null}
                       busy={busy}
                       t={t}
+                      language={language}
                     />
                   ))}
                 </div>
@@ -1562,6 +1633,10 @@ function Panel({
               </section>
             ) : null}
 
+            {activeTab === "integrations" ? (
+              <TranscriptionIntegrations language={language} onUnauthorized={onUnauthorized} />
+            ) : null}
+
             {activeTab === "ops" ? (
               <section>
                 <HeaderRow title={t.navOps} />
@@ -1587,6 +1662,7 @@ function tabLabel(tab: ActiveTab, t: Copy): string {
     case "main": return t.navMain;
     case "library": return t.navLibrary;
     case "backfill": return t.navBackfill;
+    case "integrations": return t.navIntegrations;
     case "config": return t.navConfig;
     case "ops": return t.navOps;
   }
@@ -1597,6 +1673,7 @@ function tabGlyph(tab: ActiveTab): string {
     case "main": return "▦";
     case "library": return "♪";
     case "backfill": return "⌗";
+    case "integrations": return "⇄";
     case "config": return "⚙";
     case "ops": return "⌁";
   }
@@ -1672,8 +1749,8 @@ function MobileStatusChip({
   );
 }
 
-function StatePill({ tone, label }: { tone: Tone; label: string }) {
-  return <span className={"state-pill tone-" + tone}>{label}</span>;
+function StatePill({ tone, label, title }: { tone: Tone; label: string; title?: string }) {
+  return <span className={"state-pill tone-" + tone} title={title}>{label}</span>;
 }
 
 function MetricTile({ label, value, tone = "muted" }: { label: string; value: string; tone?: Tone }) {
@@ -1691,6 +1768,51 @@ function ProgressBar({ value, tone = "good" }: { value: number; tone?: Tone }) {
     <div className="progress-track" aria-hidden="true">
       <div className={"progress-fill tone-" + tone} style={{ width: `${clamped}%` }} />
     </div>
+  );
+}
+
+function TranscriptionPipelineCard({
+  summary,
+  language,
+  t,
+  onOpen,
+}: {
+  summary: TranscriptionDestinationSummary;
+  language: OperatorLanguage;
+  t: Copy;
+  onOpen: () => void;
+}) {
+  const { destination, coverage } = summary;
+  const inProgress = coverage.pending + coverage.accepted + coverage.processing;
+  const errors = coverage.failed + coverage.conflict;
+  const percent = coverage.eligible > 0 ? (coverage.transcribed / coverage.eligible) * 100 : 0;
+  return (
+    <section className="panel-card transcription-pipeline-card">
+      <div className="card-title-row">
+        <div>
+          <span className="mono form-kicker">{t.transcriptionPipeline}</span>
+          <strong>{destination.name}</strong>
+        </div>
+        <StatePill
+          tone={destination.enabled && !destination.lastTestError ? "good" : destination.lastTestError ? "bad" : "muted"}
+          label={destination.enabled
+            ? destination.lastTestError ? (language === "es" ? "con error" : "error") : (language === "es" ? "conectado" : "connected")
+            : (language === "es" ? "desactivado" : "disabled")}
+        />
+      </div>
+      <div className="split-row">
+        <span>{t.transcriptionCoverage}</span>
+        <span className="mono">{formatInteger(coverage.transcribed)} / {formatInteger(coverage.eligible)}</span>
+      </div>
+      <ProgressBar value={percent} />
+      <div className="transcription-pipeline-metrics">
+        <span><small>{transcriptionStateLabel("pending", language)}</small><strong className="mono">{formatInteger(inProgress)}</strong></span>
+        <span><small>{transcriptionStateLabel("transcribed", language)}</small><strong className="mono">{formatInteger(coverage.transcribed)}</strong></span>
+        <span><small>{language === "es" ? "No enviados" : "Not sent"}</small><strong className="mono">{formatInteger(coverage.notSent)}</strong></span>
+        <span><small>{language === "es" ? "Problemas" : "Problems"}</small><strong className="mono">{formatInteger(errors)}</strong></span>
+      </div>
+      <button type="button" className="ghost-button" onClick={onOpen}>{t.openIntegrations}</button>
+    </section>
   );
 }
 
@@ -1758,8 +1880,11 @@ function RecordingRow({
   onDismiss,
   onRestore,
   onDeleteFromPlaud,
+  transcriptionDelivery,
+  transcriptionDestinationName,
   busy,
   t,
+  language,
 }: {
   recording: RecordingMirror;
   deviceLabel: string;
@@ -1770,8 +1895,11 @@ function RecordingRow({
   onDismiss: () => void;
   onRestore: () => void;
   onDeleteFromPlaud: () => void;
+  transcriptionDelivery: MediaDelivery | undefined;
+  transcriptionDestinationName: string | null;
   busy: boolean;
   t: Copy;
+  language: OperatorLanguage;
 }) {
   const canPlay = Boolean(recording.localPath) && !recording.dismissed;
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -1821,16 +1949,27 @@ function RecordingRow({
           <span className="mono no-copy">{t.noLocalCopy}</span>
         )}
       </div>
-      <StatePill
-        tone={recording.upstreamDeletedAt ? "muted" : recording.dismissed ? "warn" : "good"}
-        label={recording.upstreamDeletedAt
-          ? t.deletedFromPlaudBadge
-          : recording.upstreamDeletion
-            ? t.deletePendingBadge
-            : recording.dismissed
-              ? t.dismissedBadge
-              : t.localBadge}
-      />
+      <div className="recording-states">
+        <StatePill
+          tone={recording.upstreamDeletedAt ? "muted" : recording.dismissed ? "warn" : "good"}
+          label={recording.upstreamDeletedAt
+            ? t.deletedFromPlaudBadge
+            : recording.upstreamDeletion
+              ? t.deletePendingBadge
+              : recording.dismissed
+                ? t.dismissedBadge
+                : t.localBadge}
+        />
+        {transcriptionDestinationName && (transcriptionDelivery || (!recording.dismissed && recording.localPath)) ? (
+          <StatePill
+            tone={transcriptionDelivery ? transcriptionDeliveryTone(transcriptionDelivery.state) : "muted"}
+            label={transcriptionDelivery
+              ? transcriptionStateLabel(transcriptionDelivery.state, language)
+              : (language === "es" ? "no enviado" : "not sent")}
+            title={transcriptionDestinationName}
+          />
+        ) : null}
+      </div>
       <div className="recording-actions">
         {recording.dismissed && !recording.upstreamDeletedAt ? (
           <>
@@ -1847,6 +1986,37 @@ function RecordingRow({
       </div>
     </article>
   );
+}
+
+function transcriptionDeliveryTone(state: MediaDelivery["state"]): Tone {
+  if (state === "transcribed") return "good";
+  if (state === "failed" || state === "conflict") return "bad";
+  if (state === "pending") return "muted";
+  return "info";
+}
+
+function transcriptionStateLabel(state: MediaDelivery["state"], language: OperatorLanguage): string {
+  const labels: Record<OperatorLanguage, Record<MediaDelivery["state"], string>> = {
+    es: {
+      pending: "pendiente",
+      delivering: "enviando",
+      accepted: "aceptado",
+      processing: "transcribiendo",
+      transcribed: "transcrito",
+      failed: "fallido",
+      conflict: "conflicto",
+    },
+    en: {
+      pending: "pending",
+      delivering: "sending",
+      accepted: "accepted",
+      processing: "transcribing",
+      transcribed: "transcribed",
+      failed: "failed",
+      conflict: "conflict",
+    },
+  };
+  return labels[language][state];
 }
 
 function OperationsRuns({ runs, t }: { runs: SyncRunSummary[]; t: Copy }) {
@@ -2146,45 +2316,6 @@ function BackfillStatePill({ state, t }: { state: BackfillCandidateState; t: Cop
 
 function Banner({ tone, message }: { tone: "success" | "error" | "info"; message: string }) {
   return <div className={`banner banner-${tone}`}>{message}</div>;
-}
-
-// Thrown by requestJson on HTTP 401 so callers can distinguish "session
-// expired, return to the login gate" from ordinary operation errors.
-export class UnauthorizedError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "UnauthorizedError";
-  }
-}
-
-async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
-  const hasBody = init?.body !== undefined && init.body !== null;
-  const callerHeaders = (init?.headers as Record<string, string> | undefined) ?? {};
-  // Only send `content-type: application/json` when we actually have a JSON
-  // body. Otherwise Fastify's default body parser rejects the request with 400
-  // ("Body cannot be empty when content-type is set to 'application/json'"),
-  // which is what was breaking DELETE / POST-without-body routes from the UI.
-  const headers: Record<string, string> = hasBody
-    ? { "content-type": "application/json", ...callerHeaders }
-    : { ...callerHeaders };
-
-  const response = await fetch(path, {
-    ...init,
-    headers,
-  });
-
-  if (!response.ok) {
-    const payload = await response.json().catch(() => ({} as ApiErrorResponse));
-    const message = payload.message || `Request failed with HTTP ${response.status}`;
-    // 401 on the login route itself means "wrong passphrase" — that is an
-    // ordinary form error, not a session expiry.
-    if (response.status === 401 && !path.startsWith("/api/session")) {
-      throw new UnauthorizedError(message);
-    }
-    throw new Error(message);
-  }
-
-  return response.json() as Promise<T>;
 }
 
 function formatDateTime(value: string | null | undefined): string {

@@ -26,6 +26,8 @@ import { SchedulerManager } from "./runtime/scheduler-manager.js";
 import { SecretStore } from "./runtime/secrets.js";
 import { PlaudMirrorService, type RuntimeServiceDependencies } from "./runtime/service.js";
 import { RuntimeStore } from "./runtime/store.js";
+import { TranscriptionService } from "./runtime/transcription-service.js";
+import { TranscriptionWorker } from "./runtime/transcription-worker.js";
 
 export interface CreateAppOptions extends RuntimeServiceDependencies {
   environment?: ServerEnvironment;
@@ -50,11 +52,23 @@ export async function createApp(options: CreateAppOptions = {}) {
   const secrets = options.service
     ? null
     : new SecretStore(join(environment.dataDir, "secrets.enc"), environment.masterKey);
+  const transcriptionService = options.transcriptionService ?? (store && secrets
+    ? new TranscriptionService({
+        store,
+        secrets,
+        recordingsDir: environment.recordingsDir,
+        requestTimeoutMs: environment.requestTimeoutMs,
+        ...(options.transcriptionFetchImpl ? { fetchImpl: options.transcriptionFetchImpl } : {}),
+      })
+    : null);
   const service = options.service ?? new PlaudMirrorService(
     environment,
     store!,
     secrets!,
-    options,
+    {
+      ...options,
+      ...(transcriptionService ? { transcriptionService } : {}),
+    },
   );
 
   await service.initialize();
@@ -132,6 +146,28 @@ export async function createApp(options: CreateAppOptions = {}) {
     : null;
   outboxWorker?.start();
 
+  const recoveredMediaDeliveries = store?.recoverOrphanedMediaDeliveries() ?? 0;
+  if (recoveredMediaDeliveries > 0) {
+    service.recordError(
+      "transcription",
+      `Recovered ${recoveredMediaDeliveries} transcription delivery item(s) after restart`,
+      { recovered: String(recoveredMediaDeliveries) },
+    );
+  }
+  const transcriptionWorker = store && secrets
+    ? new TranscriptionWorker({
+        store,
+        secrets,
+        recordingsDir: environment.recordingsDir,
+        requestTimeoutMs: environment.requestTimeoutMs,
+        ...(options.transcriptionFetchImpl ? { fetchImpl: options.transcriptionFetchImpl } : {}),
+        onError: ({ deliveryId, message, escalation }) => {
+          service.recordError("transcription", message, { deliveryId, escalation });
+        },
+      })
+    : null;
+  transcriptionWorker?.start();
+
   const app = Fastify({
     logger: false,
   });
@@ -183,7 +219,11 @@ export async function createApp(options: CreateAppOptions = {}) {
     if (!path.startsWith("/api/")) {
       return;
     }
-    if (publicApiPaths.has(path)) {
+    if (
+      publicApiPaths.has(path)
+      || path.startsWith("/api/transcription/artifacts/")
+      || path.startsWith("/api/transcription/status/")
+    ) {
       return;
     }
     if (isAuthenticatedRequest(request)) {
@@ -214,6 +254,10 @@ export async function createApp(options: CreateAppOptions = {}) {
     const outboxSettled = await outboxWorker?.stop();
     if (outboxSettled === false) {
       console.warn("Outbox delivery did not settle before the shutdown grace period elapsed");
+    }
+    const transcriptionSettled = await transcriptionWorker?.stop();
+    if (transcriptionSettled === false) {
+      console.warn("Transcription delivery did not settle before the shutdown grace period elapsed");
     }
     if (ownsService) {
       const syncSettled = await service.shutdown();
@@ -324,6 +368,68 @@ export async function createApp(options: CreateAppOptions = {}) {
 
   app.put("/api/config", async (request) => service.updateConfig(request.body));
 
+  app.get("/api/transcription", async () => requireTranscriptionService(transcriptionService).getOverview());
+
+  app.post("/api/transcription/destinations", async (request, reply) => {
+    const created = await requireTranscriptionService(transcriptionService).createDestination(request.body);
+    reply.code(201);
+    return created;
+  });
+
+  app.patch("/api/transcription/destinations/:id", async (request) => {
+    const id = (request.params as { id: string }).id;
+    return requireTranscriptionService(transcriptionService).updateDestination(id, request.body);
+  });
+
+  app.post("/api/transcription/destinations/:id/test", async (request) => {
+    const id = (request.params as { id: string }).id;
+    return requireTranscriptionService(transcriptionService).testDestination(id);
+  });
+
+  app.post("/api/transcription/destinations/:id/rotate-artifact-token", async (request) => {
+    const id = (request.params as { id: string }).id;
+    return requireTranscriptionService(transcriptionService).rotateArtifactAccessToken(id);
+  });
+
+  app.get("/api/transcription/destinations/:id/replay-preview", async (request) => {
+    const id = (request.params as { id: string }).id;
+    return requireTranscriptionService(transcriptionService).getReplayPreview(id);
+  });
+
+  app.post("/api/transcription/destinations/:id/enqueue", async (request, reply) => {
+    const id = (request.params as { id: string }).id;
+    const result = await requireTranscriptionService(transcriptionService).enqueue(id, request.body);
+    reply.code(202);
+    return result;
+  });
+
+  app.get("/api/transcription/destinations/:id/deliveries", async (request) => {
+    const id = (request.params as { id: string }).id;
+    const query = request.query as { limit?: string | number };
+    return {
+      items: requireTranscriptionService(transcriptionService).listDeliveries(id, parseLimit(query.limit)),
+    };
+  });
+
+  app.get("/api/transcription/recording-deliveries", async (request) => {
+    const query = request.query as { destinationId?: string; recordingIds?: string };
+    const destinationId = query.destinationId?.trim() ?? "";
+    const recordingIds = (query.recordingIds ?? "").split(",").map((id) => id.trim()).filter(Boolean).slice(0, 100);
+    if (!destinationId || recordingIds.length === 0) {
+      return { items: [] };
+    }
+    return {
+      items: requireTranscriptionService(transcriptionService).listRecordingDeliveries(destinationId, recordingIds),
+    };
+  });
+
+  app.post("/api/transcription/deliveries/:id/retry", async (request) => {
+    const id = (request.params as { id: string }).id;
+    return {
+      item: await requireTranscriptionService(transcriptionService).retryDelivery(id),
+    };
+  });
+
   app.get("/api/auth/status", async () => service.getAuthStatus());
 
   app.post("/api/auth/token", async (request) => service.saveAccessToken(request.body));
@@ -418,6 +524,53 @@ export async function createApp(options: CreateAppOptions = {}) {
     reply.header("content-range", `bytes ${start}-${end}/${size}`);
     reply.header("content-length", String(end - start + 1));
     return reply.send(createReadStream(path, { start, end }));
+  });
+
+  app.get("/api/transcription/artifacts/:destinationId/:sha256", async (request, reply) => {
+    const { destinationId, sha256 } = request.params as { destinationId: string; sha256: string };
+    if (!/^[a-f0-9]{64}$/.test(sha256)) {
+      reply.code(404);
+      return { error: "Not Found", message: "Transcription artifact not found" };
+    }
+    const artifact = await requireTranscriptionService(transcriptionService).authorizeArtifact(
+      destinationId,
+      sha256,
+      request.headers.authorization,
+    );
+    reply.header("accept-ranges", "bytes");
+    reply.header("cache-control", "private, no-store");
+    reply.header("content-disposition", buildContentDisposition(artifact.filename));
+    reply.type(artifact.contentType);
+    const rangeHeader = request.headers.range;
+    if (!rangeHeader) {
+      reply.header("content-length", String(artifact.bytes));
+      return reply.send(createReadStream(artifact.path));
+    }
+    const parsed = parseByteRange(rangeHeader, artifact.bytes);
+    if (!parsed) {
+      reply.code(416).header("content-range", `bytes */${artifact.bytes}`);
+      return reply.send();
+    }
+    reply.code(206);
+    reply.header("content-range", `bytes ${parsed.start}-${parsed.end}/${artifact.bytes}`);
+    reply.header("content-length", String(parsed.end - parsed.start + 1));
+    return reply.send(createReadStream(artifact.path, { start: parsed.start, end: parsed.end }));
+  });
+
+  app.post("/api/transcription/status/:destinationId", async (request, reply) => {
+    const destinationId = (request.params as { destinationId: string }).destinationId;
+    const timestamp = headerValue(request.headers["x-transcription-timestamp"]);
+    const signature = headerValue(request.headers["x-transcription-signature"]);
+    const result = await requireTranscriptionService(transcriptionService).receiveStatus(
+      destinationId,
+      request.body,
+      {
+        ...(timestamp ? { timestamp } : {}),
+        ...(signature ? { signature } : {}),
+      },
+    );
+    reply.code(202);
+    return result;
   });
 
   app.delete("/api/recordings/:id", async (request) => {
@@ -522,6 +675,17 @@ export function buildContentDisposition(filename: string): string {
     .replace(/["\\]/g, "_");
   const encoded = encodeRFC5987(filename);
   return `inline; filename="${asciiFallback}"; filename*=UTF-8''${encoded}`;
+}
+
+function requireTranscriptionService(service: TranscriptionService | null): TranscriptionService {
+  if (!service) {
+    throw Object.assign(new Error("Transcription integration is unavailable for this injected runtime"), { statusCode: 503 });
+  }
+  return service;
+}
+
+function headerValue(value: string | string[] | undefined): string | undefined {
+  return Array.isArray(value) ? value[0] : value;
 }
 
 function encodeRFC5987(value: string): string {

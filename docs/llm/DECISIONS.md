@@ -785,9 +785,10 @@ returns the stored result without another upstream request.
 
 ## D-022 - Plaud-first Media2Text integration requires closed-loop intake reconciliation
 
-**Status:** accepted product direction; Media Intake v1 producer review at
-Media2Text commit `c982ced` returned REQUEST CHANGES; implementation is not
-authorized until the revised contract is operator-ratified and frozen.
+**Status:** accepted product direction and historical producer review.
+Media Intake v1 at Media2Text commit `c982ced` returned REQUEST CHANGES.
+The repository-SHA implementation gate was superseded by D-023 after the
+operator required Plaud Mirror to remain independently publishable.
 
 ### Decision
 
@@ -875,3 +876,82 @@ eligible Plaud recordings transcribed?"
 - No adapter, artifact endpoint, receiver, canary, bulk replay, or deployment
   starts until Media2Text publishes the requested revision and the operator
   ratifies a frozen commit SHA.
+
+The final implication above records the gate at the time of the review. D-023
+supersedes it: Plaud Mirror now owns a neutral contract, while live traffic
+still requires a conforming provider and a separately authorized canary.
+
+## D-023 - Transcription Intake is provider-neutral and optional
+
+**Status:** accepted by operator on 2026-07-16; implemented in `v0.14.0` source,
+not deployed during the `v0.13.1` soak.
+
+### Decision
+
+Plaud Mirror must remain useful and publishable with no Media2Text, Cortex,
+Home Infra, shared volume, or sibling repository present. Transcription is an
+optional destination type named **Transcription Intake v1**. Plaud Mirror owns
+and publishes that contract under `docs/contracts/`; any independently
+deployed service may implement it. Media2Text is the first intended reference
+provider, not a package, runtime, storage, schema-SHA, or deployment dependency.
+
+The generic `recording.synced` webhook remains a separate notification
+feature. It is not renamed, overloaded, or treated as transcription admission.
+The transcription lane has its own destinations, secrets, durable outbox,
+artifact leases, status journal, reconciliation worker, API, and Integrations
+screen.
+
+No configured destination is a healthy standalone state. Plaud sync,
+backfill, playback, dismiss/restore, permanent deletion, Home Infra status,
+and the generic webhook continue unchanged. A configured provider failure is
+reported only on that provider's delivery state and does not make the Plaud
+mirror incomplete or stop source synchronization.
+
+### Contract
+
+- A destination is one exact provider origin plus one exact public Plaud Mirror
+  origin. Production requires HTTPS; HTTP is loopback-only.
+- Capability discovery proves support for `transcription.intake.v1` and
+  `transcription.intake-status.v1` before the destination can be enabled.
+- Admission uses a provider-scoped bearer. Artifact fetch uses a different,
+  producer-generated bearer revealed only at provisioning/rotation. Status
+  callbacks use a third HMAC secret. Operator and Plaud credentials are not
+  reused.
+- Identity is `authority + collectionId + itemId + artifactRevision`, where
+  Plaud Mirror publishes `authority=plaud-mirror` and
+  `artifactRevision=sha256:<artifact.sha256>`.
+- The producer pins content-addressed bytes before durable enqueue. Active
+  leases survive local dismiss, source replacement, permanent Plaud deletion,
+  and destination disable. Terminal state releases the pinned file.
+- Admission is at least once and idempotent. HTTP 409 means conflicting content
+  under an existing key/identity. Push status is HMAC signed and deduplicated;
+  pull status is the recovery path. State transitions are monotonic.
+- Historical replay selects only current-generation, physically verified local
+  audio and never re-downloads from Plaud. Canary precedes bounded batches.
+- Titles and filenames are intentional operator-data disclosure to the chosen
+  provider. Events never contain credentials, Plaud bearers, local paths,
+  shared-volume references, query tokens, or transcript content.
+
+### Product Implications
+
+The panel adds an **Integrations** screen rather than adding Media2Text fields
+to Configuration. It supports multiple named destinations, one primary
+destination, test-before-enable, one-audio canary, replay preview/batches,
+credential rotation, exact state coverage, and only valid admission retries.
+Main shows the primary pipeline only when configured; Library shows per-audio
+state. Media2Text branding may appear as an operator-chosen destination name,
+never as a hard dependency or protocol name.
+
+Plaud Mirror does not deliver to Cortex. A compatible transcription provider
+owns transcript storage and may emit its separate Transcript Ready contract to
+Cortex. Home Infra continues to receive sanitized operational status only.
+
+### Live Gate
+
+`v0.14.0` source may be published while `v0.13.1` remains deployed for its
+soak. No provider is enabled and no historical replay begins until a provider
+passes capability discovery, one authenticated canary, hash/length
+verification, signed terminal status, pull reconciliation, duplicate replay,
+conflict handling, and terminal lease release. Media2Text must adapt to the
+Plaud-owned contract or negotiate a versioned revision; Plaud Mirror does not
+silently code against another repository's draft.

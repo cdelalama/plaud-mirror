@@ -1,4 +1,4 @@
-<!-- doc-version: 0.13.1 -->
+<!-- doc-version: 0.14.0 -->
 # LLM Work Handoff
 
 This file is the live operational snapshot. Durable rationale lives in `docs/llm/DECISIONS.md`. Phase boundaries live in `docs/ROADMAP.md`.
@@ -6,7 +6,20 @@ This file is the live operational snapshot. Durable rationale lives in `docs/llm
 ## Current Status
 
 - Last Updated: 2026-07-16 - GPT-5 Codex
-- Session Focus: **v0.13.1 shutdown hardening is deployed and reconciled.** The scheduler now
+- Session Focus: **v0.14.0 provider-neutral Transcription Intake source is
+  implemented but deliberately not deployed.** D-023 supersedes the old
+  Media2Text-repository implementation gate without erasing D-022's producer
+  review. Plaud Mirror owns `docs/contracts/` and remains complete with no
+  destination. Optional destinations use capability test-before-enable,
+  separate encrypted intake/artifact/status credentials, content-addressed
+  immutable leases, a dedicated durable outbox, monotonic signed/pull status,
+  canary and bounded replay, exact coverage, and a dedicated Integrations UI.
+  The generic `recording.synced` webhook is unchanged. Media2Text is the first
+  intended compatible provider; Cortex consumes its later transcript-ready
+  output, and Home Infra is untouched. Runtime v0.13.1 remains deployed during
+  its PT15M soak; no destination, live canary, replay, rebuild, restart, deploy,
+  or sibling edit occurred in this slice.
+- Previous Session Focus: **v0.13.1 shutdown hardening is deployed and reconciled.** The scheduler now
   makes `stop()` terminal for callbacks already queued in the event loop, and
   every HTTP app test registers unconditional cleanup. Production runs clean
   source `d00ca3e`. The protocol snapshot still maps
@@ -169,32 +182,31 @@ This is now verified on the actual `dev-vm`, not assumed.
 - The project has **entered Phase 5 at `0.10.0`** per [docs/ROADMAP.md](../ROADMAP.md), specifically for infra/protocol integration: Plaud Mirror now publishes a Home Infra Protocol project contract and sync-job status snapshot. This is not NAS migration yet, and it does not close the Phase 3 soak.
 - Phase 5 is `0.10.x` (Home Infra Protocol integration, deployment hardening,
   backups, rollback, NAS validation). Phase 6 is `0.11.x+` (deliberate operator
-  workflows, Plaud-first Media2Text integration through frozen contracts, and
-  public OSS polish). Do not treat protocol adoption as proof that the service
+  workflows, provider-neutral optional transcription integration, and public
+  OSS polish). Do not treat protocol adoption as proof that the service
   has been migrated to NAS; the runtime still runs on dev-vm until the NAS
   rollout slice.
 - Working-tree cleanliness and validator status are not asserted here — they age badly. Run `git status` and `scripts/dockit-validate-session.sh --human` for the current fact.
 
 ## Open Work
 
-- **Media Intake v1 contract gate (D-022, producer review 2026-07-16):** Plaud
-  recordings are the first live Media2Text source, but Media2Text commit
-  `c982ced` is not producer-approved. Required changes are recorded in
-  `docs/llm/REVIEWS.md`: require `source.collectionId` and include it in
-  consumer identity; add `artifact.accessProfile` plus separately provisioned
-  authenticated fetch; bind `artifactRevision` to SHA-256; define immutable
-  artifact pinning through terminal state; expose producer-scoped status and a
-  durable signed terminal event; clarify replay, dismissal, tombstone, and
-  privacy semantics. Do not implement against the draft or touch the soak.
+- **Transcription provider conformance gate (D-023, v0.14.0 source):** the
+  producer changes requested in D-022 are implemented in Plaud Mirror's own
+  neutral contract and runtime. No live provider is configured. Media2Text must
+  expose the exact capabilities/admission/status surface in `docs/contracts/`,
+  then pass one authenticated canary including hash/length verification,
+  signed terminal callback, pull reconciliation, duplicate replay, conflict
+  handling, and terminal lease release. Only a separate operator GO may enable
+  the destination or start historical batches.
 - **Adapt the D-019 capture path to Plaud's first-party token model (queued 2026-07-13; do NOT start mid-soak):** when `pld_tokenstr` is absent, the Chrome extension should capture the `pld_ut`/`pld_urt` cookie pair (via the `chrome.cookies` API) and the backend should learn the mint/refresh lifecycle (`POST /user-app/auth/workspace/token/{id}`, `POST /auth/refresh-user-token` — endpoint facts from MIT applaud v0.5.11; see the D-019 amendment). Storing a refresh token pulls the scrypt KDF upgrade (H2, below) into the same slice. Upside: first credible fully-unattended renewal path for the Google-SSO account.
 - **D-018 ARMED (2026-06-11).** The operator stored the passphrase via `scripts/set-admin-passphrase.sh` (Doppler `plaud-mirror/dev` in the secondary "Startup Embassy" account; repo dir scoped via `doppler login --scope ~/src/plaud-mirror`; multi-account convention in `~/src/home-infra/docs/CONVENTIONS.md`) and restarted with the doppler-wrapped `up -d`. Verified: `/api/session` → `authRequired: true`, `/api/config` and audio routes → 401 without cookie (local AND through `https://plaud.lamanoriega.com/`), `userSummary` redacted, access-control warning gone from `health.warnings`, panel login works. **Operational rule from now on: every container recreate must be `doppler run --project plaud-mirror --config dev -- docker compose up -d`** — a bare `up -d` disarms the lock (see DEPLOY_PLAYBOOK). Optional future hardening: a gitignored compose override file on this host making the env var required.
 - File downstream feedback to LLM-DocKit about the clobber-on-sync pattern: `dockit-sync --apply` overwrites scripts that carry local extensions (`copy` strategy), forcing a manual re-merge every sync (happened 2026-05-13, 2026-06-10 with v0.6.1, 2026-06-18 before v0.9.3, and again during the v0.9.6 sync on 2026-06-19). Proposal: a `merge`/`copy-with-markers` strategy for `scripts/dockit-validate-session.sh` and version scripts, or upstream absorption of the local checks (DF-028 already covers `scripts/check-prose-drift.sh`).
 - Home Infra Protocol adoption is registered: `~/src/home-infra/catalog/project-contracts.yml` lists `plaud-mirror`, the NAS portal inputs include a bundled Plaud Mirror contract copy, and Infra Portal reads `plaud-mirror-recordings-sync` from `/api/sync-jobs`.
-- Protocol status is current at 626/626 with `condition=ok`, zero missing, and one confirmed upstream tombstone outside the current remote total. Do not mass-backfill older `skipped` counters without a separate data-repair decision.
+- Protocol status is current at 627/627 with `condition=ok`, zero missing, and one confirmed upstream tombstone outside the current remote total. Do not mass-backfill older `skipped` counters without a separate data-repair decision.
 - Operator visual-smoke `v0.9.5+`: runtime is deployed and health-verified; open the panel in the operator browser and verify Main, Library, Backfill, Configuration, Operations, ES/EN switching, phone width, reconnect copy, Operations outbox/errors, especially that desktop still uses the full viewport, Main labels `Descargar N` / `Download N`, Compact Play starts audio, Full mode uses a wide player, Library pages scroll, mobile navigation has the labeled selector, mobile status uses one compact chip row, and Library mobile actions stay top-right.
 - Scrypt KDF upgrade for `data/secrets.enc` (H2 from the 2026-06-10 review): replace `sha256(masterKey)` with scrypt + persisted salt. Deprioritized behind the items above while the master key is strong/random.
 - Re-auth path status: the operator has already verified the Chrome extension path and the backend is healthy on the EU base after the v0.8.1 fingerprint fix. Re-test only after extension/auth code changes or after Plaud frontend/API drift.
-- Phase 3 exit remains a live soak, not documentation: the scheduler is already PT15M and coverage is 626/626 with missing 0. Observe `/api/health` and Infra Portal for 3-5 days after the v0.12.0 restart, then record the result in `docs/llm/HISTORY.md`.
+- Phase 3 exit remains a live soak, not documentation: the scheduler is already PT15M and coverage is 627/627 with missing 0. Observe `/api/health` and Infra Portal for 3-5 days after the v0.13.1 restart, then record the result in `docs/llm/HISTORY.md`.
 
 ## Governance Cleanup Landed in 0.4.1
 
@@ -217,12 +229,12 @@ The six items GPT-5 flagged in the 2026-04-23 review are closed:
 2. Observe the post-deploy PT15M runtime for 3-5 days through `recentSyncRuns`,
    scheduler status, Docker health, outbox counters, and Infra Portal freshness;
    then run the live webhook drill before claiming the Phase 3 exit gate.
-3. Send the exact Media Intake v1 REQUEST CHANGES to Media2Text. After its
-   revision, re-review and operator-ratify a frozen contract SHA before any
-   adapter implementation.
-4. After the contract and Phase 3 gates, implement the Plaud-first closed loop;
-   keep D-019 cookie/refresh-token adaptation plus scrypt as the next auth
-   hardening slice.
+3. Publish v0.14.0 source without deploying it. Give Media2Text the
+   Plaud-owned Transcription Intake v1 contract and require provider
+   conformance rather than importing Media2Text code or coupling to its repo.
+4. After the Phase 3 gate and a conforming provider, authorize exactly one live
+   canary. Bulk replay remains a later explicit GO. Keep D-019 cookie/refresh
+   adaptation plus scrypt as the next auth hardening slice.
 
 ## Open Questions
 
@@ -236,10 +248,14 @@ The six items GPT-5 flagged in the 2026-04-23 review are closed:
 - The first usable release must include a small product-style web panel.
 - Manual bearer-token auth is acceptable first, but it must be encrypted at rest and survive restarts.
 - Historical backfill is required from day 1.
-- Downstream delivery stays generic webhook-first.
-- Plaud recordings are the first live Media2Text source. Success means exact
-  reconciliation from eligible Plaud artifact revisions through Media2Text
-  terminal transcription state, not merely successful webhook delivery.
+- Generic notifications stay on the existing webhook; transcription admission
+  is a separate optional destination type.
+- Plaud recordings are the first live transcription source. Success means
+  exact reconciliation from eligible Plaud artifact revisions through a
+  conforming provider's terminal state, not merely successful HTTP delivery.
+- Plaud Mirror remains independently useful and publishable. Media2Text is the
+  first intended provider, not a runtime dependency; Cortex remains downstream
+  of transcript-ready output.
 - Fully unattended re-login stays on the roadmap, but the `0.7.x`-`0.9.x` Phase 4 line deliberately solved the operator-facing refresh path and cockpit through browser-assisted capture plus the redesigned panel.
 
 ## Roadmap Pointer
@@ -255,9 +271,9 @@ Do not collapse those phases casually.
 
 - The stack is deployed at v0.13.1 from clean source `d00ca3e`. Rebuild only with
   `doppler run --project plaud-mirror --config dev -- docker compose up -d --build`.
-- Do not implement the Media2Text adapter, artifact endpoint, receiver, canary,
-  or replay until Media2Text resolves the 2026-07-16 producer review and the
-  operator ratifies a frozen Media Intake v1 commit SHA.
+- Do not deploy v0.14.0, enable a transcription destination, run a canary, or
+  start replay while v0.13.1's soak is being preserved. After publication,
+  wait for provider conformance and a separate operator GO.
 - If Docker Hub pulls time out on `dev-vm`, the Dockerfile still accepts `PLAUD_MIRROR_DOCKER_BUILD_IMAGE` and `PLAUD_MIRROR_DOCKER_RUNTIME_IMAGE` build-arg overrides. Valid fallbacks: a locally cached Node slim/alpine image from another project, a home-infra-local registry mirror (see the open registry-mirror item in `~/src/home-infra/docs/PROJECTS.md`), or a side-loaded `node:20-bookworm-slim` via `docker save`/`docker load`. Do **not** substitute a pentesting distribution such as `vxcontrol/kali-linux:latest` — it inflates the attack surface, bloats the image, and ships tooling that has no place in a Plaud mirror's runtime.
 - Verify the protocol status endpoint during the soak:
   `curl -fsS http://127.0.0.1:3040/api/protocol/sync-jobs/plaud-mirror-recordings-sync/status`
@@ -280,31 +296,44 @@ Do not collapse those phases casually.
   - Phase 1 spike tests
   - encrypted-secret/store/service/server tests
   - built API/web integration smoke tests
-- Current `v0.13.1` source total is 194 runtime tests (164 Node/integration +
-  30 web), reproduced by the root suite. Governance checks report
-  `scripts/dockit-validate-session.sh --human` 12/12,
+- Current `v0.14.0` source total is 206 runtime tests (174 Node/integration +
+  32 web), reproduced by the root suite. The new tests cover the neutral
+  contract, encrypted destination secrets, durable admission/status state,
+  artifact auth and Range delivery, crash recovery, idempotency conflicts,
+  exact coverage beyond 1,000 recordings, HTTP credential separation, and a
+  provider-neutral panel. Governance checks report
+  `scripts/dockit-validate-session.sh --human` passes all 12 checks with the
+  expected external-trigger warning (sibling docs are intentionally deferred
+  until an authorized deployment),
   `scripts/check-version-sync.sh` 23 targets, and
   `scripts/test-validator.sh` 32/32 smoke cases.
+- A read-only SHA-256 benchmark over 100 real audio artifacts processed
+  1,411,854,536 bytes in 62.60 seconds (about 22.6 MB/s) with low I/O/CPU
+  priority. The current 8,991,884,414-byte corpus is therefore a bounded
+  minutes-scale hash backfill; no Plaud re-download or runtime mutation is
+  required. Automated browser gates at 1440x1000 and 390x844 verified the new
+  configured/add-destination states, zero horizontal overflow, labelled form
+  controls, keyboard tabs, and 44 px mobile integration targets.
 - Docker packaging includes a local-base fallback for this `dev-vm`; always verify the live `/api/health.version` after a Doppler-wrapped compose rebuild instead of trusting an older handoff snapshot.
 - Live Plaud re-auth through the Chrome extension still requires the operator's Chrome/Plaud session and cannot be completed by an agent without those browser credentials; the operator confirmed it healthy before this UI redesign.
 
 ## Trace Anchor
 
 - Role: executor
-- Subject: Deploy authoritative next-run evidence
-- Release target: Plaud Mirror 0.13.1.
-- Commit: release `d00ca3e`.
-- Release commit subject: fix: make scheduler shutdown terminal
-- Release commit time: 2026-07-16 19:51:23 UTC
-- Repo state: patch published, deployed, and reconciled through Home Infra
-  0.6.10 input 015d7ee and Infra Portal 0.20.2.
-- Validation: 194/194 tests, build/typecheck, audit 0, version 23/23, validator
-  32/32, DocKit, CI, consistent backup, live health, protocol status, exact
-  coverage, and warning-free provenance pass.
-- Next gate: preserve the runtime for the multi-day
-  soak and separately wait for Media2Text contract revision/re-review before
-  any adapter implementation. Keep the unreachable same-instance restart case
-  as explicit hardening backlog rather than changing this validated runtime.
+- Subject: Prepare provider-neutral Transcription Intake v1
+- Release target: Plaud Mirror 0.14.0 source; deployment remains 0.13.1.
+- Commit: release commit pending publication.
+- Release commit subject: feat: add provider-neutral transcription intake
+- Repo state: source prepared locally; no deploy, restart, destination enable,
+  canary, replay, or sibling-repository edit occurred.
+- Validation: 206/206 tests, build/typecheck, contract JSON, dependency audits,
+  version 23/23, validator 32/32, DocKit PASS across 12 checks with the expected
+  deferred-sibling warning, diff check, 100-file hash benchmark, and
+  desktop/mobile browser gates pass.
+- Next gate: publish the clean source while preserving the 0.13.1 soak, then
+  require an independent provider to conform to `docs/contracts/`. Only a
+  separate operator GO may enable one destination and send one live canary;
+  historical replay remains a later explicit gate.
 
 ## Key Decisions (Links)
 
@@ -330,6 +359,7 @@ Do not collapse those phases casually.
 - D-020: Plaud recording sync publishes a Home Infra Protocol contract/status surface
 - D-021: permanent Plaud deletion is an explicit post-dismiss operator command
 - D-022: Plaud-first Media2Text integration requires closed-loop intake reconciliation
+- D-023: Transcription Intake is provider-neutral and optional
 
 ## Do Not Touch
 

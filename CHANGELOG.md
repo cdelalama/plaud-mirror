@@ -4,6 +4,45 @@ All notable changes to Plaud Mirror are documented in this file.
 
 This project follows Semantic Versioning (SemVer): MAJOR.MINOR.PATCH.
 
+## [0.14.0] - 2026-07-16
+
+### Added
+
+- Provider-neutral Transcription Intake v1 contracts, capability discovery,
+  separately scoped machine credentials, authenticated immutable artifact
+  leases, durable admission outbox, push/pull status reconciliation, exact
+  coverage, and bounded historical replay.
+- A dedicated Integrations screen with test-before-enable setup, one-audio
+  canary, replay preview/batches, credential rotation, recent delivery state,
+  plus optional primary-pipeline visibility on Main and Library.
+- Contract, store, worker, lifecycle, auth-boundary, scale, HTTP Range, and web
+  regressions for the optional transcription lane.
+
+### Changed
+
+- Make Media2Text the first intended compatible provider rather than a Plaud
+  Mirror build, runtime, storage, or deployment dependency; the generic
+  `recording.synced` webhook remains a separate unchanged feature.
+- Keep destination setup neutral in the panel: no provider is preselected,
+  provider names are operator-defined, and Spanish/English delivery states
+  describe the shared protocol rather than one implementation.
+- Extend encrypted secret storage and SQLite through additive destination,
+  artifact, delivery, outbox, and status-event state while preserving healthy
+  standalone operation when no destination exists.
+
+### Fixed
+
+- Keep claimed transcription work recoverable when encrypted-secret reads
+  fail, apply status-event deduplication and state mutation atomically, reject
+  status regressions/identity drift, and retain active audio leases when a
+  destination is disabled or the source recording is dismissed/deleted.
+- Distinguish retryable admission failure from downstream processing failure,
+  remove duplicate artifact pins after idempotent enqueue, and count replay
+  eligibility beyond 1,000 recordings.
+- Give destination tabs keyboard semantics, announce errors/status changes,
+  remove decorative side stripes, keep the mobile metrics grid compact, and
+  enforce 44 px touch targets across the new integration controls.
+
 ## [0.13.1] - 2026-07-16
 
 ### Added

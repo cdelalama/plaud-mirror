@@ -1,4 +1,4 @@
-<!-- doc-version: 0.13.1 -->
+<!-- doc-version: 0.14.0 -->
 # LLM Start Guide - Plaud Mirror
 
 ## Read This First (Mandatory)
@@ -87,14 +87,16 @@ Recommended reading order:
 
 Source of truth: docs/llm/HANDOFF.md.
 - Last Updated: 2026-07-16 - GPT-5 Codex
-- Working on: **v0.13.1 shutdown hardening is deployed and reconciled.** A queued timer
-  callback can no longer rearm after `stop()`, and HTTP fixtures register
-  unconditional cleanup. Production runs clean source `d00ca3e`. The
-  public protocol snapshot continues to map the live scheduler's `nextTickAt` to
-  optional Home Infra Protocol 0.10.0 `next_run_at`, omits it when unknown, and
-  keeps freshness exclusively on `observed_at + stale_after`. Home Infra 0.6.10
-  input `015d7ee` is synchronized and Infra Portal 0.20.2 observes the future
-  plan with no provenance warnings.
+- Working on: **v0.14.0 provider-neutral Transcription Intake source is
+  implemented but not deployed.** D-023 makes transcription an optional
+  contract owned by Plaud Mirror; Media2Text is the first intended compatible
+  provider, not a dependency. The source includes separate encrypted machine
+  credentials, immutable artifact leases, durable admission/recovery, signed
+  and pull status, canary/bounded replay, exact coverage, and an Integrations
+  screen while preserving the generic webhook and healthy no-destination
+  operation. Production remains clean v0.13.1 source `d00ca3e` during its soak;
+  no live provider, canary, replay, rebuild, restart, deploy, or sibling edit
+  occurred.
 - Previous: **v0.12.0 destructive-operation and coverage integrity is
   deployed and reconciled.** The first real
   operator deletion exposed weak 2xx acknowledgement and a false remote

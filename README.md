@@ -1,18 +1,20 @@
-<!-- doc-version: 0.13.1 -->
+<!-- doc-version: 0.14.0 -->
 # Plaud Mirror
 
-Self-hosted Plaud audio mirror with a local operator panel, manual sync/backfill controls, and Docker deployment.
+Self-hosted Plaud audio mirror with a local operator panel, manual/continuous
+sync, Docker deployment, and optional provider-neutral transcription delivery.
 
 **Version:** see [VERSION](VERSION) | [CHANGELOG](CHANGELOG.md)
 
 ## Overview
 
-Plaud Mirror is an operator-run service for mirroring Plaud recordings into local storage and notifying downstream systems through a generic webhook. It is intentionally audio-first: it validates auth, lists recordings, downloads the original artifact, stores it in a predictable layout, and hands off the result.
+Plaud Mirror is an operator-run service for mirroring Plaud recordings into local storage and notifying downstream systems through a generic webhook. It is intentionally audio-first: it validates auth, lists recordings, downloads the original artifact, and stores it in a predictable layout. Transcription is optional: any independent service implementing Plaud Mirror's Transcription Intake v1 contract can be connected, while an instance with no destination remains complete and healthy.
 
-The repository now contains the full Phase 2 slice, the complete Phase 3 runtime, the Phase 4 operator UX, the Phase 5 Home Infra Protocol integration, and the first Phase 6 operator fit-and-finish slice: operator-controllable scheduler (since v0.5.2), durable webhook outbox (since v0.5.3), full health observability with cross-subsystem `lastErrors` ring buffer + `recentSyncRuns` history (since v0.5.5), browser-assisted re-auth (since v0.7.0/v0.8.0), a reference-driven five-screen panel (since v0.9.0), a protocol sync-job status surface (since v0.10.0) with authoritative next-run evidence (since v0.13.0), and explicit permanent Plaud deletion for already-dismissed recordings (since v0.11.0):
+The repository now contains the full Phase 2 slice, the complete Phase 3 runtime, the Phase 4 operator UX, the Phase 5 Home Infra Protocol integration, and Phase 6 operator/integration fit-and-finish: operator-controllable scheduler (since v0.5.2), durable webhook outbox (since v0.5.3), full health observability with cross-subsystem `lastErrors` ring buffer + `recentSyncRuns` history (since v0.5.5), browser-assisted re-auth (since v0.7.0/v0.8.0), a reference-driven panel (since v0.9.0; six screens in v0.14.0), a protocol sync-job status surface (since v0.10.0) with authoritative next-run evidence (since v0.13.0), explicit permanent Plaud deletion for already-dismissed recordings (since v0.11.0), and optional Transcription Intake v1 destinations (v0.14.0 source):
 
 - Fastify admin API
-- React/Vite web panel with Main, Library, Backfill, Configuration, and Operations screens
+- React/Vite web panel with Main, Library, Backfill, Integrations,
+  Configuration, and Operations screens
 - local Chrome companion extension for no-DevTools Plaud re-auth
 - encrypted persisted bearer-token auth
 - **async** manual sync and filtered historical backfill (returns `202` with a run id, UI polls for live progress)
@@ -24,6 +26,11 @@ The repository now contains the full Phase 2 slice, the complete Phase 3 runtime
   permanent Plaud deletion available only after local dismissal; deletion
   attempts are journaled and uncertain outcomes become explicit retry states
 - HMAC-signed webhook delivery via a **durable outbox** (v0.5.3+): each successful sync enqueues the payload, a worker uses eight exponential-backoff waits (30s → 8h) before a ninth final attempt, and Operations surfaces active/failed state plus Retry controls. Counters on `/api/health.outbox`.
+- optional **Transcription Intake v1** destinations (v0.14.0 source): separate
+  machine credentials, capability test before enable, immutable authenticated
+  audio leases, durable at-least-once admission, signed/pull completion
+  reconciliation, one-audio canary, bounded local replay, and exact coverage.
+  Media2Text is the first intended compatible provider, not a dependency.
 - **opt-in continuous sync scheduler** configured from the Configuration screen of the panel (interval in minutes, `0` disables, hot-applied without container restart); status surfaced via the `scheduler` block on `/api/health`
 - **Home Infra Protocol sync-job status**: `infra.contract.yml` declares `plaud-mirror-recordings-sync`, and `/api/protocol/sync-jobs/plaud-mirror-recordings-sync/status` publishes a sanitized `status-snapshot` for Infra Portal/Hermes-style consumers
 - generation-based coverage that proves the current Plaud inventory against
@@ -111,12 +118,13 @@ scripts/dockit-validate-session.sh --human
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Runtime structure and flow design |
 | [docs/INFRA_CONTRACT.md](docs/INFRA_CONTRACT.md) | Home Infra Protocol project contract and sync-job status |
 | [docs/operations/API_CONTRACT.md](docs/operations/API_CONTRACT.md) | Actual HTTP and webhook surface |
+| [docs/contracts/README.md](docs/contracts/README.md) | Provider-neutral Transcription Intake v1 contract and conformance gate |
 | [docs/operations/AUTH_AND_SYNC.md](docs/operations/AUTH_AND_SYNC.md) | Auth model and sync behavior |
 | [docs/operations/DEPLOY_PLAYBOOK.md](docs/operations/DEPLOY_PLAYBOOK.md) | Docker deployment and rollback |
 | [docs/UPSTREAMS.md](docs/UPSTREAMS.md) | Which upstreams are tracked, what is adopted, what is rejected |
 | [PRODUCT.md](PRODUCT.md) | Operator, product-purpose, and interaction principles |
 | [DESIGN.md](DESIGN.md) | Current operator-panel visual system and component rules |
-| [docs/llm/DECISIONS.md](docs/llm/DECISIONS.md) | Long-form rationale for non-obvious choices (D-001..D-021) |
+| [docs/llm/DECISIONS.md](docs/llm/DECISIONS.md) | Long-form rationale for non-obvious choices (D-001..D-023) |
 | [docs/llm/HANDOFF.md](docs/llm/HANDOFF.md) | Current implementation snapshot |
 
 ## Contributing

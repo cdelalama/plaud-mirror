@@ -1,11 +1,14 @@
-<!-- doc-version: 0.13.1 -->
+<!-- doc-version: 0.14.0 -->
 # How to Use This Repository
 
 This guide explains how Plaud Mirror is operated end-to-end and how it stays aligned with both `LLM-DocKit` (the governance scaffold it adopts) and the Plaud ecosystem upstreams it watches.
 
 ## Current Reality
 
-`v0.12.0` hardens the explicit permanent-Plaud-delete workflow and makes mirror coverage generation-based. **Operators upgrading from any `0.4.x`/`0.5.x` should go directly to `v0.12.0`.** Today the repository gives you:
+`v0.14.0` source adds optional provider-neutral transcription delivery while
+the deployed `v0.13.1` runtime remains in its independent soak. **Operators
+upgrading from any `0.4.x`/`0.5.x` should use the latest released version.**
+Today the repository gives you:
 
 - a Fastify API and React/Vite panel bundled in a single Docker container;
 - **operator access control** (v0.6.0): set `PLAUD_MIRROR_ADMIN_PASSPHRASE` and the panel asks for the passphrase once per device (30-day session cookie); without it the API runs open and `/api/health` warns;
@@ -17,12 +20,18 @@ This guide explains how Plaud Mirror is operated end-to-end and how it stays ali
 - a cached device catalog that feeds a real device selector in the backfill form;
 - local recording index in SQLite with stable `#N` ranks, search, 50/100/150 pagination, compact/full inline audio playback with HTTP Range support, reversible local dismiss/restore, and an optional permanent Plaud deletion for already-dismissed rows;
 - HMAC-signed webhook delivery via a **durable outbox**: every sync enqueues, the worker retries failures with exponential backoff, the panel exposes counters and a Retry button for permanently-failed items;
+- optional Transcription Intake v1 delivery from a dedicated Integrations
+  screen, with provider capability test, separate credentials, immutable audio
+  leases, canary/batch controls, and exact terminal coverage;
 - a `scheduler` block, an `outbox` counters block, plus the `lastErrors` ring buffer and `recentSyncRuns` list on `/api/health` (D-014 full from v0.5.5), now visible in the Main and Operations screens;
 - a `home-infra-protocol` sync-job surface: `infra.contract.yml` declares `plaud-mirror-recordings-sync`, and `/api/protocol/sync-jobs/plaud-mirror-recordings-sync/status` publishes a public sanitized status snapshot for Infra Portal/Hermes-style consumers;
 - a Spanish/English operator-chrome toggle persisted in browser storage, plus a labeled mobile view selector so phone navigation is not icon-only;
 - upstream-watch tooling plus the full LLM-DocKit governance circuit (HANDOFF, HISTORY, DECISIONS, REVIEWS, version-sync manifest, validator, pre-commit hook).
 
-What it deliberately does **not** give you yet: resumable backfill, fully unattended re-login, NAS rollout. Those are remaining Phase 3+ work per `docs/ROADMAP.md`.
+What it deliberately does **not** give you yet: transcription inside Plaud
+Mirror, a hard dependency on Media2Text or Cortex, resumable backfill, fully
+unattended re-login, or NAS rollout. Those boundaries and remaining slices are
+tracked in `docs/ROADMAP.md`.
 
 For the full feature inventory see [README.md](README.md); for the product intent see [docs/PROJECT_CONTEXT.md](docs/PROJECT_CONTEXT.md); for current work state see [docs/llm/HANDOFF.md](docs/llm/HANDOFF.md).
 
@@ -55,6 +64,31 @@ and **Retry deletion** first checks Plaud so a prior successful DELETE can be
 confirmed without sending another destructive request.
 
 On `dev-vm`, the operator passphrase lives in Doppler (`plaud-mirror/dev`). Use the Doppler-wrapped compose command for every recreate unless the same secret is intentionally copied into the local gitignored `.env`.
+
+### Connecting a transcription provider
+
+This is optional. Without a destination Plaud Mirror behaves exactly as a
+standalone mirror and shows no transcription warning.
+
+1. In **Integrations**, press **Add destination**.
+2. Enter a name, the provider's exact origin, the externally reachable exact
+   Plaud Mirror origin, the provider-issued intake credential, and the shared
+   status HMAC secret.
+3. Store the one-time artifact bearer in the provider. It is separate from the
+   intake and status credentials.
+4. Press **Test**. Plaud Mirror enables the action only after the provider
+   advertises exact Transcription Intake v1 capabilities.
+5. Enable the destination and send **1 audio**. Verify accepted, processing,
+   and terminal status plus authenticated artifact fetch.
+6. Only after that canary passes, preview historical replay and send bounded
+   batches (1-100). Replay uses local verified audio and does not re-download
+   from Plaud.
+
+Main then shows primary-destination coverage and Library shows state per
+recording. A failed admission may be retried from Plaud Mirror; a real
+downstream transcription failure is not mislabeled as a producer retry. Full
+provider requirements are in
+[`docs/contracts/README.md`](docs/contracts/README.md).
 
 For Docker Hub timeout handling and acceptable fallback images, see [docs/operations/DEPLOY_PLAYBOOK.md](docs/operations/DEPLOY_PLAYBOOK.md). Pentesting distributions (e.g. `vxcontrol/kali-linux:latest`) are explicitly rejected as runtime bases.
 

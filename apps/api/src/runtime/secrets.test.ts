@@ -14,6 +14,7 @@ test("SecretStore encrypts values on disk and loads them back", async () => {
   await store.save({
     accessToken: "token-value",
     webhookSecret: "hook-secret",
+    transcriptionDestinations: {},
   });
 
   const raw = await readFile(filePath, "utf8");
@@ -23,6 +24,7 @@ test("SecretStore encrypts values on disk and loads them back", async () => {
   assert.deepEqual(await store.load(), {
     accessToken: "token-value",
     webhookSecret: "hook-secret",
+    transcriptionDestinations: {},
   });
 });
 
@@ -34,6 +36,7 @@ test("SecretStore update merges and clears individual values", async () => {
   await store.save({
     accessToken: "token-value",
     webhookSecret: "hook-secret",
+    transcriptionDestinations: {},
   });
 
   await store.update({
@@ -43,5 +46,6 @@ test("SecretStore update merges and clears individual values", async () => {
   assert.deepEqual(await store.load(), {
     accessToken: "token-value",
     webhookSecret: null,
+    transcriptionDestinations: {},
   });
 });

@@ -69,9 +69,9 @@ components:
 Plaud Mirror uses a restrained light-console system for repeated operator work.
 The full viewport is the application, with a fixed navigation rail, compact
 status surfaces, and information-dense task views. Visual interest comes from
-hierarchy and state, not decoration. The interface must keep local mirror state,
-Plaud account state, scheduler behavior, and downstream delivery visibly
-separate.
+hierarchy and state, not decoration. The interface must keep local mirror
+state, Plaud account state, scheduler behavior, generic webhook notification,
+and optional transcription lifecycle visibly separate.
 
 ## Colors
 
@@ -101,7 +101,12 @@ operator tools and repeated records, never nested inside other cards.
 - Secondary and destructive buttons use a neutral surface with a semantic
   border and text color. Irreversible commands remain text-labelled.
 - Library rows are stable grid records with sequence, recording identity,
-  player, state pill, and a right-aligned action group.
+  player, a compact state group (local/Plaud plus optional primary
+  transcription state), and a right-aligned action group.
+- Integrations is a work surface, not a marketing gallery: destination
+  identity/test/credentials, coverage, canary/replay controls, and recent
+  deliveries remain in separate un-nested panels. A one-time artifact token is
+  visually prominent until the operator provisions it.
 - Icon-only controls are limited to familiar actions such as dismiss, restore,
   play, and pagination, with accessible names and tooltips.
 - Mobile controls retain at least a 44 px touch target and move structurally
@@ -111,6 +116,8 @@ operator tools and repeated records, never nested inside other cards.
 
 - Do place an action beside the recording it affects.
 - Do name whether a command changes local storage, Plaud, or downstream state.
+- Do omit transcription state entirely when no destination is configured; the
+  standalone mirror is not degraded.
 - Do use a single clear confirmation for irreversible account mutation.
 - Do keep Spanish and English copy semantically equivalent.
 - Don't use success styling to claim an upstream effect before the API returns.

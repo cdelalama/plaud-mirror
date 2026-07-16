@@ -683,6 +683,38 @@ button.mobile-status-chip:hover {
   gap: 14px;
 }
 
+.transcription-pipeline-card {
+  display: grid;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.transcription-pipeline-card .card-title-row > div > strong,
+.transcription-pipeline-card .form-kicker {
+  display: block;
+}
+
+.transcription-pipeline-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.transcription-pipeline-metrics span {
+  display: grid;
+  gap: 2px;
+  border-top: 1px solid var(--line);
+  padding-top: 8px;
+}
+
+.transcription-pipeline-metrics small {
+  color: var(--muted);
+}
+
+.transcription-pipeline-card > button {
+  justify-self: start;
+}
+
 .run-stats {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -936,6 +968,12 @@ button.mobile-status-chip:hover {
   justify-content: flex-end;
   gap: 8px;
   min-width: 32px;
+}
+
+.recording-states {
+  display: grid;
+  gap: 4px;
+  justify-items: start;
 }
 
 .recording-remote-delete {
@@ -1230,6 +1268,219 @@ button.mobile-status-chip:hover {
   grid-column: 1 / -1;
 }
 
+.integration-form,
+.integration-summary,
+.integration-coverage,
+.integration-deliveries {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--white);
+  padding: 16px;
+}
+
+.integration-form {
+  display: grid;
+  gap: 14px;
+  margin-bottom: 16px;
+}
+
+.integration-form > button {
+  justify-self: start;
+}
+
+.integration-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.integration-token {
+  display: grid;
+  grid-template-columns: minmax(180px, 0.8fr) minmax(0, 2fr) auto;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 16px;
+  border: 1px solid #d7b35f;
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+  background: #fffaf0;
+}
+
+.integration-token div,
+.integration-token code {
+  min-width: 0;
+}
+
+.integration-token strong,
+.integration-token span {
+  display: block;
+}
+
+.integration-token span {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.integration-token code {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.integration-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.integration-tabs button {
+  border-radius: 0;
+  border-bottom: 2px solid transparent;
+  padding: 9px 12px;
+  background: transparent;
+  color: var(--muted);
+}
+
+.integration-tabs button.active {
+  border-bottom-color: var(--accent);
+  color: var(--text);
+}
+
+.integration-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.integration-summary,
+.integration-coverage,
+.integration-deliveries {
+  display: grid;
+  gap: 14px;
+}
+
+.integration-deliveries {
+  grid-column: 1 / -1;
+}
+
+.integration-meta {
+  display: grid;
+  gap: 8px;
+}
+
+.integration-meta span {
+  display: grid;
+  grid-template-columns: 150px minmax(0, 1fr);
+  gap: 12px;
+  align-items: baseline;
+  border-bottom: 1px solid #f1f2f4;
+  padding-bottom: 6px;
+}
+
+.integration-meta small,
+.integration-metrics small {
+  color: var(--muted);
+}
+
+.integration-meta strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.integration-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.integration-credentials {
+  border-top: 1px solid var(--line);
+  padding-top: 10px;
+}
+
+.integration-credentials summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.integration-credentials .integration-form-grid {
+  margin: 12px 0;
+}
+
+.coverage-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+.integration-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.integration-metrics span {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  border-top: 1px solid var(--line-strong);
+  padding-top: 8px;
+}
+
+.integration-metrics strong {
+  font-size: 16px;
+}
+
+.replay-tool {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 130px auto;
+  gap: 10px;
+  align-items: end;
+  border-top: 1px solid var(--line);
+  padding-top: 12px;
+}
+
+.delivery-list {
+  display: grid;
+}
+
+.delivery-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 12px;
+  align-items: center;
+  border-top: 1px solid var(--line);
+  padding: 10px 0;
+}
+
+.delivery-row:first-child {
+  border-top: 0;
+}
+
+.delivery-row > div {
+  min-width: 0;
+}
+
+.delivery-row strong,
+.delivery-row span {
+  display: block;
+}
+
+.delivery-row > div span {
+  overflow: hidden;
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .technical-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1482,6 +1733,46 @@ button.mobile-status-chip:hover {
     grid-template-columns: 1fr;
   }
 
+  .integration-layout,
+  .integration-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .integration-form button,
+  .integration-form input,
+  .integration-token button,
+  .integration-tabs button,
+  .integration-summary button,
+  .integration-summary input,
+  .integration-coverage button,
+  .integration-coverage input,
+  .integration-deliveries button,
+  .transcription-pipeline-card > button,
+  .view-header > .ghost-button {
+    min-height: 44px;
+  }
+
+  .integration-credentials summary {
+    display: flex;
+    min-height: 44px;
+    align-items: center;
+  }
+
+  .integration-deliveries {
+    grid-column: auto;
+  }
+
+  .integration-token,
+  .replay-tool,
+  .delivery-row {
+    grid-template-columns: 1fr;
+  }
+
+  .integration-meta span {
+    grid-template-columns: 1fr;
+    gap: 2px;
+  }
+
   .recording-line {
     grid-template-columns: 38px minmax(0, 1fr) auto;
     gap: 8px 10px;
@@ -1525,7 +1816,7 @@ button.mobile-status-chip:hover {
     width: 100%;
   }
 
-  .recording-line .state-pill {
+  .recording-line > .recording-states {
     grid-column: 2;
     grid-row: 3;
     justify-self: start;
@@ -1563,6 +1854,11 @@ button.mobile-status-chip:hover {
 
   .metric-grid,
   .preview-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .integration-metrics,
+  .transcription-pipeline-metrics {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 

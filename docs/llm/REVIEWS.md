@@ -390,6 +390,35 @@ operator-ratified Plaud-first direction from Cortex.
 - Version remains 0.12.0 because this is documentation-only producer review;
   the deployed soak is untouched.
 
+## 2026-07-16 - Producer Review Resolution And Independence Amendment
+
+**Trigger:** the operator clarified that Plaud Mirror must remain independently
+publishable and connect to any service implementing a stable interface;
+Media2Text must not become a product dependency.
+
+**Resolution:** the seven REQUEST CHANGES above remain valid evidence, but the
+consumer-repository freeze mechanism is superseded. Plaud Mirror now owns
+provider-neutral **Transcription Intake v1** under `docs/contracts/`, and D-023
+defines Media2Text as the first intended compatible provider.
+
+The v0.14.0 source resolves the producer-side findings:
+
+- full collection-aware source identity and SHA-bound artifact revision;
+- separate intake, artifact, status, operator, and Plaud credentials;
+- exact origins with no path/query/fragment/embedded credentials;
+- content-addressed pinned audio through terminal state;
+- additive durable intake outbox with crash recovery and full retry window;
+- atomic HMAC status journaling, monotonic transitions, deduplication, and pull
+  reconciliation;
+- physically verified local historical replay, dismiss/delete lease safety,
+  sanitized error handling, and exact coverage in the operator panel.
+
+This is not retrospective acceptance of Media2Text commit `c982ced`: that
+snapshot remains rejected as reviewed. Media2Text must implement the published
+Plaud contract or propose a versioned change, then pass the conformance canary.
+No live traffic, canary, replay, deploy, or sibling-repository edit is
+authorized by the v0.14.0 source implementation.
+
 ## Planned Reviews
 
 - Security review before implementing credential storage (recommend invoking `/security-review`).

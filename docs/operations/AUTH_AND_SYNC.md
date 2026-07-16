@@ -1,20 +1,62 @@
-<!-- doc-version: 0.13.1 -->
+<!-- doc-version: 0.14.0 -->
 # Authentication and Sync Operations
 
 This runbook defines the live behavior of Plaud Mirror's auth and sync surface. Phase 2 is fully shipped. Phase 3 added the scheduler, durable outbox, health observability, and access/recovery timeouts. `v0.10.3` makes artifact integrity truthful; `v0.10.4` makes scheduler completion, runtime ceilings, outbox recovery, pagination, and shutdown truthful before the soak. Resumable backfill and fully unattended re-login stay deferred.
 
 ## Operator Access Control (D-018, v0.6.0)
 
-Two distinct auth surfaces exist from v0.6.0 — do not conflate them:
+Five distinct auth surfaces exist from v0.14.0 — do not conflate them:
 
 1. **Plaud auth** (this service → Plaud): the encrypted bearer token described below.
 2. **Operator auth** (you → this service): `PLAUD_MIRROR_ADMIN_PASSPHRASE`.
+3. **Transcription intake auth** (this service → one configured provider): a
+   provider-issued bearer scoped to capability, admission, and status reads.
+4. **Transcription artifact auth** (one provider → this service): a
+   Plaud-Mirror-generated bearer scoped to active immutable audio leases for
+   that destination.
+5. **Transcription status auth** (one provider → this service): a separate HMAC
+   secret for at-least-once status callbacks.
 
-When `PLAUD_MIRROR_ADMIN_PASSPHRASE` is set, the panel shows a login screen and every `/api/*` route except `GET /api/health` and `/api/session*` requires the signed session cookie issued by `POST /api/session/login` (HttpOnly, SameSite=Lax, 30-day TTL). Unauthenticated `/api/health` responses redact `auth.userSummary` (the Plaud account email/uid). Failed logins are throttled (5/minute). Rotating the passphrase — or the master key — invalidates every outstanding session immediately.
+When `PLAUD_MIRROR_ADMIN_PASSPHRASE` is set, the panel shows a login screen and every normal `/api/*` route except `GET /api/health` and `/api/session*` requires the signed session cookie issued by `POST /api/session/login` (HttpOnly, SameSite=Lax, 30-day TTL). The public protocol status routes remain sanitized. Transcription artifact/status routes do not use the operator cookie because they enforce their own bearer/HMAC at the route boundary. Unauthenticated `/api/health` responses redact `auth.userSummary` (the Plaud account email/uid). Failed logins are throttled (5/minute). Rotating the passphrase — or the master key — invalidates every outstanding session immediately.
 
 Storage convention (v0.6.2): the passphrase lives in Doppler at `plaud-mirror/dev/PLAUD_MIRROR_ADMIN_PASSPHRASE`, per the home-infra secrets convention. Store or rotate it with `scripts/set-admin-passphrase.sh` (interactive; reads the value silently, double-prompts, pipes it to the Doppler CLI via stdin so it never touches argv, history, or disk). Inject it at launch with `doppler run --project plaud-mirror --config dev -- docker compose up -d` (process env overrides `.env` in compose substitution), or copy it into the gitignored `.env` manually.
 
 When the variable is unset, the API runs open (pre-0.6.0 behavior) and `health.warnings` carries "Operator access control is disabled — set PLAUD_MIRROR_ADMIN_PASSPHRASE..." so the gap is never silent. Given the service is published through `edge-caddy` at `https://plaud.lamanoriega.com/` and `compose.yml` binds `3040:3040` on the LAN, running without the passphrase is NOT recommended.
+
+## Optional Transcription Destination Auth (D-023, v0.14.0)
+
+The Integrations screen provisions credentials per destination. None are
+environment variables and none are shared with Plaud, the operator session, or
+the generic webhook:
+
+| Secret | Issuer | Stored by | Sent where | Rotation effect |
+|---|---|---|---|---|
+| Intake credential | provider | encrypted `secrets.enc` | provider capability/admission/status-read routes | changing it disables destination until retested |
+| Artifact bearer | Plaud Mirror | encrypted `secrets.enc`; revealed once | provider config only; provider sends it to the artifact route | old bearer stops immediately; active lease remains available under new bearer |
+| Status HMAC secret | shared out of band | encrypted `secrets.enc` | never sent; verifies callback signature | subsequent callbacks must use new secret |
+
+Destination creation is always disabled. A successful exact-contract
+capability probe is required before enable. HTTPS is mandatory except for
+loopback development. Exact origins contain no path, query, fragment, or
+embedded credentials.
+
+The artifact route authorizes the tuple `destinationId + bearer + active
+sha256 lease`; knowing a hash or URL is insufficient. Disabling a destination
+stops new admission and pull reconciliation but does not revoke audio already
+promised under an active delivery. This preserves lifecycle correctness if an
+operator pauses a provider after HTTP 202. Rotate the artifact bearer to revoke
+the old machine credential.
+
+Status callbacks sign `<ISO timestamp>.<canonical JSON body>` with HMAC-SHA256
+and are accepted within five minutes. Event identity, source identity, artifact
+revision, optional record hash, and monotonic state are all checked before one
+transaction journals the event and changes delivery state.
+
+No destination configured is normal and healthy. A provider outage changes
+only that destination's delivery/error state; it does not invalidate Plaud
+auth, mirror coverage, scheduler health, Home Infra status, or the generic
+webhook. See [`docs/contracts/README.md`](../contracts/README.md) for the
+provider contract and live conformance gate.
 
 ## Auth Mode
 

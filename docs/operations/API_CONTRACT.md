@@ -1,11 +1,11 @@
-<!-- doc-version: 0.13.1 -->
+<!-- doc-version: 0.14.0 -->
 # API Contract
 
-This document describes the HTTP and webhook surface that now exists in-repo. The current implementation covers the full Phase 2 slice plus the Phase 3 scheduler, durable webhook outbox, and full health observability. `v0.10.0` adds the `home-infra-protocol` sync-job surface; `v0.10.3` adds physical artifact reconciliation and explicit candidate failures; `v0.10.4` makes scheduler completion end-to-end truthful, exposes `health.outbox.delivering`, and enforces the one-hour whole-run ceiling. The five-screen UI consumes the app routes; protocol routes are for Infra Portal/Hermes style consumers.
+This document describes the HTTP and webhook surface that now exists in-repo. The current implementation covers the full Phase 2 slice plus the Phase 3 scheduler, durable webhook outbox, and full health observability. `v0.10.0` adds the `home-infra-protocol` sync-job surface; `v0.10.3` adds physical artifact reconciliation and explicit candidate failures; `v0.10.4` makes scheduler completion end-to-end truthful, exposes `health.outbox.delivering`, and enforces the one-hour whole-run ceiling; `v0.14.0` adds optional provider-neutral transcription delivery. The six-screen UI consumes the app routes; protocol routes are for Infra Portal/Hermes style consumers.
 
 ## Admin API
 
-**Access control (D-018, v0.6.0).** When the deployment sets `PLAUD_MIRROR_ADMIN_PASSPHRASE`, every route below returns `401` without a valid operator session cookie, EXCEPT the public allowlist: `GET /api/health` (status probes; `auth.userSummary` is redacted for unauthenticated callers), the sanitized protocol status routes (`/api/protocol/status`, `/api/protocol/sync-jobs/plaud-mirror-recordings-sync/status`), and the `/api/session*` routes. Obtain a session with `POST /api/session/login`; the cookie (`plaud_mirror_session`, HttpOnly, SameSite=Lax, 30-day TTL) is sent automatically by browsers. When the env var is unset, all routes stay open and `health.warnings` carries an explicit "access control is disabled" entry.
+**Access control (D-018, v0.6.0).** When the deployment sets `PLAUD_MIRROR_ADMIN_PASSPHRASE`, every route below returns `401` without a valid operator session cookie, EXCEPT the public allowlist: `GET /api/health` (status probes; `auth.userSummary` is redacted for unauthenticated callers), the sanitized protocol status routes (`/api/protocol/status`, `/api/protocol/sync-jobs/plaud-mirror-recordings-sync/status`), the `/api/session*` routes, and the v0.14.0 transcription artifact/status routes that enforce their own destination-scoped machine authentication. Obtain a session with `POST /api/session/login`; the cookie (`plaud_mirror_session`, HttpOnly, SameSite=Lax, 30-day TTL) is sent automatically by browsers. When the env var is unset, all normal routes stay open and `health.warnings` carries an explicit "access control is disabled" entry; transcription machine routes still require their own bearer/HMAC.
 
 | Method | Path | Purpose |
 |--------|------|---------|
@@ -19,6 +19,16 @@ This document describes the HTTP and webhook surface that now exists in-repo. Th
 | `GET` | `/api/protocol/status` | Alias for the Plaud recording sync status snapshot above. Public, sanitized, no-store. |
 | `GET` | `/api/config` | Return sanitized runtime config: webhook URL + secret-presence flag, default sync limit, **and the persisted `schedulerIntervalMs`** (the panel reads this on load to populate the scheduler form). |
 | `PUT` | `/api/config` | Update webhook URL, optional webhook secret, **and / or the scheduler interval**. All three fields are optional and independent — omit any to leave it unchanged. `schedulerIntervalMs` must be `0` (disable) or `≥ 60000`; sub-floor positives return HTTP 400. When this field changes, the live `Scheduler` is started / stopped / swapped to the new cadence in place via the `SchedulerManager` reconfigure hook. |
+| `GET` | `/api/transcription` | Operator overview of optional provider-neutral transcription destinations plus exact eligible/not-sent/pending/accepted/processing/transcribed/failed/conflict coverage. An empty destination list is healthy standalone operation. |
+| `POST` | `/api/transcription/destinations` | Create a disabled Transcription Intake v1 destination. Stores provider intake/status credentials encrypted and returns a new artifact bearer once. HTTP 201. |
+| `PATCH` | `/api/transcription/destinations/:id` | Rename, change exact origins/credentials, enable/disable, or make primary. Capability test is required before enable; provider origin or intake credential changes force disable/retest. |
+| `POST` | `/api/transcription/destinations/:id/test` | Probe provider `GET /v1/intake-capabilities` with the scoped intake bearer and persist provider identity/error. |
+| `POST` | `/api/transcription/destinations/:id/rotate-artifact-token` | Revoke the old artifact bearer and reveal a replacement once. |
+| `GET` | `/api/transcription/destinations/:id/replay-preview` | Count all current-generation, physically verified eligible audio and remaining bytes/duration without hashing, enqueueing, downloading, or applying a 1,000-row count cap. |
+| `POST` | `/api/transcription/destinations/:id/enqueue` | Enqueue one canary or a bounded batch (`limit` 1–100, optional `recordingIds`). Returns 202 with selected/enqueued/skipped/failed counts. Requires an enabled destination. |
+| `GET` | `/api/transcription/destinations/:id/deliveries` | List recent delivery state for one destination (`limit` max 500). |
+| `GET` | `/api/transcription/recording-deliveries` | Batch latest delivery state for Library rows. Query: `destinationId` plus comma-separated `recordingIds` (max 100). |
+| `POST` | `/api/transcription/deliveries/:id/retry` | Retry only a permanent producer admission failure/conflict. Downstream processing failure is deliberately not retryable here. |
 | `GET` | `/api/auth/status` | Return current auth state |
 | `POST` | `/api/auth/token` | Validate and persist a Plaud bearer token |
 | `POST` | `/api/sync/run` | Schedule a manual sync. Returns `202 Accepted` with `{ id, status: "running" }` immediately; the work runs in the background. Poll `GET /api/sync/runs/:id` or `GET /api/health` (`activeRun` carries progress while running, `lastSync` updates on completion). |
@@ -33,6 +43,29 @@ This document describes the HTTP and webhook surface that now exists in-repo. Th
 | `DELETE` | `/api/recordings/:id/plaud` | Irreversibly delete an already-dismissed recording from Plaud. Journals the operation before side effects, performs/reconciles the observed trash-then-delete flow, persists `upstreamDeletedAt` only after confirmation, and is idempotent after success. Operator-session-gated; never part of automated live validation. |
 | `GET` | `/api/outbox` | Return `{ items: OutboxItem[] }` with **only `permanently_failed` rows** from the durable webhook outbox (D-013). Pending, delivering, and retry-waiting work is visible through `health.outbox` counters. Empty array when the queue has no failed items. |
 | `POST` | `/api/outbox/:id/retry` | Reset a `permanently_failed` outbox row back to `pending` (clears `attempts` and `last_error`); the worker will re-attempt delivery on its next tick. Returns the updated `OutboxItem`. 400 on unsafe id shape, 404 on unknown id, 409 when the row is in any state other than `permanently_failed` (the FSM guard — the panel must not bypass `delivering` or restart `delivered` rows). |
+
+## Transcription Machine API (v0.14.0)
+
+These routes are intentionally exempt from the operator cookie because a
+remote service calls them. They are never unauthenticated:
+
+| Method | Path | Authentication | Purpose |
+|---|---|---|---|
+| `GET` | `/api/transcription/artifacts/:destinationId/:sha256` | `Authorization: Bearer <artifact token>` | Stream one active immutable delivery lease. Supports the same single-range semantics as local playback. Returns 404 after terminal release or for a destination/hash with no active lease. |
+| `POST` | `/api/transcription/status/:destinationId` | `X-Transcription-Timestamp` + `X-Transcription-Signature` HMAC | Accept an at-least-once monotonic status event. Returns 202 with `{ accepted, deduplicated, delivery }`; 401 on signature failure, 404 on unknown intake, 409 on identity/transition/event conflict. |
+
+The remote provider surface called by Plaud Mirror is:
+
+| Method | Provider path | Authentication |
+|---|---|---|
+| `GET` | `/v1/intake-capabilities` | scoped intake bearer |
+| `POST` | `/v1/intakes` | scoped intake bearer |
+| `GET` | `/v1/intakes/:intakeId` | scoped intake bearer |
+
+Schemas, idempotency semantics, credential separation, canonical HMAC input,
+identity, artifact lifetime, and conformance are normative in
+[`docs/contracts/README.md`](../contracts/README.md). The legacy
+`recording.synced` webhook below is unchanged and is not a transcription API.
 
 ## Request Shapes
 

@@ -1,4 +1,4 @@
-<!-- doc-version: 0.13.1 -->
+<!-- doc-version: 0.14.0 -->
 # Project Context - Plaud Mirror
 
 ## Vision
@@ -10,6 +10,8 @@ Build a self-hosted Plaud mirror that gets the original audio artifact out of Pl
 - Persist mirrored audio locally in a predictable layout.
 - Offer a small web panel for auth, visibility, and manual control.
 - Deliver a generic webhook that downstream systems can consume.
+- Optionally deliver immutable verified audio to any independent service that
+  implements Plaud Mirror's provider-neutral Transcription Intake v1 contract.
 - Publish Plaud recording sync status through the shared `home-infra-protocol`
   contract so infra consumers can reason about freshness and health.
 - Keep auth and download behavior auditable in-repo.
@@ -24,7 +26,18 @@ Plaud Mirror is a server-first product with two runtime surfaces:
 
 Persistence is split between SQLite for state/indexes and the filesystem for mirrored audio artifacts. Secrets are encrypted at rest with a master key supplied by the surrounding deployment.
 
-## Current Status (2026-07-16, v0.13.1)
+## Current Status (2026-07-16, v0.14.0 source / v0.13.1 deployed)
+
+`v0.14.0` source implements D-023 without changing the deployed soak runtime.
+Plaud Mirror now owns a provider-neutral Transcription Intake v1 contract and
+optional delivery lane: exact-origin capability discovery, separate encrypted
+machine credentials, content-addressed artifact leases, durable admission,
+signed/pull status reconciliation, historical local replay, exact coverage,
+and an Integrations screen. A destination-free instance remains healthy and
+fully functional; the generic webhook remains separate. Media2Text is the
+first intended compatible provider, not a build/runtime/storage dependency.
+No provider, canary, replay, deployment, Home Infra, Cortex, or sibling change
+is part of this source preparation.
 
 Plaud Mirror `v0.13.1` hardens scheduler shutdown after independent audit:
 `stop()` now prevents an already-queued callback from rearming or running
@@ -54,11 +67,11 @@ legacy tombstones are imported as confirmed operations, existing API fields are
 preserved, and Home Infra Protocol still consumes the same status-snapshot
 contract. The additional count detail is private passthrough data that protocol
 consumers already tolerate. Cortex and Media2Text remain outside the deployed
-runtime, but they now define the next product contract gate: Plaud-first is
-operator-ratified, and producer review of Media Intake v1 at Media2Text commit
-`c982ced` returned REQUEST CHANGES. D-022 requires collection-aware identity,
-authenticated artifact fetch, pinned artifact lifetime, and terminal status
-reconciliation back to Plaud Mirror before any live adapter is implemented.
+runtime. The producer review of Media2Text commit `c982ced` remains durable
+evidence in D-022/REVIEWS, while D-023 supersedes its repository-SHA
+implementation gate: Plaud Mirror publishes the neutral contract; Media2Text
+must prove compatibility before live traffic. Cortex consumes the provider's
+separate transcript-ready output and never fetches Plaud audio directly.
 
 The deployment restarts the runtime during an unfinished Phase 3 exit gate.
 Pre-change soak observations remain historical evidence, but Phase 3 is not

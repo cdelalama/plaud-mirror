@@ -6,7 +6,7 @@
 // the panel still works in environments where localStorage is unavailable
 // (private browsing, sandboxed iframes).
 
-export type ActiveTab = "main" | "library" | "backfill" | "config" | "ops";
+export type ActiveTab = "main" | "library" | "backfill" | "integrations" | "config" | "ops";
 export type OperatorLanguage = "es" | "en";
 
 const ACTIVE_TAB_KEY = "plaud-mirror:active-tab";
@@ -27,6 +27,7 @@ export function readTab(): ActiveTab {
     return saved === "main" ||
       saved === "library" ||
       saved === "backfill" ||
+      saved === "integrations" ||
       saved === "config" ||
       saved === "ops"
       ? saved

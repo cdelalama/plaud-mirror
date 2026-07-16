@@ -43,12 +43,15 @@ import { API_PACKAGE_VERSION } from "../version.js";
 import { type ServerEnvironment } from "./environment.js";
 import { SecretStore, type StoredSecrets } from "./secrets.js";
 import { RuntimeStore } from "./store.js";
+import type { TranscriptionService } from "./transcription-service.js";
 import { buildWebhookSignature } from "./webhook-signature.js";
 
 export interface RuntimeServiceDependencies {
   plaudFetchImpl?: typeof fetch;
   artifactFetchImpl?: typeof fetch;
   webhookFetchImpl?: typeof fetch;
+  transcriptionFetchImpl?: typeof fetch;
+  transcriptionService?: TranscriptionService;
   // Schedules background work. Default: setImmediate (fire-and-forget). Tests
   // can swap in `(fn) => { inflight.push(fn().catch(...)); }` and then await
   // `Promise.all(inflight)` to wait for the async sync to finish deterministically.
@@ -130,6 +133,7 @@ export class PlaudMirrorService {
   private readonly artifactFetchImpl: typeof fetch;
   private readonly webhookFetchImpl: typeof fetch;
   private readonly scheduler: (work: () => Promise<unknown>) => void;
+  private readonly transcriptionService: TranscriptionService | null;
   private activeMirrorRun: ActiveMirrorRun | null = null;
   private schedulerStatusProvider: SchedulerStatusProvider | null = null;
   private schedulerReconfigureHook: ((intervalMs: number) => void) | null = null;
@@ -153,6 +157,7 @@ export class PlaudMirrorService {
     this.artifactFetchImpl = dependencies.artifactFetchImpl ?? fetch;
     this.webhookFetchImpl = dependencies.webhookFetchImpl ?? fetch;
     this.scheduler = dependencies.scheduler ?? defaultScheduler;
+    this.transcriptionService = dependencies.transcriptionService ?? null;
   }
 
   async initialize(): Promise<void> {
@@ -1230,6 +1235,7 @@ export class PlaudMirrorService {
       && !forceDownload
       && await hasLocalArtifact(existing.localPath, existing.bytesWritten)
     ) {
+      await this.enqueueTranscriptionBestEffort(existing, false);
       if (existing.lastWebhookStatus === "success") {
         return {
           downloaded: false,
@@ -1297,6 +1303,7 @@ export class PlaudMirrorService {
       lastWebhookAttemptAt: enqueueDecision.attemptedAt,
     });
     this.store.markRecordingArtifactVerified(persisted.id, inventoryGeneration);
+    await this.enqueueTranscriptionBestEffort(persisted, true);
 
     return {
       downloaded: true,
@@ -1364,6 +1371,25 @@ export class PlaudMirrorService {
 
     this.store.enqueueOutboxItem({ recordingId: recording.id, payload });
     return { status: "queued", attemptedAt };
+  }
+
+  private async enqueueTranscriptionBestEffort(
+    recording: RecordingMirror,
+    forceRevisionCheck: boolean,
+  ): Promise<void> {
+    if (!this.transcriptionService) {
+      return;
+    }
+    try {
+      await this.transcriptionService.enqueueRecordingForEnabledDestinations(
+        recording,
+        forceRevisionCheck,
+      );
+    } catch (error) {
+      this.recordError("transcription", toErrorMessage(error), {
+        recordingId: recording.id,
+      });
+    }
   }
 
   // ─── Outbox admin (D-013, v0.5.3) ──────────────────────────────────

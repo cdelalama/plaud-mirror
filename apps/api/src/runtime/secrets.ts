@@ -12,11 +12,19 @@ interface EncryptedPayload {
 export interface StoredSecrets {
   accessToken: string | null;
   webhookSecret: string | null;
+  transcriptionDestinations: Record<string, TranscriptionDestinationSecrets>;
+}
+
+export interface TranscriptionDestinationSecrets {
+  intakeCredential: string | null;
+  statusSigningSecret: string | null;
+  artifactAccessToken: string | null;
 }
 
 const EMPTY_SECRETS: StoredSecrets = {
   accessToken: null,
   webhookSecret: null,
+  transcriptionDestinations: {},
 };
 
 export class SecretStore {
@@ -59,6 +67,40 @@ export class SecretStore {
     return normalized;
   }
 
+  async updateTranscriptionDestination(
+    destinationId: string,
+    partial: Partial<TranscriptionDestinationSecrets>,
+  ): Promise<TranscriptionDestinationSecrets> {
+    const current = await this.load();
+    const nextDestination = {
+      intakeCredential: null,
+      statusSigningSecret: null,
+      artifactAccessToken: null,
+      ...(current.transcriptionDestinations[destinationId] ?? {}),
+      ...partial,
+    };
+    await this.save({
+      ...current,
+      transcriptionDestinations: {
+        ...current.transcriptionDestinations,
+        [destinationId]: nextDestination,
+      },
+    });
+    return normalizeSecrets({
+      transcriptionDestinations: { [destinationId]: nextDestination },
+    }).transcriptionDestinations[destinationId]!;
+  }
+
+  async deleteTranscriptionDestination(destinationId: string): Promise<void> {
+    const current = await this.load();
+    if (!(destinationId in current.transcriptionDestinations)) {
+      return;
+    }
+    const transcriptionDestinations = { ...current.transcriptionDestinations };
+    delete transcriptionDestinations[destinationId];
+    await this.save({ ...current, transcriptionDestinations });
+  }
+
   private encrypt(secrets: StoredSecrets): EncryptedPayload {
     const iv = randomBytes(12);
     const cipher = createCipheriv("aes-256-gcm", this.key, iv);
@@ -98,9 +140,20 @@ export class SecretStore {
 }
 
 function normalizeSecrets(input: Partial<StoredSecrets>): StoredSecrets {
+  const transcriptionDestinations = Object.fromEntries(
+    Object.entries(input.transcriptionDestinations ?? {}).map(([destinationId, secrets]) => [
+      destinationId,
+      {
+        intakeCredential: secrets?.intakeCredential?.trim() || null,
+        statusSigningSecret: secrets?.statusSigningSecret?.trim() || null,
+        artifactAccessToken: secrets?.artifactAccessToken?.trim() || null,
+      },
+    ]),
+  );
   return {
     accessToken: input.accessToken?.trim() || null,
     webhookSecret: input.webhookSecret?.trim() || null,
+    transcriptionDestinations,
   };
 }
 
