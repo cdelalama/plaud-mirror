@@ -99,8 +99,14 @@ Source of truth: docs/llm/HANDOFF.md.
   one confirmed upstream tombstone; auth, PT15M, SQLite integrity, warnings,
   outbox, and protocol `ok/none` pass. Home Infra 0.6.6 external commit
   f161f39 is synchronized with warning-free Portal provenance. Home Infra
-  Protocol, Infra Portal, Cortex, and Media2Text required no code change. No
-  additional real deletion was invoked.
+  Protocol and Infra Portal required no code change. Plaud-first delivery to
+  Media2Text is now operator-ratified, but the producer review of Media Intake
+  v1 at Media2Text commit `c982ced` returned REQUEST CHANGES before
+  implementation. D-022 requires collection-aware identity, authenticated
+  artifact fetch, pinned artifact lifetime, and durable completion/status
+  reconciliation back to Plaud Mirror so the product can show exact
+  transcription coverage. The deployed runtime remains untouched; no adapter,
+  endpoint, canary, or additional real deletion was invoked.
 - Previous (2026-07-10, v0.10.7 soak activation): Physical reconciliation examined all
   619 recordings with zero candidates/failures. The contract declares
   `internal-loop`, `cadence: PT15M`, and `stale_after: PT2H`. Runtime v0.10.7

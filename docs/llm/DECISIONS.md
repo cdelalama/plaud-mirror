@@ -777,3 +777,96 @@ returns the stored result without another upstream request.
 - Current remote coverage is a separate generation-based fact. Historical
   tombstones remain auditable but do not count as dismissed remote rows after
   Plaud no longer lists them.
+
+## D-022 - Plaud-first Media2Text integration requires closed-loop intake reconciliation
+
+**Status:** accepted product direction; Media Intake v1 producer review at
+Media2Text commit `c982ced` returned REQUEST CHANGES; implementation is not
+authorized until the revised contract is operator-ratified and frozen.
+
+### Decision
+
+Plaud recordings are the first live media source that must reach Media2Text.
+YouTube channels are secondary. The integration is a network contract between
+two independently deployed products:
+
+- Plaud Mirror remains authoritative for Plaud inventory and mirrored audio.
+- Media2Text owns admission, artifact verification, transcription, transcript
+  storage, and completion state.
+- Cortex consumes Media2Text's frozen Transcript Ready contract; it does not
+  fetch audio from Plaud Mirror.
+- Home Infra Protocol observes sanitized status. It does not transport audio or
+  product events.
+
+The product is not complete when Plaud Mirror merely receives HTTP 202. It is
+complete when Plaud Mirror can reconcile every eligible artifact revision into
+an explicit Media2Text state (`not_sent`, `accepted`, `processing`,
+`transcribed`, or `failed`) and show exact source-to-transcript coverage.
+Durable completion notification is the primary path; a producer-scoped status
+read is the recovery path.
+
+The frozen intake contract must therefore guarantee:
+
+1. Identity is the tuple `source.authority + source.collectionId +
+   source.itemId + source.artifactRevision`. For this producer, `itemId` is the
+   Plaud recording id and `collectionId` is a stable, pseudonymous Plaud
+   account/workspace namespace, never an email, local path, or device nickname.
+2. `source.artifactRevision` is exactly `sha256:${artifact.sha256}`. Plaud
+   Mirror hashes the verified local bytes before enqueue and persists the
+   revision used by the event.
+3. The artifact is served through an immutable HTTPS URL with a separately
+   provisioned, least-privilege fetch credential. No bearer, secret, local
+   path, shared volume, URL credential, query token, or fragment enters the
+   event body.
+4. A durable Plaud-side outbox sends the intake request at least once. Repeated
+   delivery uses the same idempotency key and byte-identical request. HTTP 409
+   is a permanent integrity conflict, not a transient retry.
+5. Media2Text persists the obligation before 202, then reports terminal success
+   or failure back to Plaud Mirror through a durable signed status event. Plaud
+   Mirror can also read the admitted intake status using a credential limited
+   to records created by that producer.
+6. Plaud Mirror pins an immutable delivery copy from enqueue until Media2Text
+   reaches a terminal state. Local dismiss or permanent Plaud deletion cannot
+   make an accepted artifact disappear before Media2Text fetches it.
+7. Historical replay hashes and enqueues current-generation, physically
+   verified local audio. It does not re-download from Plaud. Dismissed rows,
+   unresolved deletion operations, and confirmed tombstones are ineligible.
+
+### Rationale
+
+The existing Media Intake draft gets the main boundary right: 202 means a
+durable obligation, transfer crosses hosts, bytes are verified by SHA-256 and
+length, and duplicate admission is idempotent. The producer review found that
+those guarantees are not yet enough for the operator's actual product goal.
+Media2Text currently ignores `collectionId` in its uniqueness key, fetches the
+artifact without a service credential, and exposes intake reads only through
+the full operator API. Plaud Mirror would therefore be unable to prove that all
+of its eligible recordings became transcripts, and a dismiss between 202 and
+the asynchronous fetch could turn a green delivery into a permanent 404.
+
+Closed-loop status is deliberately part of the product contract, not a Portal
+metric bolted on later. It gives the operator one truthful answer to: "Are all
+eligible Plaud recordings transcribed?"
+
+### Implications
+
+- The existing `recording.synced` webhook remains backward compatible. Media
+  Intake is an additive destination/payload lane with its own least-privilege
+  credential and per-revision identity; it must not serialize `localPath`.
+- The existing outbox retry/crash-recovery machinery can be reused, but its
+  current rigid payload and single `lastWebhookStatus` field are insufficient
+  for both generic webhooks and Media2Text lifecycle state.
+- A producer completion status event uses
+  `schemaVersion = media2text.intake-status.v1` and
+  `eventType = intake.status`, with `eventId`, `idempotencyKey`, `occurredAt`,
+  `intakeId`, the full source identity tuple, terminal status `completed` or
+  `failed`, optional `transcriptId`/`recordSha256`, and optional sanitized
+  `error.code`. It is delivered at least once and HMAC signed; pull status
+  remains available for reconciliation.
+- An explicit re-transcription of an already completed artifact is a
+  Media2Text operation. Reposting the same intake request only deduplicates;
+  Plaud Mirror must not manufacture a different request under the same
+  artifact revision.
+- No adapter, artifact endpoint, receiver, canary, bulk replay, or deployment
+  starts until Media2Text publishes the requested revision and the operator
+  ratifies a frozen commit SHA.

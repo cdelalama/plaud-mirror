@@ -42,8 +42,12 @@ This is a backward-compatible minor release: SQLite changes are additive,
 legacy tombstones are imported as confirmed operations, existing API fields are
 preserved, and Home Infra Protocol still consumes the same status-snapshot
 contract. The additional count detail is private passthrough data that protocol
-consumers already tolerate. Cortex and Media2Text remain unaffected: their
-Plaud-related contracts are drafts, not live dependencies on this runtime.
+consumers already tolerate. Cortex and Media2Text remain outside the deployed
+runtime, but they now define the next product contract gate: Plaud-first is
+operator-ratified, and producer review of Media Intake v1 at Media2Text commit
+`c982ced` returned REQUEST CHANGES. D-022 requires collection-aware identity,
+authenticated artifact fetch, pinned artifact lifetime, and terminal status
+reconciliation back to Plaud Mirror before any live adapter is implemented.
 
 The deployment restarts the runtime during an unfinished Phase 3 exit gate.
 Pre-change soak observations remain historical evidence, but Phase 3 is not

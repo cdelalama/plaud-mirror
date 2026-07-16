@@ -244,6 +244,152 @@ Media2Text boundaries.
 
 ---
 
+## 2026-07-16 - Media Intake v1 Producer Review
+
+**Input:** Media2Text `media-intake.v1.schema.json`, contract semantics, and
+Stages 3-6 at frozen review input commit
+`c982ced959f56dc5ff41efb8e7b1445f5162129a`, contrasted with Plaud Mirror
+0.12.0 persistence, outbox, physical coverage, dismiss/restore, and permanent
+deletion behavior.
+**Reviewers:** GPT-5 Codex (Plaud Mirror producer review), following the
+operator-ratified Plaud-first direction from Cortex.
+
+### Points of Agreement
+
+- `POST /v1/intakes` returning 202 only after durable SQLite admission is the
+  right boundary. It truthfully means accepted work, not fetched or
+  transcribed audio.
+- Cross-host HTTPS artifact transfer, exact-origin allowlisting, no shared
+  paths/volumes, declared SHA-256/bytes/content type, consumer-side byte/hash
+  verification, bounded fetch retries, and 409 conflict semantics are the
+  correct foundation.
+- Plaud Mirror can perform historical replay from current-generation,
+  physically verified local files without contacting Plaud. It will need to
+  compute and persist SHA-256 because 0.12.0 currently proves existence and
+  byte length, not content digest.
+- At-least-once delivery and crash recovery fit Plaud Mirror's existing durable
+  outbox model. The new intake payload must be additive; the legacy
+  `recording.synced` payload contains `localPath` and is not the intake
+  contract.
+
+### Points Raised (Pushback / Additions)
+
+1. **Collection identity is optional in the schema and ignored by the consumer
+   uniqueness key.** `source.collectionId` is not required, while Media2Text's
+   `intakeId`, lookup, and SQL `UNIQUE` use only `authority + itemId +
+   artifactRevision`.
+   - Resolution: REQUEST CHANGES.
+   - Required change: make `source.collectionId` required; include it in the
+     deterministic `intakeId`, lookup predicates, unique index, status lookup,
+     and idempotency documentation. Define Plaud's value as a stable,
+     pseudonymous account/workspace namespace.
+   - Failure example: two Plaud collections expose the same `itemId` and
+     revision. The second request is incorrectly deduplicated or receives 409
+     even though it is a different source item.
+
+2. **The artifact fetch is not authenticated despite the prose guarantee.**
+   The intake API key authenticates Plaud Mirror to Media2Text, but the current
+   Media2Text fetch sends only `Accept`; exact-origin allowlisting is not
+   authentication.
+   - Resolution: REQUEST CHANGES.
+   - Required change: add required `artifact.accessProfile` to the schema and
+     define it as an identifier for a receiver-side, exact-origin credential.
+     For the Plaud profile, Media2Text sends `Authorization: Bearer <separately
+     provisioned secret>` to an immutable HTTPS URL. Forbid username/password,
+     query credentials, and fragments in `artifact.url`; never serialize the
+     secret.
+   - Failure example: a correctly protected Plaud artifact endpoint returns
+     401. Media2Text classifies that 4xx as permanent and the intake fails
+     without ever reading audio.
+
+3. **Revision and cost metadata invariants are underspecified.** The schema can
+   accept an `artifactRevision` unrelated to `artifact.sha256`, and
+   `filename`/`durationSeconds` are optional even though the Plaud lane has both
+   and Stage 6 requires pre-enqueue duration/cost accounting.
+   - Resolution: REQUEST CHANGES.
+   - Required change: specify and validate
+     `source.artifactRevision == "sha256:" + artifact.sha256`; require
+     `artifact.filename` and `artifact.durationSeconds` for the
+     `source.authority = "plaud-mirror"` profile, with duration strictly
+     positive. Re-delivery must preserve an identical canonical request.
+   - Failure example: one revision key points at two hashes, so a retry becomes
+     a 409 conflict or a permanent hash mismatch instead of deterministic
+     deduplication.
+
+4. **A 202 has no closed-loop completion path back to the producer.** The
+   response includes `links.self`, but the least-privilege intake credential is
+   explicitly denied GET access. `transcript.ready` is currently a separate
+   Cortex-facing outbox, so Plaud Mirror cannot determine whether all admitted
+   recordings were transcribed.
+   - Resolution: REQUEST CHANGES.
+   - Required semantic change: add a producer-scoped status read at the
+     returned `links.status`/`links.self`, authorized by the intake credential
+     only for that producer's rows. Add a durable HMAC-signed producer status
+     event with `schemaVersion = media2text.intake-status.v1`,
+     `eventType = intake.status`, `eventId`, `idempotencyKey`, `occurredAt`,
+     `intakeId`, full `source` identity, terminal status `completed` or
+     `failed`, optional `transcriptId`/`recordSha256`, and optional sanitized
+     `error.code`. Push is primary; pull is reconciliation.
+   - Failure example: Media2Text permanently fails transcription after Plaud
+     Mirror records the 202 as delivered. Both dashboards stay green and the
+     operator cannot explain why source coverage exceeds transcript coverage.
+
+5. **Artifact lifetime is undefined across dismiss and permanent deletion.**
+   Plaud Mirror dismiss unlinks audio immediately. Media2Text fetches only
+   after 202, so an accepted event can race a local dismiss and produce a
+   permanent 404.
+   - Resolution: REQUEST CHANGES.
+   - Required semantic change: producer admission must pin an immutable
+     delivery copy before enqueue and retain it until Media2Text reports a
+     terminal state. Before durable admission, dismiss cancels eligibility.
+     After 202, dismiss may hide/remove the library copy but cannot revoke the
+     pinned transfer copy; permanent Plaud deletion has no implicit delete or
+     cancellation effect in Media2Text.
+   - Failure example: enqueue -> 202 -> operator dismisses -> worker GET 404.
+     The producer outbox says delivered while no transcript can be produced.
+
+6. **Replay ownership is ambiguous.** Identical redelivery should deduplicate,
+   but a true re-transcription of the same artifact revision cannot be
+   expressed without conflicting with the unique source revision.
+   - Resolution: REQUEST CHANGES.
+   - Required semantic change: define Plaud historical replay as first
+     admission of locally verified revisions and retry as byte-identical
+     redelivery. Define explicit re-transcription as a Media2Text operation
+     against the existing `intakeId`, not a mutated producer request under the
+     same revision.
+   - Failure example: a force replay changes `eventId` under the same revision;
+     Media2Text returns 409 rather than starting intentional reprocessing.
+
+7. **Privacy posture is mostly correct but URL secrecy is still ambiguous.**
+   The schema excludes local paths and the public status omits origin details,
+   but HTTP(S) URLs can still carry query capability tokens and are persisted
+   in `request_json`.
+   - Resolution: REQUEST CHANGES.
+   - Required semantic change: artifact URLs contain no Plaud bearer,
+     operator cookie, query secret, fragment, filesystem path, email, or device
+     nickname. Logs and public health expose ids, counts, states, and sanitized
+     error codes only; titles, filenames, URLs, and transcript content remain
+     private product data.
+
+### Summary Outcome
+
+- **REQUEST CHANGES.** The draft is directionally correct, but it cannot be
+  frozen for Plaud Mirror while collection identity, authenticated fetch,
+  artifact lifetime, and producer completion reconciliation remain open.
+- The desired product loop is explicit: Plaud Mirror reports eligible,
+  admitted, processing, transcribed, and failed counts per artifact revision;
+  Media2Text reports terminal truth; Cortex consumes transcript-ready output.
+- No adapter, artifact endpoint, webhook target, canary, replay, runtime change,
+  rebuild, restart, or deployment is authorized by this review.
+
+### Follow-Through Landed
+
+- D-022 records the Plaud-first closed-loop product boundary and freeze gate.
+- ROADMAP, PROJECT_CONTEXT, ARCHITECTURE, HANDOFF, and HISTORY were aligned to
+  deployed 0.12.0 plus this contract-review outcome.
+- Version remains 0.12.0 because this is documentation-only producer review;
+  the deployed soak is untouched.
+
 ## Planned Reviews
 
 - Security review before implementing credential storage (recommend invoking `/security-review`).

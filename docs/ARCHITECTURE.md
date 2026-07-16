@@ -1,9 +1,9 @@
 <!-- doc-version: 0.12.0 -->
 # Plaud Mirror Architecture
 
-> Version: 0.11.2
-> Last Updated: 2026-07-14
-> Status: Phase 6 has an authenticated permanent-Plaud-delete workflow for already-dismissed recordings. v0.12.0 adds a durable deletion state/event journal, fail-closed mutation acknowledgements, retry reconciliation, and generation-based physical mirror coverage. The PT15M/PT2H protocol contract is unchanged; the independent Phase 3 post-deploy soak and live webhook exit gate remain open.
+> Version: 0.12.0
+> Last Updated: 2026-07-16
+> Status: v0.12.0 is deployed with durable deletion recovery and generation-based physical mirror coverage. The PT15M/PT2H protocol contract is unchanged; the independent Phase 3 post-deploy soak and live webhook exit gate remain open. Plaud-first Media2Text integration is the next product contract gate, but the draft Media Intake v1 needs the D-022 producer-review changes before implementation.
 
 ## Overview
 
@@ -295,13 +295,30 @@ maximum runtime.
 - Temporary Plaud download URLs must not be logged in full.
 - This remains a single-operator service, but from v0.6.0 it protects itself: operator access control (D-018) gates the panel/API when `PLAUD_MIRROR_ADMIN_PASSPHRASE` is set. Network position (LAN, edge-caddy) is no longer the only boundary.
 - `/api/health` is public by design (status probes); its `auth.userSummary` is redacted for unauthenticated callers, and error strings surfaced there must never contain secrets.
-- Known hardening debt (deliberately sequenced after v0.6.0): the secrets KDF is single-pass SHA-256 of the master key — fine for a high-entropy random key, weak for a human-chosen one; upgrade to scrypt-with-salt remains queued before the unattended-soak exit gate. `webhookUrl` accepts any URL (no private-range allowlist) — acceptable now that only an authenticated operator can set it.
+- Known hardening debt: the secrets KDF is single-pass SHA-256 of the master
+  key - adequate for the current high-entropy random key, weak for a
+  human-chosen one. Upgrade to scrypt-with-salt before storing Plaud refresh
+  credentials. `webhookUrl` accepts any URL (no private-range allowlist),
+  acceptable while only an authenticated operator can set it.
 
 ## Next Architectural Step
 
-Phase 4 is in progress, extended through `0.9.x` for the Chrome extension plus operator-panel redesign while the Phase 3 soak remains pending. The remaining work:
+The architecture is not waiting for another internal redesign. The next work is
+ordered by evidence and product contracts:
 
-- **Phase 3 cont.:** `v0.9.0` now surfaces `health.warnings` / `lastErrors` / `recentSyncRuns` in the panel UI. Remaining hardening before the soak: scrypt KDF upgrade for `data/secrets.enc`, then the multi-day unattended run that closes the phase. Resumable backfill stays deferred (no firm release target).
-- **Phase 4 (0.7.x-0.9.x):** browser-assisted re-auth is implemented through `/connect` and the Chrome extension; `v0.9.0` finishes the operator-facing cockpit around that flow. Fully unattended SSO renewal remains deferred/watch behind the official OAuth/MCP path; email+password login is not applicable to this operator account.
-- **Phase 5 (0.10.x):** deployment hardening, backups, rollback, NAS validation, infra playbooks.
-- More robust degraded-state handling (incremental, threaded through Phase 3 + 4).
+1. **Close Phase 3 honestly:** leave deployed v0.12.0 untouched during the
+   3-5 day PT15M soak, then run the separately authorized live webhook drill.
+2. **Freeze the Plaud-first Media2Text contract:** Media Intake v1 at
+   Media2Text `c982ced` has the correct durable-202 and network-transfer base,
+   but D-022 requires collection-aware identity, authenticated artifact fetch,
+   pinned artifact lifetime, and completion/status reconciliation back to
+   Plaud Mirror. No adapter is implemented against the draft.
+3. **Implement the adapter only after freeze:** hash and pin verified local
+   audio, publish an additive intake outbox lane without `localPath`, serve
+   immutable artifacts with a least-privilege credential, replay historical
+   local artifacts without Plaud downloads, and reconcile terminal Media2Text
+   status so the panel can show exact transcription coverage.
+4. **Continue queued hardening:** adapt D-019 to Plaud's first-party refresh
+   tokens together with scrypt, complete the NAS deployment slice, and finish
+   OSS documentation. Resumable backfill remains deferred without a release
+   target.
