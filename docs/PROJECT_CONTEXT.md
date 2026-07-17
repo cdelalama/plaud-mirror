@@ -26,15 +26,15 @@ Plaud Mirror is a server-first product with two runtime surfaces:
 
 Persistence is split between SQLite for state/indexes and the filesystem for mirrored audio artifacts. Secrets are encrypted at rest with a master key supplied by the surrounding deployment.
 
-## Current Status (2026-07-17, v0.14.2 source / v0.14.1 deployed)
+## Current Status (2026-07-17, v0.14.2 source and deployed)
 
-`v0.14.2` source repairs the final mismatch found by the first live Media2Text
-canary. The deployed `v0.14.1` runtime admitted and served immutable source
-bytes correctly, received accepted and processing callbacks, and observed a
-successful transcript through provider pull. It then rejected the terminal
-callback because it compared the transcript record hash with the source audio
-hash. The patch persists both identities separately and keeps the source
-revision check as the audio-integrity boundary.
+`v0.14.2` from `a993936` is deployed and repairs the final mismatch found by
+the first live Media2Text completion. The runtime now persists source audio and
+transcript record identities separately, keeps the source revision as the
+audio-integrity boundary, accepts the signed terminal callback, and releases
+the immutable artifact lease. Real MP3 and OGG recordings reached terminal
+`transcribed`; the final OGG canary preserved its original `audio/ogg` SHA-256
+while Media2Text recorded a distinct transcript-record SHA-256.
 
 Plaud Mirror owns a provider-neutral Transcription Intake v1
 compatibility profile and
@@ -47,9 +47,11 @@ protocol repository. A destination-free instance remains healthy and
 fully functional; the generic webhook remains separate. Media2Text is the
 first compatible provider, not a build/runtime/storage dependency.
 Restore is now serialized against the full permanent-deletion window, and a
-second enabled destination requires explicit cost confirmation. Historical
-replay remains blocked; the live backlog is 627 eligible recordings and must
-receive a separate duration/cost approval before any batch is sent.
+second enabled destination requires explicit cost confirmation. Five
+deliveries are tracked (three transcribed and two retained failed canaries).
+Historical replay remains blocked: 622 recordings remain, representing
+608.0074 hours and an estimated USD 335.62 at the configured Deepgram rate.
+That spend requires a separate operator approval before any batch is sent.
 
 Plaud Mirror `v0.13.1` hardens scheduler shutdown after independent audit:
 `stop()` now prevents an already-queued callback from rearming or running
@@ -78,12 +80,18 @@ This is a backward-compatible minor release: SQLite changes are additive,
 legacy tombstones are imported as confirmed operations, existing API fields are
 preserved, and Home Infra Protocol still consumes the same status-snapshot
 contract. The additional count detail is private passthrough data that protocol
-consumers already tolerate. Cortex and Media2Text remain outside the deployed
-runtime. The producer review of Media2Text commit `c982ced` remains durable
-evidence in D-022/REVIEWS, while D-023 supersedes its repository-SHA
-implementation gate: Plaud Mirror publishes the neutral contract; Media2Text
-must prove compatibility before live traffic. Cortex consumes the provider's
-separate transcript-ready output and never fetches Plaud audio directly.
+consumers already tolerate. Media2Text is now a proven optional destination,
+but remains outside Plaud Mirror's build, storage, and availability boundary.
+The producer review of Media2Text commit `c982ced` remains durable evidence in
+D-022/REVIEWS, while D-023 supersedes its repository-SHA implementation gate.
+Cortex consumes the provider's separate transcript-ready output and never
+fetches Plaud audio directly; that delivery remains disabled pending a frozen
+consumer contract.
+
+Home Infra 0.7.6 release `bb350ea` is synchronized to the NAS. Infra Portal
+0.20.3 reports Plaud Mirror `ok/none` at 627/627 and exact provenance for source
+`a993936`; it independently reports Media2Text's retained failed intakes as a
+truthful degraded state rather than contaminating Plaud sync health.
 
 The deployment restarts the runtime during an unfinished Phase 3 exit gate.
 Pre-change soak observations remain historical evidence, but Phase 3 is not
@@ -104,9 +112,9 @@ The `v0.10.4` patch completes execution hardening. Scheduler
 ticks await the actual mirror run, sync work has a one-hour cancelable ceiling,
 Plaud pagination is bounded, outbox claims recover in-process and retain the
 full overnight retry window, and SIGTERM waits for active work before SQLite
-closes. Compose now has a healthcheck and dependency audits are clean. Runtime
-deployment remains on v0.10.1 until the consolidated image is deployed and
-physically reconciled.
+closes. Compose now has a healthcheck and dependency audits are clean. At that
+release point, runtime deployment remained on v0.10.1 until the consolidated
+image was deployed and physically reconciled.
 
 The `v0.10.3` patch underneath made audio replacement atomic, reconciled SQLite
 coverage against physical existence and size, isolated candidate failures, and

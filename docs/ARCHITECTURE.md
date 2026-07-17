@@ -1,9 +1,9 @@
 <!-- doc-version: 0.14.2 -->
 # Plaud Mirror Architecture
 
-> Version: 0.13.1 deployed and reconciled
+> Version: 0.14.2 deployed and reconciled
 > Last Updated: 2026-07-17
-> Status: v0.14.1 source adds pre-canary contract pinning/conformance, second-destination cost confirmation, and full-window delete/restore serialization. Production remains v0.13.1 from `d00ca3e` until the coordinated provider deployment.
+> Status: v0.14.2 from `a993936` is live with one enabled Media2Text destination. MP3 and OGG canaries reached terminal `transcribed`, source and transcript hashes remain distinct, and Home Infra 0.7.6 observes the runtime. Bulk replay remains separately cost-gated.
 
 ## Overview
 
@@ -365,14 +365,17 @@ Cortex remains downstream of the provider's separate transcript-ready output.
 The architecture is not waiting for another internal redesign. The next work is
 ordered by evidence and product contracts:
 
-1. **Close Phase 3 honestly:** leave deployed v0.13.1 untouched during the
-   3-5 day PT15M soak, then run the separately authorized live webhook drill.
-2. **Publish v0.14.1 before provider work:** Plaud Mirror owns a byte-pinned
-   Transcription Intake v1 compatibility profile, an executable conformance
-   probe, and its standalone-compatible producer implementation.
-3. **Prove one conforming provider:** Media2Text may become the first provider
-   after capability discovery and the complete canary gate. Only then authorize
-   bounded historical replay and verify source-to-transcript coverage.
+1. **Close Phase 3 honestly:** keep observing the deployed PT15M scheduler and
+   run the separately authorized generic-webhook drill; transcription intake
+   does not substitute for that independent webhook gate.
+2. **Control historical transcription spend:** the conforming Media2Text path
+   is proven, but replay of the remaining 622 recordings (608.0074 hours,
+   estimated USD 335.62 at the configured rate) requires an explicit operator
+   budget and batch-size decision.
+3. **Keep protocol extraction evidence-driven:** D-024 permits a neutral
+   Content Intake repository only after this successful canary and a second
+   structurally different processing profile. The second trigger does not yet
+   exist, so the compatibility profile remains owned here.
 4. **Continue queued hardening:** adapt D-019 to Plaud's first-party refresh
    tokens together with scrypt, complete the NAS deployment slice, and finish
    OSS documentation. Resumable backfill remains deferred without a release

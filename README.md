@@ -10,7 +10,7 @@ sync, Docker deployment, and optional provider-neutral transcription delivery.
 
 Plaud Mirror is an operator-run service for mirroring Plaud recordings into local storage and notifying downstream systems through a generic webhook. It is intentionally audio-first: it validates auth, lists recordings, downloads the original artifact, and stores it in a predictable layout. Transcription is optional: any independent service implementing Plaud Mirror's Transcription Intake v1 contract can be connected, while an instance with no destination remains complete and healthy.
 
-The repository now contains the full Phase 2 slice, the complete Phase 3 runtime, the Phase 4 operator UX, the Phase 5 Home Infra Protocol integration, and Phase 6 operator/integration fit-and-finish: operator-controllable scheduler (since v0.5.2), durable webhook outbox (since v0.5.3), full health observability with cross-subsystem `lastErrors` ring buffer + `recentSyncRuns` history (since v0.5.5), browser-assisted re-auth (since v0.7.0/v0.8.0), a reference-driven panel (since v0.9.0; six screens in v0.14.0), a protocol sync-job status surface (since v0.10.0) with authoritative next-run evidence (since v0.13.0), explicit permanent Plaud deletion for already-dismissed recordings (since v0.11.0), and optional Transcription Intake v1 destinations (v0.14.1 source):
+The repository now contains the full Phase 2 slice, the complete Phase 3 runtime, the Phase 4 operator UX, the Phase 5 Home Infra Protocol integration, and Phase 6 operator/integration fit-and-finish: operator-controllable scheduler (since v0.5.2), durable webhook outbox (since v0.5.3), full health observability with cross-subsystem `lastErrors` ring buffer + `recentSyncRuns` history (since v0.5.5), browser-assisted re-auth (since v0.7.0/v0.8.0), a reference-driven panel (since v0.9.0; six screens in v0.14.0), a protocol sync-job status surface (since v0.10.0) with authoritative next-run evidence (since v0.13.0), explicit permanent Plaud deletion for already-dismissed recordings (since v0.11.0), and optional Transcription Intake v1 destinations (v0.14.2, deployed and live-verified):
 
 - Fastify admin API
 - React/Vite web panel with Main, Library, Backfill, Integrations,
@@ -26,7 +26,7 @@ The repository now contains the full Phase 2 slice, the complete Phase 3 runtime
   permanent Plaud deletion available only after local dismissal; deletion
   attempts are journaled and uncertain outcomes become explicit retry states
 - HMAC-signed webhook delivery via a **durable outbox** (v0.5.3+): each successful sync enqueues the payload, a worker uses eight exponential-backoff waits (30s → 8h) before a ninth final attempt, and Operations surfaces active/failed state plus Retry controls. Counters on `/api/health.outbox`.
-- optional **Transcription Intake v1** destinations (v0.14.1 source): separate
+- optional **Transcription Intake v1** destinations (v0.14.2): separate
   machine credentials, capability test before enable, immutable authenticated
   audio leases, durable at-least-once admission, signed/pull completion
   reconciliation, one-audio canary, bounded local replay, and exact coverage.

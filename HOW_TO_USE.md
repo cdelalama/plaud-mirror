@@ -5,8 +5,9 @@ This guide explains how Plaud Mirror is operated end-to-end and how it stays ali
 
 ## Current Reality
 
-`v0.14.1` source adds optional provider-neutral transcription delivery while
-the deployed `v0.13.1` runtime remains in its independent soak. **Operators
+`v0.14.2` is deployed with optional provider-neutral transcription delivery;
+one Media2Text destination has passed real MP3 and OGG canaries while bulk
+replay remains behind a separate spend gate. **Operators
 upgrading from any `0.4.x`/`0.5.x` should use the latest released version.**
 Today the repository gives you:
 

@@ -6,8 +6,8 @@ This file is the live operational snapshot. Durable rationale lives in `docs/llm
 ## Current Status
 
 - Last Updated: 2026-07-17 - GPT-5 Codex
-- Session Focus: **v0.14.2 fixes the transcript-result identity mismatch found
-  by the first live Media2Text completion.** D-023 supersedes the old
+- Session Focus: **v0.14.2 is deployed and the Plaud-to-Media2Text path is
+  proven with real MP3 and OGG recordings.** D-023 supersedes the old
   Media2Text-repository implementation gate without erasing D-022's producer
   review. Plaud Mirror owns `docs/contracts/` and remains complete with no
   destination. Optional destinations use capability test-before-enable,
@@ -19,14 +19,15 @@ This file is the live operational snapshot. Durable rationale lives in `docs/llm
   pins all five schema bytes, and defers neutral Content Intake extraction
   until a live canary plus a second real processing profile. The patch also
   serializes Restore across the full deletion window and requires explicit
-  confirmation before a second paid destination is enabled. Runtime v0.14.1 is
-  now deployed with one enabled Media2Text destination. The live canary proved
-  admission, authenticated immutable bytes, signed accepted/processing state,
-  provider pull, and transcript materialization, but its terminal callback was
-  rejected because Plaud compared the transcript `recordSha256` to the audio
-  SHA-256. v0.14.2 persists those hashes separately. Historical replay and
-  Cortex delivery remain disabled; Home Infra reconciliation follows the
-  successful terminal replay and deployment.
+  confirmation before a second paid destination is enabled. Runtime v0.14.2
+  from `a993936` has one enabled Media2Text destination and proved admission,
+  authenticated immutable bytes, signed/pull status, provider transcription,
+  terminal callback, distinct source/transcript hashes, and lease release. Five
+  deliveries are tracked: three transcribed and two retained failed canaries.
+  Home Infra 0.7.6 release `bb350ea` is synchronized and Infra Portal 0.20.3
+  observes Plaud `ok/none` at 627/627. Historical replay remains blocked at 622
+  recordings / 608.0074 hours / estimated USD 335.62. Cortex delivery remains
+  disabled pending a frozen consumer contract.
 - Previous Session Focus: **v0.13.1 shutdown hardening is deployed and reconciled.** The scheduler now
   makes `stop()` terminal for callbacks already queued in the event loop, and
   every HTTP app test registers unconditional cleanup. Production runs clean
@@ -161,11 +162,13 @@ This is now verified on the actual `dev-vm`, not assumed.
 
 ## Verified Runtime State
 
-- Container `plaud-mirror-plaud-mirror-1` is up and Docker healthy on `dev-vm`, port `3040` bound, running Plaud Mirror 0.13.1 from source `d00ca3e`.
-- `GET /api/health` returns `200` with auth healthy against the EU Plaud API, PT15M enabled, `warnings: []`, empty outbox, no active run, and exact coverage `{ remoteTotal: 627, mirrored: 627, dismissed: 0, missing: 0, localOnly: 0, upstreamDeleted: 1 }` after scheduled run `4bc81d89-cb60-44bc-a0b5-02e3aaba0094`.
-- `GET /api/protocol/sync-jobs/plaud-mirror-recordings-sync/status` returns `version: "0.13.1"`, a future scheduler-owned `next_run_at`, `condition: "ok"`, `severity: "none"`, and summary "Plaud Mirror sync ok: 627/627 recording(s) mirrored." The historical deletion is reported separately as a confirmed local tombstone.
-- SQLite contains one current generation with 627 physically verified artifact rows plus one historical tombstone. `PRAGMA integrity_check` is `ok`; the pre-deploy backup is `runtime/data/app.db.backup-20260716T195327Z-v0131-pre-shutdown-hardening`.
-- Home Infra 0.6.10 input release 015d7ee is synchronized to NAS. Infra Portal 0.20.2 provenance reports Home Infra 015d7ee and Plaud Mirror `d00ca3e` with no warnings; the Plaud observation is current `ok/none` at 627/627, not stale, and carries `nextRunAt`.
+- Container `plaud-mirror-plaud-mirror-1` is up and Docker healthy on `dev-vm`, port `3040` bound, running Plaud Mirror 0.14.2 from source `a993936`.
+- `GET /api/health` returns `200` with operator and Plaud auth healthy, PT15M enabled, `warnings: []`, and exact coverage `{ remoteTotal: 627, mirrored: 627, dismissed: 0, missing: 0, localOnly: 0, upstreamDeleted: 1 }`.
+- `GET /api/protocol/sync-jobs/plaud-mirror-recordings-sync/status` returns `version: "0.14.2"`, a future scheduler-owned `next_run_at`, `condition: "ok"`, and `severity: "none"`.
+- SQLite contains one current generation with 627 physically verified artifact rows plus one historical tombstone. `PRAGMA integrity_check` is `ok`; the v0.14.2 pre-canary backup is `runtime/data/app.db.backup-20260717T114124Z-v0142-pre-transcript-identity` with SHA-256 `79a3dbf2bdf313ab8928b00e5eb47e7e7426f9f470bb31b9704c5a8aa241a610`.
+- Destination `76fe2f64-61e0-402f-997c-e2a9aba7d921` is enabled and primary. Five deliveries are tracked: three `transcribed`, two retained `failed`, and no accepted artifact lease remains after the terminal callbacks.
+- The final provenance-correct OGG canary used recording `082298d30b32dfcfaa3fab312d9a36b7`, source SHA-256 `0f52872594aa61a3c4b522ad245d100ec7f95231750cdd98d9aa740bd8a778a9`, and transcript-record SHA-256 `d032644835480bfe174cd56940d3060341b91a269eca29a00fbd3849c087ec99`; both identities remain distinct and the delivery is terminal `transcribed`.
+- Home Infra 0.7.6 release `bb350ea` is synchronized to NAS. Infra Portal 0.20.3 provenance mounts Plaud `a993936` and Media2Text `3cf1539` with no warnings; the Plaud observation is current `ok/none` at 627/627 and carries `nextRunAt`.
 - Bearer token saved via the web UI, auth validated with `/user/me`, encrypted at rest, survives restarts.
 - Manual sync and filtered backfill exercised against live Plaud. Latest confirmed sync run `5a970a84-3f44-4602-b727-3d1d12179349` examined 514 Plaud recordings, matched/downloaded 165 missing local audio files, skipped webhook enqueue because no webhook is configured, and completed without error; `plaudTotal` + stable `#N` ranks populate correctly.
 - Device catalog populates after sync via `/device/list`; the backfill selector renders operator nicknames.
@@ -176,6 +179,12 @@ This is now verified on the actual `dev-vm`, not assumed.
 
 ## What Is Still Not Verified
 
+- **Standalone live conformance probe.** The executable probe intentionally
+  mutates a source item identity to verify conflict handling; running it against
+  the production Plaud item would create an orphan callback identity. The real
+  canaries plus automated tests covered capabilities, admission, duplicate and
+  conflict semantics, push/pull status, and terminal release without invoking
+  that unsafe production-only mutation.
 - **Real webhook delivery against a live downstream receiver.** No webhook URL has been configured in this environment yet; all recordings carry `lastWebhookStatus: "skipped"` because the service short-circuits when no URL is set. Once a receiver exists, confirm HMAC signature verification and persisted delivery attempts end-to-end.
 - **Post-v0.13.0 multi-day scheduler behavior.** Earlier PT15M soak evidence remains useful, but this protocol release restarted the container. Accumulate another 3-5 days of clean `recentSyncRuns`, Docker health, exact coverage, outbox counters, Portal freshness, and honest next-run advancement before closing the current soak gate.
 - **Durable webhook outbox.** Shipped in `v0.5.3` with 11 deterministic tests (FSM transitions, atomic claim, exponential backoff, monotonic `deliveryAttempt`, `MAX_ATTEMPTS` escalation, unconfigured-webhook escalation, HTTP shape including 400 / 404 / 409 guards). Pending: a live multi-day soak run that exercises a real downstream — every test path uses an injected `webhookFetchImpl`.
@@ -198,13 +207,10 @@ This is now verified on the actual `dev-vm`, not assumed.
 
 ## Open Work
 
-- **Transcription provider conformance gate (D-023/D-024, v0.14.2 source):** the
-  producer changes requested in D-022 are implemented in Plaud Mirror's own
-  neutral contract and runtime. Media2Text 0.39.1 exposes the exact
-  capabilities/admission/status surface and a live MP3 reached `transcribed`
-  through pull. Deploy v0.14.2 and replay that already-signed terminal event so
-  the delivery stores the transcript hash and releases its lease. Historical
-  batches remain gated by an explicit duration/cost estimate.
+- **Historical transcription replay:** the provider conformance gate is closed
+  for Media2Text 0.39.3. The remaining 622 recordings total 8,991,692,398 bytes
+  and 608.0074 hours, estimated at USD 335.62 using the configured Deepgram
+  rate. No batch starts without a separate operator budget and batch-size GO.
 - **Adapt the D-019 capture path to Plaud's first-party token model (queued 2026-07-13; do NOT start mid-soak):** when `pld_tokenstr` is absent, the Chrome extension should capture the `pld_ut`/`pld_urt` cookie pair (via the `chrome.cookies` API) and the backend should learn the mint/refresh lifecycle (`POST /user-app/auth/workspace/token/{id}`, `POST /auth/refresh-user-token` — endpoint facts from MIT applaud v0.5.11; see the D-019 amendment). Storing a refresh token pulls the scrypt KDF upgrade (H2, below) into the same slice. Upside: first credible fully-unattended renewal path for the Google-SSO account.
 - **D-018 ARMED (2026-06-11).** The operator stored the passphrase via `scripts/set-admin-passphrase.sh` (Doppler `plaud-mirror/dev` in the secondary "Startup Embassy" account; repo dir scoped via `doppler login --scope ~/src/plaud-mirror`; multi-account convention in `~/src/home-infra/docs/CONVENTIONS.md`) and restarted with the doppler-wrapped `up -d`. Verified: `/api/session` → `authRequired: true`, `/api/config` and audio routes → 401 without cookie (local AND through `https://plaud.lamanoriega.com/`), `userSummary` redacted, access-control warning gone from `health.warnings`, panel login works. **Operational rule from now on: every container recreate must be `doppler run --project plaud-mirror --config dev -- docker compose up -d`** — a bare `up -d` disarms the lock (see DEPLOY_PLAYBOOK). Optional future hardening: a gitignored compose override file on this host making the env var required.
 - File downstream feedback to LLM-DocKit about the clobber-on-sync pattern: `dockit-sync --apply` overwrites scripts that carry local extensions (`copy` strategy), forcing a manual re-merge every sync (happened 2026-05-13, 2026-06-10 with v0.6.1, 2026-06-18 before v0.9.3, and again during the v0.9.6 sync on 2026-06-19). Proposal: a `merge`/`copy-with-markers` strategy for `scripts/dockit-validate-session.sh` and version scripts, or upstream absorption of the local checks (DF-028 already covers `scripts/check-prose-drift.sh`).
@@ -236,9 +242,11 @@ The six items GPT-5 flagged in the 2026-04-23 review are closed:
 2. Observe the post-deploy PT15M runtime for 3-5 days through `recentSyncRuns`,
    scheduler status, Docker health, outbox counters, and Infra Portal freshness;
    then run the live webhook drill before claiming the Phase 3 exit gate.
-3. Publish and deploy v0.14.2, then reconcile the already-completed Media2Text
-   intake to terminal without retranscribing or spending again.
-4. Keep bulk replay behind its separate duration/cost GO. Keep D-019
+3. ~~Publish and deploy v0.14.2, then reconcile the Media2Text path through a
+   terminal callback and lease release.~~ Done 2026-07-17 from `a993936`; MP3
+   and final OGG canaries are terminal and Home Infra 0.7.6 is synchronized.
+4. Keep the 622-item / estimated USD 335.62 bulk replay behind its separate
+   duration/cost GO. Keep D-019
    cookie/refresh adaptation plus scrypt as the next auth hardening slice.
 
 ## Open Questions
@@ -274,11 +282,13 @@ Do not collapse those phases casually.
 
 ## Next Session
 
-- The stack is deployed at v0.14.1 from clean source `d393a0c`. Rebuild only with
+- The stack is deployed at v0.14.2 from clean source `a993936`. Rebuild only with
   `doppler run --project plaud-mirror --config dev -- docker compose up -d --build`.
-- Deploy v0.14.2, verify the successful delivery stores distinct audio and
-  transcript hashes, then synchronize Home Infra. Do not start historical
-  replay; it still requires a separate cost approval.
+- Do not start historical replay until the operator explicitly approves the
+  622-item / 608.0074-hour / estimated USD 335.62 envelope and a bounded batch.
+- Do not extract the future neutral Content Intake protocol yet. D-024's live
+  canary trigger is satisfied, but no second structurally different processing
+  profile exists.
 - If Docker Hub pulls time out on `dev-vm`, the Dockerfile still accepts `PLAUD_MIRROR_DOCKER_BUILD_IMAGE` and `PLAUD_MIRROR_DOCKER_RUNTIME_IMAGE` build-arg overrides. Valid fallbacks: a locally cached Node slim/alpine image from another project, a home-infra-local registry mirror (see the open registry-mirror item in `~/src/home-infra/docs/PROJECTS.md`), or a side-loaded `node:20-bookworm-slim` via `docker save`/`docker load`. Do **not** substitute a pentesting distribution such as `vxcontrol/kali-linux:latest` — it inflates the attack surface, bloats the image, and ships tooling that has no place in a Plaud mirror's runtime.
 - Verify the protocol status endpoint during the soak:
   `curl -fsS http://127.0.0.1:3040/api/protocol/sync-jobs/plaud-mirror-recordings-sync/status`
@@ -307,14 +317,12 @@ Do not collapse those phases casually.
   artifact auth and Range delivery, crash recovery, idempotency conflicts,
   exact coverage beyond 1,000 recordings, HTTP credential separation, and a
   provider-neutral panel. Governance checks report
-  `scripts/dockit-validate-session.sh --human` passes all 12 checks with the
-  expected external-trigger warning (sibling docs are intentionally deferred
-  until an authorized deployment),
+  `scripts/dockit-validate-session.sh --human` passes all 12 checks,
   `scripts/check-version-sync.sh` 23 targets, and
   `scripts/test-validator.sh` 32/32 smoke cases.
 - A read-only SHA-256 benchmark over 100 real audio artifacts processed
   1,411,854,536 bytes in 62.60 seconds (about 22.6 MB/s) with low I/O/CPU
-  priority. The current 8,991,884,414-byte corpus is therefore a bounded
+  priority. The current 8,991,692,398-byte remaining corpus is therefore a bounded
   minutes-scale hash backfill; no Plaud re-download or runtime mutation is
   required. Automated browser gates at 1440x1000 and 390x844 verified the new
   configured/add-destination states, zero horizontal overflow, labelled form
@@ -325,15 +333,15 @@ Do not collapse those phases casually.
 ## Trace Anchor
 
 - Role: executor
-- Subject: Fix transcript result identity after the live Media2Text canary
-- Release target: Plaud Mirror 0.14.2 source; deployment remains 0.14.1.
-- Repo state: patch under validation; one Media2Text destination is enabled,
-  three bounded attempts are recorded, and historical replay has not started.
-- Validation: 207/207 tests, build and typecheck pass; full release validators
-  run before publication.
-- Next gate: publish and deploy 0.14.2, reconcile the already-transcribed MP3
-  to terminal, verify lease release, then synchronize Home Infra. Historical
-  replay remains a later explicit cost gate.
+- Subject: Close the live Plaud Mirror to Media2Text canary and infra evidence
+- Release target: Plaud Mirror 0.14.2 deployed from `a993936`.
+- Repo state: one Media2Text destination is enabled; five deliveries are
+  tracked (three transcribed, two retained failed); historical replay has not
+  started.
+- Validation: 207/207 tests, build/typecheck, contract, audit, version,
+  validator, live auth/scheduler/canaries, and Home Infra provenance pass.
+- Next gate: operator approves a bounded replay budget or continues with D-019
+  auth hardening. Cortex delivery remains a separate consumer-contract gate.
 
 ## Key Decisions (Links)
 
