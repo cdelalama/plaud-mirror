@@ -358,7 +358,6 @@ export class TranscriptionService {
       || event.source.collectionId !== this.store.getOrCreateTranscriptionCollectionId()
       || event.source.itemId !== delivery.recordingId
       || event.source.artifactRevision !== delivery.artifactRevision
-      || (event.recordSha256 && event.recordSha256 !== delivery.sha256)
     ) {
       throw createHttpError(409, "Status event identity conflicts with the admitted delivery");
     }
@@ -373,6 +372,7 @@ export class TranscriptionService {
         receivedAt,
         state: event.status,
         transcriptId: event.transcriptId ?? null,
+        transcriptRecordSha256: event.recordSha256 ?? null,
         error: event.error?.code ?? null,
         occurredAt: event.occurredAt,
       });

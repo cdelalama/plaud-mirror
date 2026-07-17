@@ -93,6 +93,7 @@ test("neutral transcription canary pins audio, admits it, and applies a signed t
   const applied = await harness.service.receiveStatus(created.destination.id, event, headers);
   assert.equal(applied.delivery.state, "transcribed");
   assert.equal(applied.delivery.transcriptId, "transcript-one");
+  assert.equal(applied.delivery.transcriptRecordSha256, "f".repeat(64));
   assert.equal(applied.deduplicated, false);
   assert.equal((await harness.service.receiveStatus(created.destination.id, event, headers)).deduplicated, true);
   await assert.rejects(() => access(artifact.path), /ENOENT/);
@@ -332,7 +333,7 @@ function makeStatusEvent(
     status,
     occurredAt: new Date().toISOString(),
     transcriptId: status === "transcribed" ? "transcript-one" : null,
-    recordSha256: payload.artifact.sha256,
+    recordSha256: "f".repeat(64),
     error: status === "failed" ? { code: "transcription_failed" } : null,
   };
 }

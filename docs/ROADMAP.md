@@ -1,4 +1,4 @@
-<!-- doc-version: 0.14.1 -->
+<!-- doc-version: 0.14.2 -->
 # Plaud Mirror Roadmap
 
 This document is the canonical phase boundary for Plaud Mirror. If implementation scope starts to cross a phase boundary, update this document before claiming the work is part of the current phase.
@@ -12,16 +12,17 @@ This document is the canonical phase boundary for Plaud Mirror. If implementatio
 
 ## Current Target
 
-- Current deployed release: `v0.13.1` from runtime source `d00ca3e`; shutdown
-  hardening and Home Infra reconciliation are complete.
+- Current deployed release: `v0.14.1` from runtime source
+  `d393a0cefa17dfc4788294ef9bb5e5a89ed0f6b4`; the Media2Text destination is
+  configured and enabled, while historical replay remains blocked.
 - Current operational gate: preserve the deployed runtime while it accumulates
   3-5 days of post-release PT15M evidence, then run the separately authorized
   live webhook drill before closing Phase 3.
-- Next product contract gate: `v0.14.1` publishes the byte-pinned Plaud Mirror
-  Transcription Intake v1 Compatibility Profile per D-023/D-024. Media2Text is the first intended
-  compatible provider, not a Plaud Mirror dependency. Source publication does
-  not authorize a live destination, canary, or historical replay; those wait
-  for provider conformance and separate operator authorization.
+- Current product contract gate: `v0.14.2` separates the provider transcript
+  record hash from the source audio hash after the first live completion
+  exposed the incorrect comparison. Media2Text is the first compatible
+  provider, not a Plaud Mirror dependency. Historical replay still requires a
+  separate operator-approved duration/cost estimate.
 - Pre-soak hardening: `v0.10.2` established trustworthy evidence; `v0.10.3`
   adds atomic downloads, physical reconciliation, per-candidate failure
   isolation, and explicit backfill conflicts. `v0.10.4` completes execution
@@ -65,9 +66,12 @@ This document is the canonical phase boundary for Plaud Mirror. If implementatio
 - `v0.14.1` closes the pre-canary integrity and governance gate with a
   byte-pinned manifest, executable provider probe, full-window delete/restore
   serialization, and explicit second-destination cost confirmation.
-- Current phase: **Phase 6; `v0.14.1` source is the standalone-compatible
-  Transcription Intake implementation, while the deployed `v0.13.1` Phase 3
-  soak and live generic-webhook gate remain pending and independent**
+- `v0.14.2` fixes transcript-result identity after the first live Media2Text
+  completion: `recordSha256` is transcript provenance, while
+  `source.artifactRevision` remains the source-audio integrity identity.
+- Current phase: **Phase 6; `v0.14.2` is the live-canary compatibility patch,
+  while bulk transcription replay and the independent generic-webhook soak
+  gate remain pending**
 - Deployment target: `dev-vm` first
 - Phase 3 entry: `v0.5.0` introduced the in-process scheduler (D-012) and partial health observability (D-014, scheduler subset) but shipped two regressions; `v0.5.1` fixed both. `v0.5.2` made the scheduler panel-driven (SQLite-persisted, hot-applied via `SchedulerManager`). `v0.5.3` shipped the **durable webhook outbox** (D-013). `v0.5.5` shipped **D-014 full** — `lastErrors` ring buffer and `recentSyncRuns` on `/api/health`. `v0.6.0` is the **Phase 3 hardening release** forced by the 2026-06-10 security review: operator access control (D-018), startup crash recovery (D-013 amendment), and Plaud client timeouts. `v0.6.1`–`v0.6.3` were governance/tooling patches. `v0.7.0` opened **Phase 4** with browser-assisted Plaud re-auth (D-019): a panel-initiated capture session plus bookmarklet, chosen over credentials-login (not applicable: Google-SSO account) and over the official OAuth/MCP (deferred/watch, not disproven). `v0.7.1`–`v0.7.6` patched that bookmarklet path (popup timing, copy install, encoding, token type/region, public-error hygiene, masked-token guard, shorter visible marker). The decisive finding after those patches: a draggable `javascript:` `href` rendered by React is not a reliable delivery channel, because React replaces it with a safety throw before Chrome stores it as a bookmark. `v0.8.0` therefore ships a local Chrome companion extension as the recommended Phase 4 delivery surface; `v0.8.1` fixes the backend Plaud Web fingerprint required to validate the captured bearer. `v0.9.0` absorbs the standalone operator-panel reference (`docs/design/reference/plaud-mirror-panel-standalone.html`) into the real React/Vite app: five-screen rail UI, ES/EN operator chrome, Main/Operations observability, Library controls, live Backfill preview, and Configuration re-auth polish. `v0.9.1` keeps that UI but removes the presentation-card shell so the operator panel fills the viewport on wide monitors. `v0.9.2` fixes the Main cockpit's sync action so it downloads the displayed missing count instead of inheriting the Backfill form's conservative `limit=1`. `v0.9.3` is a governance/tooling patch that merges DocKit trace-protocol support while preserving Plaud Mirror's local validator guardrails. `v0.9.4` fixes Library Compact playback, Full-mode player width, and list scrolling inside the full-viewport shell. `v0.9.5` fixes the mobile operator shell: labeled view selector, compact status chips, and right-aligned Library row actions. `v0.9.6` is a governance/tooling sync to LLM-DocKit 4.9.6: Trace v1.3 chat seconds, flexible HISTORY format validation, expanded version marker handlers, preserved local validator guardrails, and package-lock version enforcement. `v0.10.0` opens **Phase 5** by adopting `home-infra-protocol` for Plaud recording sync: `infra.contract.yml` declares `plaud-mirror-recordings-sync`, the API publishes a sanitized status snapshot, and Home Infra can register the job for Infra Portal/Hermes consumers. `v0.10.1` fixes a sync progress summary bug where disabled-webhook delivery state was counted as skipped sync candidates. Operators upgrading from `0.4.x`/`0.5.x` should go directly to `v0.10.1`.
 

@@ -187,6 +187,7 @@ export const MediaDeliverySchema = z.object({
   state: MediaDeliveryStateSchema,
   intakeId: identifierSchema.nullable(),
   transcriptId: identifierSchema.nullable(),
+  transcriptRecordSha256: sha256Schema.nullable(),
   lastError: z.string().nullable(),
   failureStage: z.enum(["admission", "processing"]).nullable(),
   retryable: z.boolean(),

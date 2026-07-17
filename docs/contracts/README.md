@@ -99,8 +99,10 @@ Delivery is at least once. A provider must tolerate a crash after durable
 admission but before the producer receives the response. Status transitions are
 monotonic: `accepted -> processing -> transcribed|failed`; states may skip
 forward but never regress. Push events are deduplicated by `eventId`, and pull
-reconciliation is authoritative only when the complete source identity and
-optional `recordSha256` match.
+reconciliation is authoritative only when the complete source identity
+matches. The optional transcript `recordSha256` is persisted separately. Audio
+identity is validated by `source.artifactRevision`; a transcript record hash
+must never be compared with the source audio hash.
 
 An explicit re-transcription of a terminal artifact is provider-owned. Reposting
 the same intake is idempotent and does not request new processing.

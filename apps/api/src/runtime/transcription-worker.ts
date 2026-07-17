@@ -210,7 +210,6 @@ export class TranscriptionWorker {
         || status.source.collectionId !== this.store.getOrCreateTranscriptionCollectionId()
         || status.source.itemId !== delivery.recordingId
         || status.source.artifactRevision !== delivery.artifactRevision
-        || (status.recordSha256 && status.recordSha256 !== delivery.sha256)
       ) {
         throw new Error("Status reconciliation identity does not match the admitted delivery");
       }
@@ -218,6 +217,7 @@ export class TranscriptionWorker {
         deliveryId,
         state: status.status,
         transcriptId: status.transcriptId ?? null,
+        transcriptRecordSha256: status.recordSha256 ?? null,
         error: status.error?.code ?? null,
         occurredAt: status.occurredAt,
       });

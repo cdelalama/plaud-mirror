@@ -1,4 +1,4 @@
-<!-- doc-version: 0.14.1 -->
+<!-- doc-version: 0.14.2 -->
 # Project Context - Plaud Mirror
 
 ## Vision
@@ -26,10 +26,17 @@ Plaud Mirror is a server-first product with two runtime surfaces:
 
 Persistence is split between SQLite for state/indexes and the filesystem for mirrored audio artifacts. Secrets are encrypted at rest with a master key supplied by the surrounding deployment.
 
-## Current Status (2026-07-17, v0.14.1 source / v0.13.1 deployed)
+## Current Status (2026-07-17, v0.14.2 source / v0.14.1 deployed)
 
-`v0.14.1` source hardens the D-023 implementation without changing the deployed
-soak runtime. Plaud Mirror owns a provider-neutral Transcription Intake v1
+`v0.14.2` source repairs the final mismatch found by the first live Media2Text
+canary. The deployed `v0.14.1` runtime admitted and served immutable source
+bytes correctly, received accepted and processing callbacks, and observed a
+successful transcript through provider pull. It then rejected the terminal
+callback because it compared the transcript record hash with the source audio
+hash. The patch persists both identities separately and keeps the source
+revision check as the audio-integrity boundary.
+
+Plaud Mirror owns a provider-neutral Transcription Intake v1
 compatibility profile and
 optional delivery lane: exact-origin capability discovery, separate encrypted
 machine credentials, content-addressed artifact leases, durable admission,
@@ -38,11 +45,11 @@ an executable conformance probe, and an Integrations screen. D-024 preserves a
 future neutral Content Intake direction without prematurely creating a third
 protocol repository. A destination-free instance remains healthy and
 fully functional; the generic webhook remains separate. Media2Text is the
-first intended compatible provider, not a build/runtime/storage dependency.
+first compatible provider, not a build/runtime/storage dependency.
 Restore is now serialized against the full permanent-deletion window, and a
-second enabled destination requires explicit cost confirmation. No provider,
-canary, replay, deployment, Home Infra, Cortex, or sibling change is part of
-this source patch.
+second enabled destination requires explicit cost confirmation. Historical
+replay remains blocked; the live backlog is 627 eligible recordings and must
+receive a separate duration/cost approval before any batch is sent.
 
 Plaud Mirror `v0.13.1` hardens scheduler shutdown after independent audit:
 `stop()` now prevents an already-queued callback from rearming or running

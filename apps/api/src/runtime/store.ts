@@ -134,6 +134,7 @@ interface MediaDeliveryRow {
   state: string;
   intake_id: string | null;
   transcript_id: string | null;
+  transcript_record_sha256: string | null;
   last_error: string | null;
   failure_stage: "admission" | "processing" | null;
   created_at: string;
@@ -1548,9 +1549,10 @@ export class RuntimeStore {
         INSERT INTO media_deliveries (
           id, destination_id, recording_id, recording_title,
           artifact_revision, sha256, bytes, state, intake_id, transcript_id,
+          transcript_record_sha256,
           last_error, failure_stage, next_reconcile_at, reconcile_attempts,
           created_at, updated_at, terminal_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', NULL, NULL, NULL, NULL, NULL, 0, ?, ?, NULL)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', NULL, NULL, NULL, NULL, NULL, NULL, 0, ?, ?, NULL)
       `).run(
         deliveryId,
         input.destinationId,
@@ -1883,6 +1885,7 @@ export class RuntimeStore {
     receivedAt: string;
     state: "accepted" | "processing" | "transcribed" | "failed";
     transcriptId?: string | null;
+    transcriptRecordSha256?: string | null;
     error?: string | null;
     occurredAt: string;
   }): { deduplicated: boolean; delivery: MediaDelivery } {
@@ -1906,6 +1909,9 @@ export class RuntimeStore {
         deliveryId: input.deliveryId,
         state: input.state,
         ...(input.transcriptId !== undefined ? { transcriptId: input.transcriptId } : {}),
+        ...(input.transcriptRecordSha256 !== undefined
+          ? { transcriptRecordSha256: input.transcriptRecordSha256 }
+          : {}),
         ...(input.error !== undefined ? { error: input.error } : {}),
         occurredAt: input.occurredAt,
       });
@@ -1918,6 +1924,7 @@ export class RuntimeStore {
     deliveryId: string;
     state: "accepted" | "processing" | "transcribed" | "failed";
     transcriptId?: string | null;
+    transcriptRecordSha256?: string | null;
     error?: string | null;
     occurredAt: string;
   }): MediaDelivery {
@@ -1926,12 +1933,14 @@ export class RuntimeStore {
     const terminal = input.state === "transcribed" || input.state === "failed";
     this.db.prepare(`
       UPDATE media_deliveries
-      SET state = ?, transcript_id = COALESCE(?, transcript_id), last_error = ?,
+      SET state = ?, transcript_id = COALESCE(?, transcript_id),
+          transcript_record_sha256 = COALESCE(?, transcript_record_sha256), last_error = ?,
           failure_stage = ?, next_reconcile_at = ?, updated_at = ?, terminal_at = ?
       WHERE id = ?
     `).run(
       input.state,
       input.transcriptId ?? null,
+      input.transcriptRecordSha256 ?? null,
       input.error ?? null,
       input.state === "failed" ? "processing" : null,
       terminal ? null : new Date(new Date(input.occurredAt).getTime() + 5 * 60_000).toISOString(),
@@ -2243,6 +2252,7 @@ export class RuntimeStore {
         state TEXT NOT NULL CHECK (state IN ('pending','delivering','accepted','processing','transcribed','failed','conflict')),
         intake_id TEXT,
         transcript_id TEXT,
+        transcript_record_sha256 TEXT,
         last_error TEXT,
         failure_stage TEXT CHECK (failure_stage IN ('admission','processing') OR failure_stage IS NULL),
         next_reconcile_at TEXT,
@@ -2331,6 +2341,9 @@ export class RuntimeStore {
     const mediaDeliveryColumns = this.db.prepare("PRAGMA table_info(media_deliveries)").all() as Array<{ name: string }>;
     if (!mediaDeliveryColumns.some((column) => column.name === "failure_stage")) {
       this.db.exec("ALTER TABLE media_deliveries ADD COLUMN failure_stage TEXT CHECK (failure_stage IN ('admission','processing') OR failure_stage IS NULL)");
+    }
+    if (!mediaDeliveryColumns.some((column) => column.name === "transcript_record_sha256")) {
+      this.db.exec("ALTER TABLE media_deliveries ADD COLUMN transcript_record_sha256 TEXT");
     }
 
     this.seedLegacyUpstreamDeletionOperations();
@@ -2461,6 +2474,7 @@ function mapMediaDeliveryRow(row: MediaDeliveryRow): MediaDelivery {
     state: row.state as MediaDeliveryState,
     intakeId: row.intake_id,
     transcriptId: row.transcript_id,
+    transcriptRecordSha256: row.transcript_record_sha256,
     lastError: row.last_error,
     failureStage: row.failure_stage,
     retryable: row.state === "conflict" || (row.state === "failed" && row.failure_stage === "admission"),

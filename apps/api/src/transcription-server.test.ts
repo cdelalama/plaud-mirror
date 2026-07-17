@@ -206,7 +206,7 @@ test("transcription HTTP routes separate operator, intake, artifact, and status 
     status: "transcribed",
     occurredAt: new Date().toISOString(),
     transcriptId: "http-transcript",
-    recordSha256: payload.artifact.sha256,
+    recordSha256: "f".repeat(64),
     error: null,
   };
   const timestamp = new Date().toISOString();
@@ -225,6 +225,7 @@ test("transcription HTTP routes separate operator, intake, artifact, and status 
   });
   assert.equal(statusResponse.statusCode, 202);
   assert.equal(statusResponse.json().delivery.state, "transcribed");
+  assert.equal(statusResponse.json().delivery.transcriptRecordSha256, "f".repeat(64));
   assert.equal((await app.inject({
     method: "GET",
     url: artifactUrl,

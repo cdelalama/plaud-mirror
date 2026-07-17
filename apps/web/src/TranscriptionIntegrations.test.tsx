@@ -96,6 +96,7 @@ function makeDelivery(
     state,
     intakeId: state === "failed" ? "intake-failed" : null,
     transcriptId: null,
+    transcriptRecordSha256: null,
     lastError: "synthetic failure",
     failureStage,
     retryable,

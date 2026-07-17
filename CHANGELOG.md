@@ -4,6 +4,22 @@ All notable changes to Plaud Mirror are documented in this file.
 
 This project follows Semantic Versioning (SemVer): MAJOR.MINOR.PATCH.
 
+## [0.14.2] - 2026-07-17
+
+### Added
+
+### Changed
+
+- Persist the provider's transcript record hash separately from the immutable
+  source-audio hash on each delivery.
+
+### Fixed
+
+- Accept signed terminal transcription status when `recordSha256` identifies
+  the generated transcript record. The previous implementation incorrectly
+  compared it with the source audio SHA-256 and rejected every successful
+  Media2Text completion with HTTP 409.
+
 ## [0.14.1] - 2026-07-17
 
 ### Added
