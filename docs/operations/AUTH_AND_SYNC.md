@@ -1,4 +1,4 @@
-<!-- doc-version: 0.14.0 -->
+<!-- doc-version: 0.14.1 -->
 # Authentication and Sync Operations
 
 This runbook defines the live behavior of Plaud Mirror's auth and sync surface. Phase 2 is fully shipped. Phase 3 added the scheduler, durable outbox, health observability, and access/recovery timeouts. `v0.10.3` makes artifact integrity truthful; `v0.10.4` makes scheduler completion, runtime ceilings, outbox recovery, pagination, and shutdown truthful before the soak. Resumable backfill and fully unattended re-login stay deferred.
@@ -23,7 +23,7 @@ Storage convention (v0.6.2): the passphrase lives in Doppler at `plaud-mirror/de
 
 When the variable is unset, the API runs open (pre-0.6.0 behavior) and `health.warnings` carries "Operator access control is disabled — set PLAUD_MIRROR_ADMIN_PASSPHRASE..." so the gap is never silent. Given the service is published through `edge-caddy` at `https://plaud.lamanoriega.com/` and `compose.yml` binds `3040:3040` on the LAN, running without the passphrase is NOT recommended.
 
-## Optional Transcription Destination Auth (D-023, v0.14.0)
+## Optional Transcription Destination Auth (D-023/D-024, v0.14.1)
 
 The Integrations screen provisions credentials per destination. None are
 environment variables and none are shared with Plaud, the operator session, or
@@ -39,6 +39,11 @@ Destination creation is always disabled. A successful exact-contract
 capability probe is required before enable. HTTPS is mandatory except for
 loopback development. Exact origins contain no path, query, fragment, or
 embedded credentials.
+
+When another destination is already enabled, enabling an additional one
+requires `confirmAdditionalCost: true` and an explicit panel confirmation.
+This guard is enforced at the API boundary because parallel destinations can
+duplicate paid transcription work.
 
 The artifact route authorizes the tuple `destinationId + bearer + active
 sha256 lease`; knowing a hash or URL is insufficient. Disabling a destination

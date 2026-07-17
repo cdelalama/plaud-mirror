@@ -1,4 +1,4 @@
-<!-- doc-version: 0.14.0 -->
+<!-- doc-version: 0.14.1 -->
 # Repository Structure Guide
 
 This document describes the actual Plaud Mirror repository layout as of the first usable Phase 2 slice.
@@ -73,11 +73,13 @@ plaud-mirror/
 | `packages/shared/` | Shared Zod schemas and TypeScript contracts | Source of truth for Plaud, runtime payloads, and protocol status snapshots |
 | `infra.contract.yml` | Home Infra Protocol project contract | Declares `plaud-mirror-recordings-sync` for Home Infra / Infra Portal consumers |
 | `docs/INFRA_CONTRACT.md` | Human explanation of `infra.contract.yml` | Explains producer/consumer boundary and status snapshot semantics |
-| `docs/contracts/` | Provider-neutral Transcription Intake v1 | Published JSON Schemas, lifecycle/auth semantics, and conformance gate; Media2Text is a prospective implementation, not an import |
+| `docs/contracts/` | Plaud Mirror Transcription Intake v1 Compatibility Profile | Published JSON Schemas, byte-pinned manifest, lifecycle/auth semantics, and conformance gate; Media2Text is a prospective implementation, not an import |
 | `docs/design/reference/` | Visual reference artifacts | `plaud-mirror-panel-standalone.html` is the v0.9.0 operator-panel source reference |
 | `docs/visual-gates/0.11.0/` | Deployed UI evidence | Desktop and Android captures of the dismissed-only permanent Plaud deletion action; no action was invoked during capture |
 | `tests/integration/` | Post-build integration smoke tests | Exercises built API and web artifacts |
 | `scripts/run-node-tests.mjs` | Automatic Node/integration test discovery | Recursively runs every compiled `*.test.js` and integration `*.test.mjs` file |
+| `scripts/check-transcription-contract.mjs` | Local profile integrity check | Verifies every published schema byte against `docs/contracts/manifest.v1.json` |
+| `scripts/check-transcription-provider.mjs` | Executable provider probe | Exercises capability, admission, duplicate, conflict, and pull conformance against a real configured provider |
 | `.github/workflows/ci.yml` | Repository CI gate | Runs `npm test` on Node 20 for `main` and pull requests |
 | `docs/ROADMAP.md` | Canonical phase boundary document | Use this when scope questions appear |
 | `Dockerfile` | Single-container production image | Builds API and panel together |

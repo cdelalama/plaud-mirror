@@ -67,6 +67,7 @@ export const UpdateTranscriptionDestinationRequestSchema = z.object({
   statusSigningSecret: z.string().trim().min(16).max(2048).nullable().optional(),
   enabled: z.boolean().optional(),
   primary: z.boolean().optional(),
+  confirmAdditionalCost: z.boolean().optional(),
 }).strict();
 
 export const TranscriptionDestinationCreatedSchema = z.object({

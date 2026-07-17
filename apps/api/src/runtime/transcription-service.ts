@@ -111,6 +111,14 @@ export class TranscriptionService {
       if (!destinationSecrets.intakeCredential || !destinationSecrets.statusSigningSecret || !destinationSecrets.artifactAccessToken) {
         throw createHttpError(409, "Transcription destination credentials are incomplete");
       }
+      const anotherDestinationEnabled = this.store.listTranscriptionDestinations()
+        .some((destination) => destination.id !== id && destination.enabled);
+      if (anotherDestinationEnabled && parsed.confirmAdditionalCost !== true) {
+        throw createHttpError(
+          409,
+          "Enabling another transcription destination can duplicate processing costs; explicit confirmation is required",
+        );
+      }
     }
     const endpointChanged = parsed.baseUrl !== undefined && parsed.baseUrl !== current.baseUrl;
     const intakeCredentialChanged = parsed.intakeCredential !== undefined;

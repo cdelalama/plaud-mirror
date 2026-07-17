@@ -1,4 +1,4 @@
-<!-- doc-version: 0.14.0 -->
+<!-- doc-version: 0.14.1 -->
 # API Contract
 
 This document describes the HTTP and webhook surface that now exists in-repo. The current implementation covers the full Phase 2 slice plus the Phase 3 scheduler, durable webhook outbox, and full health observability. `v0.10.0` adds the `home-infra-protocol` sync-job surface; `v0.10.3` adds physical artifact reconciliation and explicit candidate failures; `v0.10.4` makes scheduler completion end-to-end truthful, exposes `health.outbox.delivering`, and enforces the one-hour whole-run ceiling; `v0.14.0` adds optional provider-neutral transcription delivery. The six-screen UI consumes the app routes; protocol routes are for Infra Portal/Hermes style consumers.
@@ -21,7 +21,7 @@ This document describes the HTTP and webhook surface that now exists in-repo. Th
 | `PUT` | `/api/config` | Update webhook URL, optional webhook secret, **and / or the scheduler interval**. All three fields are optional and independent — omit any to leave it unchanged. `schedulerIntervalMs` must be `0` (disable) or `≥ 60000`; sub-floor positives return HTTP 400. When this field changes, the live `Scheduler` is started / stopped / swapped to the new cadence in place via the `SchedulerManager` reconfigure hook. |
 | `GET` | `/api/transcription` | Operator overview of optional provider-neutral transcription destinations plus exact eligible/not-sent/pending/accepted/processing/transcribed/failed/conflict coverage. An empty destination list is healthy standalone operation. |
 | `POST` | `/api/transcription/destinations` | Create a disabled Transcription Intake v1 destination. Stores provider intake/status credentials encrypted and returns a new artifact bearer once. HTTP 201. |
-| `PATCH` | `/api/transcription/destinations/:id` | Rename, change exact origins/credentials, enable/disable, or make primary. Capability test is required before enable; provider origin or intake credential changes force disable/retest. |
+| `PATCH` | `/api/transcription/destinations/:id` | Rename, change exact origins/credentials, enable/disable, or make primary. Capability test is required before enable; provider origin or intake credential changes force disable/retest. Enabling while another destination is active requires `confirmAdditionalCost: true`. |
 | `POST` | `/api/transcription/destinations/:id/test` | Probe provider `GET /v1/intake-capabilities` with the scoped intake bearer and persist provider identity/error. |
 | `POST` | `/api/transcription/destinations/:id/rotate-artifact-token` | Revoke the old artifact bearer and reveal a replacement once. |
 | `GET` | `/api/transcription/destinations/:id/replay-preview` | Count all current-generation, physically verified eligible audio and remaining bytes/duration without hashing, enqueueing, downloading, or applying a 1,000-row count cap. |
@@ -44,7 +44,7 @@ This document describes the HTTP and webhook surface that now exists in-repo. Th
 | `GET` | `/api/outbox` | Return `{ items: OutboxItem[] }` with **only `permanently_failed` rows** from the durable webhook outbox (D-013). Pending, delivering, and retry-waiting work is visible through `health.outbox` counters. Empty array when the queue has no failed items. |
 | `POST` | `/api/outbox/:id/retry` | Reset a `permanently_failed` outbox row back to `pending` (clears `attempts` and `last_error`); the worker will re-attempt delivery on its next tick. Returns the updated `OutboxItem`. 400 on unsafe id shape, 404 on unknown id, 409 when the row is in any state other than `permanently_failed` (the FSM guard — the panel must not bypass `delivering` or restart `delivered` rows). |
 
-## Transcription Machine API (v0.14.0)
+## Transcription Machine API (v0.14.1)
 
 These routes are intentionally exempt from the operator cookie because a
 remote service calls them. They are never unauthenticated:
@@ -66,6 +66,9 @@ Schemas, idempotency semantics, credential separation, canonical HMAC input,
 identity, artifact lifetime, and conformance are normative in
 [`docs/contracts/README.md`](../contracts/README.md). The legacy
 `recording.synced` webhook below is unchanged and is not a transcription API.
+The exact profile bytes are pinned by `docs/contracts/manifest.v1.json` and
+verified with `npm run contract:check`; `npm run contract:conformance` probes a
+real provider before the live canary.
 
 ## Request Shapes
 

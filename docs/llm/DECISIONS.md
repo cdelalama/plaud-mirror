@@ -955,3 +955,38 @@ verification, signed terminal status, pull reconciliation, duplicate replay,
 conflict handling, and terminal lease release. Media2Text must adapt to the
 Plaud-owned contract or negotiate a versioned revision; Plaud Mirror does not
 silently code against another repository's draft.
+
+## D-024 - Treat Transcription Intake v1 as a compatibility profile and defer neutral extraction
+
+**Status:** accepted by operator on 2026-07-17.
+
+### Decision
+
+The contract shipped in D-023 is named **Plaud Mirror Transcription Intake v1
+Compatibility Profile**. It is provider-neutral at the transcriber boundary,
+but it is not presented as a universal content standard before any real
+provider canary has completed.
+
+Its reusable core is immutable source identity, representation hash and byte
+length, authenticated transfer, idempotent durable admission, monotonic
+status, and pull reconciliation. Audio MIME constraints, transcription states,
+and transcript result fields are profile-specific.
+
+A future neutral Content Intake Protocol is the intended extraction direction.
+Extraction occurs only after this profile passes a live canary and a second
+structurally distinct processing profile, such as OCR, becomes real. A second
+audio producer alone does not satisfy that trigger. Until then, Plaud Mirror
+publishes a byte-pinned schema manifest and an executable provider conformance
+probe; compatible transcribers implement the profile without changes to Plaud
+Mirror's core.
+
+### Implications
+
+- No new protocol repository is created in this slice.
+- Media2Text may preserve its internal intake domain and expose an additive
+  compatibility facade for this profile.
+- The eventual neutral protocol does not belong to Home Infra Protocol, whose
+  responsibility remains infrastructure discovery, sync status, and sanitized
+  operational telemetry rather than content transport.
+- Activating a second transcription destination requires explicit operator
+  confirmation because simultaneous destinations can duplicate paid work.

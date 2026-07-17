@@ -1,6 +1,6 @@
 {
   "name": "plaud-mirror",
-  "version": "0.14.0",
+  "version": "0.14.1",
   "private": true,
   "type": "module",
   "packageManager": "npm@11.6.2",
@@ -20,6 +20,8 @@
     "test:node": "node scripts/run-node-tests.mjs",
     "test:web": "npm run test --workspace @plaud-mirror/web",
     "typecheck:web": "tsc -p apps/web/tsconfig.json --noEmit",
+    "contract:check": "node scripts/check-transcription-contract.mjs",
+    "contract:conformance": "node scripts/check-transcription-provider.mjs",
     "spike": "npm run build:runtime && node apps/api/dist/cli/spike.js"
   },
   "devDependencies": {

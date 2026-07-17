@@ -1,9 +1,9 @@
-<!-- doc-version: 0.14.0 -->
+<!-- doc-version: 0.14.1 -->
 # Plaud Mirror Architecture
 
 > Version: 0.13.1 deployed and reconciled
-> Last Updated: 2026-07-16
-> Status: v0.13.1 prevents queued scheduler callbacks from rearming after stop and makes test-app cleanup unconditional. Production runs clean source `d00ca3e`; protocol scheduling evidence, cadence, freshness, deletion integrity, and soak/webhook gates are unchanged.
+> Last Updated: 2026-07-17
+> Status: v0.14.1 source adds pre-canary contract pinning/conformance, second-destination cost confirmation, and full-window delete/restore serialization. Production remains v0.13.1 from `d00ca3e` until the coordinated provider deployment.
 
 ## Overview
 
@@ -367,9 +367,9 @@ ordered by evidence and product contracts:
 
 1. **Close Phase 3 honestly:** leave deployed v0.13.1 untouched during the
    3-5 day PT15M soak, then run the separately authorized live webhook drill.
-2. **Publish without deploying v0.14.0:** Plaud Mirror now owns provider-neutral
-   Transcription Intake v1 and its standalone-compatible implementation. Keep
-   deployed v0.13.1 untouched until its soak/generic-webhook evidence closes.
+2. **Publish v0.14.1 before provider work:** Plaud Mirror owns a byte-pinned
+   Transcription Intake v1 compatibility profile, an executable conformance
+   probe, and its standalone-compatible producer implementation.
 3. **Prove one conforming provider:** Media2Text may become the first provider
    after capability discovery and the complete canary gate. Only then authorize
    bounded historical replay and verify source-to-transcript coverage.

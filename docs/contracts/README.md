@@ -1,9 +1,36 @@
-# Transcription Intake v1
+# Plaud Mirror Transcription Intake v1 Compatibility Profile
 
 Plaud Mirror is a standalone audio-mirroring product. Transcription is an
 optional integration over this provider-neutral network contract. Media2Text is
 the first planned compatible provider, not a runtime, package, storage, or
 deployment dependency.
+
+This is a Plaud Mirror compatibility profile, not yet a universal content
+intake standard. Consumers pin the exact schema bytes through
+`manifest.v1.json`; `npm run contract:check` verifies that pin. The executable
+provider probe is `npm run contract:conformance` and requires a real immutable
+intake fixture through these environment variables:
+
+```text
+TRANSCRIPTION_PROVIDER_URL=https://transcriber.example
+TRANSCRIPTION_INTAKE_CREDENTIAL=<provider-scoped bearer>
+TRANSCRIPTION_INTAKE_FIXTURE=/absolute/path/to/intake-template.json
+```
+
+The probe creates a unique source item from the template and verifies
+capability discovery, initial admission, duplicate replay, explicit conflict,
+and pull reconciliation. The live canary then verifies provider-side byte
+fetch/hash checks, signed push status, terminal state, and lease release.
+
+## Future Core And Profile Boundary
+
+The reusable core is immutable source identity, artifact hash and length,
+authenticated transport, idempotent admission, monotonic status, and
+reconciliation. Audio MIME restrictions, transcription lifecycle names, and
+transcript result fields belong to this transcription profile. A future neutral
+Content Intake Protocol may extract the core only after this profile completes
+a live canary and a second structurally different processing profile exists.
+Another audio producer alone does not trigger extraction.
 
 ## Provider Surface
 
@@ -104,6 +131,11 @@ A provider is compatible only after all of these pass:
 5. Duplicate intake and duplicate status-event replay.
 6. Explicit idempotency conflict and temporary 5xx recovery.
 7. Terminal artifact-lease release.
+
+Checks 1, 5 (intake replay/conflict), and pull reconciliation are executable
+through `npm run contract:conformance`. Checks involving Plaud Mirror's
+artifact and callback surfaces are covered by its integration tests and must
+also pass against the real provider during the one-audio live canary.
 
 Bulk historical replay remains operator-controlled and starts only after the
 canary gate. It uses already verified local audio and never re-downloads from

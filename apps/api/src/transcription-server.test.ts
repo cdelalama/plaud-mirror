@@ -21,7 +21,10 @@ test("transcription HTTP routes separate operator, intake, artifact, and status 
     transcriptionFetchImpl: async (input, init) => {
       const url = String(input);
       if (url.endsWith("/v1/intake-capabilities")) {
-        assert.equal(new Headers(init?.headers).get("authorization"), "Bearer destination-intake-credential");
+        assert.ok([
+          "Bearer destination-intake-credential",
+          "Bearer second-destination-intake-credential",
+        ].includes(new Headers(init?.headers).get("authorization") ?? ""));
         return jsonResponse({
           schemaVersion: "transcription.intake-capabilities.v1",
           provider: { name: "HTTP Test Transcriber", version: "1.0.0" },
@@ -94,6 +97,45 @@ test("transcription HTTP routes separate operator, intake, artifact, and status 
     payload: { enabled: true },
   });
   assert.equal(enabled.json().enabled, true);
+
+  const secondCreatedResponse = await app.inject({
+    method: "POST",
+    url: "/api/transcription/destinations",
+    headers: operatorHeaders,
+    payload: {
+      name: "Second HTTP Test Transcriber",
+      baseUrl: "http://127.0.0.1:4501",
+      artifactBaseUrl: "http://127.0.0.1:3040",
+      intakeCredential: "second-destination-intake-credential",
+      statusSigningSecret: "second-destination-status-secret",
+      enabled: false,
+      primary: false,
+    },
+  });
+  assert.equal(secondCreatedResponse.statusCode, 201);
+  const secondCreated = secondCreatedResponse.json();
+  const secondTest = await app.inject({
+    method: "POST",
+    url: `/api/transcription/destinations/${secondCreated.destination.id}/test`,
+    headers: operatorHeaders,
+  });
+  assert.equal(secondTest.json().ok, true);
+  const unconfirmedSecondEnable = await app.inject({
+    method: "PATCH",
+    url: `/api/transcription/destinations/${secondCreated.destination.id}`,
+    headers: operatorHeaders,
+    payload: { enabled: true },
+  });
+  assert.equal(unconfirmedSecondEnable.statusCode, 409);
+  assert.match(unconfirmedSecondEnable.json().message, /duplicate processing costs/);
+  const confirmedSecondEnable = await app.inject({
+    method: "PATCH",
+    url: `/api/transcription/destinations/${secondCreated.destination.id}`,
+    headers: operatorHeaders,
+    payload: { enabled: true, confirmAdditionalCost: true },
+  });
+  assert.equal(confirmedSecondEnable.statusCode, 200);
+  assert.equal(confirmedSecondEnable.json().enabled, true);
 
   const audioPath = join(environment.recordingsDir, "http-recording.mp3");
   await mkdir(environment.recordingsDir, { recursive: true });

@@ -4,6 +4,28 @@ All notable changes to Plaud Mirror are documented in this file.
 
 This project follows Semantic Versioning (SemVer): MAJOR.MINOR.PATCH.
 
+## [0.14.1] - 2026-07-17
+
+### Added
+
+- A byte-pinned contract manifest, local manifest verifier, and executable
+  provider probe for capability, admission, duplicate, conflict, and pull
+  conformance checks.
+
+### Changed
+
+- Name the existing wire contract honestly as the Plaud Mirror Transcription
+  Intake v1 Compatibility Profile and record the future neutral core/profile
+  extraction trigger in D-024.
+- Require explicit operator and API confirmation before enabling an additional
+  paid transcription destination.
+
+### Fixed
+
+- Block Restore throughout an in-flight permanent Plaud deletion, including
+  the pre-journal network window, so concurrent requests cannot resurrect a
+  recording while its upstream deletion continues.
+
 ## [0.14.0] - 2026-07-16
 
 ### Added

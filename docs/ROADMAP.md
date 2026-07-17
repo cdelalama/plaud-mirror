@@ -1,4 +1,4 @@
-<!-- doc-version: 0.14.0 -->
+<!-- doc-version: 0.14.1 -->
 # Plaud Mirror Roadmap
 
 This document is the canonical phase boundary for Plaud Mirror. If implementation scope starts to cross a phase boundary, update this document before claiming the work is part of the current phase.
@@ -17,8 +17,8 @@ This document is the canonical phase boundary for Plaud Mirror. If implementatio
 - Current operational gate: preserve the deployed runtime while it accumulates
   3-5 days of post-release PT15M evidence, then run the separately authorized
   live webhook drill before closing Phase 3.
-- Next product contract gate: `v0.14.0` publishes provider-neutral
-  Transcription Intake v1 per D-023. Media2Text is the first intended
+- Next product contract gate: `v0.14.1` publishes the byte-pinned Plaud Mirror
+  Transcription Intake v1 Compatibility Profile per D-023/D-024. Media2Text is the first intended
   compatible provider, not a Plaud Mirror dependency. Source publication does
   not authorize a live destination, canary, or historical replay; those wait
   for provider conformance and separate operator authorization.
@@ -62,7 +62,10 @@ This document is the canonical phase boundary for Plaud Mirror. If implementatio
   bounded historical replay, exact coverage, and an Integrations UI. Existing
   standalone and generic-webhook behavior remains unchanged. Media2Text must
   implement this contract before live use.
-- Current phase: **Phase 6; `v0.14.0` source is the standalone-compatible
+- `v0.14.1` closes the pre-canary integrity and governance gate with a
+  byte-pinned manifest, executable provider probe, full-window delete/restore
+  serialization, and explicit second-destination cost confirmation.
+- Current phase: **Phase 6; `v0.14.1` source is the standalone-compatible
   Transcription Intake implementation, while the deployed `v0.13.1` Phase 3
   soak and live generic-webhook gate remain pending and independent**
 - Deployment target: `dev-vm` first

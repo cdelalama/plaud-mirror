@@ -1,11 +1,11 @@
-<!-- doc-version: 0.14.0 -->
+<!-- doc-version: 0.14.1 -->
 # How to Use This Repository
 
 This guide explains how Plaud Mirror is operated end-to-end and how it stays aligned with both `LLM-DocKit` (the governance scaffold it adopts) and the Plaud ecosystem upstreams it watches.
 
 ## Current Reality
 
-`v0.14.0` source adds optional provider-neutral transcription delivery while
+`v0.14.1` source adds optional provider-neutral transcription delivery while
 the deployed `v0.13.1` runtime remains in its independent soak. **Operators
 upgrading from any `0.4.x`/`0.5.x` should use the latest released version.**
 Today the repository gives you:

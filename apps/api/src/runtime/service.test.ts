@@ -1551,6 +1551,10 @@ test("PlaudMirrorService serializes concurrent upstream deletion for one recordi
     service.permanentlyDeleteRecordingFromPlaud("rec-delete-concurrent"),
     /already has a Plaud deletion in progress/,
   );
+  await assert.rejects(
+    service.restoreRecording("rec-delete-concurrent"),
+    /Plaud deletion in progress and cannot be restored/,
+  );
   releaseTrash();
   await first;
   assert.equal(trashCalls, 1);

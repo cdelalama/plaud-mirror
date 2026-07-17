@@ -1,13 +1,13 @@
-<!-- doc-version: 0.14.0 -->
+<!-- doc-version: 0.14.1 -->
 # LLM Work Handoff
 
 This file is the live operational snapshot. Durable rationale lives in `docs/llm/DECISIONS.md`. Phase boundaries live in `docs/ROADMAP.md`.
 
 ## Current Status
 
-- Last Updated: 2026-07-16 - GPT-5 Codex
-- Session Focus: **v0.14.0 provider-neutral Transcription Intake source is
-  implemented but deliberately not deployed.** D-023 supersedes the old
+- Last Updated: 2026-07-17 - GPT-5 Codex
+- Session Focus: **v0.14.1 closes the Plaud-side pre-canary gate and remains
+  deliberately not deployed until the compatible provider is published.** D-023 supersedes the old
   Media2Text-repository implementation gate without erasing D-022's producer
   review. Plaud Mirror owns `docs/contracts/` and remains complete with no
   destination. Optional destinations use capability test-before-enable,
@@ -15,10 +15,14 @@ This file is the live operational snapshot. Durable rationale lives in `docs/llm
   immutable leases, a dedicated durable outbox, monotonic signed/pull status,
   canary and bounded replay, exact coverage, and a dedicated Integrations UI.
   The generic `recording.synced` webhook is unchanged. Media2Text is the first
-  intended compatible provider; Cortex consumes its later transcript-ready
-  output, and Home Infra is untouched. Runtime v0.13.1 remains deployed during
+  intended compatible provider; D-024 names this a compatibility profile,
+  pins all five schema bytes, and defers neutral Content Intake extraction
+  until a live canary plus a second real processing profile. The patch also
+  serializes Restore across the full deletion window and requires explicit
+  confirmation before a second paid destination is enabled. Cortex consumes
+  later transcript-ready output, and Home Infra is untouched. Runtime v0.13.1 remains deployed during
   its PT15M soak; no destination, live canary, replay, rebuild, restart, deploy,
-  or sibling edit occurred in this slice.
+  or sibling edit occurred before this source publication.
 - Previous Session Focus: **v0.13.1 shutdown hardening is deployed and reconciled.** The scheduler now
   makes `stop()` terminal for callbacks already queued in the event loop, and
   every HTTP app test registers unconditional cleanup. Production runs clean
@@ -190,14 +194,15 @@ This is now verified on the actual `dev-vm`, not assumed.
 
 ## Open Work
 
-- **Transcription provider conformance gate (D-023, v0.14.0 source):** the
+- **Transcription provider conformance gate (D-023/D-024, v0.14.1 source):** the
   producer changes requested in D-022 are implemented in Plaud Mirror's own
   neutral contract and runtime. No live provider is configured. Media2Text must
   expose the exact capabilities/admission/status surface in `docs/contracts/`,
   then pass one authenticated canary including hash/length verification,
   signed terminal callback, pull reconciliation, duplicate replay, conflict
-  handling, and terminal lease release. Only a separate operator GO may enable
-  the destination or start historical batches.
+  handling, and terminal lease release. The operator has authorized the
+  coordinated implementation and one canary; historical batches remain gated
+  by an explicit duration/cost estimate after the canary.
 - **Adapt the D-019 capture path to Plaud's first-party token model (queued 2026-07-13; do NOT start mid-soak):** when `pld_tokenstr` is absent, the Chrome extension should capture the `pld_ut`/`pld_urt` cookie pair (via the `chrome.cookies` API) and the backend should learn the mint/refresh lifecycle (`POST /user-app/auth/workspace/token/{id}`, `POST /auth/refresh-user-token` — endpoint facts from MIT applaud v0.5.11; see the D-019 amendment). Storing a refresh token pulls the scrypt KDF upgrade (H2, below) into the same slice. Upside: first credible fully-unattended renewal path for the Google-SSO account.
 - **D-018 ARMED (2026-06-11).** The operator stored the passphrase via `scripts/set-admin-passphrase.sh` (Doppler `plaud-mirror/dev` in the secondary "Startup Embassy" account; repo dir scoped via `doppler login --scope ~/src/plaud-mirror`; multi-account convention in `~/src/home-infra/docs/CONVENTIONS.md`) and restarted with the doppler-wrapped `up -d`. Verified: `/api/session` → `authRequired: true`, `/api/config` and audio routes → 401 without cookie (local AND through `https://plaud.lamanoriega.com/`), `userSummary` redacted, access-control warning gone from `health.warnings`, panel login works. **Operational rule from now on: every container recreate must be `doppler run --project plaud-mirror --config dev -- docker compose up -d`** — a bare `up -d` disarms the lock (see DEPLOY_PLAYBOOK). Optional future hardening: a gitignored compose override file on this host making the env var required.
 - File downstream feedback to LLM-DocKit about the clobber-on-sync pattern: `dockit-sync --apply` overwrites scripts that carry local extensions (`copy` strategy), forcing a manual re-merge every sync (happened 2026-05-13, 2026-06-10 with v0.6.1, 2026-06-18 before v0.9.3, and again during the v0.9.6 sync on 2026-06-19). Proposal: a `merge`/`copy-with-markers` strategy for `scripts/dockit-validate-session.sh` and version scripts, or upstream absorption of the local checks (DF-028 already covers `scripts/check-prose-drift.sh`).
@@ -229,7 +234,7 @@ The six items GPT-5 flagged in the 2026-04-23 review are closed:
 2. Observe the post-deploy PT15M runtime for 3-5 days through `recentSyncRuns`,
    scheduler status, Docker health, outbox counters, and Infra Portal freshness;
    then run the live webhook drill before claiming the Phase 3 exit gate.
-3. Publish v0.14.0 source without deploying it. Give Media2Text the
+3. Publish v0.14.1 source without deploying it. Give Media2Text the
    Plaud-owned Transcription Intake v1 contract and require provider
    conformance rather than importing Media2Text code or coupling to its repo.
 4. After the Phase 3 gate and a conforming provider, authorize exactly one live
@@ -296,7 +301,7 @@ Do not collapse those phases casually.
   - Phase 1 spike tests
   - encrypted-secret/store/service/server tests
   - built API/web integration smoke tests
-- Current `v0.14.0` source total is 206 runtime tests (174 Node/integration +
+- Current `v0.14.1` source total is 207 runtime tests (175 Node/integration +
   32 web), reproduced by the root suite. The new tests cover the neutral
   contract, encrypted destination secrets, durable admission/status state,
   artifact auth and Range delivery, crash recovery, idempotency conflicts,

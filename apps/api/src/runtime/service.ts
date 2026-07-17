@@ -688,6 +688,13 @@ export class PlaudMirrorService {
   async restoreRecording(recordingId: string): Promise<RecordingRestoreResult> {
     this.assertSafeRecordingId(recordingId);
 
+    if (this.activeUpstreamDeletionIds.has(recordingId)) {
+      throw createHttpError(
+        409,
+        `Recording ${recordingId} has a Plaud deletion in progress and cannot be restored`,
+      );
+    }
+
     const recording = this.store.getRecording(recordingId);
     if (!recording) {
       throw createHttpError(404, `Recording ${recordingId} is not tracked locally`);

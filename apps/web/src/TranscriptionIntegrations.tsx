@@ -85,6 +85,7 @@ const COPY = {
     enqueuedResult: "en cola",
     skippedResult: "omitidos",
     failedResult: "fallidos",
+    additionalCostConfirm: "Ya hay otro destino de transcripcion activo. Activar este tambien puede duplicar el coste de procesamiento. Continuar?",
   },
   en: {
     title: "Integrations",
@@ -142,6 +143,7 @@ const COPY = {
     enqueuedResult: "enqueued",
     skippedResult: "skipped",
     failedResult: "failed",
+    additionalCostConfirm: "Another transcription destination is already active. Enabling this one can duplicate processing costs. Continue?",
   },
 } as const;
 
@@ -249,6 +251,10 @@ export function TranscriptionIntegrations({ language, onUnauthorized }: Props) {
   }
 
   async function patchDestination(destination: TranscriptionDestination, patch: Record<string, unknown>, action: string): Promise<void> {
+    if (patch.enabled === true && overview.destinations.some((item) => item.destination.id !== destination.id && item.destination.enabled)) {
+      if (!window.confirm(t.additionalCostConfirm)) return;
+      patch = { ...patch, confirmAdditionalCost: true };
+    }
     await run(action, async () => {
       await requestJson(`/api/transcription/destinations/${destination.id}`, { method: "PATCH", body: JSON.stringify(patch) });
       await refresh();
