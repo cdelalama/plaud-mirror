@@ -75,7 +75,7 @@ patch is deployed from clean source `d00ca3e` and reconciled through Home Infra
 as Home Infra Protocol 0.10.0 `next_run_at`. The field is omitted when no plan
 exists and never changes freshness or severity. This restores useful countdown
 UX in generic consumers without asking them to reconstruct a schedule from
-cadence. Production v0.13.1 currently reports 627/627 current
+cadence. Production v0.14.2 currently reports 629/629 current
 coverage, `ok/none`, and a future next run.
 
 Plaud Mirror `v0.12.0` is the integrity follow-up to the first real operator
@@ -103,9 +103,14 @@ fetches Plaud audio directly; that delivery remains disabled pending a frozen
 consumer contract.
 
 Home Infra 0.7.6 release `bb350ea` is synchronized to the NAS. Infra Portal
-0.20.3 reports Plaud Mirror `ok/none` at 627/627 and exact provenance for source
+0.20.3 last reconciled Plaud Mirror at 627/627 with exact provenance for source
 `a993936`; it independently reports Media2Text's retained failed intakes as a
 truthful degraded state rather than contaminating Plaud sync health.
+
+The later read-only pre-shutdown checkpoint on 2026-07-18 reports 629/629
+current records, no active sync, an empty generic webhook outbox, and five
+consecutive successful PT15M runs. This newer count is runtime evidence, not a
+new deployment: source v0.15.0 remains published but undeployed.
 
 The deployment restarts the runtime during an unfinished Phase 3 exit gate.
 Pre-change soak observations remain historical evidence, but Phase 3 is not

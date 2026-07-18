@@ -18,9 +18,11 @@ This document is the canonical phase boundary for Plaud Mirror. If implementatio
 - Current source release: `v0.15.0` adds local structured failure review and
   honest active-versus-historical coverage without changing the frozen
   transcription wire contract. It is not deployed.
-- Current operational gate: preserve the deployed runtime while it accumulates
-  3-5 days of post-release PT15M evidence, then run the separately authorized
-  live webhook drill before closing Phase 3.
+- Current operational gate: after the operator's planned 2026-07-18 dev-vm
+  shutdown, let the existing deployed runtime restart without a rebuild and
+  accumulate a fresh 3-5 days of uninterrupted PT15M evidence. Then run the
+  separately authorized live webhook drill before closing Phase 3. Earlier
+  evidence remains useful, but the continuous-observation clock restarts.
 - Current product contract gate: complete for the first compatible provider.
   `v0.14.2` separates transcript and source identities and the final OGG canary
   proved terminal callback plus lease release. Media2Text is not a Plaud Mirror

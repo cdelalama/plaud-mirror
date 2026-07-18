@@ -45,6 +45,47 @@ The fallback path uses `corepack npm` inside the container build and does not re
 
 Then open `http://<host>:3040`.
 
+## Host Reboot Without Deployment
+
+A normal dev-vm reboot is not an upgrade and must not rebuild the image:
+
+1. Before shutdown, confirm `GET /api/health` has `activeRun: null` and Docker
+   reports the container healthy when practical. Normal host shutdown sends
+   SIGTERM, so the runtime attempts to drain workers and close SQLite before
+   exit. Compose does not yet declare an explicit `stop_grace_period`; do not
+   claim a long drain is guaranteed beyond Docker's stop timeout. The
+   pre-shutdown no-work-in-flight check and startup recovery are the current
+   safeguards.
+2. Docker is enabled on dev-vm and `compose.yml` uses
+   `restart: unless-stopped`. On boot, Docker restarts the existing container
+   with its already configured environment. The `runtime/data` and
+   `runtime/recordings` bind mounts preserve SQLite, encrypted secrets, and
+   audio independently of the container lifecycle.
+3. Do not run `docker compose up --build` merely because the host rebooted.
+   That would deploy the checked-out source instead of resuming the existing
+   image. If the existing container is absent and must be recreated, use
+   `doppler run --project plaud-mirror --config dev -- docker compose up -d`
+   so operator auth is not silently disarmed.
+4. After boot, verify:
+
+   ```bash
+   docker compose ps
+   curl -fsS http://127.0.0.1:3040/api/health
+   curl -fsS http://127.0.0.1:3040/api/session
+   curl -fsS http://127.0.0.1:3040/api/protocol/status
+   ```
+
+   Expected release until a separate deploy GO: `0.14.2`. Session status must
+   report `authRequired: true`; scheduler interval remains persisted in SQLite
+   at PT15M. The next tick is scheduled from process boot, not retroactively.
+
+A shutdown longer than the PT2H freshness budget may make Infra Portal show
+the job as stale. That is correct; the first successful post-boot sync restores
+fresh evidence. A power loss or hard kill may leave an in-flight row, but the
+startup recovery sweep fails orphaned sync runs and requeues claimed outbox
+work at least once. Any planned reboot restarts the uninterrupted 3-5 day soak
+clock; pre-reboot runs remain historical recovery evidence.
+
 ## Upgrade
 
 ```bash

@@ -100,6 +100,11 @@ Source of truth: docs/llm/HANDOFF.md.
   The remaining 622 recordings (608.0074 hours, estimated USD 335.62) still
   require separate spend approval. Media2Text must publish 0.40.1 before
   Cortex replaces its historical 0.40.0 pin; Plaud requires no wire change.
+  The 2026-07-18 pre-shutdown checkpoint is 629/629 mirrored, no active run,
+  Docker healthy, and seven transcription deliveries (four transcribed, three
+  retained failed). A host reboot must restart the existing v0.14.2 container,
+  not build or deploy v0.15.0; the exact recovery checks are in HANDOFF and the
+  deploy playbook.
 - Previous: **v0.12.0 destructive-operation and coverage integrity is
   deployed and reconciled.** The first real
   operator deletion exposed weak 2xx acknowledgement and a false remote

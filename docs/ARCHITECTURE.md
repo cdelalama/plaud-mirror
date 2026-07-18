@@ -3,7 +3,7 @@
 
 > Version: 0.15.0 source; 0.14.2 deployed and reconciled
 > Last Updated: 2026-07-18
-> Status: v0.15.0 prepares local structured review of retained transcription failures without changing the wire contract or deployed runtime. v0.14.2 from `a993936` remains live with one enabled Media2Text destination. MP3 and OGG canaries reached terminal `transcribed`, source and transcript hashes remain distinct, and Home Infra 0.7.6 observes the runtime. Bulk replay remains separately cost-gated.
+> Status: v0.15.0 publishes local structured review of retained transcription failures without changing the wire contract or deployed runtime. v0.14.2 from `a993936` remains live with one enabled Media2Text destination. MP3 and OGG canaries reached terminal `transcribed`, source and transcript hashes remain distinct, and Home Infra 0.7.6 observes the runtime. Bulk replay remains separately cost-gated.
 
 ## Overview
 
