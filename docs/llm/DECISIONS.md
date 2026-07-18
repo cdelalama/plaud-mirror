@@ -990,3 +990,56 @@ Mirror's core.
   operational telemetry rather than content transport.
 - Activating a second transcription destination requires explicit operator
   confirmation because simultaneous destinations can duplicate paid work.
+
+## D-025 - Keep delivery failure review local and separate from protocol state
+
+**Status:** accepted and implemented in `v0.15.0` source on 2026-07-18; not
+deployed in this slice.
+
+### Decision
+
+Plaud Mirror treats a transcriber's terminal error code as sanitized transport
+evidence, not enough information to infer provider internals. A terminal
+`failed` or `conflict` delivery may therefore receive a separate, structured
+operator review with:
+
+- category: dependency, incompatible artifact, policy, or provider;
+- disposition: active or resolved;
+- whether the paid provider was invoked;
+- a policy-only per-audio limit; and
+- an automatic review timestamp.
+
+Review is local Plaud Mirror metadata. It never changes the frozen
+Transcription Intake wire payload, the provider's terminal state, retryability,
+artifact-lease lifecycle, or the historical delivery row. There is no free
+text field: the review surface cannot become a path for copying credentials,
+filesystem paths, provider responses, or operator content into logs/state.
+
+### Rationale
+
+The first live canaries produced three operationally different failures while
+the status contract correctly exposed only `transcription_failed`: two
+historical implementation incidents later corrected by the provider and one
+211.51-minute item blocked by a 180-minute economic policy before provider
+invocation. Hard-coding those recording ids, Media2Text versions, or private
+error internals into an OSS Plaud Mirror build would violate D-023. Displaying
+all three simply as `Failed` would discard known operator evidence.
+
+A second local dimension keeps both truths. Transport history remains
+immutable and auditable, while the product can distinguish active attention
+from a resolved historical canary and can state the next action without
+inventing a retry that Plaud does not own.
+
+### Implications
+
+- `media_deliveries` receives additive duration and review columns. Existing
+  rows migrate with no inferred category; the operator classifies them only
+  from external evidence after deployment.
+- Coverage retains raw `failed` and `conflict` totals and adds
+  `requiresReview` plus `resolvedFailures`. A resolved review remains a raw
+  terminal failure.
+- Integrations shows sanitized phase, cause, and next action. Library uses the
+  same reviewed classification for its compact badge.
+- Reprocessing downstream failures remains a provider-owned operation. This
+  slice adds no replay action, credential change, backlog delivery, or wire
+  contract revision.

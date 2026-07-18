@@ -1,7 +1,7 @@
-<!-- doc-version: 0.14.2 -->
+<!-- doc-version: 0.15.0 -->
 # API Contract
 
-This document describes the HTTP and webhook surface that now exists in-repo. The current implementation covers the full Phase 2 slice plus the Phase 3 scheduler, durable webhook outbox, and full health observability. `v0.10.0` adds the `home-infra-protocol` sync-job surface; `v0.10.3` adds physical artifact reconciliation and explicit candidate failures; `v0.10.4` makes scheduler completion end-to-end truthful, exposes `health.outbox.delivering`, and enforces the one-hour whole-run ceiling; `v0.14.0` adds optional provider-neutral transcription delivery. The six-screen UI consumes the app routes; protocol routes are for Infra Portal/Hermes style consumers.
+This document describes the HTTP and webhook surface that now exists in-repo. The current implementation covers the full Phase 2 slice plus the Phase 3 scheduler, durable webhook outbox, and full health observability. `v0.10.0` adds the `home-infra-protocol` sync-job surface; `v0.10.3` adds physical artifact reconciliation and explicit candidate failures; `v0.10.4` makes scheduler completion end-to-end truthful, exposes `health.outbox.delivering`, and enforces the one-hour whole-run ceiling; `v0.14.0` adds optional provider-neutral transcription delivery; `v0.15.0` adds local structured review of terminal delivery failures without changing the wire contract. The six-screen UI consumes the app routes; protocol routes are for Infra Portal/Hermes style consumers.
 
 ## Admin API
 
@@ -19,7 +19,7 @@ This document describes the HTTP and webhook surface that now exists in-repo. Th
 | `GET` | `/api/protocol/status` | Alias for the Plaud recording sync status snapshot above. Public, sanitized, no-store. |
 | `GET` | `/api/config` | Return sanitized runtime config: webhook URL + secret-presence flag, default sync limit, **and the persisted `schedulerIntervalMs`** (the panel reads this on load to populate the scheduler form). |
 | `PUT` | `/api/config` | Update webhook URL, optional webhook secret, **and / or the scheduler interval**. All three fields are optional and independent — omit any to leave it unchanged. `schedulerIntervalMs` must be `0` (disable) or `≥ 60000`; sub-floor positives return HTTP 400. When this field changes, the live `Scheduler` is started / stopped / swapped to the new cadence in place via the `SchedulerManager` reconfigure hook. |
-| `GET` | `/api/transcription` | Operator overview of optional provider-neutral transcription destinations plus exact eligible/not-sent/pending/accepted/processing/transcribed/failed/conflict coverage. An empty destination list is healthy standalone operation. |
+| `GET` | `/api/transcription` | Operator overview of optional provider-neutral transcription destinations plus exact eligible/not-sent/pending/accepted/processing/transcribed/failed/conflict coverage and local `requiresReview` / `resolvedFailures` counters. An empty destination list is healthy standalone operation. |
 | `POST` | `/api/transcription/destinations` | Create a disabled Transcription Intake v1 destination. Stores provider intake/status credentials encrypted and returns a new artifact bearer once. HTTP 201. |
 | `PATCH` | `/api/transcription/destinations/:id` | Rename, change exact origins/credentials, enable/disable, or make primary. Capability test is required before enable; provider origin or intake credential changes force disable/retest. Enabling while another destination is active requires `confirmAdditionalCost: true`. |
 | `POST` | `/api/transcription/destinations/:id/test` | Probe provider `GET /v1/intake-capabilities` with the scoped intake bearer and persist provider identity/error. |
@@ -29,6 +29,7 @@ This document describes the HTTP and webhook surface that now exists in-repo. Th
 | `GET` | `/api/transcription/destinations/:id/deliveries` | List recent delivery state for one destination (`limit` max 500). |
 | `GET` | `/api/transcription/recording-deliveries` | Batch latest delivery state for Library rows. Query: `destinationId` plus comma-separated `recordingIds` (max 100). |
 | `POST` | `/api/transcription/deliveries/:id/retry` | Retry only a permanent producer admission failure/conflict. Downstream processing failure is deliberately not retryable here. |
+| `PATCH` | `/api/transcription/deliveries/:id/failure-review` | Add or replace structured local review metadata on a terminal failed/conflict delivery. Accepts neutral category, active/resolved disposition, `providerInvoked`, and a policy-only limit. It never changes terminal state or wire payload. |
 | `GET` | `/api/auth/status` | Return current auth state |
 | `POST` | `/api/auth/token` | Validate and persist a Plaud bearer token |
 | `POST` | `/api/sync/run` | Schedule a manual sync. Returns `202 Accepted` with `{ id, status: "running" }` immediately; the work runs in the background. Poll `GET /api/sync/runs/:id` or `GET /api/health` (`activeRun` carries progress while running, `lastSync` updates on completion). |

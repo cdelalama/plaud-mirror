@@ -176,6 +176,48 @@ export const MediaDeliveryStateSchema = z.enum([
   "conflict",
 ]);
 
+export const MediaDeliveryFailureCategorySchema = z.enum([
+  "dependency",
+  "incompatible_artifact",
+  "policy",
+  "provider",
+]);
+
+export const MediaDeliveryFailureResolutionSchema = z.enum([
+  "active",
+  "resolved",
+]);
+
+export const MediaDeliveryFailureReviewSchema = z.object({
+  category: MediaDeliveryFailureCategorySchema,
+  resolution: MediaDeliveryFailureResolutionSchema,
+  providerInvoked: z.boolean(),
+  policyLimitMinutes: z.number().positive().max(100_000).nullable(),
+  reviewedAt: z.string().datetime({ offset: true }),
+}).strict();
+
+export const UpdateMediaDeliveryFailureReviewRequestSchema = z.object({
+  category: MediaDeliveryFailureCategorySchema,
+  resolution: MediaDeliveryFailureResolutionSchema,
+  providerInvoked: z.boolean(),
+  policyLimitMinutes: z.number().positive().max(100_000).nullable(),
+}).strict().superRefine((value, context) => {
+  if (value.category === "policy" && value.policyLimitMinutes === null) {
+    context.addIssue({
+      code: "custom",
+      path: ["policyLimitMinutes"],
+      message: "policyLimitMinutes is required for policy-blocked deliveries",
+    });
+  }
+  if (value.category !== "policy" && value.policyLimitMinutes !== null) {
+    context.addIssue({
+      code: "custom",
+      path: ["policyLimitMinutes"],
+      message: "policyLimitMinutes is only valid for policy-blocked deliveries",
+    });
+  }
+});
+
 export const MediaDeliverySchema = z.object({
   id: z.string().uuid(),
   destinationId: z.string().uuid(),
@@ -184,12 +226,14 @@ export const MediaDeliverySchema = z.object({
   artifactRevision: artifactRevisionSchema,
   sha256: sha256Schema,
   bytes: z.number().int().positive(),
+  durationSeconds: z.number().nonnegative(),
   state: MediaDeliveryStateSchema,
   intakeId: identifierSchema.nullable(),
   transcriptId: identifierSchema.nullable(),
   transcriptRecordSha256: sha256Schema.nullable(),
   lastError: z.string().nullable(),
   failureStage: z.enum(["admission", "processing"]).nullable(),
+  failureReview: MediaDeliveryFailureReviewSchema.nullable(),
   retryable: z.boolean(),
   createdAt: z.string(),
   updatedAt: z.string(),
@@ -205,6 +249,8 @@ export const TranscriptionCoverageSchema = z.object({
   transcribed: z.number().int().nonnegative(),
   failed: z.number().int().nonnegative(),
   conflict: z.number().int().nonnegative(),
+  requiresReview: z.number().int().nonnegative(),
+  resolvedFailures: z.number().int().nonnegative(),
 }).strict();
 
 export const TranscriptionDestinationSummarySchema = z.object({
@@ -256,6 +302,10 @@ export type TranscriptionIntakeStatus = z.infer<typeof TranscriptionIntakeStatus
 export type TranscriptionStatusEvent = z.infer<typeof TranscriptionStatusEventSchema>;
 export type TranscriptionCapabilities = z.infer<typeof TranscriptionCapabilitiesSchema>;
 export type MediaDeliveryState = z.infer<typeof MediaDeliveryStateSchema>;
+export type MediaDeliveryFailureCategory = z.infer<typeof MediaDeliveryFailureCategorySchema>;
+export type MediaDeliveryFailureResolution = z.infer<typeof MediaDeliveryFailureResolutionSchema>;
+export type MediaDeliveryFailureReview = z.infer<typeof MediaDeliveryFailureReviewSchema>;
+export type UpdateMediaDeliveryFailureReviewRequest = z.infer<typeof UpdateMediaDeliveryFailureReviewRequestSchema>;
 export type MediaDelivery = z.infer<typeof MediaDeliverySchema>;
 export type TranscriptionCoverage = z.infer<typeof TranscriptionCoverageSchema>;
 export type TranscriptionDestinationSummary = z.infer<typeof TranscriptionDestinationSummarySchema>;

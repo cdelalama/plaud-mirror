@@ -183,6 +183,29 @@ test("transcription HTTP routes separate operator, intake, artifact, and status 
     headers: operatorHeaders,
   });
   const delivery = deliveryList.json().items[0];
+  const unauthenticatedReview = await app.inject({
+    method: "PATCH",
+    url: `/api/transcription/deliveries/${delivery.id}/failure-review`,
+    payload: {
+      category: "dependency",
+      resolution: "resolved",
+      providerInvoked: false,
+      policyLimitMinutes: null,
+    },
+  });
+  assert.equal(unauthenticatedReview.statusCode, 401);
+  const nonFailureReview = await app.inject({
+    method: "PATCH",
+    url: `/api/transcription/deliveries/${delivery.id}/failure-review`,
+    headers: operatorHeaders,
+    payload: {
+      category: "dependency",
+      resolution: "resolved",
+      providerInvoked: false,
+      policyLimitMinutes: null,
+    },
+  });
+  assert.equal(nonFailureReview.statusCode, 409);
   const artifactUrl = `/api/transcription/artifacts/${created.destination.id}/${delivery.sha256}`;
   assert.equal((await app.inject({ method: "GET", url: artifactUrl })).statusCode, 401);
   const range = await app.inject({

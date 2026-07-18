@@ -430,6 +430,13 @@ export async function createApp(options: CreateAppOptions = {}) {
     };
   });
 
+  app.patch("/api/transcription/deliveries/:id/failure-review", async (request) => {
+    const id = (request.params as { id: string }).id;
+    return {
+      item: requireTranscriptionService(transcriptionService).reviewDeliveryFailure(id, request.body),
+    };
+  });
+
   app.get("/api/auth/status", async () => service.getAuthStatus());
 
   app.post("/api/auth/token", async (request) => service.saveAccessToken(request.body));

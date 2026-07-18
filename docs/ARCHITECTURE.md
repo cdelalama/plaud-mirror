@@ -1,9 +1,9 @@
-<!-- doc-version: 0.14.2 -->
+<!-- doc-version: 0.15.0 -->
 # Plaud Mirror Architecture
 
-> Version: 0.14.2 deployed and reconciled
-> Last Updated: 2026-07-17
-> Status: v0.14.2 from `a993936` is live with one enabled Media2Text destination. MP3 and OGG canaries reached terminal `transcribed`, source and transcript hashes remain distinct, and Home Infra 0.7.6 observes the runtime. Bulk replay remains separately cost-gated.
+> Version: 0.15.0 source; 0.14.2 deployed and reconciled
+> Last Updated: 2026-07-18
+> Status: v0.15.0 prepares local structured review of retained transcription failures without changing the wire contract or deployed runtime. v0.14.2 from `a993936` remains live with one enabled Media2Text destination. MP3 and OGG canaries reached terminal `transcribed`, source and transcript hashes remain distinct, and Home Infra 0.7.6 observes the runtime. Bulk replay remains separately cost-gated.
 
 ## Overview
 
@@ -221,7 +221,7 @@ maximum runtime.
 6. The panel polls `health.outbox` (`pending` / `delivering` / `retryWaiting` / `permanentlyFailed` / `oldestPendingAgeMs`) and `GET /api/outbox` (the list of `permanently_failed` rows) to render the outbox section in Operations. `POST /api/outbox/:id/retry` resets a `permanently_failed` row to `pending` (`attempts = 0`, `last_error = null`) so the worker re-attempts on its next tick.
 7. The legacy `webhook_deliveries` table stays as-is (append-only audit log; every attempt records a row regardless of success/failure). The new `webhook_outbox` table holds live retry state — once a row reaches `delivered` or `permanently_failed`, the worker never touches it again.
 
-### Optional transcription destinations (D-023, v0.14.0)
+### Optional transcription destinations (D-023/D-025, v0.14.0-v0.15.0)
 
 Transcription is an optional provider-neutral lane, not part of Plaud mirroring
 and not an extension of the generic webhook. A fresh or unconfigured instance
@@ -260,6 +260,13 @@ all existing sync, curation, protocol, and webhook behavior.
 8. Historical replay previews all eligible recordings without a 1,000-row
    count cap, then enqueues operator-bounded batches of at most 100. It hashes
    local audio and never calls Plaud for a re-download.
+9. The provider may deliberately return only a sanitized terminal error code.
+   Plaud Mirror does not infer provider internals from that code. `v0.15.0`
+   adds a separate local review on terminal delivery rows: neutral category,
+   active/resolved disposition, provider-invocation evidence, policy limit,
+   and review timestamp. Review cannot change transport state, retryability,
+   wire payload, or lease lifecycle. Coverage counts active attention and
+   retained historical failures separately.
 
 The published provider contract and conformance gate live in
 `docs/contracts/README.md`. Media2Text is the first intended implementation;
@@ -332,7 +339,8 @@ Cortex remains downstream of the provider's separate transcript-ready output.
   inventory/physical-verification generations and the irreversible
   `upstream_deleted_at` tombstone), durable upstream deletion operations and
   events, devices, sync runs, webhook delivery attempts, transcription
-  destinations, artifact metadata, delivery/outbox state, and status events
+  destinations, artifact metadata, delivery/outbox state, local failure
+  reviews, and status events
 - `data/secrets.enc`
   Encrypted secret blob containing the Plaud token, optional webhook secret,
   and per-transcription-destination machine credentials

@@ -1472,13 +1472,63 @@ button.mobile-status-chip:hover {
   display: block;
 }
 
-.delivery-row > div span {
+.delivery-identity > span {
   overflow: hidden;
   margin-top: 3px;
   color: var(--muted);
   font-size: 11px;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.delivery-diagnostics {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: minmax(100px, 0.45fr) minmax(0, 1.5fr) minmax(0, 1fr);
+  gap: 12px;
+  border-top: 1px solid #f1f2f4;
+  padding-top: 10px;
+}
+
+.delivery-diagnostics span {
+  min-width: 0;
+}
+
+.delivery-diagnostics small {
+  display: block;
+  margin-bottom: 3px;
+  color: var(--muted);
+}
+
+.delivery-diagnostics strong {
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+.delivery-review {
+  grid-column: 1 / -1;
+}
+
+.delivery-review summary {
+  width: fit-content;
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.delivery-review form {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(170px, auto) auto;
+  gap: 10px;
+  align-items: end;
+  margin-top: 10px;
+}
+
+.delivery-provider-check {
+  min-height: 40px;
+  align-items: center;
 }
 
 .technical-grid {
@@ -1766,6 +1816,17 @@ button.mobile-status-chip:hover {
   .replay-tool,
   .delivery-row {
     grid-template-columns: 1fr;
+  }
+
+  .delivery-diagnostics,
+  .delivery-review form {
+    grid-template-columns: 1fr;
+  }
+
+  .delivery-review summary {
+    display: flex;
+    min-height: 44px;
+    align-items: center;
   }
 
   .integration-meta span {

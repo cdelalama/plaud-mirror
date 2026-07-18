@@ -19,6 +19,7 @@ import {
   type AuthStatus,
   type Device,
   type MediaDelivery,
+  type MediaDeliveryFailureReview,
   type MediaDeliveryState,
   type MirrorCoverage,
   type OutboxHealth,
@@ -131,12 +132,18 @@ interface MediaDeliveryRow {
   artifact_revision: string;
   sha256: string;
   bytes: number;
+  duration_seconds: number;
   state: string;
   intake_id: string | null;
   transcript_id: string | null;
   transcript_record_sha256: string | null;
   last_error: string | null;
   failure_stage: "admission" | "processing" | null;
+  review_category: MediaDeliveryFailureReview["category"] | null;
+  review_resolution: MediaDeliveryFailureReview["resolution"] | null;
+  provider_invoked: number | null;
+  policy_limit_minutes: number | null;
+  reviewed_at: string | null;
   created_at: string;
   updated_at: string;
   terminal_at: string | null;
@@ -1548,11 +1555,11 @@ export class RuntimeStore {
       this.db.prepare(`
         INSERT INTO media_deliveries (
           id, destination_id, recording_id, recording_title,
-          artifact_revision, sha256, bytes, state, intake_id, transcript_id,
+          artifact_revision, sha256, bytes, duration_seconds, state, intake_id, transcript_id,
           transcript_record_sha256,
           last_error, failure_stage, next_reconcile_at, reconcile_attempts,
           created_at, updated_at, terminal_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', NULL, NULL, NULL, NULL, NULL, NULL, 0, ?, ?, NULL)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', NULL, NULL, NULL, NULL, NULL, NULL, 0, ?, ?, NULL)
       `).run(
         deliveryId,
         input.destinationId,
@@ -1561,6 +1568,7 @@ export class RuntimeStore {
         `sha256:${input.artifact.sha256}`,
         input.artifact.sha256,
         input.artifact.bytes,
+        input.recording.durationSeconds,
         now,
         now,
       );
@@ -1735,7 +1743,9 @@ export class RuntimeStore {
       }
       this.db.prepare(`
         UPDATE media_deliveries SET state = 'pending', last_error = NULL,
-            failure_stage = NULL, terminal_at = NULL, updated_at = ? WHERE id = ?
+            failure_stage = NULL, review_category = NULL, review_resolution = NULL,
+            provider_invoked = NULL, policy_limit_minutes = NULL, reviewed_at = NULL,
+            terminal_at = NULL, updated_at = ? WHERE id = ?
       `).run(timestamp, deliveryId);
     });
     transaction();
@@ -1791,15 +1801,52 @@ export class RuntimeStore {
     return rows.map(mapMediaDeliveryRow);
   }
 
+  reviewMediaDeliveryFailure(
+    deliveryId: string,
+    review: Omit<MediaDeliveryFailureReview, "reviewedAt">,
+    now: Date = new Date(),
+  ): MediaDelivery {
+    const reviewedAt = now.toISOString();
+    const updated = this.db.prepare(`
+      UPDATE media_deliveries
+      SET review_category = ?, review_resolution = ?, provider_invoked = ?,
+          policy_limit_minutes = ?, reviewed_at = ?, updated_at = ?
+      WHERE id = ? AND state IN ('failed','conflict')
+    `).run(
+      review.category,
+      review.resolution,
+      review.providerInvoked ? 1 : 0,
+      review.policyLimitMinutes,
+      reviewedAt,
+      reviewedAt,
+      deliveryId,
+    );
+    if (updated.changes === 0) {
+      throw new Error(`media delivery ${deliveryId} is not a terminal failure`);
+    }
+    return this.requireMediaDelivery(deliveryId);
+  }
+
   getTranscriptionCoverage(destinationId: string): TranscriptionCoverage {
     const eligible = this.countEligibleTranscriptionRecordings();
     const inventory = this.getInventorySnapshot();
     if (!inventory) {
-      return { eligible: 0, notSent: 0, pending: 0, accepted: 0, processing: 0, transcribed: 0, failed: 0, conflict: 0 };
+      return {
+        eligible: 0,
+        notSent: 0,
+        pending: 0,
+        accepted: 0,
+        processing: 0,
+        transcribed: 0,
+        failed: 0,
+        conflict: 0,
+        requiresReview: 0,
+        resolvedFailures: 0,
+      };
     }
     const rows = this.db.prepare(`
       WITH ranked AS (
-        SELECT media_deliveries.state,
+        SELECT media_deliveries.state, media_deliveries.review_resolution,
                ROW_NUMBER() OVER (
                  PARTITION BY media_deliveries.recording_id
                  ORDER BY media_deliveries.updated_at DESC, media_deliveries.created_at DESC
@@ -1815,11 +1862,19 @@ export class RuntimeStore {
           AND recordings.artifact_verified_generation = ?
           AND upstream_deletion_operations.operation_id IS NULL
       )
-      SELECT state, COUNT(*) AS count FROM ranked
-      WHERE row_number = 1 GROUP BY state
-    `).all(destinationId, inventory.generation, inventory.generation) as Array<{ state: string; count: number }>;
-    const counts = new Map(rows.map((row) => [row.state, row.count]));
+      SELECT state, review_resolution, COUNT(*) AS count FROM ranked
+      WHERE row_number = 1 GROUP BY state, review_resolution
+    `).all(destinationId, inventory.generation, inventory.generation) as Array<{
+      state: string;
+      review_resolution: string | null;
+      count: number;
+    }>;
+    const counts = new Map<string, number>();
+    for (const row of rows) {
+      counts.set(row.state, (counts.get(row.state) ?? 0) + row.count);
+    }
     const tracked = rows.reduce((total, row) => total + row.count, 0);
+    const terminalFailures = rows.filter((row) => row.state === "failed" || row.state === "conflict");
     return {
       eligible,
       notSent: Math.max(0, eligible - tracked),
@@ -1829,6 +1884,12 @@ export class RuntimeStore {
       transcribed: counts.get("transcribed") ?? 0,
       failed: counts.get("failed") ?? 0,
       conflict: counts.get("conflict") ?? 0,
+      requiresReview: terminalFailures
+        .filter((row) => row.review_resolution !== "resolved")
+        .reduce((total, row) => total + row.count, 0),
+      resolvedFailures: terminalFailures
+        .filter((row) => row.review_resolution === "resolved")
+        .reduce((total, row) => total + row.count, 0),
     };
   }
 
@@ -2249,12 +2310,18 @@ export class RuntimeStore {
         artifact_revision TEXT NOT NULL,
         sha256 TEXT NOT NULL,
         bytes INTEGER NOT NULL,
+        duration_seconds REAL NOT NULL,
         state TEXT NOT NULL CHECK (state IN ('pending','delivering','accepted','processing','transcribed','failed','conflict')),
         intake_id TEXT,
         transcript_id TEXT,
         transcript_record_sha256 TEXT,
         last_error TEXT,
         failure_stage TEXT CHECK (failure_stage IN ('admission','processing') OR failure_stage IS NULL),
+        review_category TEXT CHECK (review_category IN ('dependency','incompatible_artifact','policy','provider') OR review_category IS NULL),
+        review_resolution TEXT CHECK (review_resolution IN ('active','resolved') OR review_resolution IS NULL),
+        provider_invoked INTEGER CHECK (provider_invoked IN (0,1) OR provider_invoked IS NULL),
+        policy_limit_minutes REAL,
+        reviewed_at TEXT,
         next_reconcile_at TEXT,
         reconcile_attempts INTEGER NOT NULL DEFAULT 0,
         created_at TEXT NOT NULL,
@@ -2344,6 +2411,31 @@ export class RuntimeStore {
     }
     if (!mediaDeliveryColumns.some((column) => column.name === "transcript_record_sha256")) {
       this.db.exec("ALTER TABLE media_deliveries ADD COLUMN transcript_record_sha256 TEXT");
+    }
+    if (!mediaDeliveryColumns.some((column) => column.name === "review_category")) {
+      this.db.exec("ALTER TABLE media_deliveries ADD COLUMN review_category TEXT CHECK (review_category IN ('dependency','incompatible_artifact','policy','provider') OR review_category IS NULL)");
+    }
+    if (!mediaDeliveryColumns.some((column) => column.name === "review_resolution")) {
+      this.db.exec("ALTER TABLE media_deliveries ADD COLUMN review_resolution TEXT CHECK (review_resolution IN ('active','resolved') OR review_resolution IS NULL)");
+    }
+    if (!mediaDeliveryColumns.some((column) => column.name === "provider_invoked")) {
+      this.db.exec("ALTER TABLE media_deliveries ADD COLUMN provider_invoked INTEGER CHECK (provider_invoked IN (0,1) OR provider_invoked IS NULL)");
+    }
+    if (!mediaDeliveryColumns.some((column) => column.name === "policy_limit_minutes")) {
+      this.db.exec("ALTER TABLE media_deliveries ADD COLUMN policy_limit_minutes REAL");
+    }
+    if (!mediaDeliveryColumns.some((column) => column.name === "reviewed_at")) {
+      this.db.exec("ALTER TABLE media_deliveries ADD COLUMN reviewed_at TEXT");
+    }
+    if (!mediaDeliveryColumns.some((column) => column.name === "duration_seconds")) {
+      this.db.exec("ALTER TABLE media_deliveries ADD COLUMN duration_seconds REAL NOT NULL DEFAULT 0");
+      this.db.exec(`
+        UPDATE media_deliveries
+        SET duration_seconds = COALESCE((
+          SELECT recordings.duration_seconds FROM recordings
+          WHERE recordings.id = media_deliveries.recording_id
+        ), 0)
+      `);
     }
 
     this.seedLegacyUpstreamDeletionOperations();
@@ -2471,12 +2563,22 @@ function mapMediaDeliveryRow(row: MediaDeliveryRow): MediaDelivery {
     artifactRevision: row.artifact_revision,
     sha256: row.sha256,
     bytes: row.bytes,
+    durationSeconds: Number(row.duration_seconds),
     state: row.state as MediaDeliveryState,
     intakeId: row.intake_id,
     transcriptId: row.transcript_id,
     transcriptRecordSha256: row.transcript_record_sha256,
     lastError: row.last_error,
     failureStage: row.failure_stage,
+    failureReview: row.review_category && row.review_resolution && row.provider_invoked !== null && row.reviewed_at
+      ? {
+          category: row.review_category,
+          resolution: row.review_resolution,
+          providerInvoked: Boolean(row.provider_invoked),
+          policyLimitMinutes: row.policy_limit_minutes,
+          reviewedAt: row.reviewed_at,
+        }
+      : null,
     retryable: row.state === "conflict" || (row.state === "failed" && row.failure_stage === "admission"),
     createdAt: row.created_at,
     updatedAt: row.updated_at,

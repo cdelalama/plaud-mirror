@@ -1,4 +1,4 @@
-<!-- doc-version: 0.14.2 -->
+<!-- doc-version: 0.15.0 -->
 # Project Context - Plaud Mirror
 
 ## Vision
@@ -26,7 +26,18 @@ Plaud Mirror is a server-first product with two runtime surfaces:
 
 Persistence is split between SQLite for state/indexes and the filesystem for mirrored audio artifacts. Secrets are encrypted at rest with a master key supplied by the surrounding deployment.
 
-## Current Status (2026-07-17, v0.14.2 source and deployed)
+## Current Status (2026-07-18, v0.15.0 source; v0.14.2 deployed)
+
+`v0.15.0` source adds provider-neutral local review for retained transcription
+failures. The operator can distinguish dependency failures, incompatible
+audio, policy blocks, and provider failures; record whether the provider was
+invoked; preserve a policy limit; and mark the incident active or resolved.
+This metadata does not modify the frozen wire contract, retryability, or the
+terminal delivery state. Coverage now separates active attention from
+historical resolved evidence, and each delivery snapshots audio duration so a
+policy block can be explained precisely. The release is published but not
+deployed; live rows remain unchanged until a separately authorized rollout and
+operator review.
 
 `v0.14.2` from `a993936` is deployed and repairs the final mismatch found by
 the first live Media2Text completion. The runtime now persists source audio and
@@ -47,8 +58,11 @@ protocol repository. A destination-free instance remains healthy and
 fully functional; the generic webhook remains separate. Media2Text is the
 first compatible provider, not a build/runtime/storage dependency.
 Restore is now serialized against the full permanent-deletion window, and a
-second enabled destination requires explicit cost confirmation. Five
-deliveries are tracked (three transcribed and two retained failed canaries).
+second enabled destination requires explicit cost confirmation. Seven
+deliveries are tracked (four transcribed and three retained failures). Two
+failures are historical canary incidents whose underlying provider defects are
+fixed; the third is a 211.51-minute recording blocked by the active 180-minute
+economic policy before provider invocation.
 Historical replay remains blocked: 622 recordings remain, representing
 608.0074 hours and an estimated USD 335.62 at the configured Deepgram rate.
 That spend requires a separate operator approval before any batch is sent.

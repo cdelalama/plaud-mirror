@@ -194,6 +194,34 @@ test("admission conflicts are retryable but downstream transcription failures ar
   assert.equal(delivery.failureStage, "processing");
   assert.equal(delivery.retryable, false);
   await assert.rejects(() => harness.service.retryDelivery(delivery.id), /not retryable/);
+
+  delivery = harness.service.reviewDeliveryFailure(delivery.id, {
+    category: "policy",
+    resolution: "active",
+    providerInvoked: false,
+    policyLimitMinutes: 180,
+  });
+  assert.deepEqual(delivery.failureReview, {
+    category: "policy",
+    resolution: "active",
+    providerInvoked: false,
+    policyLimitMinutes: 180,
+    reviewedAt: delivery.failureReview?.reviewedAt,
+  });
+  assert.equal(delivery.durationSeconds, 3);
+  assert.equal(harness.store.getTranscriptionCoverage(created.destination.id).requiresReview, 1);
+
+  delivery = harness.service.reviewDeliveryFailure(delivery.id, {
+    category: "dependency",
+    resolution: "resolved",
+    providerInvoked: false,
+    policyLimitMinutes: null,
+  });
+  assert.equal(delivery.state, "failed", "local review must preserve terminal delivery evidence");
+  assert.equal(delivery.failureReview?.resolution, "resolved");
+  const reviewedCoverage = harness.store.getTranscriptionCoverage(created.destination.id);
+  assert.equal(reviewedCoverage.requiresReview, 0);
+  assert.equal(reviewedCoverage.resolvedFailures, 1);
 });
 
 test("transcription coverage and replay preview are not capped at 1000 recordings", async (t) => {

@@ -1,4 +1,4 @@
-<!-- doc-version: 0.14.2 -->
+<!-- doc-version: 0.15.0 -->
 # LLM Start Guide - Plaud Mirror
 
 ## Read This First (Mandatory)
@@ -86,23 +86,20 @@ Recommended reading order:
 ## Current Focus (Snapshot)
 
 Source of truth: docs/llm/HANDOFF.md.
-- Last Updated: 2026-07-17 - GPT-5 Codex
-- Working on: **v0.14.2 is deployed and the optional transcription path is
-  live-verified.** D-023 makes transcription an optional
-  contract owned by Plaud Mirror; Media2Text is the first intended compatible
-  provider, not a dependency. The source includes separate encrypted machine
-  credentials, immutable artifact leases, durable admission/recovery, signed
-  and pull status, canary/bounded replay, exact coverage, and an Integrations
-  screen while preserving the generic webhook and healthy no-destination
-  operation. D-024 adds byte pinning, executable provider checks, the future
-  neutral core/profile extraction trigger, full-window delete/restore
-  serialization, and explicit second-destination cost confirmation. Production
-  runs clean source `a993936`; real MP3 and OGG recordings reached terminal
-  `transcribed`, source/transcript hashes stayed distinct, and Home Infra 0.7.6
-  release `bb350ea` is synchronized. Five deliveries are tracked: three
-  transcribed and two retained failed canaries. The remaining 622 recordings
-  (608.0074 hours, estimated USD 335.62) require a separate spend approval;
-  Cortex delivery remains disabled pending its frozen consumer contract.
+- Last Updated: 2026-07-18 - GPT-5 Codex
+- Working on: **v0.15.0 is published but not deployed; v0.14.2 remains live and
+  the optional transcription path is canary-proven.** D-025 adds local,
+  provider-neutral review for terminal failures: category, active/resolved
+  disposition, provider-invocation evidence, policy limit, sanitized phase,
+  cause, and next action. Review preserves the frozen wire contract, original
+  terminal state, retryability, credentials, replay behavior, and audit row.
+  Current live evidence is seven deliveries: four transcribed, two historical
+  failed canaries whose provider defects are fixed, and one 211.51-minute item
+  blocked by the 180-minute policy before provider invocation. Existing rows
+  are deliberately not auto-classified and the deployed runtime is untouched.
+  The remaining 622 recordings (608.0074 hours, estimated USD 335.62) still
+  require separate spend approval. Media2Text must publish 0.40.1 before
+  Cortex replaces its historical 0.40.0 pin; Plaud requires no wire change.
 - Previous: **v0.12.0 destructive-operation and coverage integrity is
   deployed and reconciled.** The first real
   operator deletion exposed weak 2xx acknowledgement and a false remote

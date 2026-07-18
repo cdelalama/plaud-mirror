@@ -4,6 +4,7 @@ import {
   formatBytes,
   type EnqueueTranscriptionResult,
   type MediaDelivery,
+  type MediaDeliveryFailureCategory,
   type TranscriptionConnectionTest,
   type TranscriptionDestination,
   type TranscriptionDestinationCreated,
@@ -26,6 +27,13 @@ interface DestinationDraft {
   artifactBaseUrl: string;
   intakeCredential: string;
   statusSigningSecret: string;
+}
+
+interface FailureReviewDraft {
+  category: MediaDeliveryFailureCategory;
+  resolution: "active" | "resolved";
+  providerInvoked: boolean;
+  policyLimitMinutes: string;
 }
 
 const COPY = {
@@ -53,7 +61,7 @@ const COPY = {
     disable: "Desactivar",
     makePrimary: "Hacer principal",
     primary: "Principal",
-    rotate: "Rotar token de audio",
+    rotate: "Rotar acceso del transcriptor al audio",
     canary: "Enviar 1 audio",
     preview: "Preparar replay",
     sendBatch: "Enviar lote",
@@ -67,10 +75,51 @@ const COPY = {
     transcribed: "Transcritos",
     failed: "Fallidos",
     conflict: "Conflictos",
+    requiresReview: "Requieren atención",
+    resolvedFailures: "Históricos resueltos",
     recent: "Entregas recientes",
     noDeliveries: "No hay entregas todavía.",
     noDestinations: "No hay destinos configurados.",
     retry: "Reintentar",
+    classify: "Clasificar incidencia",
+    editReview: "Editar revisión",
+    failureCategory: "Tipo de incidencia",
+    failureResolution: "Situación",
+    categoryDependency: "Dependencia",
+    categoryIncompatible: "Audio incompatible",
+    categoryPolicy: "Política",
+    categoryProvider: "Proveedor",
+    resolutionActive: "Activa",
+    resolutionResolved: "Resuelta",
+    providerInvoked: "El proveedor fue invocado",
+    policyLimit: "Límite por audio (minutos)",
+    saveReview: "Guardar revisión",
+    needsReview: "Requiere revisión",
+    historicalResolved: "Incidencia histórica resuelta",
+    blockedPolicy: "Bloqueada por política",
+    dependencyFailure: "Fallo de dependencia",
+    incompatibleArtifact: "Audio incompatible",
+    providerFailure: "Fallo del proveedor",
+    phase: "Fase",
+    cause: "Causa",
+    nextAction: "Siguiente acción",
+    admissionPhase: "Admisión",
+    processingPhase: "Procesamiento",
+    unknownPhase: "No determinada",
+    unclassifiedCause: "El transcriptor no proporcionó una causa segura suficiente.",
+    dependencyCause: "Una dependencia necesaria del transcriptor impidió procesar el audio.",
+    incompatibleCause: "El transcriptor rechazó la estructura o el formato de este audio.",
+    providerCause: "El proveedor de transcripción devolvió un fallo durante el procesamiento.",
+    policyCause: "Bloqueada por el límite de",
+    providerNotInvoked: "El proveedor no fue invocado y no se generó coste del proveedor.",
+    providerWasInvoked: "El proveedor fue invocado.",
+    resolvedEvidence: "El defecto subyacente está marcado como corregido; esta entrega se conserva como evidencia.",
+    reviewNext: "Clasifica la incidencia con evidencia del transcriptor.",
+    resolvedNext: "Ninguna acción en Plaud Mirror.",
+    policyNext: "Revisa el límite y reprocesa desde el transcriptor.",
+    dependencyNext: "Corrige o verifica la dependencia y reprocesa desde el transcriptor.",
+    incompatibleNext: "Normaliza el audio y reprocesa desde el transcriptor.",
+    providerNext: "Revisa el proveedor y reprocesa desde el transcriptor.",
     attempts: "intentos",
     artifactToken: "Token de lectura de audio",
     tokenOnce: "Se muestra una sola vez. Debe provisionarse en el destino.",
@@ -111,7 +160,7 @@ const COPY = {
     disable: "Disable",
     makePrimary: "Make primary",
     primary: "Primary",
-    rotate: "Rotate audio token",
+    rotate: "Rotate transcriber audio access",
     canary: "Send 1 audio",
     preview: "Prepare replay",
     sendBatch: "Send batch",
@@ -125,10 +174,51 @@ const COPY = {
     transcribed: "Transcribed",
     failed: "Failed",
     conflict: "Conflicts",
+    requiresReview: "Needs attention",
+    resolvedFailures: "Historical resolved",
     recent: "Recent deliveries",
     noDeliveries: "No deliveries yet.",
     noDestinations: "No destinations configured.",
     retry: "Retry",
+    classify: "Classify incident",
+    editReview: "Edit review",
+    failureCategory: "Incident type",
+    failureResolution: "Status",
+    categoryDependency: "Dependency",
+    categoryIncompatible: "Incompatible audio",
+    categoryPolicy: "Policy",
+    categoryProvider: "Provider",
+    resolutionActive: "Active",
+    resolutionResolved: "Resolved",
+    providerInvoked: "The provider was invoked",
+    policyLimit: "Per-audio limit (minutes)",
+    saveReview: "Save review",
+    needsReview: "Needs review",
+    historicalResolved: "Historical incident resolved",
+    blockedPolicy: "Blocked by policy",
+    dependencyFailure: "Dependency failure",
+    incompatibleArtifact: "Incompatible audio",
+    providerFailure: "Provider failure",
+    phase: "Phase",
+    cause: "Cause",
+    nextAction: "Next action",
+    admissionPhase: "Admission",
+    processingPhase: "Processing",
+    unknownPhase: "Undetermined",
+    unclassifiedCause: "The transcriber did not provide enough safe diagnostic detail.",
+    dependencyCause: "A required transcriber dependency prevented audio processing.",
+    incompatibleCause: "The transcriber rejected this audio's structure or format.",
+    providerCause: "The transcription provider failed during processing.",
+    policyCause: "Blocked by the per-audio limit of",
+    providerNotInvoked: "The provider was not invoked and no provider cost was incurred.",
+    providerWasInvoked: "The provider was invoked.",
+    resolvedEvidence: "The underlying defect is marked fixed; this delivery remains as audit evidence.",
+    reviewNext: "Classify the incident using transcriber evidence.",
+    resolvedNext: "No action in Plaud Mirror.",
+    policyNext: "Review the limit and reprocess from the transcriber.",
+    dependencyNext: "Fix or verify the dependency and reprocess from the transcriber.",
+    incompatibleNext: "Normalize the audio and reprocess from the transcriber.",
+    providerNext: "Review the provider and reprocess from the transcriber.",
     attempts: "attempts",
     artifactToken: "Audio read token",
     tokenOnce: "Shown once. Provision it in the destination.",
@@ -302,6 +392,22 @@ export function TranscriptionIntegrations({ language, onUnauthorized }: Props) {
     });
   }
 
+  async function reviewFailure(delivery: MediaDelivery, draft: FailureReviewDraft): Promise<void> {
+    await run(`review:${delivery.id}`, async () => {
+      await requestJson(`/api/transcription/deliveries/${delivery.id}/failure-review`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          category: draft.category,
+          resolution: draft.resolution,
+          providerInvoked: draft.providerInvoked,
+          policyLimitMinutes: draft.category === "policy" ? Number(draft.policyLimitMinutes) : null,
+        }),
+      });
+      await refresh();
+      return delivery.recordingTitle;
+    });
+  }
+
   async function run(key: string, operation: () => Promise<string>): Promise<void> {
     setBusy(key);
     setError(null);
@@ -397,6 +503,7 @@ export function TranscriptionIntegrations({ language, onUnauthorized }: Props) {
           onEnqueue={enqueue}
           onPreview={loadPreview}
           onRetry={retry}
+          onReview={reviewFailure}
           tabbed={overview.destinations.length > 1}
         />
       ) : !showAdd ? <div className="empty-panel compact"><p className="mono subdued">{t.noDestinations}</p></div> : null}
@@ -406,7 +513,7 @@ export function TranscriptionIntegrations({ language, onUnauthorized }: Props) {
 
 function DestinationView({
   summary, deliveries, preview, batchSize, setBatchSize, credentialDraft,
-  setCredentialDraft, busy, t, onTest, onPatch, onRotate, onEnqueue, onPreview, onRetry, tabbed,
+  setCredentialDraft, busy, t, onTest, onPatch, onRotate, onEnqueue, onPreview, onRetry, onReview, tabbed,
 }: {
   summary: TranscriptionDestinationSummary;
   deliveries: MediaDelivery[];
@@ -423,6 +530,7 @@ function DestinationView({
   onEnqueue: (destination: TranscriptionDestination, limit: number) => Promise<void>;
   onPreview: (destination: TranscriptionDestination) => Promise<void>;
   onRetry: (delivery: MediaDelivery) => Promise<void>;
+  onReview: (delivery: MediaDelivery, draft: FailureReviewDraft) => Promise<void>;
   tabbed: boolean;
 }) {
   const { destination, coverage } = summary;
@@ -479,6 +587,7 @@ function DestinationView({
           {[
             [t.eligible, coverage.eligible], [t.notSent, coverage.notSent], [t.pending, coverage.pending],
             [t.accepted, coverage.accepted], [t.processing, coverage.processing], [t.transcribed, coverage.transcribed],
+            [t.requiresReview, coverage.requiresReview], [t.resolvedFailures, coverage.resolvedFailures],
             [t.failed, coverage.failed], [t.conflict, coverage.conflict],
           ].map(([label, value]) => <span key={String(label)}><small>{label}</small><strong className="mono">{value}</strong></span>)}
         </div>
@@ -499,18 +608,173 @@ function DestinationView({
         <div className="card-title-row"><strong>{t.recent}</strong><span className="mono subdued">{deliveries.length}</span></div>
         {deliveries.length === 0 ? <p className="mono empty-list compact">{t.noDeliveries}</p> : (
           <div className="delivery-list">
-            {deliveries.map((delivery) => (
-              <div className="delivery-row" key={delivery.id}>
-                <div><strong>{delivery.recordingTitle}</strong><span className="mono">{delivery.recordingId} · {delivery.artifactRevision.slice(0, 18)}...</span></div>
-                <span className={`state-pill tone-${deliveryTone(delivery.state)}`}>{deliveryLabel(delivery.state, t)}</span>
-                {delivery.retryable ? <button type="button" className="ghost-button compact" disabled={busy !== null} onClick={() => void onRetry(delivery)}>{t.retry}</button> : null}
-              </div>
-            ))}
+            {deliveries.map((delivery) => {
+              const presentation = deliveryPresentation(delivery, t);
+              const isFailure = delivery.state === "failed" || delivery.state === "conflict";
+              return (
+                <div className="delivery-row" key={delivery.id}>
+                  <div className="delivery-identity">
+                    <strong>{delivery.recordingTitle}</strong>
+                    <span className="mono">
+                      {delivery.recordingId} · {formatDeliveryMinutes(delivery.durationSeconds)} min · {delivery.artifactRevision.slice(0, 18)}...
+                    </span>
+                  </div>
+                  <span className={`state-pill tone-${presentation.tone}`}>{presentation.label}</span>
+                  {delivery.retryable && delivery.failureReview?.resolution !== "resolved" ? <button type="button" className="ghost-button compact" disabled={busy !== null} onClick={() => void onRetry(delivery)}>{t.retry}</button> : null}
+                  {isFailure ? (
+                    <div className="delivery-diagnostics">
+                      <span><small>{t.phase}</small><strong>{presentation.phase}</strong></span>
+                      <span><small>{t.cause}</small><strong>{presentation.cause}</strong></span>
+                      <span><small>{t.nextAction}</small><strong>{presentation.nextAction}</strong></span>
+                    </div>
+                  ) : null}
+                  {isFailure ? (
+                    <FailureReviewEditor
+                      delivery={delivery}
+                      busy={busy === `review:${delivery.id}`}
+                      disabled={busy !== null}
+                      t={t}
+                      onReview={onReview}
+                    />
+                  ) : null}
+                </div>
+              );
+            })}
           </div>
         )}
       </section>
     </div>
   );
+}
+
+function FailureReviewEditor({
+  delivery,
+  busy,
+  disabled,
+  t,
+  onReview,
+}: {
+  delivery: MediaDelivery;
+  busy: boolean;
+  disabled: boolean;
+  t: typeof COPY.es | typeof COPY.en;
+  onReview: (delivery: MediaDelivery, draft: FailureReviewDraft) => Promise<void>;
+}) {
+  const [draft, setDraft] = useState<FailureReviewDraft>(() => ({
+    category: delivery.failureReview?.category ?? "dependency",
+    resolution: delivery.failureReview?.resolution ?? "active",
+    providerInvoked: delivery.failureReview?.providerInvoked ?? false,
+    policyLimitMinutes: delivery.failureReview?.policyLimitMinutes?.toString() ?? "",
+  }));
+  const policyLimitValid = draft.category !== "policy" || Number(draft.policyLimitMinutes) > 0;
+
+  return (
+    <details className="delivery-review">
+      <summary>{delivery.failureReview ? t.editReview : t.classify}</summary>
+      <form onSubmit={(event) => {
+        event.preventDefault();
+        void onReview(delivery, draft);
+      }}>
+        <label className="field compact">
+          <span>{t.failureCategory}</span>
+          <select value={draft.category} onChange={(event) => setDraft({
+            ...draft,
+            category: event.target.value as MediaDeliveryFailureCategory,
+            policyLimitMinutes: event.target.value === "policy" ? draft.policyLimitMinutes : "",
+          })}>
+            <option value="dependency">{t.categoryDependency}</option>
+            <option value="incompatible_artifact">{t.categoryIncompatible}</option>
+            <option value="policy">{t.categoryPolicy}</option>
+            <option value="provider">{t.categoryProvider}</option>
+          </select>
+        </label>
+        <label className="field compact">
+          <span>{t.failureResolution}</span>
+          <select value={draft.resolution} onChange={(event) => setDraft({ ...draft, resolution: event.target.value as FailureReviewDraft["resolution"] })}>
+            <option value="active">{t.resolutionActive}</option>
+            <option value="resolved">{t.resolutionResolved}</option>
+          </select>
+        </label>
+        {draft.category === "policy" ? (
+          <label className="field compact">
+            <span>{t.policyLimit}</span>
+            <input type="number" min="0.01" max="100000" step="0.01" required value={draft.policyLimitMinutes} onChange={(event) => setDraft({ ...draft, policyLimitMinutes: event.target.value })} />
+          </label>
+        ) : null}
+        <label className="checkbox-row delivery-provider-check">
+          <input type="checkbox" checked={draft.providerInvoked} onChange={(event) => setDraft({ ...draft, providerInvoked: event.target.checked })} />
+          <span>{t.providerInvoked}</span>
+        </label>
+        <button type="submit" className="ghost-button" disabled={disabled || !policyLimitValid}>{busy ? "..." : t.saveReview}</button>
+      </form>
+    </details>
+  );
+}
+
+function deliveryPresentation(
+  delivery: MediaDelivery,
+  t: typeof COPY.es | typeof COPY.en,
+): { label: string; tone: "good" | "warn" | "bad" | "info" | "muted"; phase: string; cause: string; nextAction: string } {
+  if (delivery.state !== "failed" && delivery.state !== "conflict") {
+    return {
+      label: deliveryLabel(delivery.state, t),
+      tone: deliveryTone(delivery.state),
+      phase: t.unknownPhase,
+      cause: "",
+      nextAction: "",
+    };
+  }
+
+  const phase = delivery.failureStage === "admission"
+    ? t.admissionPhase
+    : delivery.failureStage === "processing" ? t.processingPhase : t.unknownPhase;
+  const review = delivery.failureReview;
+  if (!review) {
+    return { label: t.needsReview, tone: "bad", phase, cause: t.unclassifiedCause, nextAction: t.reviewNext };
+  }
+  if (review.resolution === "resolved") {
+    return {
+      label: t.historicalResolved,
+      tone: "info",
+      phase,
+      cause: `${categoryCause(review.category, t)} ${t.resolvedEvidence}`,
+      nextAction: t.resolvedNext,
+    };
+  }
+  if (review.category === "policy") {
+    const limit = review.policyLimitMinutes === null ? "--" : formatNumber(review.policyLimitMinutes, t);
+    return {
+      label: t.blockedPolicy,
+      tone: "warn",
+      phase,
+      cause: `${t.policyCause} ${limit} min. ${review.providerInvoked ? t.providerWasInvoked : t.providerNotInvoked}`,
+      nextAction: t.policyNext,
+    };
+  }
+  const label = review.category === "dependency"
+    ? t.dependencyFailure
+    : review.category === "incompatible_artifact" ? t.incompatibleArtifact : t.providerFailure;
+  const nextAction = review.category === "dependency"
+    ? t.dependencyNext
+    : review.category === "incompatible_artifact" ? t.incompatibleNext : t.providerNext;
+  return { label, tone: "bad", phase, cause: categoryCause(review.category, t), nextAction };
+}
+
+function categoryCause(category: MediaDeliveryFailureCategory, t: typeof COPY.es | typeof COPY.en): string {
+  switch (category) {
+    case "dependency": return t.dependencyCause;
+    case "incompatible_artifact": return t.incompatibleCause;
+    case "policy": return t.blockedPolicy;
+    case "provider": return t.providerCause;
+  }
+}
+
+function formatDeliveryMinutes(durationSeconds: number): string {
+  return (durationSeconds / 60).toFixed(2);
+}
+
+function formatNumber(value: number, t: typeof COPY.es | typeof COPY.en): string {
+  return value.toLocaleString(t === COPY.es ? "es-ES" : "en-US", { maximumFractionDigits: 2 });
 }
 
 function deliveryTone(state: MediaDelivery["state"]): "good" | "warn" | "bad" | "info" | "muted" {

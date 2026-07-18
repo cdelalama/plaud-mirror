@@ -1,4 +1,4 @@
-<!-- doc-version: 0.14.2 -->
+<!-- doc-version: 0.15.0 -->
 # Plaud Mirror Roadmap
 
 This document is the canonical phase boundary for Plaud Mirror. If implementation scope starts to cross a phase boundary, update this document before claiming the work is part of the current phase.
@@ -15,6 +15,9 @@ This document is the canonical phase boundary for Plaud Mirror. If implementatio
 - Current deployed release: `v0.14.2` from runtime source `a993936`; the
   Media2Text destination is configured, enabled, and verified with terminal
   MP3 and OGG canaries. Historical replay remains blocked.
+- Current source release: `v0.15.0` adds local structured failure review and
+  honest active-versus-historical coverage without changing the frozen
+  transcription wire contract. It is not deployed.
 - Current operational gate: preserve the deployed runtime while it accumulates
   3-5 days of post-release PT15M evidence, then run the separately authorized
   live webhook drill before closing Phase 3.
@@ -69,7 +72,12 @@ This document is the canonical phase boundary for Plaud Mirror. If implementatio
 - `v0.14.2` fixes transcript-result identity after the first live Media2Text
   completion: `recordSha256` is transcript provenance, while
   `source.artifactRevision` remains the source-audio integrity identity.
-- Current phase: **Phase 6; `v0.14.2` is live and canary-proven, while bulk
+- `v0.15.0` adds structured operator review for terminal transcription
+  failures. Local review never changes wire state or retryability and keeps
+  resolved canaries as auditable failures while removing them from the active
+  attention count.
+- Current phase: **Phase 6; `v0.14.2` is live and canary-proven and `v0.15.0`
+  is published but not deployed, while bulk
   transcription replay and the independent generic-webhook soak gate remain
   pending**
 - Deployment target: `dev-vm` first

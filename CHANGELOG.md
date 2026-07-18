@@ -4,6 +4,27 @@ All notable changes to Plaud Mirror are documented in this file.
 
 This project follows Semantic Versioning (SemVer): MAJOR.MINOR.PATCH.
 
+## [0.15.0] - 2026-07-18
+
+### Added
+
+- Structured local review for terminal transcription failures, with neutral
+  dependency, incompatible-audio, policy, and provider categories; active or
+  resolved disposition; provider-invocation evidence; and an optional policy
+  limit.
+- Additive coverage counters for failures requiring attention versus retained
+  historical incidents, plus a duration snapshot on each delivery.
+
+### Changed
+
+- Integrations now shows a sanitized phase, cause, and next action instead of
+  reducing every terminal problem to `Failed`. Resolved canaries keep their
+  original terminal state as audit evidence.
+- Rename the credential action to "Rotate transcriber audio access" / "Rotar
+  acceso del transcriptor al audio".
+
+### Fixed
+
 ## [0.14.2] - 2026-07-17
 
 ### Added

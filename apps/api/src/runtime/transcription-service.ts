@@ -13,6 +13,7 @@ import {
   TranscriptionOverviewSchema,
   TranscriptionReplayPreviewSchema,
   TranscriptionStatusEventSchema,
+  UpdateMediaDeliveryFailureReviewRequestSchema,
   UpdateTranscriptionDestinationRequestSchema,
   type EnqueueTranscriptionResult,
   type MediaDelivery,
@@ -301,6 +302,22 @@ export class TranscriptionService {
     }
     try {
       return this.store.forceMediaDeliveryRetry(deliveryId);
+    } catch (error) {
+      throw createHttpError(409, error instanceof Error ? error.message : String(error));
+    }
+  }
+
+  reviewDeliveryFailure(deliveryId: string, input: unknown): MediaDelivery {
+    const parsed = UpdateMediaDeliveryFailureReviewRequestSchema.parse(input);
+    const delivery = this.store.getMediaDelivery(deliveryId);
+    if (!delivery) {
+      throw createHttpError(404, `Media delivery ${deliveryId} not found`);
+    }
+    if (delivery.state !== "failed" && delivery.state !== "conflict") {
+      throw createHttpError(409, `Media delivery ${deliveryId} is not a terminal failure`);
+    }
+    try {
+      return this.store.reviewMediaDeliveryFailure(deliveryId, parsed);
     } catch (error) {
       throw createHttpError(409, error instanceof Error ? error.message : String(error));
     }

@@ -5,6 +5,7 @@ import {
   ExactOriginSchema,
   TranscriptionCapabilitiesSchema,
   TranscriptionIntakeRequestSchema,
+  UpdateMediaDeliveryFailureReviewRequestSchema,
 } from "./transcription.js";
 
 test("Transcription Intake accepts exact secure origins and loopback development only", () => {
@@ -64,4 +65,30 @@ test("Transcription capability discovery is strict and provider-neutral", () => 
   });
   assert.equal(capabilities.provider.name, "Any Transcript Service");
   assert.throws(() => TranscriptionCapabilitiesSchema.parse({ ...capabilities, media2textOnly: true }));
+});
+
+test("delivery failure reviews keep policy evidence structured and bounded", () => {
+  assert.deepEqual(UpdateMediaDeliveryFailureReviewRequestSchema.parse({
+    category: "policy",
+    resolution: "active",
+    providerInvoked: false,
+    policyLimitMinutes: 180,
+  }), {
+    category: "policy",
+    resolution: "active",
+    providerInvoked: false,
+    policyLimitMinutes: 180,
+  });
+  assert.throws(() => UpdateMediaDeliveryFailureReviewRequestSchema.parse({
+    category: "policy",
+    resolution: "active",
+    providerInvoked: false,
+    policyLimitMinutes: null,
+  }), /required/);
+  assert.throws(() => UpdateMediaDeliveryFailureReviewRequestSchema.parse({
+    category: "dependency",
+    resolution: "resolved",
+    providerInvoked: false,
+    policyLimitMinutes: 180,
+  }), /only valid/);
 });

@@ -1784,7 +1784,7 @@ function TranscriptionPipelineCard({
 }) {
   const { destination, coverage } = summary;
   const inProgress = coverage.pending + coverage.accepted + coverage.processing;
-  const errors = coverage.failed + coverage.conflict;
+  const errors = coverage.requiresReview;
   const percent = coverage.eligible > 0 ? (coverage.transcribed / coverage.eligible) * 100 : 0;
   return (
     <section className="panel-card transcription-pipeline-card">
@@ -1962,9 +1962,9 @@ function RecordingRow({
         />
         {transcriptionDestinationName && (transcriptionDelivery || (!recording.dismissed && recording.localPath)) ? (
           <StatePill
-            tone={transcriptionDelivery ? transcriptionDeliveryTone(transcriptionDelivery.state) : "muted"}
+            tone={transcriptionDelivery ? transcriptionDeliveryTone(transcriptionDelivery) : "muted"}
             label={transcriptionDelivery
-              ? transcriptionStateLabel(transcriptionDelivery.state, language)
+              ? transcriptionDeliveryLabel(transcriptionDelivery, language)
               : (language === "es" ? "no enviado" : "not sent")}
             title={transcriptionDestinationName}
           />
@@ -1988,11 +1988,35 @@ function RecordingRow({
   );
 }
 
-function transcriptionDeliveryTone(state: MediaDelivery["state"]): Tone {
-  if (state === "transcribed") return "good";
-  if (state === "failed" || state === "conflict") return "bad";
-  if (state === "pending") return "muted";
+function transcriptionDeliveryTone(delivery: MediaDelivery): Tone {
+  if (delivery.state === "transcribed") return "good";
+  if (delivery.failureReview?.resolution === "resolved") return "info";
+  if (delivery.failureReview?.category === "policy") return "warn";
+  if (delivery.state === "failed" || delivery.state === "conflict") return "bad";
+  if (delivery.state === "pending") return "muted";
   return "info";
+}
+
+function transcriptionDeliveryLabel(delivery: MediaDelivery, language: OperatorLanguage): string {
+  if (delivery.failureReview?.resolution === "resolved") {
+    return language === "es" ? "incidencia resuelta" : "incident resolved";
+  }
+  if (delivery.failureReview?.category === "policy") {
+    return language === "es" ? "bloqueado por política" : "blocked by policy";
+  }
+  if (delivery.failureReview?.category === "dependency") {
+    return language === "es" ? "fallo de dependencia" : "dependency failure";
+  }
+  if (delivery.failureReview?.category === "incompatible_artifact") {
+    return language === "es" ? "audio incompatible" : "incompatible audio";
+  }
+  if (delivery.failureReview?.category === "provider") {
+    return language === "es" ? "fallo del proveedor" : "provider failure";
+  }
+  if (delivery.state === "failed" || delivery.state === "conflict") {
+    return language === "es" ? "requiere revisión" : "needs review";
+  }
+  return transcriptionStateLabel(delivery.state, language);
 }
 
 function transcriptionStateLabel(state: MediaDelivery["state"], language: OperatorLanguage): string {

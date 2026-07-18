@@ -1,14 +1,26 @@
-<!-- doc-version: 0.14.2 -->
+<!-- doc-version: 0.15.0 -->
 # LLM Work Handoff
 
 This file is the live operational snapshot. Durable rationale lives in `docs/llm/DECISIONS.md`. Phase boundaries live in `docs/ROADMAP.md`.
 
 ## Current Status
 
-- Last Updated: 2026-07-17 - GPT-5 Codex
-- Session Focus: **v0.14.2 is deployed and the Plaud-to-Media2Text path is
-  proven with real MP3 and OGG recordings.** D-023 supersedes the old
-  Media2Text-repository implementation gate without erasing D-022's producer
+- Last Updated: 2026-07-18 - GPT-5 Codex
+- Session Focus: **v0.15.0 is published but not deployed; v0.14.2 remains live
+  and the Plaud-to-Media2Text path is proven with real MP3 and OGG
+  recordings.** D-025 adds provider-neutral local review for terminal
+  transcription failures without changing the frozen wire contract, delivery
+  state, retryability, credentials, replay behavior, or deployed runtime. The
+  Integrations screen now distinguishes dependency, incompatible-audio,
+  policy, and provider incidents; shows sanitized phase, cause, and next
+  action; snapshots duration; and separates active attention from historical
+  resolved evidence. Existing rows are deliberately not auto-classified.
+  Current live evidence is seven deliveries: four transcribed, two historical
+  failed canaries whose provider defects are fixed, and one 211.51-minute
+  recording blocked by the 180-minute policy before provider invocation.
+  After a separately authorized deployment, the operator can record those
+  reviews without deleting or rewriting any terminal row. D-023 supersedes
+  the old Media2Text-repository implementation gate without erasing D-022's producer
   review. Plaud Mirror owns `docs/contracts/` and remains complete with no
   destination. Optional destinations use capability test-before-enable,
   separate encrypted intake/artifact/status credentials, content-addressed
@@ -22,12 +34,14 @@ This file is the live operational snapshot. Durable rationale lives in `docs/llm
   confirmation before a second paid destination is enabled. Runtime v0.14.2
   from `a993936` has one enabled Media2Text destination and proved admission,
   authenticated immutable bytes, signed/pull status, provider transcription,
-  terminal callback, distinct source/transcript hashes, and lease release. Five
-  deliveries are tracked: three transcribed and two retained failed canaries.
+  terminal callback, distinct source/transcript hashes, and lease release. All
+  seven delivery rows remain independently auditable.
   Home Infra 0.7.6 release `bb350ea` is synchronized and Infra Portal 0.20.3
   observes Plaud `ok/none` at 627/627. Historical replay remains blocked at 622
   recordings / 608.0074 hours / estimated USD 335.62. Cortex delivery remains
-  disabled pending a frozen consumer contract.
+  disabled. Media2Text must publish the bounded Transcript Ready 0.40.1 schema
+  correction before Cortex replaces its historical 0.40.0 pin; this does not
+  require a Plaud wire change.
 - Previous Session Focus: **v0.13.1 shutdown hardening is deployed and reconciled.** The scheduler now
   makes `stop()` terminal for callbacks already queued in the event loop, and
   every HTTP app test registers unconditional cleanup. Production runs clean
@@ -245,7 +259,10 @@ The six items GPT-5 flagged in the 2026-04-23 review are closed:
 3. ~~Publish and deploy v0.14.2, then reconcile the Media2Text path through a
    terminal callback and lease release.~~ Done 2026-07-17 from `a993936`; MP3
    and final OGG canaries are terminal and Home Infra 0.7.6 is synchronized.
-4. Keep the 622-item / estimated USD 335.62 bulk replay behind its separate
+4. ~~Publish `v0.15.0` without deploying it in this slice.~~ This release
+   commit is the publication; a later operator GO may deploy it and classify
+   the three retained failures. No row is rewritten automatically.
+5. Keep the 622-item / estimated USD 335.62 bulk replay behind its separate
    duration/cost GO. Keep D-019
    cookie/refresh adaptation plus scrypt as the next auth hardening slice.
 
@@ -333,15 +350,18 @@ Do not collapse those phases casually.
 ## Trace Anchor
 
 - Role: executor
-- Subject: Close the live Plaud Mirror to Media2Text canary and infra evidence
-- Release target: Plaud Mirror 0.14.2 deployed from `a993936`.
-- Repo state: one Media2Text destination is enabled; five deliveries are
-  tracked (three transcribed, two retained failed); historical replay has not
-  started.
-- Validation: 207/207 tests, build/typecheck, contract, audit, version,
-  validator, live auth/scheduler/canaries, and Home Infra provenance pass.
-- Next gate: operator approves a bounded replay budget or continues with D-019
-  auth hardening. Cortex delivery remains a separate consumer-contract gate.
+- Subject: Prepare neutral transcription-failure review UX without wire or runtime changes
+- Release target: Plaud Mirror 0.15.0 source; deployed runtime stays 0.14.2 from `a993936`.
+- Repo state: one Media2Text destination remains enabled; seven live deliveries
+  exist (four transcribed, three retained failed); no live row was modified and
+  historical replay has not started.
+- Validation: 208/208 tests (176 Node/integration + 32 web), production build,
+  web typecheck, the five-schema frozen-contract check, dependency audits,
+  23-target version sync, DocKit, diff check, and desktop/mobile visual checks
+  pass. The source release is published; the runtime remains untouched.
+- Next gate: Media2Text publishes 0.40.1 so Cortex can replace its historical
+  0.40.0 pin. A separate operator GO is required to deploy Plaud and classify
+  the retained rows.
 
 ## Key Decisions (Links)
 
@@ -368,6 +388,8 @@ Do not collapse those phases casually.
 - D-021: permanent Plaud deletion is an explicit post-dismiss operator command
 - D-022: Plaud-first Media2Text integration requires closed-loop intake reconciliation
 - D-023: Transcription Intake is provider-neutral and optional
+- D-024: the current wire contract is a compatibility profile; neutral extraction waits for a second processing profile
+- D-025: delivery failure review is local structured evidence, separate from protocol state
 
 ## Do Not Touch
 

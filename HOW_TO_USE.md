@@ -1,13 +1,14 @@
-<!-- doc-version: 0.14.2 -->
+<!-- doc-version: 0.15.0 -->
 # How to Use This Repository
 
 This guide explains how Plaud Mirror is operated end-to-end and how it stays aligned with both `LLM-DocKit` (the governance scaffold it adopts) and the Plaud ecosystem upstreams it watches.
 
 ## Current Reality
 
-`v0.14.2` is deployed with optional provider-neutral transcription delivery;
-one Media2Text destination has passed real MP3 and OGG canaries while bulk
-replay remains behind a separate spend gate. **Operators
+`v0.14.2` remains deployed with optional provider-neutral transcription
+delivery; `v0.15.0` source adds local failure review but is not deployed. One
+Media2Text destination has passed real MP3 and OGG canaries while bulk replay
+remains behind a separate spend gate. **Operators
 upgrading from any `0.4.x`/`0.5.x` should use the latest released version.**
 Today the repository gives you:
 
@@ -87,7 +88,12 @@ standalone mirror and shows no transcription warning.
 
 Main then shows primary-destination coverage and Library shows state per
 recording. A failed admission may be retried from Plaud Mirror; a real
-downstream transcription failure is not mislabeled as a producer retry. Full
+downstream transcription failure is not mislabeled as a producer retry.
+Terminal failures can be classified locally in Integrations without changing
+their protocol state: category, active/resolved disposition, provider-invoked
+evidence, and policy limit are structured audit metadata. A resolved incident
+therefore remains a retained `failed` delivery while leaving the active
+attention count. Full
 provider requirements are in
 [`docs/contracts/README.md`](docs/contracts/README.md).
 
