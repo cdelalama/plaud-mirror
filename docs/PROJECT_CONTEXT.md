@@ -118,10 +118,11 @@ Cortex consumes the provider's separate transcript-ready output and never
 fetches Plaud audio directly; that delivery remains disabled pending a frozen
 consumer contract.
 
-Home Infra 0.7.6 release `bb350ea` is synchronized to the NAS. Infra Portal
-0.20.3 last reconciled Plaud Mirror at 627/627 with exact provenance for source
-`a993936`; it independently reports Media2Text's retained failed intakes as a
-truthful degraded state rather than contaminating Plaud sync health.
+Home Infra 0.7.11 release `6055b63` is synchronized to the NAS. Infra Portal
+0.20.3 provenance reports Plaud contract source `781825e`, Media2Text contract
+source `9c4efeb`, and no warnings, while runtime truth remains Plaud `e0aec3f`
+and Media2Text `3cf1539`. It independently reports Media2Text's retained failed
+intakes as a truthful degraded state rather than contaminating Plaud sync health.
 
 The 2026-07-18 pre-shutdown checkpoint and post-reboot runs remain valid
 historical stability evidence. The 2026-07-20 deployment starts new observation

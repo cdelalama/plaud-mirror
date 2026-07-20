@@ -181,7 +181,7 @@ This is now verified on the actual `dev-vm`, not assumed.
 - SQLite contains one current generation with 629 physically verified artifact rows plus one historical tombstone. `PRAGMA integrity_check` is `ok`; the consistent v0.15.0 pre-deploy backup is `runtime/data/app.db.backup-20260720T135114Z-v0150-pre-deploy` with SHA-256 `4d338846e864d8475ec10a50fdefbd5676b8c89fb4cc69c23b21bd9eebd4bbc3`.
 - Destination `76fe2f64-61e0-402f-997c-e2a9aba7d921` is enabled and primary. Seven deliveries are tracked: four `transcribed`, three retained `failed`, and no accepted artifact lease remains after the terminal callbacks. D-025 review records two resolved historical failures and one active policy block; raw terminal counts remain unchanged.
 - The final provenance-correct OGG canary used recording `082298d30b32dfcfaa3fab312d9a36b7`, source SHA-256 `0f52872594aa61a3c4b522ad245d100ec7f95231750cdd98d9aa740bd8a778a9`, and transcript-record SHA-256 `d032644835480bfe174cd56940d3060341b91a269eca29a00fbd3849c087ec99`; both identities remain distinct and the delivery is terminal `transcribed`.
-- Home Infra 0.7.6 release `bb350ea` is synchronized to NAS. Infra Portal 0.20.3 provenance mounts Plaud `a993936` and Media2Text `3cf1539` with no warnings; the latest read-only local protocol checkpoint is `ok/none` at 629/629 and carries `nextRunAt`.
+- Home Infra 0.7.11 release `6055b63` is synchronized to NAS. Infra Portal 0.20.3 provenance reports Plaud contract source `781825e`, Media2Text contract source `9c4efeb`, and no warnings; runtime truth remains separately pinned to Plaud `e0aec3f` and Media2Text `3cf1539`. The latest public protocol checkpoint is `ok/none` at 629/629 and carries `nextRunAt`.
 - Bearer token saved via the web UI, auth validated with `/user/me`, encrypted at rest, survives restarts.
 - Manual sync and filtered backfill exercised against live Plaud. Latest confirmed sync run `5a970a84-3f44-4602-b727-3d1d12179349` examined 514 Plaud recordings, matched/downloaded 165 missing local audio files, skipped webhook enqueue because no webhook is configured, and completed without error; `plaudTotal` + stable `#N` ranks populate correctly.
 - Device catalog populates after sync via `/device/list`; the backfill selector renders operator nicknames.
@@ -299,7 +299,8 @@ The six items GPT-5 flagged in the 2026-04-23 review are closed:
    run the live generic-webhook drill before claiming the Phase 3 exit gate.
 3. ~~Publish and deploy v0.14.2, then reconcile the Media2Text path through a
    terminal callback and lease release.~~ Done 2026-07-17 from `a993936`; MP3
-   and final OGG canaries are terminal and Home Infra 0.7.6 is synchronized.
+   and final OGG canaries are terminal. Home Infra 0.7.11 is the latest
+   synchronized catalog/provenance release.
 4. ~~Deploy `v0.15.0` and classify the three retained failures without
    rewriting terminal history.~~ Done 2026-07-20 from runtime source `e0aec3f`.
 5. Execute only the separately authorized waves in
