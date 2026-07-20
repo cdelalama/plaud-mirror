@@ -3,7 +3,7 @@
 
 > Version: 0.15.0 source; 0.14.2 deployed and reconciled
 > Last Updated: 2026-07-18
-> Status: v0.15.0 publishes local structured review of retained transcription failures without changing the wire contract or deployed runtime. v0.14.2 from `a993936` remains live with one enabled Media2Text destination. MP3 and OGG canaries reached terminal `transcribed`, source and transcript hashes remain distinct, and Home Infra 0.7.6 observes the runtime. Bulk replay remains separately cost-gated.
+> Status: v0.15.0 is deployed from runtime source `e0aec3f` with one enabled Media2Text destination, exact 629/629 Plaud coverage, and D-025 review of all three retained failures. D-026 freezes the bilateral connections control-plane direction without changing the content wire contract. MP3 and OGG canaries remain terminal, source and transcript hashes remain distinct, and bulk replay remains separately cost-gated.
 
 ## Overview
 
@@ -377,9 +377,10 @@ ordered by evidence and product contracts:
    run the separately authorized generic-webhook drill; transcription intake
    does not substitute for that independent webhook gate.
 2. **Control historical transcription spend:** the conforming Media2Text path
-   is proven, but replay of the remaining 622 recordings (608.0074 hours,
-   estimated USD 335.62 at the configured rate) requires an explicit operator
-   budget and batch-size decision.
+   is proven, but replay of the remaining 622 recordings (608.0074 hours)
+   requires a fresh Media2Text quotation plus an explicit operator budget and
+   batch-size decision. USD 335.62 is only the Plaud-local estimate using the
+   configured Deepgram rate as of 2026-07-18.
 3. **Keep protocol extraction evidence-driven:** D-024 permits a neutral
    Content Intake repository only after this successful canary and a second
    structurally different processing profile. The second trigger does not yet

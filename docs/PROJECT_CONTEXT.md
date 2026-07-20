@@ -26,7 +26,7 @@ Plaud Mirror is a server-first product with two runtime surfaces:
 
 Persistence is split between SQLite for state/indexes and the filesystem for mirrored audio artifacts. Secrets are encrypted at rest with a master key supplied by the surrounding deployment.
 
-## Current Status (2026-07-18, v0.15.0 source; v0.14.2 deployed)
+## Current Status (2026-07-20, v0.15.0 deployed)
 
 `v0.15.0` source adds provider-neutral local review for retained transcription
 failures. The operator can distinguish dependency failures, incompatible
@@ -35,11 +35,15 @@ invoked; preserve a policy limit; and mark the incident active or resolved.
 This metadata does not modify the frozen wire contract, retryability, or the
 terminal delivery state. Coverage now separates active attention from
 historical resolved evidence, and each delivery snapshots audio duration so a
-policy block can be explained precisely. The release is published but not
-deployed; live rows remain unchanged until a separately authorized rollout and
-operator review.
+policy block can be explained precisely. The release is deployed from runtime
+source `e0aec3f` with operator auth armed, PT15M scheduling, exact 629/629
+coverage, public protocol status `ok/none`, and clean SQLite integrity. The
+three retained rows are now classified: the pre-provider dependency canary and
+the provider-invoked OGG incompatibility are resolved historical evidence; the
+211.51-minute item is an active 180-minute policy block and did not invoke the
+provider.
 
-`v0.14.2` from `a993936` is deployed and repairs the final mismatch found by
+`v0.14.2` from `a993936` repaired the final mismatch found by
 the first live Media2Text completion. The runtime now persists source audio and
 transcript record identities separately, keeps the source revision as the
 audio-integrity boundary, accepts the signed terminal callback, and releases
@@ -64,8 +68,20 @@ failures are historical canary incidents whose underlying provider defects are
 fixed; the third is a 211.51-minute recording blocked by the active 180-minute
 economic policy before provider invocation.
 Historical replay remains blocked: 622 recordings remain, representing
-608.0074 hours and an estimated USD 335.62 at the configured Deepgram rate.
-That spend requires a separate operator approval before any batch is sent.
+608.0074 hours. USD 335.62 is a Plaud-local planning estimate using the
+configured Deepgram rate as of 2026-07-18; it is not a Media2Text quotation or
+spending authority. A fresh receiver-owned quote and separate operator approval
+are required before any batch is sent.
+
+D-026 now governs the next operator-experience program. Connection setup is a
+bilateral control-plane workflow, separate from the frozen content contract:
+Plaud exports a sensitive request, Media2Text provisions a mutable runtime
+producer profile and returns a sensitive grant, and Plaud tests and enables the
+result. The interface presents independent configuration, policy, evidence,
+and health dimensions plus deliberate Pause, Rotate access, Disconnect, and
+Archive actions. Plaud never configures Cortex. The exact roadmap and trust
+limits are in `docs/design/CONNECTIONS_OPERATOR_EXPERIENCE.md`; only its Wave 1
+documentation and operational baseline are authorized so far.
 
 Plaud Mirror `v0.13.1` hardens scheduler shutdown after independent audit:
 `stop()` now prevents an already-queued callback from rearming or running
@@ -75,7 +91,7 @@ patch is deployed from clean source `d00ca3e` and reconciled through Home Infra
 as Home Infra Protocol 0.10.0 `next_run_at`. The field is omitted when no plan
 exists and never changes freshness or severity. This restores useful countdown
 UX in generic consumers without asking them to reconstruct a schedule from
-cadence. Production v0.14.2 currently reports 629/629 current
+cadence. Production v0.15.0 currently reports 629/629 current
 coverage, `ok/none`, and a future next run.
 
 Plaud Mirror `v0.12.0` is the integrity follow-up to the first real operator
@@ -107,15 +123,13 @@ Home Infra 0.7.6 release `bb350ea` is synchronized to the NAS. Infra Portal
 `a993936`; it independently reports Media2Text's retained failed intakes as a
 truthful degraded state rather than contaminating Plaud sync health.
 
-The later read-only pre-shutdown checkpoint on 2026-07-18 reports 629/629
-current records, no active sync, an empty generic webhook outbox, and five
-consecutive successful PT15M runs. This newer count is runtime evidence, not a
-new deployment: source v0.15.0 remains published but undeployed.
-
-The deployment restarts the runtime during an unfinished Phase 3 exit gate.
-Pre-change soak observations remain historical evidence, but Phase 3 is not
-declared complete until the post-deploy PT15M observation window and live
-webhook drill are recorded.
+The 2026-07-18 pre-shutdown checkpoint and post-reboot runs remain valid
+historical stability evidence. The 2026-07-20 deployment starts new observation
+but does not start the final exit window, because planned connection-control
+deploys would invalidate it. Phase 3 closes only after the final Plaud and
+Media2Text releases, one joint canary, the first subsequent automatic PT15M
+run, five deploy-free days across both services, and the separate live generic-
+webhook drill.
 
 Plaud Mirror `v0.10.7` activates the soak contract: the project-owned sync job
 is `internal-loop` at `PT15M`, with `stale_after: PT2H` exceeding cadence plus

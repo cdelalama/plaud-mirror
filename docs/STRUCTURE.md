@@ -49,6 +49,7 @@ plaud-mirror/
 |  +- VERSIONING_RULES.md
 |  +- UPSTREAMS.md
 |  +- contracts/
+|  +- design/
 |  +- visual-gates/
 |  |  +- 0.11.0/
 |  +- llm/
@@ -74,6 +75,7 @@ plaud-mirror/
 | `infra.contract.yml` | Home Infra Protocol project contract | Declares `plaud-mirror-recordings-sync` for Home Infra / Infra Portal consumers |
 | `docs/INFRA_CONTRACT.md` | Human explanation of `infra.contract.yml` | Explains producer/consumer boundary and status snapshot semantics |
 | `docs/contracts/` | Plaud Mirror Transcription Intake v1 Compatibility Profile | Published JSON Schemas, byte-pinned manifest, lifecycle/auth semantics, and conformance gate; Media2Text is a prospective implementation, not an import |
+| `docs/design/CONNECTIONS_OPERATOR_EXPERIENCE.md` | Ratified cross-service operator brief | Owns the bilateral setup model, two sensitive bundles, four state dimensions, four operator actions, cost authority, eight-wave roadmap, and joint soak rule; later implementations remain gated |
 | `docs/design/reference/` | Visual reference artifacts | `plaud-mirror-panel-standalone.html` is the v0.9.0 operator-panel source reference |
 | `docs/visual-gates/0.11.0/` | Deployed UI evidence | Desktop and Android captures of the dismissed-only permanent Plaud deletion action; no action was invoked during capture |
 | `tests/integration/` | Post-build integration smoke tests | Exercises built API and web artifacts |

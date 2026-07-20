@@ -1043,3 +1043,78 @@ inventing a retry that Plaud does not own.
 - Reprocessing downstream failures remains a provider-owned operation. This
   slice adds no replay action, credential change, backlog delivery, or wire
   contract revision.
+
+## D-026 - Connection setup is bilateral and separate from content transport
+
+**Status:** accepted by operator on 2026-07-20; architecture and V1 operator
+mechanism ratified, implementation separately gated.
+
+### Decision
+
+Provisioning a transcription connection is a bilateral control-plane workflow,
+not part of Transcription Intake v1 and not a Home Infra Protocol capability.
+Plaud Mirror provisions its producer half; the transcriber provisions its
+receiver profile. Plaud Mirror never provisions, observes, or reports Cortex.
+
+V1 uses two sensitive portable bundles carried by the authenticated
+single-operator user:
+
+1. Plaud exports a `connection-request` containing producer/route/contract
+   metadata and its generated artifact-access bearer.
+2. Media2Text imports that request into a mutable runtime profile store and
+   exports a `connection-grant` containing receiver/capability/limit metadata,
+   its intake bearer, and its status-signing HMAC secret.
+3. Plaud imports the grant, proves capabilities, and only then permits
+   enablement and a bounded canary.
+
+The three secrets retain one issuer and one direction: Plaud issues artifact
+access; Media2Text issues admission access and status signing. Bundle schemas
+must bind a unique id, request id, issue/expiry timestamps, and the exact
+contract version/hashes. Importers persist consumed ids and reject expiry,
+re-import, request mismatch, and contract mismatch.
+
+V1 does not add a signing PKI. Its trust bootstrap is operator custody between
+two already authenticated product surfaces. A canonical-content hash detects
+accidental corruption but is not issuer authentication. Offline copied bytes
+cannot honestly be described as strongly single-use, revocable, or single-view.
+Those stronger guarantees require future online redemption.
+
+Media2Text runtime provisioning is required from the first real implementation.
+An authenticated UI/API backed by encrypted mutable storage is the primary
+operator path. The existing environment JSON becomes a seed used only when the
+store is empty; a CLI that writes Doppler and recreates the container may exist
+only as break-glass tooling, not as the product workflow.
+
+### Product Model
+
+Connection state is four-dimensional rather than a linear stepper:
+
+- configuration: absent, partial, or complete;
+- policy: disabled, enabled, primary, or secondary;
+- evidence: untested, capability-tested, or canary-proven; and
+- health: unknown, healthy, degraded, or action required.
+
+Canary evidence is stored on the delivery as a dispatch kind, not inferred from
+a button or a recent success. The operator surface answers how to connect, how
+to prove operation, what scope/cost applies, and how to pause/rotate/disconnect/
+archive. Manual V1 disconnection is guided bilateral work, not a false atomic
+claim. Cutting active work appends revocation evidence and produces a terminal
+local projection so exact coverage has no permanently pending rows.
+
+Cost also has two authorities. Plaud owns workload count, duration, bytes, and
+duplicate-destination scope. Media2Text owns provider pricing, retry allowance,
+and hard economic limits. Plaud-local currency estimates must name the
+configured rate and date and must not be presented as provider quotations.
+
+### Deferred Evolution
+
+Online pairing, authenticated redemption, in-band artifact-access provisioning,
+and per-lease artifact tokens are deferred together. Extraction of a reusable
+pairing protocol waits for a second real service pair. Home Infra records only
+deployed versions, digests, secret references, and sanitized health. ForgeOS
+may discover the owning roadmap and handoffs but does not duplicate or own this
+control plane.
+
+The complete operator brief, negative cases, release splits, soak rule, and
+eight-wave roadmap live in
+`docs/design/CONNECTIONS_OPERATOR_EXPERIENCE.md`.

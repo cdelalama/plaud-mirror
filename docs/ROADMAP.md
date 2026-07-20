@@ -12,22 +12,27 @@ This document is the canonical phase boundary for Plaud Mirror. If implementatio
 
 ## Current Target
 
-- Current deployed release: `v0.14.2` from runtime source `a993936`; the
-  Media2Text destination is configured, enabled, and verified with terminal
-  MP3 and OGG canaries. Historical replay remains blocked.
-- Current source release: `v0.15.0` adds local structured failure review and
-  honest active-versus-historical coverage without changing the frozen
-  transcription wire contract. It is not deployed.
-- Current operational gate: after the operator's planned 2026-07-18 dev-vm
-  shutdown, let the existing deployed runtime restart without a rebuild and
-  accumulate a fresh 3-5 days of uninterrupted PT15M evidence. Then run the
-  separately authorized live webhook drill before closing Phase 3. Earlier
-  evidence remains useful, but the continuous-observation clock restarts.
+- Current deployed release: `v0.15.0` from runtime source `e0aec3f`; Docker,
+  operator auth, PT15M scheduling, public protocol status, SQLite integrity,
+  and exact 629/629 coverage passed the 2026-07-20 rollout gate. The
+  Media2Text destination remains configured and enabled; no replay ran.
+- Current source release: `v0.15.0`. Its three retained terminal failures are
+  now reviewed without rewriting transport history: two resolved historical
+  canaries and one active 180-minute policy block that did not invoke the paid
+  provider.
+- Current operational gate: the final Phase 3 window is a joint five-day
+  freeze after the last planned Plaud Mirror and Media2Text control-plane
+  deploys, one successful connection canary, and Plaud's first completed
+  automatic PT15M run after those deploys. Any runtime deploy to either service
+  that can affect the path resets the window; docs-only commits do not. The
+  separately required live generic-webhook drill must also pass. Current and
+  earlier scheduler evidence remains useful, but it is not the final window.
 - Current product contract gate: complete for the first compatible provider.
   `v0.14.2` separates transcript and source identities and the final OGG canary
   proved terminal callback plus lease release. Media2Text is not a Plaud Mirror
   dependency. The remaining 622-item replay still requires explicit approval
-  of its 608.0074-hour, estimated USD 335.62 cost envelope.
+  of its 608.0074-hour cost envelope. USD 335.62 is a Plaud-local estimate
+  using the configured Deepgram rate as of 2026-07-18, not a Media2Text quote.
 - Pre-soak hardening: `v0.10.2` established trustworthy evidence; `v0.10.3`
   adds atomic downloads, physical reconciliation, per-candidate failure
   isolation, and explicit backfill conflicts. `v0.10.4` completes execution
@@ -78,10 +83,16 @@ This document is the canonical phase boundary for Plaud Mirror. If implementatio
   failures. Local review never changes wire state or retryability and keeps
   resolved canaries as auditable failures while removing them from the active
   attention count.
-- Current phase: **Phase 6; `v0.14.2` is live and canary-proven and `v0.15.0`
-  is published but not deployed, while bulk
-  transcription replay and the independent generic-webhook soak gate remain
-  pending**
+- Planned `v0.16.x` connection-control work is governed by D-026 and
+  `docs/design/CONNECTIONS_OPERATOR_EXPERIENCE.md`: bilateral request/grant
+  setup, visible configuration/policy/evidence/health dimensions, persisted
+  canary dispatch kind, truthful cost authority, and guided pause/rotate/
+  disconnect/archive. An honest `v0.16.x`/`v0.17.x` split is pre-authorized if
+  the backend control-plane work is too large for one release. No implementation
+  is authorized by this roadmap entry alone.
+- Current phase: **Phase 6; `v0.15.0` is live and its retained failures are
+  reviewed, while connection-control implementation, bulk replay, the joint
+  five-day freeze, and the independent generic-webhook drill remain pending**
 - Deployment target: `dev-vm` first
 - Phase 3 entry: `v0.5.0` introduced the in-process scheduler (D-012) and partial health observability (D-014, scheduler subset) but shipped two regressions; `v0.5.1` fixed both. `v0.5.2` made the scheduler panel-driven (SQLite-persisted, hot-applied via `SchedulerManager`). `v0.5.3` shipped the **durable webhook outbox** (D-013). `v0.5.5` shipped **D-014 full** — `lastErrors` ring buffer and `recentSyncRuns` on `/api/health`. `v0.6.0` is the **Phase 3 hardening release** forced by the 2026-06-10 security review: operator access control (D-018), startup crash recovery (D-013 amendment), and Plaud client timeouts. `v0.6.1`–`v0.6.3` were governance/tooling patches. `v0.7.0` opened **Phase 4** with browser-assisted Plaud re-auth (D-019): a panel-initiated capture session plus bookmarklet, chosen over credentials-login (not applicable: Google-SSO account) and over the official OAuth/MCP (deferred/watch, not disproven). `v0.7.1`–`v0.7.6` patched that bookmarklet path (popup timing, copy install, encoding, token type/region, public-error hygiene, masked-token guard, shorter visible marker). The decisive finding after those patches: a draggable `javascript:` `href` rendered by React is not a reliable delivery channel, because React replaces it with a safety throw before Chrome stores it as a bookmark. `v0.8.0` therefore ships a local Chrome companion extension as the recommended Phase 4 delivery surface; `v0.8.1` fixes the backend Plaud Web fingerprint required to validate the captured bearer. `v0.9.0` absorbs the standalone operator-panel reference (`docs/design/reference/plaud-mirror-panel-standalone.html`) into the real React/Vite app: five-screen rail UI, ES/EN operator chrome, Main/Operations observability, Library controls, live Backfill preview, and Configuration re-auth polish. `v0.9.1` keeps that UI but removes the presentation-card shell so the operator panel fills the viewport on wide monitors. `v0.9.2` fixes the Main cockpit's sync action so it downloads the displayed missing count instead of inheriting the Backfill form's conservative `limit=1`. `v0.9.3` is a governance/tooling patch that merges DocKit trace-protocol support while preserving Plaud Mirror's local validator guardrails. `v0.9.4` fixes Library Compact playback, Full-mode player width, and list scrolling inside the full-viewport shell. `v0.9.5` fixes the mobile operator shell: labeled view selector, compact status chips, and right-aligned Library row actions. `v0.9.6` is a governance/tooling sync to LLM-DocKit 4.9.6: Trace v1.3 chat seconds, flexible HISTORY format validation, expanded version marker handlers, preserved local validator guardrails, and package-lock version enforcement. `v0.10.0` opens **Phase 5** by adopting `home-infra-protocol` for Plaud recording sync: `infra.contract.yml` declares `plaud-mirror-recordings-sync`, the API publishes a sanitized status snapshot, and Home Infra can register the job for Infra Portal/Hermes consumers. `v0.10.1` fixes a sync progress summary bug where disabled-webhook delivery state was counted as skipped sync candidates. Operators upgrading from `0.4.x`/`0.5.x` should go directly to `v0.10.1`.
 

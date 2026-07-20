@@ -75,7 +75,7 @@ A normal dev-vm reboot is not an upgrade and must not rebuild the image:
    curl -fsS http://127.0.0.1:3040/api/protocol/status
    ```
 
-   Expected release until a separate deploy GO: `0.14.2`. Session status must
+   Expected release until a separate deploy GO: `0.15.0`. Session status must
    report `authRequired: true`; scheduler interval remains persisted in SQLite
    at PT15M. The next tick is scheduled from process boot, not retroactively.
 
@@ -83,8 +83,9 @@ A shutdown longer than the PT2H freshness budget may make Infra Portal show
 the job as stale. That is correct; the first successful post-boot sync restores
 fresh evidence. A power loss or hard kill may leave an in-flight row, but the
 startup recovery sweep fails orphaned sync runs and requeues claimed outbox
-work at least once. Any planned reboot restarts the uninterrupted 3-5 day soak
-clock; pre-reboot runs remain historical recovery evidence.
+work at least once. Reboots preserve historical recovery evidence. The final
+Phase 3 five-day window follows D-026's joint last-deploy/canary/automatic-run
+start rule; a reboot or runtime deploy during that window resets it.
 
 ## Upgrade
 

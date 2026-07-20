@@ -86,25 +86,19 @@ Recommended reading order:
 ## Current Focus (Snapshot)
 
 Source of truth: docs/llm/HANDOFF.md.
-- Last Updated: 2026-07-18 - GPT-5 Codex
-- Working on: **v0.15.0 is published but not deployed; v0.14.2 remains live and
-  the optional transcription path is canary-proven.** D-025 adds local,
-  provider-neutral review for terminal failures: category, active/resolved
-  disposition, provider-invocation evidence, policy limit, sanitized phase,
-  cause, and next action. Review preserves the frozen wire contract, original
-  terminal state, retryability, credentials, replay behavior, and audit row.
-  Current live evidence is seven deliveries: four transcribed, two historical
-  failed canaries whose provider defects are fixed, and one 211.51-minute item
-  blocked by the 180-minute policy before provider invocation. Existing rows
-  are deliberately not auto-classified and the deployed runtime is untouched.
-  The remaining 622 recordings (608.0074 hours, estimated USD 335.62) still
-  require separate spend approval. Media2Text must publish 0.40.1 before
-  Cortex replaces its historical 0.40.0 pin; Plaud requires no wire change.
-  The 2026-07-18 pre-shutdown checkpoint is 629/629 mirrored, no active run,
-  Docker healthy, and seven transcription deliveries (four transcribed, three
-  retained failed). A host reboot must restart the existing v0.14.2 container,
-  not build or deploy v0.15.0; the exact recovery checks are in HANDOFF and the
-  deploy playbook.
+- Last Updated: 2026-07-20 - GPT-5 Codex
+- Working on: **v0.15.0 is deployed and D-026 freezes the design boundary for
+  the next bilateral connections program; implementation remains gated.** Live
+  state is Docker/auth healthy, PT15M enabled, 629/629 exact coverage, public
+  protocol `ok/none`, and seven auditable deliveries: four transcribed, two
+  resolved historical failures, and one active 180-minute policy block. No
+  replay, retry, credential change, Cortex delivery, or provider spend ran.
+  `docs/design/CONNECTIONS_OPERATOR_EXPERIENCE.md` owns the two sensitive
+  bundles, Media2Text runtime-profile requirement, four state dimensions, four
+  operator operations, dual cost authority, eight-wave roadmap, and final
+  joint five-day soak rule. Only Wave 1 is authorized. The 622-item / 608.0074-
+  hour replay remains separately gated; USD 335.62 is a dated Plaud-local
+  estimate, not a receiver quotation.
 - Previous: **v0.12.0 destructive-operation and coverage integrity is
   deployed and reconciled.** The first real
   operator deletion exposed weak 2xx acknowledgement and a false remote

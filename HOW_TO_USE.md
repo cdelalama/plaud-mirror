@@ -5,10 +5,11 @@ This guide explains how Plaud Mirror is operated end-to-end and how it stays ali
 
 ## Current Reality
 
-`v0.14.2` remains deployed with optional provider-neutral transcription
-delivery; `v0.15.0` source adds local failure review but is not deployed. One
-Media2Text destination has passed real MP3 and OGG canaries while bulk replay
-remains behind a separate spend gate. **Operators
+`v0.15.0` is deployed with optional provider-neutral transcription delivery
+and local structured failure review. One Media2Text destination has passed real
+MP3 and OGG canaries; two historical failures are reviewed as resolved and one
+180-minute policy block remains active. Bulk replay remains behind a separate
+receiver quotation and operator spend gate. **Operators
 upgrading from any `0.4.x`/`0.5.x` should use the latest released version.**
 Today the repository gives you:
 
