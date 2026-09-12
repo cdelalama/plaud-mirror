@@ -1,11 +1,11 @@
-<!-- doc-version: 0.15.0 -->
+<!-- doc-version: 0.15.1 -->
 # LLM Work Handoff
 
 This file is the live operational snapshot. Durable rationale lives in `docs/llm/DECISIONS.md`. Phase boundaries live in `docs/ROADMAP.md`.
 
 ## Current Status
 
-- Last Updated: 2026-07-20 - GPT-5 Codex
+- Last Updated: 2026-09-12 - GPT-5 Codex
 - Session Focus: **v0.15.0 is deployed from runtime source `e0aec3f`, the three
   retained failures are reviewed, and the bilateral connections program is
   durably ratified without starting 0.16/0.41 implementation.** The Doppler-

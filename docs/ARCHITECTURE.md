@@ -1,4 +1,4 @@
-<!-- doc-version: 0.15.0 -->
+<!-- doc-version: 0.15.1 -->
 # Plaud Mirror Architecture
 
 > Version: 0.15.0 source; 0.14.2 deployed and reconciled

@@ -4,6 +4,19 @@ All notable changes to Plaud Mirror are documented in this file.
 
 This project follows Semantic Versioning (SemVer): MAJOR.MINOR.PATCH.
 
+## [0.15.1] - 2026-09-12
+
+### Added
+- Added the centrally managed Fable-preferred, exact-Opus fallback review
+  policy.
+
+### Changed
+- Preserved code, deployed runtime, data, delivery, spend, and full-template
+  provenance.
+
+### Fixed
+- None.
+
 ## [0.15.0] - 2026-07-18
 
 ### Added
