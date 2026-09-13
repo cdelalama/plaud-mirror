@@ -1,4 +1,4 @@
-<!-- doc-version: 0.15.1 -->
+<!-- doc-version: 0.16.0 -->
 # How to Use This Repository
 
 This guide explains how Plaud Mirror is operated end-to-end and how it stays aligned with both `LLM-DocKit` (the governance scaffold it adopts) and the Plaud ecosystem upstreams it watches.
@@ -32,8 +32,9 @@ Today the repository gives you:
 - upstream-watch tooling plus the full LLM-DocKit governance circuit (HANDOFF, HISTORY, DECISIONS, REVIEWS, version-sync manifest, validator, pre-commit hook).
 
 What it deliberately does **not** give you yet: transcription inside Plaud
-Mirror, a hard dependency on Media2Text or Cortex, resumable backfill, fully
-unattended re-login, or NAS rollout. Those boundaries and remaining slices are
+Mirror, a hard dependency on Media2Text or Cortex, resumable backfill, or fully
+unattended re-login. NAS production packaging is present from `v0.16.0`; live
+deployment evidence remains distinct from source availability. Those boundaries and remaining slices are
 tracked in `docs/ROADMAP.md`.
 
 For the full feature inventory see [README.md](README.md); for the product intent see [docs/PROJECT_CONTEXT.md](docs/PROJECT_CONTEXT.md); for current work state see [docs/llm/HANDOFF.md](docs/llm/HANDOFF.md).
@@ -67,6 +68,21 @@ and **Retry deletion** first checks Plaud so a prior successful DELETE can be
 confirmed without sending another destructive request.
 
 On `dev-vm`, the operator passphrase lives in Doppler (`plaud-mirror/dev`). Use the Doppler-wrapped compose command for every recreate unless the same secret is intentionally copied into the local gitignored `.env`.
+
+### NAS production
+
+The NAS consumes `deploy/nas/docker-compose.yml` only through
+`deploy/nas/start.sh`. Its mode-0600 `.env` contains only a
+`plaud-mirror/prd` Doppler service token; full values exist only in a
+mode-0600 file on NAS tmpfs for the duration of `start.sh` and are removed on
+exit. The image must be pinned by both release tag and registry digest. Port
+3040 is loopback-only and remains reachable to the operator through
+`edge-caddy` at `https://plaud.lamanoriega.com/`.
+
+Do not start this stack against an empty directory during a migration and do
+not run it concurrently with the dev-vm instance. The exact pre-seed,
+quiescence, final-copy, proxy-cutover, acceptance, and rollback sequence is in
+[`docs/operations/NAS_MIGRATION_2026-09-13.md`](docs/operations/NAS_MIGRATION_2026-09-13.md).
 
 ### Connecting a transcription provider
 

@@ -8,6 +8,8 @@ This folder contains the operational procedures for Plaud Mirror.
 - `docs/operations/API_CONTRACT.md` - current HTTP and webhook contracts
 - `docs/operations/AUTH_AND_SYNC.md` - auth lifecycle and sync behavior
 - `docs/operations/DEPLOY_PLAYBOOK.md` - current Docker deployment and rollback procedure
+- `docs/operations/NAS_MIGRATION_2026-09-13.md` - one-time dev-vm to NAS
+  cutover, evidence, and rollback record
 - `docs/operations/UPSTREAM_WATCH.md` - how to review changes in tracked upstreams
 
 Suggested structure for new runbooks:

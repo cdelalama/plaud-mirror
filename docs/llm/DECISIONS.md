@@ -1118,3 +1118,77 @@ control plane.
 The complete operator brief, negative cases, release splits, soak rule, and
 eight-wave roadmap live in
 `docs/design/CONNECTIONS_OPERATOR_EXPERIENCE.md`.
+
+## D-027 - NAS production uses a single-writer quiesced migration and split storage
+
+**Status:** accepted
+
+### Decision
+
+Plaud Mirror production moves from `dev-vm` to the QNAP NAS in `v0.16.0`.
+Application behavior, database schema, HTTP API, transcription contract, and
+public hostname remain unchanged. The deployment boundary changes as follows:
+
+- images are built on dev-vm, published to the NAS-local registry, and pinned
+  in production by release tag plus registry digest;
+- NAS HTTP binds only to `127.0.0.1:3040`; `edge-caddy` is the sole operator
+  ingress;
+- SQLite and encrypted secrets live under
+  `/share/Container/runtime/plaud-mirror/data`, while growing audio and active
+  artifact leases live under `/share/ProjectsData/plaud-mirror/recordings`;
+- production configuration uses `doppler://plaud-mirror/prd` through a
+  read-only service token; the historical master key moves without rotation so
+  the existing `secrets.enc` remains decryptable, while the full production
+  environment is materialized only on NAS tmpfs for one launcher invocation;
+  and
+- dev-vm is stopped before NAS startup. The two instances are never active
+  concurrently because the SQLite-backed in-process scheduler is a
+  single-writer design, not a distributed lease.
+
+Recordings may be pre-seeded while the source is live, but this copy has no
+authority. Final `runtime/data` and recordings synchronization happens after
+`activeRun` and claimed work are absent, the source container is stopped, its
+WAL is checkpointed, and SQLite integrity passes. Direct NAS acceptance
+precedes the backed-up single-vhost Caddy change. Home Infra records `host_id:
+nas` only after the NAS serves; Home Infra Protocol gains no new schema, and
+ForgeOS remains a discoverer rather than a deployment owner.
+
+The old dev-vm data remains a stopped rollback source until NAS serving,
+automatic-run evidence, observation, and recoverable backup/snapshot gates
+pass. Its deletion is a separate exact-target lifecycle action.
+
+### Context
+
+On 2026-09-13 dev-vm's 117 GB root filesystem was 89% used with 13 GB free;
+Plaud Mirror's source-owned runtime consumed 12 GB. The normal NAS Container
+share had only 22.6 GB free, so copying all recordings there would merely move
+the capacity problem. The existing `/share/ProjectsData` dataset had about
+968 GB free and is the established large project-data surface.
+
+The production `prd` Doppler config was empty, while the required 64-character
+master key existed only in the running container environment. Moving hosts
+without first escrowing that exact value would make the encrypted bearer and
+destination credentials unrecoverable. Starting both instances would risk
+duplicate automatic sync and delivery because the scheduler lock is local to
+one SQLite database.
+
+### Consequences
+
+- `v0.16.0` is assigned to this deferred Phase 5 host-placement capability;
+  D-026 connection-control implementation moves to `v0.17.x` without changing
+  its product model or authorization gate.
+- The minor version is deliberate under the pre-1.0 rule: physical placement
+  changes, while the application schema, logical data, HTTP/wire contracts,
+  and public hostname remain backward compatible and the exact rollback source
+  is retained.
+- Source assets, an image push, container health, canonical ingress, first
+  automatic run, and Home Infra projection are recorded as separate evidence.
+- SQLite integrity is checked on every launcher invocation, while the strict
+  zero-active-work assertion is a one-time migration flag. Normal upgrades
+  must allow persisted retry/processing work and application-owned crash
+  recovery rather than abusing the empty-install override.
+- NAS administrators and the storage host remain inside the trust boundary;
+  mode 0700 leaves prevent accidental cross-service access but are not a
+  cryptographic boundary.
+- Historical transcription replay, new provider work, Cortex delivery,
+  connection-control implementation, and paid processing remain out of scope.

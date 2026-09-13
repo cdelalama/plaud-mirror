@@ -1,45 +1,31 @@
-<!-- doc-version: 0.15.1 -->
+<!-- doc-version: 0.16.0 -->
 # LLM Work Handoff
 
 This file is the live operational snapshot. Durable rationale lives in `docs/llm/DECISIONS.md`. Phase boundaries live in `docs/ROADMAP.md`.
 
 ## Current Status
 
-- Last Updated: 2026-09-12 - GPT-5 Codex
-- Session Focus: **v0.15.0 is deployed from runtime source `e0aec3f`, the three
-  retained failures are reviewed, and the bilateral connections program is
-  durably ratified without starting 0.16/0.41 implementation.** The Doppler-
-  wrapped rollout preserved operator auth and exact state: Docker is healthy,
-  `/api/health` reports 0.15.0 with no warnings or active run, PT15M remains
-  enabled, public protocol status is `ok/none`, coverage is 629/629, the generic
-  webhook outbox is empty, and SQLite integrity passes. The consistent
-  pre-deploy backup is
-  `runtime/data/app.db.backup-20260720T135114Z-v0150-pre-deploy`, SHA-256
-  `4d338846e864d8475ec10a50fdefbd5676b8c89fb4cc69c23b21bd9eebd4bbc3`.
-  D-025 review preserved all seven terminal rows: four transcribed, a resolved
-  dependency canary that stopped before provider invocation, a resolved
-  provider-invoked incompatible-OGG canary, and one active 211.51-minute policy
-  block at the 180-minute limit with no provider invocation. Exact coverage is
-  4 transcribed / 3 failed / 622 not sent, with 2 resolved failures and 1 still
-  requiring attention. No retry, enqueue, replay, credential rotation, Cortex
-  delivery, or provider spend occurred.
-  The first automatic PT15M run after the deployment,
-  `67ffba7a-e735-4702-9a6e-3e8594bebd0c`, completed at
-  `2026-07-20T14:10:30.977Z` with 629 examined, zero downloads, and zero
-  failures. This is valid rollout evidence but not the final five-day clock.
-  D-026 and `docs/design/CONNECTIONS_OPERATOR_EXPERIENCE.md` define the next
-  program: bilateral request/grant bundles, runtime producer profiles in
-  Media2Text, four connection-state dimensions, four deliberate operations,
-  persisted canary dispatch evidence, dual cost authority, guided bilateral
-  disconnect, and an eight-wave gated roadmap. V1 trusts operator custody and
-  does not invent bundle-signing PKI. Home Infra Protocol remains observation-
-  only; ForgeOS discovers owning artifacts without copying them. Only Wave 1 is
-  authorized. Historical replay remains blocked at 622 recordings / 608.0074
-  hours; USD 335.62 is a local estimate using the configured Deepgram rate as
-  of 2026-07-18, not a Media2Text quotation. The final Phase 3 clock starts only
-  after the last planned Plaud/Media2Text deploys, a successful joint canary,
-  and the first subsequent automatic PT15M run, then requires five deploy-free
-  days across both services plus the separate live generic-webhook drill.
+- Last Updated: 2026-09-13 - GPT-5 Codex
+- Session Focus: **operator-authorized `v0.16.0` migration from dev-vm to NAS,
+  with the exact Claude independent-review gate now cleared before cutover.** Fresh
+  preflight found dev-vm root at 89% (13 GB free) and Plaud runtime data at 12
+  GB. The still-live `v0.15.0` container is Docker/operator/Plaud-auth healthy,
+  PT15M is enabled, no run is active, and the public snapshot is `ok/none` at
+  720/720. Six retained directory-creation failures preceded one successful
+  download and two clean runs; that anomaly is not erased. NAS Container
+  Station is operational, but `/share/Container` has only 22.6 GB free, so
+  D-027 splits small state into `/share/Container/runtime/plaud-mirror/data`
+  and recordings into the 1 TB `/share/ProjectsData` dataset. Candidate assets
+  require an immutable Node 24 registry image, loopback-only port 3040, read-only/
+  capability-dropped execution, a mode-0600 read-only Doppler bootstrap, exact
+  historical master-key escrow in `plaud-mirror/prd`, migrated-state checks,
+  and single-writer quiescence. Four exact-model passes ended in a final GO
+  with no finding at any severity after every accepted remediation. Production
+  remains on dev-vm until release publication, secret preparation, final
+  stopped-source copy, direct NAS validation, backed-up Caddy reload, first
+  automatic run, and Home Infra
+  reconciliation pass. D-026 connection control moves to `v0.17.x`; replay,
+  Cortex, spend, and connection implementation remain unauthorized.
 - Previous Session Focus: **v0.13.1 shutdown hardening is deployed and reconciled.** The scheduler now
   makes `stop()` terminal for callbacks already queued in the event loop, and
   every HTTP app test registers unconditional cleanup. Production runs clean
@@ -144,7 +130,7 @@ This file is the live operational snapshot. Durable rationale lives in `docs/llm
 - Secrets now persist encrypted at rest via `PLAUD_MIRROR_MASTER_KEY`.
 - Runtime state now persists in SQLite.
 - Docker launch path now exists via `Dockerfile` and `compose.yml`.
-- Docker now supports build/runtime base-image overrides via `PLAUD_MIRROR_DOCKER_BUILD_IMAGE` and `PLAUD_MIRROR_DOCKER_RUNTIME_IMAGE`, so this `dev-vm` can substitute another locally cached Node base when Docker Hub is flaky. The default remains `node:20-bookworm-slim`; pentesting distributions (e.g. `vxcontrol/kali-linux`) are explicitly not an acceptable substitute.
+- Docker supports build/runtime base-image overrides via `PLAUD_MIRROR_DOCKER_BUILD_IMAGE` and `PLAUD_MIRROR_DOCKER_RUNTIME_IMAGE`, so this `dev-vm` can substitute another locally cached official Node base when Docker Hub is flaky. The current default is `node:24-bookworm-slim`; pentesting distributions (e.g. `vxcontrol/kali-linux`) are explicitly not an acceptable substitute.
 - The fallback Docker path now avoids `apt` entirely and builds with `corepack npm`, which removes the network dependency on distro package mirrors during image build.
 - The Phase 2 container has now been built and started successfully on `dev-vm`; the service is reachable on port `3040` and reports the expected "missing token" health state.
 - The Phase 1 spike now measures download byte count from the written file, not only `content-length`.
@@ -175,13 +161,13 @@ This is now verified on the actual `dev-vm`, not assumed.
 ## Verified Runtime State
 
 - Container `plaud-mirror-plaud-mirror-1` is up and Docker healthy on `dev-vm`, port `3040` bound, running Plaud Mirror 0.15.0 from source `e0aec3f`; the deployed image digest is `sha256:10df26493fe5c08ec5fae1a7542587ded8938e935f28b201231798fb58ed237b`.
-- `GET /api/health` returns `200` with operator and Plaud auth healthy, PT15M enabled, `warnings: []`, and exact coverage `{ remoteTotal: 629, mirrored: 629, dismissed: 0, missing: 0, localOnly: 0, upstreamDeleted: 1 }`.
-- First automatic post-deploy run `67ffba7a-e735-4702-9a6e-3e8594bebd0c` completed at `2026-07-20T14:10:30.977Z` after examining 629 records with zero downloads and zero failures; the scheduler advanced its next tick normally.
-- `GET /api/protocol/sync-jobs/plaud-mirror-recordings-sync/status` returns `version: "0.15.0"`, a future scheduler-owned `next_run_at`, `condition: "ok"`, and `severity: "none"`.
-- SQLite contains one current generation with 629 physically verified artifact rows plus one historical tombstone. `PRAGMA integrity_check` is `ok`; the consistent v0.15.0 pre-deploy backup is `runtime/data/app.db.backup-20260720T135114Z-v0150-pre-deploy` with SHA-256 `4d338846e864d8475ec10a50fdefbd5676b8c89fb4cc69c23b21bd9eebd4bbc3`.
-- Destination `76fe2f64-61e0-402f-997c-e2a9aba7d921` is enabled and primary. Seven deliveries are tracked: four `transcribed`, three retained `failed`, and no accepted artifact lease remains after the terminal callbacks. D-025 review records two resolved historical failures and one active policy block; raw terminal counts remain unchanged.
+- Fresh `GET /api/health` evidence at 2026-09-13T21:46:58Z reports operator and Plaud auth healthy, PT15M enabled, `warnings: []`, no active run, and exact coverage `{ remoteTotal: 720, mirrored: 720, dismissed: 0, missing: 0, localOnly: 0, upstreamDeleted: 1 }`.
+- The latest run `ffef1a78-80f0-4082-95ee-95951ec0eda1` completed after examining 720 records with zero candidates or failures. It follows one successful recovery download and two clean runs after six consecutive directory-creation failures for recording `8af9a0160ecb814574e8faebfe941701`; the retained error history moves with the database.
+- `GET /api/protocol/sync-jobs/plaud-mirror-recordings-sync/status` returns `version: "0.15.0"`, a future scheduler-owned `next_run_at`, `condition: "ok"`, and `severity: "none"` at 720/720.
+- SQLite contains 720 current physically referenced recording files plus one historical tombstone. `PRAGMA integrity_check` is `ok`; the consistent v0.15.0 pre-deploy backup remains retained as historical rollback evidence.
+- Destination `76fe2f64-61e0-402f-997c-e2a9aba7d921` is enabled and primary. Ninety-eight terminal deliveries are tracked: 61 `transcribed` and 37 retained `failed`; no delivery is non-terminal. The original D-025 operator review metadata remains only on the three rows reviewed in July (two resolved and one active), rather than being inferred for the later failures.
 - The final provenance-correct OGG canary used recording `082298d30b32dfcfaa3fab312d9a36b7`, source SHA-256 `0f52872594aa61a3c4b522ad245d100ec7f95231750cdd98d9aa740bd8a778a9`, and transcript-record SHA-256 `d032644835480bfe174cd56940d3060341b91a269eca29a00fbd3849c087ec99`; both identities remain distinct and the delivery is terminal `transcribed`.
-- Home Infra 0.7.11 release `6055b63` is synchronized to NAS. Infra Portal 0.20.3 provenance reports Plaud contract source `781825e`, Media2Text contract source `9c4efeb`, and no warnings; runtime truth remains separately pinned to Plaud `e0aec3f` and Media2Text `3cf1539`. The latest public protocol checkpoint is `ok/none` at 629/629 and carries `nextRunAt`.
+- The July Home Infra/Infra Portal projection is historical and still points at the dev-vm deployment. It must not be relabelled as NAS truth until the new runtime serves directly and canonically, its first automatic run completes, and the Home Infra projection is reconciled.
 - Bearer token saved via the web UI, auth validated with `/user/me`, encrypted at rest, survives restarts.
 - Manual sync and filtered backfill exercised against live Plaud. Latest confirmed sync run `5a970a84-3f44-4602-b727-3d1d12179349` examined 514 Plaud recordings, matched/downloaded 165 missing local audio files, skipped webhook enqueue because no webhook is configured, and completed without error; `plaudTotal` + stable `#N` ranks populate correctly.
 - Device catalog populates after sync via `/device/list`; the backfill selector renders operator nicknames.
@@ -250,13 +236,12 @@ runtime authority by the verified 2026-07-20 v0.15.0 rollout above.
 
 ## Roadmap Boundary
 
-- The project has **entered Phase 5 at `0.10.0`** per [docs/ROADMAP.md](../ROADMAP.md), specifically for infra/protocol integration: Plaud Mirror now publishes a Home Infra Protocol project contract and sync-job status snapshot. This is not NAS migration yet, and it does not close the Phase 3 soak.
-- Phase 5 is `0.10.x` (Home Infra Protocol integration, deployment hardening,
-  backups, rollback, NAS validation). Phase 6 is `0.11.x+` (deliberate operator
-  workflows, provider-neutral optional transcription integration, and public
-  OSS polish). Do not treat protocol adoption as proof that the service
-  has been migrated to NAS; the runtime still runs on dev-vm until the NAS
-  rollout slice.
+- The project entered Phase 5 at `0.10.0` for protocol integration. The
+  `v0.16.0` acceptance slice now closes its deferred NAS placement gap while
+  Phase 6 product work remains additive and separately gated.
+- Source assets do not prove migration. Until the evidence receipt in
+  `docs/operations/NAS_MIGRATION_2026-09-13.md` is complete, the authoritative
+  runtime remains `v0.15.0` on dev-vm.
 - Working-tree cleanliness and validator status are not asserted here — they age badly. Run `git status` and `scripts/dockit-validate-session.sh --human` for the current fact.
 
 ## Open Work
@@ -266,11 +251,20 @@ runtime authority by the verified 2026-07-20 v0.15.0 rollout above.
   and 608.0074 hours. USD 335.62 is a local estimate using the configured
   Deepgram rate as of 2026-07-18, not a Media2Text quotation. No batch starts
   without a fresh receiver quote plus separate operator budget and batch-size GO.
+- **Active NAS migration:** complete the `v0.16.0` candidate tests and exact
+  Claude audit, provision `plaud-mirror/prd` without disclosure, pre-seed only
+  recordings, quiesce the dev-vm writer, make the final exact copy, accept the
+  loopback NAS runtime, cut only the Plaud Caddy upstream, observe the first
+  PT15M run, then reconcile Home Infra. Do not delete the dev-vm rollback
+  source during this procedure.
 - **Adapt the D-019 capture path to Plaud's first-party token model (queued 2026-07-13; do NOT start mid-soak):** when `pld_tokenstr` is absent, the Chrome extension should capture the `pld_ut`/`pld_urt` cookie pair (via the `chrome.cookies` API) and the backend should learn the mint/refresh lifecycle (`POST /user-app/auth/workspace/token/{id}`, `POST /auth/refresh-user-token` — endpoint facts from MIT applaud v0.5.11; see the D-019 amendment). Storing a refresh token pulls the scrypt KDF upgrade (H2, below) into the same slice. Upside: first credible fully-unattended renewal path for the Google-SSO account.
 - **D-018 ARMED (2026-06-11).** The operator stored the passphrase via `scripts/set-admin-passphrase.sh` (Doppler `plaud-mirror/dev` in the secondary "Startup Embassy" account; repo dir scoped via `doppler login --scope ~/src/plaud-mirror`; multi-account convention in `~/src/home-infra/docs/CONVENTIONS.md`) and restarted with the doppler-wrapped `up -d`. Verified: `/api/session` → `authRequired: true`, `/api/config` and audio routes → 401 without cookie (local AND through `https://plaud.lamanoriega.com/`), `userSummary` redacted, access-control warning gone from `health.warnings`, panel login works. **Operational rule from now on: every container recreate must be `doppler run --project plaud-mirror --config dev -- docker compose up -d`** — a bare `up -d` disarms the lock (see DEPLOY_PLAYBOOK). Optional future hardening: a gitignored compose override file on this host making the env var required.
 - File downstream feedback to LLM-DocKit about the clobber-on-sync pattern: `dockit-sync --apply` overwrites scripts that carry local extensions (`copy` strategy), forcing a manual re-merge every sync (happened 2026-05-13, 2026-06-10 with v0.6.1, 2026-06-18 before v0.9.3, and again during the v0.9.6 sync on 2026-06-19). Proposal: a `merge`/`copy-with-markers` strategy for `scripts/dockit-validate-session.sh` and version scripts, or upstream absorption of the local checks (DF-028 already covers `scripts/check-prose-drift.sh`).
 - Home Infra Protocol adoption is registered: `~/src/home-infra/catalog/project-contracts.yml` lists `plaud-mirror`, the NAS portal inputs include a bundled Plaud Mirror contract copy, and Infra Portal reads `plaud-mirror-recordings-sync` from `/api/sync-jobs`.
-- Protocol status is current at 629/629 with `condition=ok`, zero missing, and one confirmed upstream tombstone outside the current remote total. Do not mass-backfill older `skipped` counters without a separate data-repair decision.
+- Protocol status was freshly observed at 720/720 with `condition=ok`, zero
+  missing, and one confirmed upstream tombstone outside the current remote
+  total. Do not mass-backfill older `skipped` counters without a separate
+  data-repair decision.
 - Operator visual-smoke `v0.9.5+`: runtime is deployed and health-verified; open the panel in the operator browser and verify Main, Library, Backfill, Configuration, Operations, ES/EN switching, phone width, reconnect copy, Operations outbox/errors, especially that desktop still uses the full viewport, Main labels `Descargar N` / `Download N`, Compact Play starts audio, Full mode uses a wide player, Library pages scroll, mobile navigation has the labeled selector, mobile status uses one compact chip row, and Library mobile actions stay top-right.
 - Scrypt KDF upgrade for `data/secrets.enc` (H2 from the 2026-06-10 review): replace `sha256(masterKey)` with scrypt + persisted salt. Deprioritized behind the items above while the master key is strong/random.
 - Re-auth path status: the operator has already verified the Chrome extension path and the backend is healthy on the EU base after the v0.8.1 fingerprint fix. Re-test only after extension/auth code changes or after Plaud frontend/API drift.
@@ -294,16 +288,18 @@ The six items GPT-5 flagged in the 2026-04-23 review are closed:
    exact coverage plus legacy tombstone migration without another destructive
    call.~~ Done 2026-07-16 from clean source `8df5c35`; Home Infra 0.6.6 and
    live Portal provenance are reconciled.
-2. Preserve current PT15M evidence, then start the final joint five-day window
+2. Complete and accept the `v0.16.0` NAS migration without a second scheduler
+   writer; preserve the dev-vm source until the backup/cleanup gate.
+3. Preserve current PT15M evidence, then start the final joint five-day window
    only at the D-026 roadmap's defined last-deploy/canary/automatic-run point;
    run the live generic-webhook drill before claiming the Phase 3 exit gate.
-3. ~~Publish and deploy v0.14.2, then reconcile the Media2Text path through a
+4. ~~Publish and deploy v0.14.2, then reconcile the Media2Text path through a
    terminal callback and lease release.~~ Done 2026-07-17 from `a993936`; MP3
    and final OGG canaries are terminal. Home Infra 0.7.11 is the latest
    synchronized catalog/provenance release.
-4. ~~Deploy `v0.15.0` and classify the three retained failures without
+5. ~~Deploy `v0.15.0` and classify the three retained failures without
    rewriting terminal history.~~ Done 2026-07-20 from runtime source `e0aec3f`.
-5. Execute only the separately authorized waves in
+6. Execute only the separately authorized waves in
    `docs/design/CONNECTIONS_OPERATOR_EXPERIENCE.md`. Keep the 622-item replay
    behind a fresh receiver quotation and its separate duration/cost GO. Keep D-019
    cookie/refresh adaptation plus scrypt as the next auth hardening slice.
@@ -316,7 +312,8 @@ The six items GPT-5 flagged in the 2026-04-23 review are closed:
 
 ## Confirmed Product Direction
 
-- First deployment target is `dev-vm`; NAS comes later.
+- NAS is the confirmed production target from `v0.16.0`; dev-vm remains a
+  development and bounded rollback surface.
 - The first usable release must include a small product-style web panel.
 - Manual bearer-token auth is acceptable first, but it must be encrypted at rest and survive restarts.
 - Historical backfill is required from day 1.
@@ -341,19 +338,20 @@ Do not collapse those phases casually.
 
 ## Next Session
 
-- The stack is deployed at v0.15.0 from runtime source `e0aec3f`. Rebuild only with
-  `doppler run --project plaud-mirror --config dev -- docker compose up -d --build`.
-- After an ordinary host reboot, do not rebuild: Docker should restart the
-  existing v0.15.0 container automatically. Use the reboot checklist in the
-  deploy playbook.
+- The active runtime is still v0.15.0 on dev-vm. Continue the exact
+  `v0.16.0` NAS migration receipt; do not publish `host_id: nas` to Home Infra
+  before direct/canonical serving and the first NAS automatic run pass.
+- Never start NAS while dev-vm is running. Follow the one-time quiescence and
+  rollback sequence in `docs/operations/NAS_MIGRATION_2026-09-13.md`.
 - Do not start historical replay until the operator explicitly approves the
   622-item / 608.0074-hour scope, a fresh Media2Text quotation, and a bounded batch.
-- Wave 2 is an isolated LLM-DocKit 4.13.1 governance session; later Media2Text
-  and Plaud implementation waves are not authorized by this handoff.
+- LLM-DocKit 4.15.0 policy is already present. Use its exact Fable-preferred
+  audit gate for the NAS candidate; do not sync the full template during this
+  deployment slice.
 - Do not extract the future neutral Content Intake protocol yet. D-024's live
   canary trigger is satisfied, but no second structurally different processing
   profile exists.
-- If Docker Hub pulls time out on `dev-vm`, the Dockerfile still accepts `PLAUD_MIRROR_DOCKER_BUILD_IMAGE` and `PLAUD_MIRROR_DOCKER_RUNTIME_IMAGE` build-arg overrides. Valid fallbacks: a locally cached Node slim/alpine image from another project, a home-infra-local registry mirror (see the open registry-mirror item in `~/src/home-infra/docs/PROJECTS.md`), or a side-loaded `node:20-bookworm-slim` via `docker save`/`docker load`. Do **not** substitute a pentesting distribution such as `vxcontrol/kali-linux:latest` — it inflates the attack surface, bloats the image, and ships tooling that has no place in a Plaud mirror's runtime.
+- If Docker Hub pulls time out on `dev-vm`, the Dockerfile still accepts `PLAUD_MIRROR_DOCKER_BUILD_IMAGE` and `PLAUD_MIRROR_DOCKER_RUNTIME_IMAGE` build-arg overrides. Valid fallbacks: a locally cached Node 24.15-or-newer slim/alpine image from another project, a home-infra-local registry mirror (see the open registry-mirror item in `~/src/home-infra/docs/PROJECTS.md`), or a side-loaded `node:24-bookworm-slim` via `docker save`/`docker load`. Do **not** substitute a pentesting distribution such as `vxcontrol/kali-linux:latest` — it inflates the attack surface, bloats the image, and ships tooling that has no place in a Plaud mirror's runtime.
 - Verify the protocol status endpoint during the soak:
   `curl -fsS http://127.0.0.1:3040/api/protocol/sync-jobs/plaud-mirror-recordings-sync/status`
 - Desktop and Android captures for the dismissed-only permanent-delete row are
@@ -375,9 +373,10 @@ Do not collapse those phases casually.
   - Phase 1 spike tests
   - encrypted-secret/store/service/server tests
   - built API/web integration smoke tests
-- Current `v0.15.0` source total is 208 runtime tests (176 Node/integration +
-  32 web), reproduced by the root suite. The new tests cover the neutral
-  contract, encrypted destination secrets, durable admission/status state,
+- Current `v0.16.0` candidate total is 215 tests (183 Node/integration + 32
+  web), reproduced by the root suite. The new tests cover the NAS deployment
+  invariants alongside the existing neutral contract, encrypted destination
+  secrets, durable admission/status state,
   artifact auth and Range delivery, crash recovery, idempotency conflicts,
   exact coverage beyond 1,000 recordings, HTTP credential separation, and a
   provider-neutral panel. Governance checks report
@@ -397,16 +396,11 @@ Do not collapse those phases casually.
 ## Trace Anchor
 
 - Role: executor
-- Subject: Deploy v0.15.0, review retained failures, and freeze D-026 Wave 1
-- Release target: Plaud Mirror 0.15.0 deployed from runtime source `e0aec3f`; documentation-only Wave 1 follow-up at current HEAD.
-- Repo state: one enabled Media2Text destination, 629/629 coverage, seven
-  terminal deliveries (four transcribed, two resolved historical failures, one
-  active policy failure), and no replay or Cortex delivery.
-- Validation: 208/208 release tests, version sync, clean pre-deploy SQLite
-  backup/integrity, Doppler-wrapped build, Docker/auth health, public protocol
-  `0.15.0` `ok/none`, exact coverage, and D-025 review API evidence pass.
-- Next gate: finish/publish Wave 1 horizontally, then request separate authority
-  for the isolated LLM-DocKit alignment wave. Product code remains gated.
+- Subject: Prepare and independently audit the v0.16.0 dev-vm-to-NAS migration
+- Release target: candidate tree for Plaud Mirror 0.16.0; production remains v0.15.0 on dev-vm until the migration receipt passes.
+- Repo state: main at `57f1f9b`, one enabled Media2Text destination, 720/720 coverage, 98 terminal deliveries (61 transcribed and 37 failed), no non-terminal media delivery, and no replay or Cortex delivery.
+- Validation: live dev-vm/NAS/storage/Caddy/secret-name preflight, SQLite read-only accounting, 215/215 tests, build/typecheck, frozen-contract check, full and production dependency audits with zero findings, Docker Node 24 build/runtime smoke, 32/32 validator smoke, 12/12 DocKit checks, version sync, diff hygiene, two exact-Claude REQUEST CHANGES reconciliation passes, and two subsequent exact-Claude GO passes. The final narrow pass closed N11/N12 and found no issue at any severity on audited tree `e44d9f0`.
+- Next gate: publish the audited candidate, prepare production secrets without disclosure, then execute the single-writer migration and reconcile Home Infra without touching Home Infra Protocol or ForgeOS.
 
 ## Key Decisions (Links)
 
@@ -436,6 +430,7 @@ Do not collapse those phases casually.
 - D-024: the current wire contract is a compatibility profile; neutral extraction waits for a second processing profile
 - D-025: delivery failure review is local structured evidence, separate from protocol state
 - D-026: connection setup is bilateral and separate from content transport
+- D-027: NAS production uses split storage and a quiesced single-writer cutover
 
 ## Do Not Touch
 

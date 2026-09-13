@@ -1,11 +1,11 @@
 {
   "name": "plaud-mirror",
-  "version": "0.15.1",
+  "version": "0.16.0",
   "private": true,
   "type": "module",
   "packageManager": "npm@11.6.2",
   "engines": {
-    "node": ">=20.0.0"
+    "node": ">=24.15.0"
   },
   "workspaces": [
     "apps/*",

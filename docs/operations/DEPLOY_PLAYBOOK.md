@@ -1,140 +1,172 @@
-<!-- doc-version: 0.15.1 -->
+<!-- doc-version: 0.16.0 -->
 # Deploy Playbook
 
-This runbook describes the current Docker deployment path for Plaud Mirror.
+This runbook separates local development, NAS production, upgrades, migration,
+validation, and rollback. Source, published image, running container, public
+ingress, and Home Infra observation are separate claims.
 
-## Scope
+## Runtime ownership
 
-- Launching Plaud Mirror on `dev-vm`
-- Updating to a new version
-- Rolling back a failed deployment
+- `dev-vm`: local development and the retained pre-NAS rollback source.
+- NAS: production from `v0.16.0`, using `deploy/nas/`.
+- `edge-caddy`: the sole public ingress for
+  `https://plaud.lamanoriega.com/`.
+- Plaud Mirror: owns its SQLite state, encrypted secret blob, recording files,
+  in-process PT15M scheduler, and public Home Infra Protocol snapshot.
 
-## Preconditions
+Never run the dev-vm and NAS containers together. Both contain the same
+persisted scheduler and are not a distributed active/passive pair.
 
-- Docker and Docker Compose available
-- `PLAUD_MIRROR_MASTER_KEY` set in the shell or compose environment
-- `PLAUD_MIRROR_ADMIN_PASSPHRASE` set (recommended from v0.6.0) — operator access control for the panel and API (D-018). Source of truth: Doppler `plaud-mirror/dev` — store it with `scripts/set-admin-passphrase.sh` (interactive, creates the Doppler project on first run), then launch with `doppler run --project plaud-mirror --config dev -- docker compose up -d`, or copy the value into the local `.env`. **Every container recreate on dev-vm must use the doppler-wrapped `up -d`** (or have the value in `.env`): a bare `docker compose up -d` recreates the container without the passphrase and disarms operator auth. Post-deploy verification: `curl /api/session` must report `"authRequired": true`. Without the passphrase the API runs open and `/api/health` warns.
-- Persistent host paths available for:
-  - `./runtime/data`
-  - `./runtime/recordings`
+## Development on dev-vm
 
-## First Deploy
+Preconditions:
 
-```bash
+- Docker and Docker Compose are available.
+- `PLAUD_MIRROR_MASTER_KEY` and `PLAUD_MIRROR_ADMIN_PASSPHRASE` are supplied.
+- Current development secrets come from `doppler://plaud-mirror/dev`.
+
+```sh
 cd ~/src/plaud-mirror
 doppler run --project plaud-mirror --config dev -- docker compose up -d --build
 ```
 
-If Docker Hub is timing out when pulling `node:20-bookworm-slim` on `dev-vm`, the Dockerfile accepts `PLAUD_MIRROR_DOCKER_BUILD_IMAGE` and `PLAUD_MIRROR_DOCKER_RUNTIME_IMAGE` build-arg overrides so you can point at a locally cached Node base instead. Acceptable substitutes are any legitimate Node runtime image:
+Every recreate must remain Doppler-wrapped unless an equivalent gitignored
+environment is deliberately installed. A bare recreate can omit the admin
+passphrase and disarm operator authentication. Verify `/api/session` reports
+`authRequired: true`.
 
-- a Node `slim` or `alpine` image already cached by another project on the same host (e.g. `node:20-alpine`, `node:20-slim`);
-- a `node:20-bookworm-slim` side-loaded via `docker save` / `docker load` from another machine;
-- a pull-through registry mirror on your infra (see the open registry-mirror item in `~/src/home-infra/docs/PROJECTS.md`).
+If Docker Hub cannot supply `node:24-bookworm-slim`, the Dockerfile accepts
+`PLAUD_MIRROR_DOCKER_BUILD_IMAGE` and `PLAUD_MIRROR_DOCKER_RUNTIME_IMAGE`.
+Use only a Node 24.15-or-newer slim/alpine image or a side-loaded official Node
+image. Never substitute a pentesting/general-purpose distribution.
 
-Example with a locally cached Node slim image:
+## NAS production assets
 
-```bash
-export PLAUD_MIRROR_DOCKER_BUILD_IMAGE="node:20-alpine"
-export PLAUD_MIRROR_DOCKER_RUNTIME_IMAGE="node:20-alpine"
-doppler run --project plaud-mirror --config dev -- docker compose up -d --build
+Production files live in `/share/Container/compose/plaud-mirror/` and are
+copied from `deploy/nas/` at the accepted source revision. The source tree is
+built on dev-vm; NAS pulls the immutable image from the private registry.
+
+Persistent state is split by growth profile:
+
+- `/share/Container/runtime/plaud-mirror/data` for `app.db`, WAL/SHM files,
+  encrypted `secrets.enc`, and small retained database backups;
+- `/share/ProjectsData/plaud-mirror/recordings` for mirrored audio, metadata,
+  and active `.delivery-artifacts` leases.
+
+Both leaves must be UID/GID 1000:1000, mode 0700. The NAS administrator and
+host remain inside the trust boundary. The service runs with a read-only root,
+all Linux capabilities dropped, `no-new-privileges`, a PID/memory ceiling,
+and only `127.0.0.1:3040` published.
+
+`deploy/nas/.env` is untracked, mode 0600, and contains only the read-only
+`plaud-mirror/prd` Doppler service token. `start.sh` downloads the config to a
+mode-0600 file on the NAS host `/tmp` tmpfs (observed as 64 MB at migration
+preflight and re-checked by filesystem type on every launch), validates required keys and an
+immutable image reference, uses it only for the current Compose invocation,
+and removes it on every exit path. Full production values are therefore not
+persisted in the compose share or captured by its snapshots. The launcher does
+not start or repair Container Station and does not edit `edge-caddy`.
+Launcher receipts are pre-created under `umask 077` at mode 0600. The
+`docker compose config --quiet` flag is mandatory because a rendered Compose
+configuration would disclose production values into that log.
+
+```sh
+cd /share/Container/compose/plaud-mirror
+./start.sh
 ```
 
-The fallback path uses `corepack npm` inside the container build and does not rely on `apt` to install `npm`, `node`, or build tools, so any Node-capable base without an `npm` binary on `PATH` works.
+Normal migration startup requires non-empty `app.db`, `secrets.enc`,
+recordings, and `.migration-ready-v1`, then runs a read-only SQLite integrity
+probe inside the pinned application image before startup. The migration command
+sets `PLAUD_MIRROR_REQUIRE_QUIESCED=true` so that same probe also requires zero
+active work. Ordinary upgrades omit it: retry-waiting/processing rows are
+legitimate and orphaned running/delivering rows require application startup
+recovery. Never use the empty-install override for orphan recovery.
+`PLAUD_MIRROR_ALLOW_EMPTY_STATE=true` is reserved for an explicit new-install
+decision, starts with scheduling disabled until configured, and must not be
+used to bypass a failed migration.
 
-**Do NOT** substitute a pentesting or general-purpose Linux distribution as the Node base. `vxcontrol/kali-linux:latest` in particular is explicitly rejected: Kali is a security-tooling base, it inflates the attack surface of this service, it bloats the image, and it ships tooling that has no place in a Plaud mirror's runtime — even if it happens to be cached locally for an unrelated project. Same rule for any distro image whose purpose is not "run Node.js applications".
+## First NAS migration
 
-Then open `http://<host>:3040`.
+Follow
+[`NAS_MIGRATION_2026-09-13.md`](NAS_MIGRATION_2026-09-13.md). Its gates are
+mandatory:
 
-## Host Reboot Without Deployment
+1. audited source candidate and immutable published image;
+2. secret-safe `plaud-mirror/prd` escrow preserving the historical master key;
+3. live-safe recordings pre-seed only;
+4. zero active work, source stop, WAL checkpoint, SQLite integrity, and final
+   authoritative data copy;
+5. direct loopback NAS acceptance, including authenticated static and Range
+   playback, before the proxy changes;
+6. backed-up and validated single-vhost Caddy reload;
+7. canonical HTTPS, audio Range, protocol, and first automatic-run evidence;
+8. Home Infra projection only after serving truth exists.
 
-A normal dev-vm reboot is not an upgrade and must not rebuild the image:
+## NAS upgrade
 
-1. Before shutdown, confirm `GET /api/health` has `activeRun: null` and Docker
-   reports the container healthy when practical. Normal host shutdown sends
-   SIGTERM, so the runtime attempts to drain workers and close SQLite before
-   exit. Compose does not yet declare an explicit `stop_grace_period`; do not
-   claim a long drain is guaranteed beyond Docker's stop timeout. The
-   pre-shutdown no-work-in-flight check and startup recovery are the current
-   safeguards.
-2. Docker is enabled on dev-vm and `compose.yml` uses
-   `restart: unless-stopped`. On boot, Docker restarts the existing container
-   with its already configured environment. The `runtime/data` and
-   `runtime/recordings` bind mounts preserve SQLite, encrypted secrets, and
-   audio independently of the container lifecycle.
-3. Do not run `docker compose up --build` merely because the host rebooted.
-   That would deploy the checked-out source instead of resuming the existing
-   image. If the existing container is absent and must be recreated, use
-   `doppler run --project plaud-mirror --config dev -- docker compose up -d`
-   so operator auth is not silently disarmed.
-4. After boot, verify:
-
-   ```bash
-   docker compose ps
-   curl -fsS http://127.0.0.1:3040/api/health
-   curl -fsS http://127.0.0.1:3040/api/session
-   curl -fsS http://127.0.0.1:3040/api/protocol/status
-   ```
-
-   Expected release until a separate deploy GO: `0.15.0`. Session status must
-   report `authRequired: true`; scheduler interval remains persisted in SQLite
-   at PT15M. The next tick is scheduled from process boot, not retroactively.
-
-A shutdown longer than the PT2H freshness budget may make Infra Portal show
-the job as stale. That is correct; the first successful post-boot sync restores
-fresh evidence. A power loss or hard kill may leave an in-flight row, but the
-startup recovery sweep fails orphaned sync runs and requeues claimed outbox
-work at least once. Reboots preserve historical recovery evidence. The final
-Phase 3 five-day window follows D-026's joint last-deploy/canary/automatic-run
-start rule; a reboot or runtime deploy during that window resets it.
-
-## Upgrade
-
-```bash
-cd ~/src/plaud-mirror
-git pull
-# Back up runtime/data/app.db before recreating a container that carries a DB migration.
-doppler run --project plaud-mirror --config dev -- docker compose up -d --build
-```
+1. Freeze and audit the release candidate.
+2. Build and push the version tag from dev-vm.
+3. Resolve and record the registry digest; update
+   `PLAUD_MIRROR_IMAGE=registry.lamanoriega.com/plaud-mirror:<version>@sha256:<digest>`
+   in `plaud-mirror/prd` without printing it.
+4. Require `activeRun: null` and no currently claimed (`delivering`) outbox
+   work. Pending/retry-waiting deliveries may survive an ordinary upgrade;
+   application startup recovery owns any crash-orphaned running/delivering
+   rows.
+5. Back up SQLite coherently through the SQLite Online Backup API or after the
+   service is stopped. Never copy only `app.db` while WAL is active.
+6. Run NAS `./start.sh`; it pulls and recreates only `plaud-mirror`.
+7. Validate every surface below. A runtime-affecting upgrade resets the joint
+   Plaud/Media2Text observation clock defined by D-026.
 
 ## Validation
 
-1. `GET /api/health` returns `200`
-2. `docker compose ps` reports the container as `healthy`
-3. `GET /api/protocol/sync-jobs/plaud-mirror-recordings-sync/status` returns
-   `200` with `job_id: "plaud-mirror-recordings-sync"` and no operator cookie
-4. Web panel loads
-5. Token can be saved from the UI
-6. Manual sync or backfill can be triggered
-7. Mirrored files appear in `runtime/recordings`
-8. For `v0.12.0+`, `PRAGMA table_info(recordings)` includes
-   `upstream_deleted_at` and the inventory-generation columns; SQLite contains
-   `upstream_deletion_operations` plus `upstream_deletion_events`, and legacy
-   tombstones appear as confirmed operations. After one full sync,
-   `/api/health.coverage` satisfies
-   `mirrored + dismissed + missing = remoteTotal`. An authenticated Library
-   view shows the permanent delete action only for dismissed rows. Do not
-   invoke it during deployment validation.
+Require all applicable evidence:
+
+1. Docker reports `plaud-mirror` healthy and its immutable image digest matches
+   the accepted registry reference.
+2. `/app/VERSION`, local `/api/health.version`, and the intended release agree.
+3. `/api/session` reports `authRequired: true`; anonymous protected routes
+   return 401.
+4. `/api/health` shows Plaud auth healthy, `activeRun: null`, exact physical
+   coverage, and truthful retained errors/outbox state.
+5. `/api/protocol/sync-jobs/plaud-mirror-recordings-sync/status` returns the
+   expected job, a future `next_run_at`, and no secrets or private errors.
+6. Direct NAS root/static assets load and one real recording supports
+   authenticated HTTP Range playback before Caddy changes.
+7. Canonical HTTPS loads through Caddy; direct NAS plaintext is loopback-only.
+8. The first automatic PT15M run completes on the NAS with no duplicate writer.
+9. Home Infra/Infra Portal show `host_id: nas`, the accepted Plaud contract
+   source, current observation, and no provenance warning.
+
+Validation never invokes permanent Plaud deletion, replay, credential
+rotation, a new paid transcription, or generic webhook delivery without their
+separate gates.
+
+## Host reboot without deployment
+
+Before a planned shutdown, require `activeRun: null` where practical. Compose
+uses `restart: unless-stopped`; Docker should restart the accepted existing
+image without a rebuild or secret download. After boot, validate Docker,
+session auth, health, protocol status, and the first subsequent automatic run.
+
+Do not run `up --build` merely because a host rebooted. A long outage may make
+the Home Infra observation stale; that is truthful until a new producer
+snapshot arrives.
 
 ## Rollback
 
-1. Stop the new container:
+For an image-only upgrade, set `PLAUD_MIRROR_IMAGE` back to the prior immutable
+tag/digest and run `./start.sh`. If a database migration is not backward
+compatible, restore its coherent pre-upgrade backup before starting the prior
+image.
 
-```bash
-docker compose down
-```
-
-2. Check out the previous git revision or tag.
-3. Rebuild and relaunch:
-
-```bash
-doppler run --project plaud-mirror --config dev -- docker compose up -d --build
-```
-
-## Notes
-
-- The current container is a single-process Phase 3 slice: API + static web panel + opt-in continuous sync scheduler (D-012, panel-driven from `v0.5.2`) + durable webhook outbox (D-013, shipped in `v0.5.3`). The scheduler stays **disabled unless** the operator sets a positive interval from the panel (or, on a fresh install, via `PLAUD_MIRROR_SCHEDULER_INTERVAL_MS`); the outbox **always runs** and short-circuits to `permanently_failed` when no webhook URL is configured. See [HOW_TO_USE.md](../../HOW_TO_USE.md) and [AUTH_AND_SYNC.md](AUTH_AND_SYNC.md) for both surfaces.
-- From `v0.10.4`, compose has a `/api/health` healthcheck and whole-run sync work defaults to a one-hour ceiling. Override only with `PLAUD_MIRROR_SYNC_MAX_RUNTIME_MS`; keep the contract's `max_runtime` aligned.
-- Full health observability — `lastErrors` ring buffer + `recentSyncRuns` (D-014, full) — shipped in `v0.5.5`. `/api/health` exposes both fields directly; no separate route.
-- Home Infra Protocol sync status — `infra.contract.yml` declares
-  `plaud-mirror-recordings-sync`, and the public sanitized status snapshot route
-  is `/api/protocol/sync-jobs/plaud-mirror-recordings-sync/status`.
+For the first host migration, restore the backed-up Plaud Caddy upstream,
+stop the NAS writer with the fixed Container Station Docker binary, reconcile
+any NAS-side state change, restore the old container's restart policy, and only
+then restart the unchanged Doppler-wrapped dev-vm runtime. Never run both
+schedulers. The old dev-vm data is retained until NAS serving, observation,
+backup, and explicit cleanup gates are complete. The one-time migration
+runbook carries the literal stop/restart commands so rollback does not depend
+on a removed temporary Compose env file.

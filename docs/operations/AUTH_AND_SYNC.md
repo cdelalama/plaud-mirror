@@ -1,4 +1,4 @@
-<!-- doc-version: 0.15.1 -->
+<!-- doc-version: 0.16.0 -->
 # Authentication and Sync Operations
 
 This runbook defines the live behavior of Plaud Mirror's auth and sync surface. Phase 2 is fully shipped. Phase 3 added the scheduler, durable outbox, health observability, and access/recovery timeouts. `v0.10.3` makes artifact integrity truthful; `v0.10.4` makes scheduler completion, runtime ceilings, outbox recovery, pagination, and shutdown truthful before the soak. Resumable backfill and fully unattended re-login stay deferred.
@@ -19,9 +19,21 @@ Five distinct auth surfaces exist from v0.14.0 — do not conflate them:
 
 When `PLAUD_MIRROR_ADMIN_PASSPHRASE` is set, the panel shows a login screen and every normal `/api/*` route except `GET /api/health` and `/api/session*` requires the signed session cookie issued by `POST /api/session/login` (HttpOnly, SameSite=Lax, 30-day TTL). The public protocol status routes remain sanitized. Transcription artifact/status routes do not use the operator cookie because they enforce their own bearer/HMAC at the route boundary. Unauthenticated `/api/health` responses redact `auth.userSummary` (the Plaud account email/uid). Failed logins are throttled (5/minute). Rotating the passphrase — or the master key — invalidates every outstanding session immediately.
 
-Storage convention (v0.6.2): the passphrase lives in Doppler at `plaud-mirror/dev/PLAUD_MIRROR_ADMIN_PASSPHRASE`, per the home-infra secrets convention. Store or rotate it with `scripts/set-admin-passphrase.sh` (interactive; reads the value silently, double-prompts, pipes it to the Doppler CLI via stdin so it never touches argv, history, or disk). Inject it at launch with `doppler run --project plaud-mirror --config dev -- docker compose up -d` (process env overrides `.env` in compose substitution), or copy it into the gitignored `.env` manually.
+Storage convention: development uses
+`doppler://plaud-mirror/dev/PLAUD_MIRROR_ADMIN_PASSPHRASE`; NAS production
+uses the exact counterpart under `doppler://plaud-mirror/prd`. Store or rotate
+the development value with `scripts/set-admin-passphrase.sh` (interactive;
+reads silently and never puts the value in argv, history, or disk). The NAS
+uses the read-only service-token launcher in `deploy/nas/start.sh`. The first
+host migration copies the existing passphrase and historical master key
+without rotating them so sessions and `secrets.enc` remain compatible.
 
-When the variable is unset, the API runs open (pre-0.6.0 behavior) and `health.warnings` carries "Operator access control is disabled — set PLAUD_MIRROR_ADMIN_PASSPHRASE..." so the gap is never silent. Given the service is published through `edge-caddy` at `https://plaud.lamanoriega.com/` and `compose.yml` binds `3040:3040` on the LAN, running without the passphrase is NOT recommended.
+When the variable is unset, the API runs open (pre-0.6.0 behavior) and
+`health.warnings` carries "Operator access control is disabled — set
+PLAUD_MIRROR_ADMIN_PASSPHRASE..." so the gap is never silent. The dev compose
+still binds port 3040 on the LAN; NAS production binds it only on loopback, but
+the passphrase remains mandatory because the service is published through
+`edge-caddy` at `https://plaud.lamanoriega.com/`.
 
 ## Optional Transcription Destination Auth (D-023/D-024, v0.14.1)
 
@@ -86,7 +98,7 @@ The Plaud bearer lasts ~300 days, so this is a roughly-once-a-year, no-DevTools,
 Two things the capture must get right (both fixed in v0.7.3):
 
 - **Token type:** the captured token must be the global **user token** (`localStorage.pld_tokenstr`), not Plaud's per-workspace token. `/user/me` (the validation endpoint) rejects the workspace token with 403. The Chrome extension prefers `pld_tokenstr` and scans storage as a fallback.
-- **Region:** the bearer is region-bound. Set `PLAUD_MIRROR_API_BASE` to the account's regional API domain (`https://api-euc1.plaud.ai` for EU, `https://api.plaud.ai` for US). A wrong region returns a hard 403 that the `-302` regional-retry path does not catch. This deployment is EU (set in Doppler `plaud-mirror/dev`).
+- **Region:** the bearer is region-bound. Set `PLAUD_MIRROR_API_BASE` to the account's regional API domain (`https://api-euc1.plaud.ai` for EU, `https://api.plaud.ai` for US). A wrong region returns a hard 403 that the `-302` regional-retry path does not catch. This deployment is EU (`plaud-mirror/dev` locally and `plaud-mirror/prd` on NAS).
 - **Request fingerprint:** from `v0.8.1`, Plaud API calls use Plaud Web's browser context (`Origin` / `Referer` `https://web.plaud.ai`, browser-like Chrome user agent, and browser `sec-fetch-*` headers). This was required after the operator proved the captured EU user token returned `200` from Plaud Web's own console while the backend's old `app.plaud.ai` + custom-user-agent request received an HTML 403 from Plaud/Cloudflare.
 - The panel normalizes a pasted token (strips surrounding quotes and a leading `Bearer ` prefix). Plaud rejection details are surfaced only on authenticated token-save/connect responses; the public `/api/health` keeps generic error strings.
 
@@ -277,12 +289,16 @@ Resumable backfill remains deferred (no firm release target).
 | Permanent Plaud delete fails before any operation is stored | Row stays locally dismissed and Restore remains available | Fix auth/upstream access and retry |
 | Permanent Plaud delete has an uncertain remote outcome | Row stays dismissed with `Plaud deletion pending`; Restore is blocked | Use Retry deletion so the service reconciles Plaud before any second DELETE |
 | Lost operator passphrase | Panel/API return 401 | Set a new `PLAUD_MIRROR_ADMIN_PASSPHRASE` and restart the container (old sessions invalidate automatically) |
+| Wrong master key after host migration | Runtime starts but cannot decrypt persisted Plaud/destination secrets | Stop the new writer; restore the exact historical key from `plaud-mirror/prd`; do not rotate or overwrite `secrets.enc` |
+| Two hosts started from copied state | Duplicate scheduler/admission side effects can occur because locks are SQLite-local | Stop both, preserve both state copies, reconcile the newest evidence, then start exactly one writer |
 
 ## Security Rules
 
 - Never log bearer tokens or webhook secrets.
 - Never log full Plaud temp URLs.
 - `PLAUD_MIRROR_MASTER_KEY` is mandatory for runtime startup.
+- Production master-key custody is `doppler://plaud-mirror/prd`; host migration
+  must preserve the exact key already used to encrypt `secrets.enc`.
 - `PLAUD_MIRROR_ADMIN_PASSPHRASE` is strongly recommended on any deployment reachable beyond localhost; error messages remain visible to unauthenticated LAN callers through the public `/api/health`, so they must never carry secrets.
 
 ## Operational Signals

@@ -1,4 +1,4 @@
-<!-- doc-version: 0.15.1 -->
+<!-- doc-version: 0.16.0 -->
 # Plaud Mirror
 
 Self-hosted Plaud audio mirror with a local operator panel, manual/continuous
@@ -36,9 +36,10 @@ The repository now contains the full Phase 2 slice, the complete Phase 3 runtime
 - generation-based coverage that proves the current Plaud inventory against
   physical local artifacts while reporting historical tombstones separately
 - Spanish/English operator chrome persisted in browser storage, with a labeled mobile view selector and compact mobile status chips
-- Docker packaging for `dev-vm`, running as non-root `USER 1000:1000`
+- Docker packaging for local `dev-vm` development and a fail-closed NAS
+  production deployment, both running as non-root `USER 1000:1000`
 
-The current re-auth path is browser-assisted: the panel starts a one-time capture session and the local Chrome extension sends the Plaud browser token back through `/connect`. The v0.9.x panel absorbs `docs/design/reference/plaud-mirror-panel-standalone.html` as its visual source reference, uses a full-viewport production shell on wide monitors, makes the Main cockpit's "Sync missing" action download the displayed missing count instead of inheriting the Backfill form's conservative limit, and keeps the mobile shell readable with labeled navigation and compact status chips. Resumable backfill, fully unattended re-login, and NAS rollout remain later phases.
+The current re-auth path is browser-assisted: the panel starts a one-time capture session and the local Chrome extension sends the Plaud browser token back through `/connect`. The v0.9.x panel absorbs `docs/design/reference/plaud-mirror-panel-standalone.html` as its visual source reference, uses a full-viewport production shell on wide monitors, makes the Main cockpit's "Sync missing" action download the displayed missing count instead of inheriting the Backfill form's conservative limit, and keeps the mobile shell readable with labeled navigation and compact status chips. Resumable backfill and fully unattended re-login remain later phases. The `v0.16.0` NAS deployment closes the long-deferred production-placement slice without changing those product flows.
 
 ## Operator Posture
 
@@ -50,7 +51,7 @@ Plaud Mirror is for personal/operator use against the operator's own Plaud accou
 
 Prerequisites:
 
-- Node `>=20`
+- Node `>=24.15`
 - `PLAUD_MIRROR_MASTER_KEY` set
 - `PLAUD_MIRROR_ADMIN_PASSPHRASE` set (recommended) — the operator passphrase that protects the panel and API. When unset, the API runs open (pre-0.6.0 behavior) and `/api/health` carries a warning.
 
@@ -77,7 +78,7 @@ The `dev-vm` deployment keeps operator access control in Doppler (`plaud-mirror/
 If Docker Hub is timing out, the Dockerfile accepts `PLAUD_MIRROR_DOCKER_BUILD_IMAGE` and `PLAUD_MIRROR_DOCKER_RUNTIME_IMAGE` build-arg overrides so you can point the build at a locally cached Node base. Acceptable substitutes:
 
 - a Node slim or alpine image already cached by another project on the same host;
-- a `node:20-bookworm-slim` image side-loaded via `docker save` / `docker load`;
+- a `node:24-bookworm-slim` image side-loaded via `docker save` / `docker load`;
 - a pull-through registry mirror on your infra (see the open item in `~/src/home-infra/docs/PROJECTS.md`).
 
 Pentesting distributions such as `vxcontrol/kali-linux:latest` are **not** acceptable substitutes. Kali is a security-tooling base, inflates the attack surface of this service, and does not belong in a Plaud mirror's runtime — even if it happens to be cached locally for an unrelated project.
@@ -86,6 +87,23 @@ Runtime data lands in:
 
 - `./runtime/data`
 - `./runtime/recordings`
+
+### Docker on the NAS
+
+Production uses the source-owned assets under `deploy/nas/`, an immutable
+`registry.lamanoriega.com/plaud-mirror:<version>@sha256:<digest>` image, and
+the `plaud-mirror/prd` Doppler config. The application listens only on
+`127.0.0.1:3040`; NAS `edge-caddy` owns the public
+`https://plaud.lamanoriega.com/` route.
+
+Control state and recordings use separate datasets:
+
+- `/share/Container/runtime/plaud-mirror/data`
+- `/share/ProjectsData/plaud-mirror/recordings`
+
+Do not copy a live `app.db` or start the NAS container alongside the dev-vm
+scheduler. Follow the quiesced migration, validation, and rollback gates in
+[`docs/operations/DEPLOY_PLAYBOOK.md`](docs/operations/DEPLOY_PLAYBOOK.md).
 
 ## Phase 1 Spike
 

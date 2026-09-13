@@ -1,4 +1,4 @@
-<!-- doc-version: 0.15.1 -->
+<!-- doc-version: 0.16.0 -->
 # Repository Structure Guide
 
 This document describes the actual Plaud Mirror repository layout as of the first usable Phase 2 slice.
@@ -16,6 +16,13 @@ plaud-mirror/
 +- infra.contract.yml
 +- Dockerfile
 +- compose.yml
++- deploy/
+|  +- nas/
+|     +- docker-compose.yml
+|     +- start.sh
+|     +- verify-container.sh
+|     +- verify-runtime.mjs
+|     +- README.md
 +- package.json
 +- package-lock.json
 +- .github/workflows/ci.yml
@@ -82,10 +89,11 @@ plaud-mirror/
 | `scripts/run-node-tests.mjs` | Automatic Node/integration test discovery | Recursively runs every compiled `*.test.js` and integration `*.test.mjs` file |
 | `scripts/check-transcription-contract.mjs` | Local profile integrity check | Verifies every published schema byte against `docs/contracts/manifest.v1.json` |
 | `scripts/check-transcription-provider.mjs` | Executable provider probe | Exercises capability, admission, duplicate, conflict, and pull conformance against a real configured provider |
-| `.github/workflows/ci.yml` | Repository CI gate | Runs `npm test` on Node 20 for `main` and pull requests |
+| `.github/workflows/ci.yml` | Repository CI gate | Runs `npm test` on Node 24 for `main` and pull requests |
 | `docs/ROADMAP.md` | Canonical phase boundary document | Use this when scope questions appear |
 | `Dockerfile` | Single-container production image | Builds API and panel together |
 | `compose.yml` | Local `dev-vm` launch path | Mounts `runtime/data` and `runtime/recordings` |
+| `deploy/nas/` | QNAP production launch surface | Immutable image, Doppler bootstrap, loopback ingress, split persistent storage, and migrated-state fail-closed gate |
 
 ## Runtime Directories
 

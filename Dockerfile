@@ -1,5 +1,5 @@
-ARG BUILD_BASE_IMAGE=node:20-bookworm-slim
-ARG RUNTIME_BASE_IMAGE=node:20-bookworm-slim
+ARG BUILD_BASE_IMAGE=node:24-bookworm-slim
+ARG RUNTIME_BASE_IMAGE=node:24-bookworm-slim
 
 FROM ${BUILD_BASE_IMAGE} AS build
 

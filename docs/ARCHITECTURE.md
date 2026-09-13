@@ -1,9 +1,9 @@
-<!-- doc-version: 0.15.1 -->
+<!-- doc-version: 0.16.0 -->
 # Plaud Mirror Architecture
 
-> Version: 0.15.0 source; 0.14.2 deployed and reconciled
-> Last Updated: 2026-07-18
-> Status: v0.15.0 is deployed from runtime source `e0aec3f` with one enabled Media2Text destination, exact 629/629 Plaud coverage, and D-025 review of all three retained failures. D-026 freezes the bilateral connections control-plane direction without changing the content wire contract. MP3 and OGG canaries remain terminal, source and transcript hashes remain distinct, and bulk replay remains separately cost-gated.
+> Version: 0.16.0 NAS deployment candidate; 0.15.0 remains deployed on dev-vm
+> Last Updated: 2026-09-13
+> Status: v0.16.0 adds the source-owned NAS production surface and migration contract. The live dev-vm runtime remains 0.15.0 until independent review, quiesced state transfer, loopback acceptance, proxy cutover, and Home Infra reconciliation pass. D-026 connection control and historical replay remain separate gates.
 
 ## Overview
 
@@ -29,6 +29,23 @@ Plaud Mirror is a single-operator, server-first service that:
 - **Secrets:** encrypted JSON blob at `data/secrets.enc`
 - **Artifacts:** filesystem under `recordings/<recording-id>/`
 - **Packaging:** single Docker container serving both API and panel
+
+### Production placement from v0.16.0
+
+The image remains a single process, but production storage is split across two
+NAS datasets. SQLite and `secrets.enc` use
+`/share/Container/runtime/plaud-mirror/data`; the growing audio tree and
+immutable delivery leases use
+`/share/ProjectsData/plaud-mirror/recordings`. Both bind to the same in-container
+paths used on dev-vm, so persisted SQLite paths and artifact identities do not
+change.
+
+The NAS container publishes port 3040 only on loopback. `edge-caddy` terminates
+TLS and is the only operator ingress. `plaud-mirror/prd` supplies the unchanged
+historical master key, admin passphrase, EU API origin, and immutable image
+reference through a read-only Doppler service token. The old dev-vm runtime is
+stopped before NAS startup because the in-process scheduler is single-writer,
+not a distributed lease.
 
 ## What Phase 2 Shipped
 
@@ -112,7 +129,8 @@ Still **not** in Phase 3 scope:
 
 - resumable backfill (deferred; ROADMAP mentions but no firm release target)
 - automatic re-login → [Phase 4](ROADMAP.md)
-- NAS rollout → [Phase 5](ROADMAP.md)
+- NAS rollout and validation → [Phase 5](ROADMAP.md), delivered by the
+  `v0.16.0` deployment slice once live acceptance is recorded
 - public OSS polish → [Phase 6](ROADMAP.md)
 
 ## Key Flows
@@ -385,7 +403,7 @@ ordered by evidence and product contracts:
    Content Intake repository only after this successful canary and a second
    structurally different processing profile. The second trigger does not yet
    exist, so the compatibility profile remains owned here.
-4. **Continue queued hardening:** adapt D-019 to Plaud's first-party refresh
-   tokens together with scrypt, complete the NAS deployment slice, and finish
+4. **Continue queued hardening:** finish the `v0.16.0` NAS acceptance, then
+   adapt D-019 to Plaud's first-party refresh tokens together with scrypt and finish
    OSS documentation. Resumable backfill remains deferred without a release
    target.

@@ -1,4 +1,4 @@
-<!-- doc-version: 0.15.1 -->
+<!-- doc-version: 0.16.0 -->
 # Infra Contract
 
 Plaud Mirror publishes a `home-infra-protocol` project contract in
@@ -19,10 +19,13 @@ that tells Infra Portal where to find the contract and status snapshot.
 `plaud-mirror-recordings-sync` is a `sync_jobs[]` entry because Plaud Mirror
 synchronizes local state from Plaud, an external authority.
 
-Current declaration:
+Current declaration before cutover:
 
 - Source: `plaud`, `external`.
-- Runtime: `dev-vm`, service `plaud-mirror`.
+- Production runtime: `dev-vm` (`host_id: dev-vm`), service `plaud-mirror`.
+  D-027 changes this to NAS only in a post-serving contract commit after direct
+  and canonical acceptance plus the first NAS automatic run. After that
+  commit, dev-vm is a stopped rollback source, never a parallel producer.
 - Schedule mode: `internal-loop`.
 - Cadence: `PT15M`.
 - Silence budget: `PT2H` (greater than cadence plus `max_runtime: PT1H`).

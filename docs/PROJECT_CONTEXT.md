@@ -1,4 +1,4 @@
-<!-- doc-version: 0.15.1 -->
+<!-- doc-version: 0.16.0 -->
 # Project Context - Plaud Mirror
 
 ## Vision
@@ -26,22 +26,27 @@ Plaud Mirror is a server-first product with two runtime surfaces:
 
 Persistence is split between SQLite for state/indexes and the filesystem for mirrored audio artifacts. Secrets are encrypted at rest with a master key supplied by the surrounding deployment.
 
-## Current Status (2026-07-20, v0.15.0 deployed)
+## Current Status (2026-09-13, v0.16.0 NAS candidate)
+
+The operator has promoted NAS placement ahead of the connection-control work
+because dev-vm is at 89% disk utilization and the Plaud runtime holds 12 GB of
+audio. `v0.16.0` prepares a fail-closed QNAP deployment with immutable registry
+image, Doppler `prd` bootstrap, loopback-only HTTP, and split storage: small
+control state stays in `/share/Container`, while recordings use the 1 TB
+`/share/ProjectsData` dataset. The candidate also moves the supported runtime
+to Node 24.15+ and clears the dependency audit before placing a new public
+container. Production remains the live `v0.15.0` dev-vm container until
+independent review and the quiesced cutover are accepted.
 
 `v0.15.0` source adds provider-neutral local review for retained transcription
-failures. The operator can distinguish dependency failures, incompatible
-audio, policy blocks, and provider failures; record whether the provider was
-invoked; preserve a policy limit; and mark the incident active or resolved.
-This metadata does not modify the frozen wire contract, retryability, or the
-terminal delivery state. Coverage now separates active attention from
-historical resolved evidence, and each delivery snapshots audio duration so a
-policy block can be explained precisely. The release is deployed from runtime
-source `e0aec3f` with operator auth armed, PT15M scheduling, exact 629/629
-coverage, public protocol status `ok/none`, and clean SQLite integrity. The
-three retained rows are now classified: the pre-provider dependency canary and
-the provider-invoked OGG incompatibility are resolved historical evidence; the
-211.51-minute item is an active 180-minute policy block and did not invoke the
-provider.
+failures without modifying the frozen wire contract, retryability, or terminal
+delivery state. Fresh pre-migration evidence reports exact 720/720 coverage and
+98 terminal deliveries: 61 `transcribed` and 37 retained `failed`, with none in
+flight. The original three rows reviewed in July preserve two resolved findings
+and one active policy block; the later rows have not been reclassified by
+inference. The 622-recording historical replay arithmetic remains exact because
+the additional automatic deliveries correspond to recordings added after the
+original backlog was measured.
 
 `v0.14.2` from `a993936` repaired the final mismatch found by
 the first live Media2Text completion. The runtime now persists source audio and
@@ -62,11 +67,10 @@ protocol repository. A destination-free instance remains healthy and
 fully functional; the generic webhook remains separate. Media2Text is the
 first compatible provider, not a build/runtime/storage dependency.
 Restore is now serialized against the full permanent-deletion window, and a
-second enabled destination requires explicit cost confirmation. Seven
-deliveries are tracked (four transcribed and three retained failures). Two
-failures are historical canary incidents whose underlying provider defects are
-fixed; the third is a 211.51-minute recording blocked by the active 180-minute
-economic policy before provider invocation.
+second enabled destination requires explicit cost confirmation. The live
+destination now has 98 terminal delivery rows. The three rows reviewed in July
+remain useful examples, but the 35 later failures still require their own
+operator classification rather than inherited labels.
 Historical replay remains blocked: 622 recordings remain, representing
 608.0074 hours. USD 335.62 is a Plaud-local planning estimate using the
 configured Deepgram rate as of 2026-07-18; it is not a Media2Text quotation or
@@ -91,7 +95,7 @@ patch is deployed from clean source `d00ca3e` and reconciled through Home Infra
 as Home Infra Protocol 0.10.0 `next_run_at`. The field is omitted when no plan
 exists and never changes freshness or severity. This restores useful countdown
 UX in generic consumers without asking them to reconstruct a schedule from
-cadence. Production v0.15.0 currently reports 629/629 current
+cadence. Production v0.15.0 currently reports 720/720 current
 coverage, `ok/none`, and a future next run.
 
 Plaud Mirror `v0.12.0` is the integrity follow-up to the first real operator
@@ -207,7 +211,7 @@ The earlier `0.5.x` baseline still applies: in-process continuous sync scheduler
 
 Operators upgrading from `0.4.x` should skip `v0.5.0` (scheduler default-on regression + missing service-layer anti-overlap) and go directly to `v0.10.7`.
 
-The Phase 2 slice it inherits: a live Fastify API, a web panel for token setup, webhook configuration, sync/backfill controls, recordings visibility with inline audio playback, encrypted persisted manual bearer-token auth, manual sync and filtered historical backfill (async-202, with a `limit=0` "refresh server stats" path), SQLite-backed recording and delivery state, immediate HMAC-signed webhook delivery with persisted attempt logging, reversible local dismiss/restore plus the v0.11.0 optional upstream deletion, Docker packaging for `dev-vm` running as non-root `USER 1000:1000`, and the original Phase 1 spike CLI for direct Plaud probing. Concretely:
+The Phase 2 slice it inherits: a live Fastify API, a web panel for token setup, webhook configuration, sync/backfill controls, recordings visibility with inline audio playback, encrypted persisted manual bearer-token auth, manual sync and filtered historical backfill (async-202, with a `limit=0` "refresh server stats" path), SQLite-backed recording and delivery state, immediate HMAC-signed webhook delivery with persisted attempt logging, reversible local dismiss/restore plus the v0.11.0 optional upstream deletion, Docker packaging running as non-root `USER 1000:1000`, and the original Phase 1 spike CLI for direct Plaud probing. Concretely:
 
 - a live Fastify API
 - a web panel for token setup, webhook configuration, sync/backfill controls, and recordings visibility
@@ -216,14 +220,15 @@ The Phase 2 slice it inherits: a live Fastify API, a web panel for token setup, 
 - SQLite-backed recording and delivery state (including `dismissed`, `dismissed_at`, and `upstream_deleted_at` for curation/audit)
 - immediate HMAC-signed webhook delivery with persisted attempt logging
 - inline audio playback per recording, reversible local dismiss/restore, and an explicit permanent Plaud-delete action restricted to dismissed rows
-- Docker packaging for `dev-vm`, running as non-root `USER 1000:1000`
+- Docker packaging for dev-vm and NAS, running as non-root `USER 1000:1000`
 - the original Phase 1 spike CLI for direct Plaud probing
 
 What it still does not have:
 
 - resumable backfill
 - fully unattended re-login
-- NAS validation
+- live NAS cutover and post-cutover acceptance (source assets exist in
+  `v0.16.0`; deployment truth is recorded separately)
 
 ## Phase Boundaries
 

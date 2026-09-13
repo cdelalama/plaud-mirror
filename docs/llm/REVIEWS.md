@@ -419,6 +419,217 @@ Plaud contract or propose a versioned change, then pass the conformance canary.
 No live traffic, canary, replay, deploy, or sibling-repository edit is
 authorized by the v0.14.0 source implementation.
 
+## 2026-09-14 - NAS Migration Release Audit
+
+**Input:** Plaud Mirror `v0.16.0` staged migration candidate from base HEAD
+`57f1f9b107382750e71f183a02b602aca1a0c6d8`, initial staged tree
+`fe6ea19f4775bb626feaba75bb605774fb55d953`, and initial staged binary-diff
+SHA-256 `afb592c5e24de697e01e6684419ff831b2fc0792675e9d158405e44b4fb3c327`.
+
+**Reviewers:** exact `claude-fable-5-1` at high effort requested first -> exact
+`claude-opus-5[1m]` at high effort after direct quota evidence -> GPT-5 Codex
+verification and remediation. Both Claude commands used `--print`,
+`--permission-mode plan`, `--permission-prompts none`, `--restricted`, and
+JSON output. None was authorized to edit, deploy, use network services, or
+spawn subagents.
+
+### Model and evidence record
+
+- Fable result session `a63905f7-999a-469d-8c83-bafcdce366b9` returned HTTP
+  429 and the exact message `You've reached your Fable limit.` with zero audit
+  output. No Fable review is claimed.
+- The permitted fallback used model id `claude-opus-5[1m]`, canonical model
+  `claude-opus-5`, high effort, session
+  `aea2b76f-c688-49a1-8b66-b9bb6350521a`. It made no repository or runtime
+  mutation and spawned no subagent. It read the 36-path candidate snapshot but
+  its restricted filesystem interface could not independently decompress Git
+  tree objects, so Codex separately reverified HEAD/tree/diff identity and owns
+  executable validation.
+- Supplied validation was 212/212 tests, build/typecheck, five frozen schemas,
+  full and production dependency audits with zero findings, 32/32 validator
+  smoke cases, 12/12 DocKit checks, 23/23 version targets, and local container
+  build/runtime smoke. Opus treated that evidence as supplied, not reproduced.
+- The same Opus session was resumed against remediated tree
+  `38ebf3a828294e9adee4f227b7808dfd1b76e5b2`, binary-diff SHA-256
+  `1f5aa243149d988c9acd9793bce087c44872b881a03e2c7f133a5cf5e01b1e8e`,
+  and 214/214 supplied tests. Pass 2 closed every original HIGH and all seven
+  original LOW findings, retained the two declared tradeoffs, and returned
+  `REQUEST CHANGES` for one new HIGH plus critical-path medium details.
+- Pass 3 reviewed twice-remediated tree
+  `75949dd7b707cae9c1b8500944c90d349adcc28e`, binary-diff SHA-256
+  `0a0f420cea4c68947c90a45743e87c0afc0c22af5763be2c2b0919e667c7028b`,
+  and 215/215 supplied tests. It marked N1-N10 closed and returned `GO` with
+  no BLOCKER/HIGH/MEDIUM findings plus two LOW evidence-hardening suggestions.
+- Pass 4 reviewed the post-GO hardening tree
+  `e44d9f010d4728827f089cd3cdaab7176078a4b7`, binary-diff SHA-256
+  `5d9c772bbf3c80607f686d1791ee9303ad84474e1e3201321c9b3bcbffd63715`,
+  and 215/215 supplied tests. It closed N11/N12 and returned `GO` with no
+  finding at any severity. The auditor retained its prior tool limitation on
+  independently decoding Git objects; Codex reverified the frozen identity.
+
+### Points of Agreement
+
+- The split-mount design is compatible with same-directory atomic writes;
+  Docker hardening, pinned Doppler bootstrap, old-source retention, horizontal
+  Home Infra/Protocol/ForgeOS boundaries, and the documented no-delete path are
+  directionally sound.
+- Source availability, registry publication, NAS runtime, canonical serving,
+  automatic-run evidence, and Home Infra projection remain separate claims.
+- The first pass found no BLOCKER, but returned `REQUEST CHANGES` because three
+  HIGH operational gaps preceded live cutover.
+
+### Points Raised (Pushback / Additions)
+
+1. **Caddy loopback reachability was asserted but not proved.**
+   - Resolution: Adopted.
+   - Rationale: live inspection recorded `edge-caddy` network mode `host` and
+     availability of in-container `wget`; the runbook now requires both the
+     exact mode and an actual proxy-container request to NAS loopback before
+     editing Caddy.
+2. **Authenticated static/Range validation happened after public cutover.**
+   - Resolution: Adopted.
+   - Rationale: new `deploy/nas/verify-runtime.mjs` runs inside the candidate
+     container before Caddy changes and checks static HTML, armed auth,
+     anonymous 401, login, health, protocol, and one-byte authenticated Range
+     playback without disclosing the passphrase.
+3. **Persistent path guards allowed unsafe override parents.**
+   - Resolution: Adopted.
+   - Rationale: the launcher now accepts only the two reviewed absolute leaves
+     and UID/GID 1000:1000, records prior metadata, rejects symlinks, and
+     normalizes the copied tree recursively before startup.
+4. **Machine-readable runtime truth moved to NAS prematurely.**
+   - Resolution: Adopted.
+   - Rationale: `infra.contract.yml` remains `host_id: dev-vm` with `dev`
+     secret references until post-serving evidence; the human contract
+     explicitly identifies the later post-cutover commit.
+5. **Quiescence and exact-copy gates were prose-only.**
+   - Resolution: Adopted.
+   - Rationale: the runbook now carries literal SQL, checksum dry runs,
+     count/byte/hash comparisons, explicit `integrity_check=ok`, and a receipt
+     written only after convergence. `start.sh` independently opens the NAS DB
+     read-only inside the pinned image and rejects nonzero active work.
+6. **Copied file ownership was not guaranteed.**
+   - Resolution: Adopted.
+   - Rationale: rsync no longer preserves source numeric owners; the exact
+     target trees are recursively normalized and checked before the image DB
+     probe.
+7. **Rollback depended on a Compose env file and the old writer remained
+   restart-armed.**
+   - Resolution: Adopted.
+   - Rationale: full Doppler values now exist only on tmpfs for the launcher
+     lifetime. Literal rollback uses the fixed Docker binary, while cutover
+     sets the dev-vm container restart policy to `no`; rollback restores the
+     policy only after the NAS writer is stopped and state is reconciled.
+8. **Secret material, resource ceilings, and logs needed stronger operational
+   treatment.**
+   - Resolution: Adopted.
+   - Rationale: full values are not persisted to the snapshotted share; Compose
+     has bounded 10 MB x 3 json-file logs; the first automatic run must retain
+     healthy/OOM-free/PID-safe evidence under the 1 GB/256-PID limits.
+9. **Deployment asset tests missed likely regressions.**
+   - Resolution: Adopted.
+   - Rationale: tests now reject a bare `3040:3040`, require every fail-closed
+     substitution, logging bounds, exact path guards, image pinning,
+     migration receipt/DB checks, and syntax plus semantic surfaces of the
+     direct runtime verifier.
+10. **The release number appeared inconsistent with the version policy.**
+    - Resolution: Amended.
+    - Rationale: `v0.16.0` changes physical host/storage placement but preserves
+      logical persisted data, schema, HTTP/wire contracts, and hostname with an
+      exact rollback. The version policy now states this pre-1.0 minor rule;
+      incompatible persisted-data conversion remains major.
+11. **The Fable fallback evidence was absent from the reviewed tree.**
+    - Resolution: Adopted by this entry.
+    - Rationale: quota evidence and exact effective fallback model/effort are
+      now durable before the second audit pass.
+12. **Dependency modernization and host migration share one release.**
+    - Resolution: Retained with explicit risk acceptance.
+    - Rationale: the old graph had 12 current advisories, eight high, including
+      production Fastify/static paths; shipping it to a new production host is
+      not acceptable. The pre-Caddy authenticated static/Range probe now tests
+      the surface most affected, all application contracts remain unchanged,
+      and the full accepted `v0.15.0` image is retained for rollback. A
+      source-only intermediate tag would not reduce production cutover risk.
+13. **Seven low-severity drift and robustness details.**
+    - Resolution: Adopted or clarified.
+    - Rationale: no full-secret temp file persists; empty quoted values fail;
+      empty install is documented as scheduler-disabled; CHANGELOG scopes
+      loopback to NAS; current Node default is 24; source SQLite integrity is
+      an exact assertion; rsync commands start from an absolute repository cwd.
+14. **Cutover-grade zero-work checks blocked ordinary launch and crash
+    recovery.**
+    - Resolution: Adopted.
+    - Rationale: SQLite integrity remains unconditional, while a new exact
+      `PLAUD_MIRROR_REQUIRE_QUIESCED=true` flag gates zero active work only for
+      first migration. Normal `./start.sh` permits retry/processing state and
+      lets application initialization recover orphaned rows. The empty-install
+      escape remains forbidden for migration and recovery.
+15. **The receipt inside the rsynced data tree broke repeat verification.**
+    - Resolution: Adopted.
+    - Rationale: `.migration-ready-v1` now lives in the dedicated Plaud parent,
+      outside the exact-rsynced `data/` tree, so step 5 is idempotent after a
+      failed launch.
+16. **Compose one-off DB probe could collide with `container_name`.**
+    - Resolution: Adopted.
+    - Rationale: the probe now uses the fixed Docker binary directly with the
+      already-pulled immutable image, no network, read-only root, exact UID,
+      resource bounds, and only the data leaf mounted writable for SQLite
+      WAL/SHM compatibility. It no longer sends application secrets into the
+      probe or depends on QNAP Compose `run` behavior.
+17. **Host tmpfs premise was not durable evidence.**
+    - Resolution: Adopted.
+    - Rationale: live NAS checks returned a 64 MB `tmpfs` for host `/tmp`; the
+      runbook records both commands and `start.sh` now refuses secret
+      materialization unless `stat -f` still returns `tmpfs`.
+18. **Second-pass low-severity executable gaps.**
+    - Resolution: Adopted.
+    - Rationale: tests assert the application image-pin validator; the
+      quiescence SQL includes unconfirmed upstream deletion operations;
+      non-POSIX `find -quit` is replaced with checked POSIX `-exec` output;
+      `verify-container.sh` makes image/health/OOM/user/root/mount/port/
+      memory/PID/log checks executable before and after the first automatic
+      run; and launcher stderr/stdout is captured as a durable dated receipt.
+      The direct Docker DB probe deliberately keeps the data mount writable so
+      SQLite may create WAL/SHM metadata while the connection itself remains
+      query-only.
+19. **Durable launcher log inherited the invoking shell's umask.**
+    - Resolution: Adopted after pass-3 GO.
+    - Rationale: the runbook now sets `umask 077`, pre-creates the exact dated
+      receipt, and enforces mode 0600 before redirecting launcher output. It
+      also documents `docker compose config --quiet` as load-bearing because a
+      rendered configuration would write production values to the receipt.
+20. **Container verifier omitted four declared hardening properties.**
+    - Resolution: Adopted after pass-3 GO.
+    - Rationale: its one exact runtime comparison now includes
+      `unless-stopped`, `[ALL]` capability drop,
+      `[no-new-privileges:true]`, and the precise private `/tmp` mount, using
+      Docker-returned values reproduced locally before encoding the gate.
+
+### Summary Outcome
+
+- First- and second-pass verdicts: `REQUEST CHANGES`; pass-3 and pass-4
+  verdicts: `GO`.
+- All HIGH findings and the actionable MEDIUM/LOW findings are reconciled in
+  source; dependency splitting is the one explicitly retained tradeoff.
+- The two pass-3 LOW suggestions were adopted before publication and pass 4
+  closed both without introducing a new finding. The independent review gate
+  is cleared; publication and live cutover remain separate gates.
+
+### Follow-Through Landed
+
+- Exact path/identity allowlists, tmpfs-only full secrets, recursive ownership,
+  symlink rejection, migration receipt, image-based SQLite preflight, log
+  rotation, direct runtime verifier, exact migration commands, source-writer
+  disarm, literal rollback, version-policy clarification, and current-truth
+  contract correction.
+- Cutover-only quiescence, normal orphan recovery, an idempotent external
+  receipt, direct-Docker database probe, verified host tmpfs, upstream-deletion
+  gate, POSIX symlink scan, full container-policy verifier, and durable launcher
+  log close the second-pass findings.
+- No Doppler, NAS persistent path, runtime, Caddy, Home Infra, Protocol,
+  ForgeOS, Media2Text, Cortex, replay, or paid-provider mutation occurred while
+  reconciling this pass.
+
 ## Planned Reviews
 
 - Security review before implementing credential storage (recommend invoking `/security-review`).

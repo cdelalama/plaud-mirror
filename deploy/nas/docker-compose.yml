@@ -1,0 +1,48 @@
+# SOURCE ASSET: deployment evidence is recorded separately from this file.
+services:
+  plaud-mirror:
+    image: "${PLAUD_MIRROR_IMAGE:?set an immutable registry tag and digest}"
+    container_name: plaud-mirror
+    user: "${PLAUD_MIRROR_RUNTIME_UID:?set by start.sh}:${PLAUD_MIRROR_RUNTIME_GID:?set by start.sh}"
+    init: true
+    restart: unless-stopped
+    stop_grace_period: 90s
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 256
+    mem_limit: 1g
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    tmpfs:
+      - /tmp:noexec,nosuid,size=64m,mode=1777
+    ports:
+      - "127.0.0.1:3040:3040"
+    environment:
+      NODE_ENV: production
+      PORT: "3040"
+      PLAUD_MIRROR_PORT: "3040"
+      PLAUD_MIRROR_DATA_DIR: /var/lib/plaud-mirror/data
+      PLAUD_MIRROR_RECORDINGS_DIR: /var/lib/plaud-mirror/recordings
+      PLAUD_MIRROR_WEB_DIST_DIR: /app/apps/web/dist
+      PLAUD_MIRROR_MASTER_KEY: "${PLAUD_MIRROR_MASTER_KEY:?set PLAUD_MIRROR_MASTER_KEY}"
+      PLAUD_MIRROR_ADMIN_PASSPHRASE: "${PLAUD_MIRROR_ADMIN_PASSPHRASE:?set PLAUD_MIRROR_ADMIN_PASSPHRASE}"
+      PLAUD_MIRROR_API_BASE: "${PLAUD_MIRROR_API_BASE:?set PLAUD_MIRROR_API_BASE}"
+      PLAUD_MIRROR_WEBHOOK_URL: "${PLAUD_MIRROR_WEBHOOK_URL:-}"
+      PLAUD_MIRROR_WEBHOOK_SECRET: "${PLAUD_MIRROR_WEBHOOK_SECRET:-}"
+      PLAUD_MIRROR_DEFAULT_SYNC_LIMIT: "${PLAUD_MIRROR_DEFAULT_SYNC_LIMIT:-100}"
+      PLAUD_MIRROR_SYNC_MAX_RUNTIME_MS: "${PLAUD_MIRROR_SYNC_MAX_RUNTIME_MS:-3600000}"
+    volumes:
+      - "${PLAUD_MIRROR_NAS_DATA_DIR:?set by start.sh}:/var/lib/plaud-mirror/data"
+      - "${PLAUD_MIRROR_NAS_RECORDINGS_DIR:?set by start.sh}:/var/lib/plaud-mirror/recordings"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3040/api/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s

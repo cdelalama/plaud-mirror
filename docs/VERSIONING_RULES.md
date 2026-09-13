@@ -1,4 +1,4 @@
-<!-- doc-version: 0.15.1 -->
+<!-- doc-version: 0.16.0 -->
 # Versioning Rules
 
 ## Version Format
@@ -33,12 +33,19 @@ Current version sources:
 - New optional delivery mechanisms or operator UI features
 - New configuration options that preserve old behavior
 - Phase-boundary shifts captured in `docs/ROADMAP.md` when they do not break existing contracts
+- While the project remains pre-1.0, a reviewed host-placement or physical
+  storage-boundary change may use a minor release when the application schema,
+  persisted logical data, HTTP/wire contracts, and public hostname remain
+  backward compatible and an exact migration plus rollback runbook ships with
+  it. This is the `v0.16.0` case.
 
 ### Major (X.y.z)
 
-- Storage layout changes requiring migration
+- Incompatible persisted-data or storage-layout changes that cannot be rolled
+  back without conversion or data loss
 - Breaking changes to webhook payloads or HTTP API
-- New deployment requirements or incompatible auth behavior
+- Once the project declares a stable public API, breaking deployment
+  requirements; at every version, incompatible auth behavior
 
 ## Synchronization Rules
 

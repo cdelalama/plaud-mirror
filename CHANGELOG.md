@@ -4,6 +4,39 @@ All notable changes to Plaud Mirror are documented in this file.
 
 This project follows Semantic Versioning (SemVer): MAJOR.MINOR.PATCH.
 
+## [0.16.0] - 2026-09-13
+
+### Added
+
+- A fail-closed QNAP deployment surface with an immutable registry image,
+  loopback-only ingress, least-privilege container settings, pinned Doppler
+  bootstrap, explicit migrated-state gate, and automated source-asset tests.
+- A one-time dev-vm-to-NAS migration and rollback runbook that preserves a
+  single scheduler writer, copies SQLite only after quiescence, verifies the
+  data boundary before proxy cutover, and retains the old state until
+  acceptance.
+
+### Changed
+
+- Production placement moves from `dev-vm` to the NAS. Small control state
+  stays under `/share/Container`; growing recordings use the 1 TB
+  `/share/ProjectsData` dataset.
+- Production secrets move to `plaud-mirror/prd`; the historical master key is
+  escrowed there without rotating it so the existing `secrets.enc` remains
+  decryptable.
+- Connection-control implementation moves to the `0.17.x` line. Its D-026
+  product contract and authorization boundary are unchanged.
+- The supported build/runtime baseline moves to Node 24.15+. Fastify,
+  `@fastify/static`, Vite, Vitest, the React plugin, and jsdom are refreshed to
+  versions whose resolved dependency graph passes both full and production
+  `npm audit` with zero findings.
+
+### Fixed
+
+- The NAS production port is bound only to loopback; `edge-caddy` remains the
+  sole operator ingress. The development Compose surface intentionally retains
+  its existing dev-vm LAN binding and is not a production deployment asset.
+
 ## [0.15.1] - 2026-09-12
 
 ### Added
