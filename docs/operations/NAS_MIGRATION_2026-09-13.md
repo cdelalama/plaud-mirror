@@ -1,4 +1,4 @@
-<!-- doc-version: 0.16.0 -->
+<!-- doc-version: 0.16.1 -->
 # NAS Migration - 2026-09-13
 
 ## Scope and authority
@@ -47,6 +47,14 @@ Observed at 2026-09-13 21:31-21:47 UTC before any runtime mutation:
 - `plaud-mirror/prd` contained no application values. The running container
   carried the 64-character historical master key; it must be escrowed without
   rotation so the migrated `secrets.enc` stays decryptable.
+- Live cutover attempt 1 proved the SSH/storage identity is
+  `uid=1000(cdelalama) gid=100(everyone)`, not the generic image identity
+  1000:1000. QNAP denied the audited 1000:1000 ownership normalization, and
+  its remapped Docker root could not bypass the dataset ACL. No NAS writer or
+  Caddy change occurred; the old `v0.15.0` container was immediately restored
+  healthy with `restart=unless-stopped`. `v0.16.1` pins the executable NAS
+  identity to 1000:100, which the live account can enforce without privilege
+  escalation.
 
 ## Non-negotiable invariants
 
@@ -69,14 +77,14 @@ Observed at 2026-09-13 21:31-21:47 UTC before any runtime mutation:
 
 ## Release and secret preparation
 
-1. Freeze an exact `v0.16.0` candidate and run the repository suite, deploy
+1. Freeze an exact `v0.16.1` candidate and run the repository suite, deploy
    asset tests, dependency audit, DocKit validator, and diff hygiene.
 2. Run the independent read-only review required by `LLM_START_HERE.md` using
    exact `claude-fable-5-1` at high effort. Use exact
    `claude-opus-5[1m]` at high effort only after directly recording Fable quota
    exhaustion. Reconcile every finding before deployment.
 3. Build on dev-vm and publish
-   `registry.lamanoriega.com/plaud-mirror:0.16.0`. Record its registry digest
+   `registry.lamanoriega.com/plaud-mirror:0.16.1`. Record its registry digest
    and use the immutable `tag@digest` form in `PLAUD_MIRROR_IMAGE`.
 4. Copy only the required existing values to `plaud-mirror/prd` without
    printing them: the running master key, admin passphrase, and EU API base.
@@ -142,7 +150,7 @@ rsync -rlt --delete-delay \
    rsync -rlt --delete-delay runtime/recordings/ \
      nas.lamanoriega.com:/share/ProjectsData/plaud-mirror/recordings/
    ssh nas.lamanoriega.com \
-     'chown -R 1000:1000 /share/Container/runtime/plaud-mirror/data /share/ProjectsData/plaud-mirror/recordings && find /share/Container/runtime/plaud-mirror/data /share/ProjectsData/plaud-mirror/recordings -type d -exec chmod 700 {} \; && find /share/Container/runtime/plaud-mirror/data /share/ProjectsData/plaud-mirror/recordings -type f -exec chmod 600 {} \;'
+     'set -eu; identity_check=$(mktemp /tmp/plaud-identity.XXXXXX); trap '\''rm -f "$identity_check"'\'' EXIT INT TERM; chown -R 1000:100 /share/Container/runtime/plaud-mirror/data /share/ProjectsData/plaud-mirror/recordings; find /share/Container/runtime/plaud-mirror/data /share/ProjectsData/plaud-mirror/recordings -type d -exec chmod 700 {} \;; find /share/Container/runtime/plaud-mirror/data /share/ProjectsData/plaud-mirror/recordings -type f -exec chmod 600 {} \;; find /share/Container/runtime/plaud-mirror/data /share/ProjectsData/plaud-mirror/recordings ! -user 1000 -print > "$identity_check"; test ! -s "$identity_check"; find /share/Container/runtime/plaud-mirror/data /share/ProjectsData/plaud-mirror/recordings ! -group 100 -print > "$identity_check"; test ! -s "$identity_check"'
    ```
 
 5. Execute the exact convergence gate below. It requires a content-checksum
@@ -177,7 +185,7 @@ rsync -rlt --delete-delay \
 
    PLAUD_MIGRATION_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
    PLAUD_MIGRATION_HEAD="$(git rev-parse HEAD)"
-   ssh nas.lamanoriega.com "umask 077; printf 'verified_at=%s\nsource_head=%s\n' '$PLAUD_MIGRATION_AT' '$PLAUD_MIGRATION_HEAD' > /share/Container/runtime/plaud-mirror/.migration-ready-v1; chown 1000:1000 /share/Container/runtime/plaud-mirror/.migration-ready-v1; chmod 600 /share/Container/runtime/plaud-mirror/.migration-ready-v1"
+   ssh nas.lamanoriega.com "umask 077; printf 'verified_at=%s\nsource_head=%s\n' '$PLAUD_MIGRATION_AT' '$PLAUD_MIGRATION_HEAD' > /share/Container/runtime/plaud-mirror/.migration-ready-v1; chown 1000:100 /share/Container/runtime/plaud-mirror/.migration-ready-v1; chmod 600 /share/Container/runtime/plaud-mirror/.migration-ready-v1"
    rm -f "$PLAUD_DATA_DELTA" "$PLAUD_RECORDINGS_DELTA"
    trap - EXIT INT TERM
    ```
@@ -210,7 +218,7 @@ rsync -rlt --delete-delay \
    mandatory, while the app is allowed to recover orphaned state. Never use
    `PLAUD_MIRROR_ALLOW_EMPTY_STATE=true` for migration or recovery.
 7. Before proxy change, require the exact immutable image, Docker healthy,
-   `/app/VERSION=0.16.0`, user 1000:1000, read-only root, the two expected
+   `/app/VERSION=0.16.1`, user 1000:100, read-only root, the two expected
    mounts, the 1 GB/256-PID ceilings, and bounded logging. Then pipe
    `verify-runtime.mjs` into Node inside the container. It requires direct NAS
    static HTML, `authRequired:true`, anonymous protected-route 401, successful

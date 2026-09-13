@@ -1,4 +1,4 @@
-<!-- doc-version: 0.16.0 -->
+<!-- doc-version: 0.16.1 -->
 # Plaud Mirror Roadmap
 
 This document is the canonical phase boundary for Plaud Mirror. If implementation scope starts to cross a phase boundary, update this document before claiming the work is part of the current phase.
@@ -17,10 +17,12 @@ This document is the canonical phase boundary for Plaud Mirror. If implementatio
   healthy, PT15M scheduling, public `ok/none`, and exact 720/720 coverage. Six
   transient recording-directory failures preceded a successful download and
   two clean runs; that retained history remains part of the migration gate.
-- Current source candidate: `v0.16.0`. It adds the audited, fail-closed NAS
-  deployment and quiesced migration surface. Source availability is not live
-  acceptance; production stays on dev-vm until the NAS, proxy, automatic-run,
-  and Home Infra evidence gates pass.
+- Current source candidate: `v0.16.1`. `v0.16.0` added the audited,
+  fail-closed NAS deployment and quiesced migration surface; this patch pins
+  QNAP's live storage identity 1000:100 after attempt 1 rolled back before NAS
+  startup or proxy change. Source availability is not live acceptance;
+  production stays on dev-vm until re-audit plus the NAS, proxy,
+  automatic-run, and Home Infra evidence gates pass.
 - Current operational gate: the final Phase 3 window is a joint five-day
   freeze after the last planned Plaud Mirror and Media2Text control-plane
   deploys, one successful connection canary, and Plaud's first completed
@@ -90,6 +92,10 @@ This document is the canonical phase boundary for Plaud Mirror. If implementatio
   reconciliation. It also refreshes the supported Node/dependency baseline so
   the migrated public runtime is not launched with known audit findings. It
   does not implement the D-026 connection-control program.
+- `v0.16.1` corrects the NAS-only runtime GID after live QNAP storage proved
+  the enforceable non-root owner is 1000:100, not the image-default 1000:1000.
+  Attempt 1 restored dev-vm before NAS startup or Caddy change; no data or wire
+  contract changed.
 - Planned `v0.17.x` connection-control work is governed by D-026 and
   `docs/design/CONNECTIONS_OPERATOR_EXPERIENCE.md`: bilateral request/grant
   setup, visible configuration/policy/evidence/health dimensions, persisted
@@ -98,7 +104,7 @@ This document is the canonical phase boundary for Plaud Mirror. If implementatio
   the backend control-plane work is too large for one release. No implementation
   is authorized by this roadmap entry alone.
 - Current phase: **Phase 5 NAS acceptance overlaps Phase 6 product work;
-  `v0.16.0` migration is the active slice, while connection control, bulk
+  `v0.16.1` migration is the active slice, while connection control, bulk
   replay, the joint five-day freeze, and the independent generic-webhook drill
   remain pending**
 - Deployment target: NAS production; dev-vm remains development/rollback only
@@ -115,7 +121,7 @@ Phase boundary note: `v0.7.0`, `v0.8.0`, the `v0.8.1` validation patch, `v0.9.0`
 | Phase 2 | `0.3.x` – `0.4.x` | Fastify API, React/Vite panel, encrypted persisted bearer token, manual sync, filtered backfill, local recordings index, immediate HMAC-signed webhook delivery with persisted attempt log, Docker runtime for `dev-vm` running as `USER 1000:1000`, local-only curation (inline audio player, dismiss/restore) | Scheduler, resumable backfill, automatic retry queue/outbox, auto re-login, NAS rollout | Operator can open the UI, save a token, run sync/backfill, audition the recordings inline, dismiss or keep each one locally, and receive signed webhook deliveries |
 | Phase 3 | `0.5.x` – `0.6.x` | Continuous sync scheduler, retry policy, durable webhook outbox, stronger health/status surfaces, operator access control (panel/API auth), startup crash recovery, Plaud client timeouts, observability surfaced in the panel UI; resumable backfill (deferred, no firm target) | Automatic re-login, NAS rollout, OSS polish | Multi-day unattended run on `dev-vm` with predictable recovery behavior |
 | Phase 4 | `0.7.x` – `0.9.x` | Phone-friendly re-auth UX (browser-assisted bearer capture, D-019, shipped v0.7.0; local Chrome extension shipped v0.8.0); Plaud Web fingerprint fix (v0.8.1); reference-driven operator panel redesign with ES/EN chrome and observability surfaces (v0.9.0); full-viewport operator shell patch (v0.9.1); Main sync UX patch (v0.9.2); DocKit governance merge preserving local guardrails (v0.9.3); Library playback/scroll patch (v0.9.4); mobile shell usability patch (v0.9.5); LLM-DocKit 4.9.6 governance sync and package-lock version enforcement (v0.9.6); optional automatic re-login via a non-browser path (official OAuth/MCP) if it proves reliable | Browser automation (headless Chromium) as default or silent fallback; NAS rollout | Renewal strategy implemented or explicitly rejected with rationale, and the operator panel exposes the health signals needed for the soak |
-| Phase 5 | `0.10.x` + `0.16.0` acceptance slice | Home Infra Protocol project contract + sync-job status snapshot, deployment hardening, backups, rollback, NAS validation, infra playbooks | Public OSS polish | Repeatable deployment on both `dev-vm` and NAS, with sync status visible to infra consumers |
+| Phase 5 | `0.10.x` + `0.16.x` acceptance slice | Home Infra Protocol project contract + sync-job status snapshot, deployment hardening, backups, rollback, NAS validation, infra playbooks | Public OSS polish | Repeatable deployment on both `dev-vm` and NAS, with sync status visible to infra consumers |
 | Phase 6 | `0.11.x`+ | Operator and OSS fit and finish: explicit destructive workflows, optional provider-neutral Transcription Intake v1, closed-loop transcription coverage, public quickstart, sanitized examples, contributor-facing polish | Hosted or multi-tenant posture; transcription inside Plaud Mirror; hard dependency on Media2Text/Cortex/Home Infra; live integration against an unproven provider | Operator workflows are deliberate, every eligible Plaud artifact revision can be reconciled to a conforming provider's terminal state, and the repo is understandable without private infra context |
 
 ## Beyond Phase 6: Multi-tenant variant (out of scope for this repo)

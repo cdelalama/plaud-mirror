@@ -12,7 +12,7 @@ DOCKER_BIN="${DOCKER_BIN:-/share/ZFS1_DATA/.qpkg/container-station/usr/bin/.libs
 DOPPLER_CLI_IMAGE="dopplerhq/cli@sha256:59801bdc9f8ede69eaeac6241d06434e6d5ebc40bd6f2456d70444ee79186224"
 BOOTSTRAP_ENV="$COMPOSE_DIR/.env"
 PLAUD_MIRROR_RUNTIME_UID="${PLAUD_MIRROR_RUNTIME_UID:-1000}"
-PLAUD_MIRROR_RUNTIME_GID="${PLAUD_MIRROR_RUNTIME_GID:-1000}"
+PLAUD_MIRROR_RUNTIME_GID="${PLAUD_MIRROR_RUNTIME_GID:-100}"
 PLAUD_MIRROR_NAS_DATA_DIR="${PLAUD_MIRROR_NAS_DATA_DIR:-/share/Container/runtime/plaud-mirror/data}"
 PLAUD_MIRROR_NAS_RECORDINGS_DIR="${PLAUD_MIRROR_NAS_RECORDINGS_DIR:-/share/ProjectsData/plaud-mirror/recordings}"
 EXPECTED_DATA_DIR="/share/Container/runtime/plaud-mirror/data"
@@ -31,8 +31,8 @@ if [ "$PLAUD_MIRROR_NAS_DATA_DIR" != "$EXPECTED_DATA_DIR" ] \
   || [ "$PLAUD_MIRROR_NAS_RECORDINGS_DIR" != "$EXPECTED_RECORDINGS_DIR" ]; then
   fail "Persistent paths must match the two reviewed Plaud Mirror leaves exactly."
 fi
-if [ "$PLAUD_MIRROR_RUNTIME_UID:$PLAUD_MIRROR_RUNTIME_GID" != "1000:1000" ]; then
-  fail "The reviewed NAS runtime identity is exactly UID:GID 1000:1000."
+if [ "$PLAUD_MIRROR_RUNTIME_UID:$PLAUD_MIRROR_RUNTIME_GID" != "1000:100" ]; then
+  fail "The reviewed NAS runtime identity is exactly UID:GID 1000:100."
 fi
 case "$PLAUD_MIRROR_REQUIRE_QUIESCED" in
   true|false) ;;
@@ -67,7 +67,7 @@ fi
 
 temporary="$(mktemp /tmp/plaud-mirror-doppler.XXXXXX)"
 cleanup() {
-  rm -f "$temporary" "$temporary.symlinks"
+  rm -f "$temporary" "$temporary.symlinks" "$temporary.identity"
 }
 trap cleanup EXIT INT TERM
 
@@ -119,6 +119,14 @@ for directory in "$PLAUD_MIRROR_NAS_DATA_DIR" "$PLAUD_MIRROR_NAS_RECORDINGS_DIR"
   chown -R "$PLAUD_MIRROR_RUNTIME_UID:$PLAUD_MIRROR_RUNTIME_GID" "$directory"
   find "$directory" -type d -exec chmod 700 {} \;
   find "$directory" -type f -exec chmod 600 {} \;
+  if ! find "$directory" ! -user "$PLAUD_MIRROR_RUNTIME_UID" -exec printf '%s\n' {} \; > "$temporary.identity"; then
+    fail "Could not verify persistent-file ownership."
+  fi
+  [ ! -s "$temporary.identity" ] || fail "Persistent files do not use the reviewed runtime UID."
+  if ! find "$directory" ! -group "$PLAUD_MIRROR_RUNTIME_GID" -exec printf '%s\n' {} \; > "$temporary.identity"; then
+    fail "Could not verify persistent-file group ownership."
+  fi
+  [ ! -s "$temporary.identity" ] || fail "Persistent files do not use the reviewed runtime GID."
   [ "$(stat -c '%u:%g:%a' "$directory")" = "$PLAUD_MIRROR_RUNTIME_UID:$PLAUD_MIRROR_RUNTIME_GID:700" ] \
     || fail "Persistent directory ownership or mode is not exclusive."
 done
@@ -167,5 +175,5 @@ console.log(JSON.stringify({ integrity, requireQuiesced, checks }));'
 fi
 
 "$COMPOSE_BIN" --env-file "$temporary" up -d plaud-mirror
-rm -f "$temporary"
+rm -f "$temporary" "$temporary.symlinks" "$temporary.identity"
 trap - EXIT INT TERM

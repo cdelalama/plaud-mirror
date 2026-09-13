@@ -1153,6 +1153,16 @@ precedes the backed-up single-vhost Caddy change. Home Infra records `host_id:
 nas` only after the NAS serves; Home Infra Protocol gains no new schema, and
 ForgeOS remains a discoverer rather than a deployment owner.
 
+**2026-09-13 cutover amendment:** the first live cutover attempt proved that
+QNAP's enforceable storage identity is `uid=1000(cdelalama),
+gid=100(everyone)`. The audited generic image identity 1000:1000 required host
+privilege that this deployment account does not possess, and Docker root is
+remapped away from the dataset. The attempt stopped before NAS startup and
+Caddy mutation, then restored the healthy dev-vm source. `v0.16.1` therefore
+pins NAS to 1000:100 while preserving non-root execution, owner-only modes,
+paths, data, and every application/wire contract. The image and dev-vm remain
+1000:1000; this amendment is QNAP-placement-specific.
+
 The old dev-vm data remains a stopped rollback source until NAS serving,
 automatic-run evidence, observation, and recoverable backup/snapshot gates
 pass. Its deletion is a separate exact-target lifecycle action.
@@ -1174,7 +1184,7 @@ one SQLite database.
 
 ### Consequences
 
-- `v0.16.0` is assigned to this deferred Phase 5 host-placement capability;
+- `v0.16.x` is assigned to this deferred Phase 5 host-placement capability;
   D-026 connection-control implementation moves to `v0.17.x` without changing
   its product model or authorization gate.
 - The minor version is deliberate under the pre-1.0 rule: physical placement

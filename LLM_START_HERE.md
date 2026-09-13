@@ -1,4 +1,4 @@
-<!-- doc-version: 0.16.0 -->
+<!-- doc-version: 0.16.1 -->
 # LLM Start Guide - Plaud Mirror
 
 ## Read This First (Mandatory)
@@ -87,26 +87,20 @@ Recommended reading order:
 
 Source of truth: docs/llm/HANDOFF.md.
 - Last Updated: 2026-09-13 - GPT-5 Codex
-- Working on: **operator-authorized `v0.16.0` migration from dev-vm to NAS,
-  with the exact Claude independent-review gate now cleared before cutover.** Fresh
-  preflight found dev-vm root at 89% (13 GB free) and Plaud runtime data at 12
-  GB. The still-live `v0.15.0` container is Docker/operator/Plaud-auth healthy,
-  PT15M is enabled, no run is active, and the public snapshot is `ok/none` at
-  720/720. Six retained directory-creation failures preceded one successful
-  download and two clean runs; that anomaly is not erased. NAS Container
-  Station is operational, but `/share/Container` has only 22.6 GB free, so
-  D-027 splits small state into `/share/Container/runtime/plaud-mirror/data`
-  and recordings into the 1 TB `/share/ProjectsData` dataset. Candidate assets
-  require an immutable registry image, loopback-only port 3040, read-only/
-  capability-dropped execution, a mode-0600 read-only Doppler bootstrap, exact
-  historical master-key escrow in `plaud-mirror/prd`, migrated-state checks,
-  and single-writer quiescence. Four exact-model passes ended in a final GO
-  with no finding at any severity after every accepted remediation. Production
-  remains on dev-vm until release publication, secret preparation, final
-  stopped-source copy, direct NAS validation, backed-up Caddy reload, first
-  automatic run, and Home Infra
-  reconciliation pass. D-026 connection control moves to `v0.17.x`; replay,
-  Cortex, spend, and connection implementation remain unauthorized.
+- Working on: **operator-authorized `v0.16.1` QNAP identity correction after
+  a clean first-attempt rollback.** `v0.16.0` source `f8ec2a3` passed CI and its
+  immutable image was published; `plaud-mirror/prd`, the mode-0600 bootstrap,
+  and the 12.21 GB NAS audio preseed were prepared without disclosure. After
+  quiescing dev-vm and making a coherent final copy, QNAP rejected the audited
+  generic 1000:1000 ownership because the live storage account is 1000:100 and
+  Docker root is remapped. No NAS writer, migration receipt, or Caddy change
+  occurred. The old `v0.15.0` container was immediately restored healthy with
+  PT15M and `restart=unless-stopped`. `v0.16.1` pins only the NAS runtime GID to
+  the live-verified 100 while retaining non-root execution and every storage,
+  HTTP, transcription, and protocol contract. Tests and three resumed exact
+  Opus passes are GO; publish the patch before retrying the quiesced cutover. D-026,
+  replay, Cortex, provider spend, Home Infra Protocol, and ForgeOS remain out
+  of scope.
 - Previous: **v0.12.0 destructive-operation and coverage integrity is
   deployed and reconciled.** The first real
   operator deletion exposed weak 2xx acknowledgement and a false remote

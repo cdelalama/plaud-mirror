@@ -12,7 +12,7 @@ fail() {
 [ -x "$DOCKER_BIN" ] || fail "Container Station Docker CLI is unavailable."
 
 state="$("$DOCKER_BIN" inspect --format '{{.State.Status}}|{{.State.Health.Status}}|{{.State.OOMKilled}}|{{.Config.User}}|{{.HostConfig.ReadonlyRootfs}}|{{.HostConfig.Memory}}|{{.HostConfig.PidsLimit}}|{{.HostConfig.LogConfig.Type}}|{{index .HostConfig.LogConfig.Config "max-size"}}|{{index .HostConfig.LogConfig.Config "max-file"}}|{{.HostConfig.RestartPolicy.Name}}|{{.HostConfig.CapDrop}}|{{.HostConfig.SecurityOpt}}|{{index .HostConfig.Tmpfs "/tmp"}}' "$CONTAINER")"
-[ "$state" = "running|healthy|false|1000:1000|true|1073741824|256|json-file|10m|3|unless-stopped|[ALL]|[no-new-privileges:true]|noexec,nosuid,size=64m,mode=1777" ] \
+[ "$state" = "running|healthy|false|1000:100|true|1073741824|256|json-file|10m|3|unless-stopped|[ALL]|[no-new-privileges:true]|noexec,nosuid,size=64m,mode=1777" ] \
   || fail "Container state, identity, resource, or logging policy is not exact: $state"
 
 image_ref="$("$DOCKER_BIN" inspect --format '{{.Config.Image}}' "$CONTAINER")"
@@ -34,4 +34,4 @@ case "$mounts" in
   *) fail "Recording mount is absent or read-only." ;;
 esac
 
-echo "Container policy verified: immutable image, healthy, OOM-free, UID:GID 1000:1000, read-only root, capability-free/no-new-privileges execution, exact writable mounts, private tmpfs, loopback ingress, unless-stopped recovery, 1 GiB/256 PID limits, bounded logs."
+echo "Container policy verified: immutable image, healthy, OOM-free, UID:GID 1000:100, read-only root, capability-free/no-new-privileges execution, exact writable mounts, private tmpfs, loopback ingress, unless-stopped recovery, 1 GiB/256 PID limits, bounded logs."

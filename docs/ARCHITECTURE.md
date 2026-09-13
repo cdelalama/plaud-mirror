@@ -1,9 +1,9 @@
-<!-- doc-version: 0.16.0 -->
+<!-- doc-version: 0.16.1 -->
 # Plaud Mirror Architecture
 
-> Version: 0.16.0 NAS deployment candidate; 0.15.0 remains deployed on dev-vm
+> Version: 0.16.1 NAS deployment candidate; 0.15.0 remains deployed on dev-vm
 > Last Updated: 2026-09-13
-> Status: v0.16.0 adds the source-owned NAS production surface and migration contract. The live dev-vm runtime remains 0.15.0 until independent review, quiesced state transfer, loopback acceptance, proxy cutover, and Home Infra reconciliation pass. D-026 connection control and historical replay remain separate gates.
+> Status: v0.16.0 added the source-owned NAS production surface and migration contract; v0.16.1 corrects its QNAP runtime identity after a clean pre-start rollback. The live dev-vm runtime remains 0.15.0 until re-review, quiesced state transfer, loopback acceptance, proxy cutover, and Home Infra reconciliation pass. D-026 connection control and historical replay remain separate gates.
 
 ## Overview
 
@@ -30,7 +30,7 @@ Plaud Mirror is a single-operator, server-first service that:
 - **Artifacts:** filesystem under `recordings/<recording-id>/`
 - **Packaging:** single Docker container serving both API and panel
 
-### Production placement from v0.16.0
+### Production placement from v0.16.x
 
 The image remains a single process, but production storage is split across two
 NAS datasets. SQLite and `secrets.enc` use
@@ -39,6 +39,10 @@ immutable delivery leases use
 `/share/ProjectsData/plaud-mirror/recordings`. Both bind to the same in-container
 paths used on dev-vm, so persisted SQLite paths and artifact identities do not
 change.
+
+The image defaults to non-root 1000:1000. NAS Compose overrides only the group
+to QNAP's live-verified storage identity 1000:100, keeping UID 1000 and mode
+0700 ownership without requiring unavailable host privilege escalation.
 
 The NAS container publishes port 3040 only on loopback. `edge-caddy` terminates
 TLS and is the only operator ingress. `plaud-mirror/prd` supplies the unchanged
@@ -130,7 +134,7 @@ Still **not** in Phase 3 scope:
 - resumable backfill (deferred; ROADMAP mentions but no firm release target)
 - automatic re-login → [Phase 4](ROADMAP.md)
 - NAS rollout and validation → [Phase 5](ROADMAP.md), delivered by the
-  `v0.16.0` deployment slice once live acceptance is recorded
+  `v0.16.x` deployment slice once live acceptance is recorded
 - public OSS polish → [Phase 6](ROADMAP.md)
 
 ## Key Flows
@@ -403,7 +407,7 @@ ordered by evidence and product contracts:
    Content Intake repository only after this successful canary and a second
    structurally different processing profile. The second trigger does not yet
    exist, so the compatibility profile remains owned here.
-4. **Continue queued hardening:** finish the `v0.16.0` NAS acceptance, then
+4. **Continue queued hardening:** finish the `v0.16.1` NAS acceptance, then
    adapt D-019 to Plaud's first-party refresh tokens together with scrypt and finish
    OSS documentation. Resumable backfill remains deferred without a release
    target.

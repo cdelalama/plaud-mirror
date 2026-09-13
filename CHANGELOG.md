@@ -4,6 +4,25 @@ All notable changes to Plaud Mirror are documented in this file.
 
 This project follows Semantic Versioning (SemVer): MAJOR.MINOR.PATCH.
 
+## [0.16.1] - 2026-09-13
+
+### Added
+
+- No new product capability.
+
+### Changed
+
+- The QNAP production runtime identity is pinned to the live storage owner
+  `1000:100` instead of the generic Node image identity `1000:1000`. The
+  container remains non-root and every persistent leaf remains mode 0700.
+
+### Fixed
+
+- The first NAS cutover attempt now fails recoverably instead of depending on
+  unavailable QNAP privilege escalation: the source container was restored
+  before proxy change, and the launcher/tests/runbook use the enforceable
+  QNAP UID/GID discovered from live storage.
+
 ## [0.16.0] - 2026-09-13
 
 ### Added

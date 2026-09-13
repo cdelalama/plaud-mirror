@@ -60,7 +60,7 @@ test("NAS launcher rejects any persistent path or runtime identity override", ()
     encoding: "utf8"
   });
   assert.equal(unsafeIdentity.status, 1);
-  assert.equal(unsafeIdentity.stderr, "The reviewed NAS runtime identity is exactly UID:GID 1000:1000.\n");
+  assert.equal(unsafeIdentity.stderr, "The reviewed NAS runtime identity is exactly UID:GID 1000:100.\n");
 });
 
 test("NAS launcher keeps secrets untracked and state migration explicit", () => {
@@ -93,7 +93,10 @@ test("NAS paths separate control state from growing recordings", () => {
   assert.match(start, /chown -R/);
   assert.match(start, /chmod 700/);
   assert.match(start, /PLAUD_MIRROR_RUNTIME_UID:-1000/);
-  assert.match(start, /PLAUD_MIRROR_RUNTIME_GID:-1000/);
+  assert.match(start, /PLAUD_MIRROR_RUNTIME_GID:-100\}/);
+  assert.match(start, /! -user "\$PLAUD_MIRROR_RUNTIME_UID"/);
+  assert.match(start, /! -group "\$PLAUD_MIRROR_RUNTIME_GID"/);
+  assert.match(start, /rm -f "\$temporary" "\$temporary\.symlinks" "\$temporary\.identity"\ntrap - EXIT INT TERM/);
   assert.doesNotMatch(start, /-print -quit/);
 });
 
@@ -132,5 +135,5 @@ test("NAS container acceptance verifies the complete deployed policy", () => {
   ]) {
     assert.match(verifyContainer, new RegExp(expected.replaceAll(".", "\\.")));
   }
-  assert.match(verifyContainer, /unless-stopped\|\[ALL\]\|\[no-new-privileges:true\]\|noexec,nosuid,size=64m,mode=1777/);
+  assert.match(verifyContainer, /1000:100\|true\|1073741824\|256\|json-file\|10m\|3\|unless-stopped\|\[ALL\]\|\[no-new-privileges:true\]\|noexec,nosuid,size=64m,mode=1777/);
 });

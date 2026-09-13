@@ -466,6 +466,15 @@ spawn subagents.
   and 215/215 supplied tests. It closed N11/N12 and returned `GO` with no
   finding at any severity. The auditor retained its prior tool limitation on
   independently decoding Git objects; Codex reverified the frozen identity.
+- The `v0.16.1` recovery pass reviewed tree
+  `ae42e078bee67c99a44d2797104fe60ef3c01399`, binary-diff SHA-256
+  `7433ff57af782b6c5a6af9e03627b03f440eddf831b484ff1ad4cb6ed3e57a9b`,
+  and 215/215 supplied tests. It returned `GO` with no BLOCKER/HIGH/MEDIUM and
+  two LOW evidence improvements, both adopted. Narrow confirmations reviewed
+  tree `4f2e53c873179e6b5d0c9dc71698ffaeecd134ff` and final tree
+  `d53a86181c0fb52e36e04a73d69479da05edd4bc`; the latter has binary-diff
+  SHA-256 `9158d44b54ebce4b653cd504e7b313e4b69ec647122bc914403ee4fca6fa015a`.
+  Both returned `GO`; the last explicitly closed the success-path cleanup nit.
 
 ### Points of Agreement
 
@@ -604,6 +613,26 @@ spawn subagents.
       `unless-stopped`, `[ALL]` capability drop,
       `[no-new-privileges:true]`, and the precise private `/tmp` mount, using
       Docker-returned values reproduced locally before encoding the gate.
+21. **The generic image GID was not the enforceable QNAP storage GID.**
+    - Resolution: Amended after the first live cutover attempt; exact review
+      of the patch returned GO.
+    - Rationale: the NAS account is live-verified as UID:GID 1000:100 and can
+      enforce that identity without escalation. QNAP denied 1000:1000 and its
+      remapped Docker root could not traverse the owner-only dataset. No NAS
+      writer, receipt, or Caddy edit occurred; dev-vm was restored healthy.
+      `v0.16.1` changes only the NAS GID default/allowlist/verifier and matching
+      runbook/tests. The image and dev-vm keep 1000:1000.
+22. **Recursive identity proof was live-only and one GID test regex was loose.**
+    - Resolution: Adopted after the `v0.16.1` GO.
+    - Rationale: the launcher and runbook now use BusyBox-supported `-user` and
+      `-group` predicates with checked output to prove every copied object,
+      and the static test anchors the exact `:-100}` default. These checks do
+      not use the unsupported `-uid` or `-quit` predicates.
+23. **Success-path cleanup left two non-secret path-list files on tmpfs.**
+    - Resolution: Adopted after final confirmation.
+    - Rationale: the explicit pre-trap success cleanup now removes the secret
+      environment plus both symlink/identity path lists, with a regression
+      assertion for the exact terminal sequence.
 
 ### Summary Outcome
 
@@ -613,7 +642,9 @@ spawn subagents.
   source; dependency splitting is the one explicitly retained tradeoff.
 - The two pass-3 LOW suggestions were adopted before publication and pass 4
   closed both without introducing a new finding. The independent review gate
-  is cleared; publication and live cutover remain separate gates.
+  was cleared for `v0.16.0`; live attempt 1 then reopened and the resumed audit
+  cleared the narrow `v0.16.1` QNAP identity correction. Publication and live
+  cutover remain separate gates.
 
 ### Follow-Through Landed
 

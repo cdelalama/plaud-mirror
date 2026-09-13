@@ -37,3 +37,4 @@ targets:
 - path: docs/operations/DEPLOY_PLAYBOOK.md marker: html-comment
 - path: docs/operations/AUTH_AND_SYNC.md marker: html-comment
 - path: docs/operations/UPSTREAM_WATCH.md marker: html-comment
+- path: docs/operations/NAS_MIGRATION_2026-09-13.md marker: html-comment

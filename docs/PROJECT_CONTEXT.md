@@ -1,4 +1,4 @@
-<!-- doc-version: 0.16.0 -->
+<!-- doc-version: 0.16.1 -->
 # Project Context - Plaud Mirror
 
 ## Vision
@@ -26,17 +26,19 @@ Plaud Mirror is a server-first product with two runtime surfaces:
 
 Persistence is split between SQLite for state/indexes and the filesystem for mirrored audio artifacts. Secrets are encrypted at rest with a master key supplied by the surrounding deployment.
 
-## Current Status (2026-09-13, v0.16.0 NAS candidate)
+## Current Status (2026-09-13, v0.16.1 NAS candidate)
 
 The operator has promoted NAS placement ahead of the connection-control work
 because dev-vm is at 89% disk utilization and the Plaud runtime holds 12 GB of
-audio. `v0.16.0` prepares a fail-closed QNAP deployment with immutable registry
+audio. `v0.16.0` introduced a fail-closed QNAP deployment with immutable registry
 image, Doppler `prd` bootstrap, loopback-only HTTP, and split storage: small
 control state stays in `/share/Container`, while recordings use the 1 TB
 `/share/ProjectsData` dataset. The candidate also moves the supported runtime
 to Node 24.15+ and clears the dependency audit before placing a new public
-container. Production remains the live `v0.15.0` dev-vm container until
-independent review and the quiesced cutover are accepted.
+container. Live attempt 1 exposed QNAP's actual storage owner as 1000:100 and
+rolled back before NAS startup or proxy change; `v0.16.1` corrects that runtime
+identity. Production remains the live `v0.15.0` dev-vm container until the
+re-audited quiesced cutover is accepted.
 
 `v0.15.0` source adds provider-neutral local review for retained transcription
 failures without modifying the frozen wire contract, retryability, or terminal
@@ -220,7 +222,8 @@ The Phase 2 slice it inherits: a live Fastify API, a web panel for token setup, 
 - SQLite-backed recording and delivery state (including `dismissed`, `dismissed_at`, and `upstream_deleted_at` for curation/audit)
 - immediate HMAC-signed webhook delivery with persisted attempt logging
 - inline audio playback per recording, reversible local dismiss/restore, and an explicit permanent Plaud-delete action restricted to dismissed rows
-- Docker packaging for dev-vm and NAS, running as non-root `USER 1000:1000`
+- Docker packaging running non-root: 1000:1000 on dev-vm and the verified
+  QNAP storage identity 1000:100 on NAS
 - the original Phase 1 spike CLI for direct Plaud probing
 
 What it still does not have:
@@ -228,7 +231,7 @@ What it still does not have:
 - resumable backfill
 - fully unattended re-login
 - live NAS cutover and post-cutover acceptance (source assets exist in
-  `v0.16.0`; deployment truth is recorded separately)
+  `v0.16.x`; deployment truth is recorded separately)
 
 ## Phase Boundaries
 

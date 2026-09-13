@@ -10,7 +10,8 @@ not pinned by release tag and registry digest, or when exact-copy and SQLite
 gates are missing. It accepts only the two reviewed absolute storage leaves,
 emits their prior ownership/ACL state for the durable launcher receipt, rejects
 symlinks, and normalizes the
-migrated tree to UID/GID 1000:1000 with owner-only modes. It never starts
+migrated tree to the verified QNAP identity UID/GID 1000:100 with owner-only
+modes. It never starts
 Container Station, changes `edge-caddy`, migrates state, or removes the former
 runtime.
 
@@ -21,7 +22,7 @@ The NAS layout is deliberately split:
 
 The split keeps the small SQLite/encrypted-secret state with other container
 runtimes while placing the growing audio collection on the 1 TB ProjectsData
-share. Both leaves are owned by numeric UID/GID 1000:1000 with mode 0700. The
+share. Both leaves are owned by numeric UID/GID 1000:100 with mode 0700. The
 parent NAS shares, NAS administrators, and the storage host remain inside the
 trust boundary; mode 0700 is not cryptographic isolation.
 

@@ -1,4 +1,4 @@
-<!-- doc-version: 0.16.0 -->
+<!-- doc-version: 0.16.1 -->
 # Deploy Playbook
 
 This runbook separates local development, NAS production, upgrades, migration,
@@ -8,7 +8,7 @@ ingress, and Home Infra observation are separate claims.
 ## Runtime ownership
 
 - `dev-vm`: local development and the retained pre-NAS rollback source.
-- NAS: production from `v0.16.0`, using `deploy/nas/`.
+- NAS: production from the accepted `v0.16.1` cutover, using `deploy/nas/`.
 - `edge-caddy`: the sole public ingress for
   `https://plaud.lamanoriega.com/`.
 - Plaud Mirror: owns its SQLite state, encrypted secret blob, recording files,
@@ -53,7 +53,8 @@ Persistent state is split by growth profile:
 - `/share/ProjectsData/plaud-mirror/recordings` for mirrored audio, metadata,
   and active `.delivery-artifacts` leases.
 
-Both leaves must be UID/GID 1000:1000, mode 0700. The NAS administrator and
+Both leaves must use the live-verified QNAP identity UID/GID 1000:100, mode
+0700. The NAS administrator and
 host remain inside the trust boundary. The service runs with a read-only root,
 all Linux capabilities dropped, `no-new-privileges`, a PID/memory ceiling,
 and only `127.0.0.1:3040` published.
