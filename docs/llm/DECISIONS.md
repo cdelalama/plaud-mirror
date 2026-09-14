@@ -1163,6 +1163,14 @@ pins NAS to 1000:100 while preserving non-root execution, owner-only modes,
 paths, data, and every application/wire contract. The image and dev-vm remain
 1000:1000; this amendment is QNAP-placement-specific.
 
+**2026-09-14 acceptance amendment:** Docker inspect reports the bind source as
+the exact path declared to Docker (`/share/Container/...` or
+`/share/ProjectsData/...`), while QNAP `readlink -f` resolves those aliases to
+their backing ZFS dataset paths. Container acceptance therefore compares the
+declared, already allowlisted sources and does not mix the two namespaces.
+Destination, RW state, filesystem content, and host-path allowlists remain
+independent checks.
+
 The old dev-vm data remains a stopped rollback source until NAS serving,
 automatic-run evidence, observation, and recoverable backup/snapshot gates
 pass. Its deletion is a separate exact-target lifecycle action.

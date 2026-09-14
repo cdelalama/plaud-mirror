@@ -633,6 +633,32 @@ spawn subagents.
     - Rationale: the explicit pre-trap success cleanup now removes the secret
       environment plus both symlink/identity path lists, with a regression
       assertion for the exact terminal sequence.
+24. **Mount verifier mixed QNAP resolved paths with Docker declared paths.**
+    - Resolution: Patched in `v0.16.2`; resumed exact review returned GO.
+    - Rationale: live Docker inspection proves both allowlisted declared
+      sources are RW and mapped to the expected destinations. The verifier now
+      compares that same namespace instead of rewriting only its expected side
+      through QNAP symlinks. Runtime acceptance passed before this patch and
+      Caddy remains unchanged.
+25. **The runbook's from-scratch sequence could overwrite the now-authoritative
+    NAS database with the stopped dev-vm snapshot.**
+    - Resolution: Adopted after the first `v0.16.2` audit.
+    - Rationale: a prominent authoritative resume point marks attempt-2 steps
+      1-6 as completed historical evidence, permits only verifier publication,
+      copy, validation, and proxy acceptance, and refuses any new rsync or
+      receipt rewrite while the NAS container/database is authoritative.
+26. **A new `v0.16.2` image/recreate added risk without changing runtime code.**
+    - Resolution: Adopted after the first `v0.16.2` audit.
+    - Rationale: `v0.16.2` is explicitly a source/host-asset patch. The exact
+      accepted `v0.16.1` image and Doppler pin remain unchanged; only
+      `verify-container.sh` is copied before the existing runtime is checked.
+27. **The completed-cutover heading also enclosed the remaining steps 7-9.**
+    - Resolution: Adopted after the resumed `v0.16.2` GO; narrow confirmation
+      returned GO.
+    - Rationale: the completed record is now explicitly scoped to steps 1-6,
+      while a separate remaining-acceptance heading owns steps 7-9. This avoids
+      making the safe continuation look completed without weakening the recopy
+      prohibition.
 
 ### Summary Outcome
 
@@ -643,8 +669,12 @@ spawn subagents.
 - The two pass-3 LOW suggestions were adopted before publication and pass 4
   closed both without introducing a new finding. The independent review gate
   was cleared for `v0.16.0`; live attempt 1 then reopened and the resumed audit
-  cleared the narrow `v0.16.1` QNAP identity correction. Publication and live
-  cutover remain separate gates.
+  cleared the narrow `v0.16.1` QNAP identity correction. The `v0.16.2` resumed
+  pass closed its HIGH stale-source and MEDIUM needless-image findings. Its one
+  adopted LOW heading clarification then received a narrow final GO on staged
+  tree `c844f189777428a034e56494c829120bd785ddf0`, binary-diff SHA-256
+  `52adbae917b459c7f8c2cbf79248efe3e4e38549d993646646095349c326ac48`.
+  Publication and live cutover remain separate gates.
 
 ### Follow-Through Landed
 

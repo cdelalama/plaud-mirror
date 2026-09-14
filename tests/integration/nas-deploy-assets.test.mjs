@@ -136,4 +136,5 @@ test("NAS container acceptance verifies the complete deployed policy", () => {
     assert.match(verifyContainer, new RegExp(expected.replaceAll(".", "\\.")));
   }
   assert.match(verifyContainer, /1000:100\|true\|1073741824\|256\|json-file\|10m\|3\|unless-stopped\|\[ALL\]\|\[no-new-privileges:true\]\|noexec,nosuid,size=64m,mode=1777/);
+  assert.doesNotMatch(verifyContainer, /readlink -f/);
 });

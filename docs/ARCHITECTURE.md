@@ -1,9 +1,9 @@
-<!-- doc-version: 0.16.1 -->
+<!-- doc-version: 0.16.2 -->
 # Plaud Mirror Architecture
 
-> Version: 0.16.1 NAS deployment candidate; 0.15.0 remains deployed on dev-vm
-> Last Updated: 2026-09-13
-> Status: v0.16.0 added the source-owned NAS production surface and migration contract; v0.16.1 corrects its QNAP runtime identity after a clean pre-start rollback. The live dev-vm runtime remains 0.15.0 until re-review, quiesced state transfer, loopback acceptance, proxy cutover, and Home Infra reconciliation pass. D-026 connection control and historical replay remain separate gates.
+> Version: 0.16.2 host-verifier patch; 0.16.1 is the healthy NAS-only writer
+> Last Updated: 2026-09-14
+> Status: v0.16.0 added the source-owned NAS production surface and migration contract; v0.16.1 corrected its QNAP runtime identity after a clean pre-start rollback; v0.16.2 corrects only declared-versus-resolved bind-source verification as a host asset. The immutable v0.16.1 container stays running; dev-vm is stopped and Caddy is unchanged until the patched gate passes. D-026 connection control and historical replay remain separate gates.
 
 ## Overview
 
@@ -407,7 +407,8 @@ ordered by evidence and product contracts:
    Content Intake repository only after this successful canary and a second
    structurally different processing profile. The second trigger does not yet
    exist, so the compatibility profile remains owned here.
-4. **Continue queued hardening:** finish the `v0.16.1` NAS acceptance, then
+4. **Continue queued hardening:** finish the `v0.16.1` NAS runtime acceptance
+   with the `v0.16.2` host verifier, then
    adapt D-019 to Plaud's first-party refresh tokens together with scrypt and finish
    OSS documentation. Resumable backfill remains deferred without a release
    target.

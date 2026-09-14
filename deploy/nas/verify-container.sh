@@ -23,8 +23,8 @@ echo "$image_ref" | grep -Eq '^registry\.lamanoriega\.com/plaud-mirror:[0-9]+\.[
   || fail "Port 3040 is not bound exclusively to NAS loopback."
 
 mounts="$("$DOCKER_BIN" inspect --format '{{range .Mounts}}{{.Source}}=>{{.Destination}}:{{.RW}};{{end}}' "$CONTAINER")"
-data_source="$(readlink -f /share/Container/runtime/plaud-mirror/data)"
-recordings_source="$(readlink -f /share/ProjectsData/plaud-mirror/recordings)"
+data_source="/share/Container/runtime/plaud-mirror/data"
+recordings_source="/share/ProjectsData/plaud-mirror/recordings"
 case "$mounts" in
   *"$data_source=>/var/lib/plaud-mirror/data:true;"*) ;;
   *) fail "Control-state mount is absent or read-only." ;;

@@ -1,4 +1,4 @@
-<!-- doc-version: 0.16.1 -->
+<!-- doc-version: 0.16.2 -->
 # Plaud Mirror Roadmap
 
 This document is the canonical phase boundary for Plaud Mirror. If implementation scope starts to cross a phase boundary, update this document before claiming the work is part of the current phase.
@@ -12,17 +12,18 @@ This document is the canonical phase boundary for Plaud Mirror. If implementatio
 
 ## Current Target
 
-- Current deployed release: `v0.15.0` from runtime source `e0aec3f` on
-  `dev-vm`. Fresh 2026-09-13 evidence reports Docker/operator/Plaud auth
-  healthy, PT15M scheduling, public `ok/none`, and exact 720/720 coverage. Six
-  transient recording-directory failures preceded a successful download and
-  two clean runs; that retained history remains part of the migration gate.
-- Current source candidate: `v0.16.1`. `v0.16.0` added the audited,
+- Current ingress still targets stopped `v0.15.0` source `e0aec3f` on dev-vm.
+  The healthy NAS-only writer is `v0.16.1` at 720/720, but it is not yet public.
+- Current source candidate: `v0.16.2`; accepted runtime image: immutable
+  `v0.16.1`. `v0.16.0` added the audited,
   fail-closed NAS deployment and quiesced migration surface; this patch pins
   QNAP's live storage identity 1000:100 after attempt 1 rolled back before NAS
   startup or proxy change. Source availability is not live acceptance;
-  production stays on dev-vm until re-audit plus the NAS, proxy,
-  automatic-run, and Home Infra evidence gates pass.
+  `v0.16.1` corrected the QNAP identity. Attempt 2 exposed a verifier-only
+  declared-versus-resolved bind-source mismatch after runtime checks passed;
+  `v0.16.2` corrects only that host-side gate before proxy, automatic-run, and
+  Home Infra evidence. It does not produce a new image or recreate the healthy
+  `v0.16.1` container.
 - Current operational gate: the final Phase 3 window is a joint five-day
   freeze after the last planned Plaud Mirror and Media2Text control-plane
   deploys, one successful connection canary, and Plaud's first completed
@@ -96,6 +97,9 @@ This document is the canonical phase boundary for Plaud Mirror. If implementatio
   the enforceable non-root owner is 1000:100, not the image-default 1000:1000.
   Attempt 1 restored dev-vm before NAS startup or Caddy change; no data or wire
   contract changed.
+- `v0.16.2` corrects the verifier to compare Docker's declared `/share/*`
+  sources instead of resolved backing-dataset paths. The mounts and runtime
+  were healthy; Caddy had not changed.
 - Planned `v0.17.x` connection-control work is governed by D-026 and
   `docs/design/CONNECTIONS_OPERATOR_EXPERIENCE.md`: bilateral request/grant
   setup, visible configuration/policy/evidence/health dimensions, persisted
@@ -104,7 +108,7 @@ This document is the canonical phase boundary for Plaud Mirror. If implementatio
   the backend control-plane work is too large for one release. No implementation
   is authorized by this roadmap entry alone.
 - Current phase: **Phase 5 NAS acceptance overlaps Phase 6 product work;
-  `v0.16.1` migration is the active slice, while connection control, bulk
+  `v0.16.2` acceptance patch is the active slice, while connection control, bulk
   replay, the joint five-day freeze, and the independent generic-webhook drill
   remain pending**
 - Deployment target: NAS production; dev-vm remains development/rollback only

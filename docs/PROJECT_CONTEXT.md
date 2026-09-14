@@ -1,4 +1,4 @@
-<!-- doc-version: 0.16.1 -->
+<!-- doc-version: 0.16.2 -->
 # Project Context - Plaud Mirror
 
 ## Vision
@@ -26,7 +26,7 @@ Plaud Mirror is a server-first product with two runtime surfaces:
 
 Persistence is split between SQLite for state/indexes and the filesystem for mirrored audio artifacts. Secrets are encrypted at rest with a master key supplied by the surrounding deployment.
 
-## Current Status (2026-09-13, v0.16.1 NAS candidate)
+## Current Status (2026-09-14, v0.16.2 NAS acceptance patch)
 
 The operator has promoted NAS placement ahead of the connection-control work
 because dev-vm is at 89% disk utilization and the Plaud runtime holds 12 GB of
@@ -37,8 +37,13 @@ control state stays in `/share/Container`, while recordings use the 1 TB
 to Node 24.15+ and clears the dependency audit before placing a new public
 container. Live attempt 1 exposed QNAP's actual storage owner as 1000:100 and
 rolled back before NAS startup or proxy change; `v0.16.1` corrects that runtime
-identity. Production remains the live `v0.15.0` dev-vm container until the
-re-audited quiesced cutover is accepted.
+identity. Attempt 2 then started a healthy NAS-only writer and passed direct
+auth/runtime/Range checks, but the container verifier compared a resolved ZFS
+path with Docker's declared `/share/*` source. `v0.16.2` corrects only that
+host-side acceptance check; the existing immutable `v0.16.1` container stays
+running without rebuild or recreation. The NAS remains the single healthy
+writer. Production ingress remains unavailable against the stopped dev-vm
+until the patched asset passes and Caddy is moved.
 
 `v0.15.0` source adds provider-neutral local review for retained transcription
 failures without modifying the frozen wire contract, retryability, or terminal

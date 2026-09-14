@@ -1,4 +1,4 @@
-<!-- doc-version: 0.16.1 -->
+<!-- doc-version: 0.16.2 -->
 # Deploy Playbook
 
 This runbook separates local development, NAS production, upgrades, migration,
@@ -8,7 +8,9 @@ ingress, and Home Infra observation are separate claims.
 ## Runtime ownership
 
 - `dev-vm`: local development and the retained pre-NAS rollback source.
-- NAS: production from the accepted `v0.16.1` cutover, using `deploy/nas/`.
+- NAS: production runs the accepted immutable `v0.16.1` image using
+  `deploy/nas/`; source `v0.16.2` patches only the host-side container verifier
+  and does not recreate that runtime.
 - `edge-caddy`: the sole public ingress for
   `https://plaud.lamanoriega.com/`.
 - Plaud Mirror: owns its SQLite state, encrypted secret blob, recording files,

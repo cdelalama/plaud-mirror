@@ -4,6 +4,26 @@ All notable changes to Plaud Mirror are documented in this file.
 
 This project follows Semantic Versioning (SemVer): MAJOR.MINOR.PATCH.
 
+## [0.16.2] - 2026-09-14
+
+- This is a source and NAS host-asset patch only. The accepted immutable
+  `v0.16.1` container remains running unchanged; no `v0.16.2` image is built or
+  published, and Doppler's production image pin is not changed.
+
+### Added
+
+- No new product capability.
+
+### Changed
+
+- No runtime or data contract change.
+
+### Fixed
+
+- NAS container acceptance now compares Docker's declared bind sources with
+  the exact declared QNAP paths. It no longer resolves `/share/*` aliases to
+  backing-dataset paths that Docker inspect intentionally does not report.
+
 ## [0.16.1] - 2026-09-13
 
 ### Added

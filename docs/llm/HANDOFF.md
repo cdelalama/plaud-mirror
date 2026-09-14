@@ -1,25 +1,31 @@
-<!-- doc-version: 0.16.1 -->
+<!-- doc-version: 0.16.2 -->
 # LLM Work Handoff
 
 This file is the live operational snapshot. Durable rationale lives in `docs/llm/DECISIONS.md`. Phase boundaries live in `docs/ROADMAP.md`.
 
 ## Current Status
 
-- Last Updated: 2026-09-13 - GPT-5 Codex
-- Session Focus: **operator-authorized `v0.16.1` QNAP identity correction after
-  a clean first-attempt rollback.** `v0.16.0` source `f8ec2a3` passed CI and its
-  immutable image was published; `plaud-mirror/prd`, the mode-0600 bootstrap,
-  and the 12.21 GB NAS audio preseed were prepared without disclosure. After
-  quiescing dev-vm and making a coherent final copy, QNAP rejected the audited
-  generic 1000:1000 ownership because the live storage account is 1000:100 and
-  Docker root is remapped. No NAS writer, migration receipt, or Caddy change
-  occurred. The old `v0.15.0` container was immediately restored healthy with
-  PT15M and `restart=unless-stopped`. `v0.16.1` pins only the NAS runtime GID to
-  the live-verified 100 while retaining non-root execution and every storage,
-  HTTP, transcription, and protocol contract. Tests and three resumed exact
-  Opus passes are GO; publish the patch before retrying the quiesced cutover. D-026,
-  replay, Cortex, provider spend, Home Infra Protocol, and ForgeOS remain out
-  of scope.
+- Last Updated: 2026-09-14 - GPT-5 Codex
+- Session Focus: **operator-authorized `v0.16.2` verifier correction during
+  fail-closed NAS acceptance.** Audited `v0.16.1` source `6da09ee`, CI, image,
+  Doppler, stopped-source checksum receipt, and the strict SQLite probe passed.
+  NAS is now the single healthy writer at 720/720 and direct authenticated
+  runtime/Range checks pass; dev-vm remains `exited|restart=no`. Caddy still
+  points to dev-vm, so public ingress remains unavailable. The container gate
+  stopped proxy cutover only because `readlink -f` resolved QNAP `/share/*`
+  aliases while Docker inspect truthfully reports the declared bind sources;
+  both exact mounts were independently observed RW. `v0.16.2` removes that
+  mismatched resolution and compares the allowlisted declared paths. The
+  first exact Opus pass found the verifier correct but blocked the stale
+  from-scratch runbook and needless image rebuild. Attempt-2 steps 1-6 are now
+  an explicit completed record: never recopy stopped dev-vm state over the
+  authoritative NAS database. The resumed pass returned GO, closing both
+  findings; its one LOW heading ambiguity was adopted and the narrow exact
+  confirmation also returned GO. Publish only the source/host asset, copy only
+  `verify-container.sh`, and run
+  the complete container/runtime gate against the unchanged immutable
+  `v0.16.1` container before Caddy. D-026, replay, Cortex,
+  provider spend, Home Infra Protocol, and ForgeOS remain out of scope.
 - Previous Session Focus: **v0.13.1 shutdown hardening is deployed and reconciled.** The scheduler now
   makes `stop()` terminal for callbacks already queued in the event loop, and
   every HTTP app test registers unconditional cleanup. Production runs clean
@@ -391,11 +397,11 @@ Do not collapse those phases casually.
 ## Trace Anchor
 
 - Role: executor
-- Subject: Correct the QNAP runtime identity after a fail-closed first cutover attempt
-- Release target: Plaud Mirror 0.16.1 patch candidate; production is restored to v0.15.0 on dev-vm until a fresh migration receipt passes.
-- Repo state: main published at `f8ec2a3` before the local patch, one enabled Media2Text destination, 720/720 coverage, 98 terminal deliveries (61 transcribed and 37 failed), no non-terminal media delivery, and no replay or Cortex delivery.
-- Validation: `v0.16.0` passed 215/215 tests, CI, dependency/governance gates, and final exact Opus review. Attempt 1 then proved 1000:1000 unavailable on QNAP, started no NAS writer, changed no Caddy config, and restored dev-vm healthy. Live recursive 1000:100 enforcement, the same 215 tests, 24/24 version sync, governance/audits, and three resumed exact Opus GO passes now clear `v0.16.1`.
-- Next gate: publish the exact 1000:100 patch image, then retry the single-writer migration and reconcile Home Infra without touching Home Infra Protocol or ForgeOS.
+- Subject: Correct declared-versus-resolved QNAP bind-source verification
+- Release target: Plaud Mirror 0.16.2 source/host-verifier patch; 0.16.1 is the healthy NAS-only writer and public ingress is not yet cut over.
+- Repo state: main at published `6da09ee`, one enabled Media2Text destination, 720/720 coverage, 98 terminal deliveries (61 transcribed and 37 failed), no non-terminal media delivery, and no replay or Cortex delivery.
+- Validation: attempt 2 passed exact copy, receipt, strict SQLite probe, NAS startup, authenticated health/protocol/Range at 720/720, exact image/user/hardening state, and independent RW inspection of both binds. Only the verifier's resolved-source string comparison failed; Caddy was not changed. The resumed exact `v0.16.2` audit returned GO after closing stale recopy and image-rebuild instructions, and its narrow final pass returned GO after the LOW heading clarification.
+- Next gate: publish the source patch, copy only the corrected verifier, rerun both acceptance scripts against the unchanged v0.16.1 runtime, then cut Caddy and reconcile Home Infra without touching Home Infra Protocol or ForgeOS.
 
 ## Key Decisions (Links)
 

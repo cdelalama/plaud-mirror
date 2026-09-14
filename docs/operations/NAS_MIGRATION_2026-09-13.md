@@ -1,4 +1,4 @@
-<!-- doc-version: 0.16.1 -->
+<!-- doc-version: 0.16.2 -->
 # NAS Migration - 2026-09-13
 
 ## Scope and authority
@@ -55,6 +55,15 @@ Observed at 2026-09-13 21:31-21:47 UTC before any runtime mutation:
   healthy with `restart=unless-stopped`. `v0.16.1` pins the executable NAS
   identity to 1000:100, which the live account can enforce without privilege
   escalation.
+- Attempt 2 passed the `v0.16.1` strict launcher, image-based SQLite probe, and
+  direct authenticated runtime checks at 720/720. Container acceptance then
+  exposed a verifier-only mismatch: Docker reports the declared `/share/*`
+  bind source while `readlink -f` returns its backing `/share/ZFS*_DATA` path.
+  Both mounts were independently inspected as RW and the NAS remains the only
+  healthy writer; Caddy still targets the stopped dev-vm. `v0.16.2` changes
+  only the source-owned host verifier so it compares the exact declared source
+  paths. The accepted `v0.16.1` image stays running and is not rebuilt or
+  recreated for this correction.
 
 ## Non-negotiable invariants
 
@@ -77,22 +86,53 @@ Observed at 2026-09-13 21:31-21:47 UTC before any runtime mutation:
 
 ## Release and secret preparation
 
-1. Freeze an exact `v0.16.1` candidate and run the repository suite, deploy
+1. Freeze an exact `v0.16.2` source/host-asset candidate and run the repository suite, deploy
    asset tests, dependency audit, DocKit validator, and diff hygiene.
 2. Run the independent read-only review required by `LLM_START_HERE.md` using
    exact `claude-fable-5-1` at high effort. Use exact
    `claude-opus-5[1m]` at high effort only after directly recording Fable quota
    exhaustion. Reconcile every finding before deployment.
-3. Build on dev-vm and publish
-   `registry.lamanoriega.com/plaud-mirror:0.16.1`. Record its registry digest
-   and use the immutable `tag@digest` form in `PLAUD_MIRROR_IMAGE`.
+3. Keep the already accepted runtime image pinned to
+   `registry.lamanoriega.com/plaud-mirror:0.16.1@sha256:77e0872e829d24b3a711707d0df9a6f16585ad6376aa39f78e906a140acd0cbe`.
+   `v0.16.2` is published as a source and NAS host-asset patch only: do not
+   build or publish a `0.16.2` image, change `PLAUD_MIRROR_IMAGE`, run
+   `start.sh`, or recreate the healthy `v0.16.1` container.
 4. Copy only the required existing values to `plaud-mirror/prd` without
    printing them: the running master key, admin passphrase, and EU API base.
    Create a read-only production service token and keep it as the only value in
    NAS `deploy/nas/.env`, mode 0600. Full values are materialized only in the
    NAS `/tmp` tmpfs for one `start.sh` invocation and removed on every exit.
 
-## Data pre-seed
+## Authoritative resume point after attempt 2
+
+Attempt 2 completed release/secret preparation, the recordings pre-seed, and
+quiesced cutover steps 1 through 6 below. The NAS `plaud-mirror` container is
+now the only writer and its database may have advanced beyond the stopped
+dev-vm copy. The completed commands are retained as historical and recovery
+evidence; they are **not** the continuation path for attempt 2.
+
+Resume only with this sequence:
+
+1. Publish the audited `v0.16.2` source commit. Do not build an image or
+   recreate the running `v0.16.1` container.
+2. Copy only `deploy/nas/verify-container.sh` to
+   `/share/Container/compose/plaud-mirror/`, preserve mode 0755, and require its
+   local and NAS SHA-256 values to match.
+3. Run the corrected container verifier and `verify-runtime.mjs` against the
+   existing immutable `v0.16.1` container.
+4. Continue with proxy cutover step 8 and canonical/first-automatic-run
+   acceptance step 9.
+
+Fail closed before any future use of pre-seed or quiesced-copy steps 4-5. They
+may run only for a new migration attempt whose target has been proven
+non-authoritative: the NAS `plaud-mirror` container must not exist or be
+running, and an operator-approved recovery assessment must establish that the
+target database is not newer than the declared source. The present attempt
+does not satisfy that gate. Never rsync `runtime/data` or recordings from the
+stopped dev-vm, rewrite `.migration-ready-v1`, or restart the dev-vm writer
+while the current NAS database is authoritative.
+
+## Completed data pre-seed record (do not rerun for attempt 2)
 
 The source may continue running during this non-authoritative first pass. Do
 not pre-seed `runtime/data` while SQLite is live.
@@ -106,7 +146,11 @@ rsync -rlt --delete-delay \
   nas.lamanoriega.com:/share/ProjectsData/plaud-mirror/recordings/
 ```
 
-## Quiesced cutover
+## Completed quiesced cutover record - steps 1-6 (do not rerun for attempt 2)
+
+The following commands document the completed initial transfer and remain
+useful only as controlled recovery reference under the refusal gate above.
+They are not an attempt-2 resume procedure.
 
 1. From the repository root, re-read `/api/health`; require
    `activeRun: null`. Require the following query to return exactly
@@ -217,8 +261,10 @@ rsync -rlt --delete-delay \
    For later upgrades run plain `./start.sh`: SQLite integrity remains
    mandatory, while the app is allowed to recover orphaned state. Never use
    `PLAUD_MIRROR_ALLOW_EMPTY_STATE=true` for migration or recovery.
-7. Before proxy change, require the exact immutable image, Docker healthy,
-   `/app/VERSION=0.16.1`, user 1000:100, read-only root, the two expected
+## Remaining acceptance steps (resume after verifier publication)
+
+7. Before proxy change, require the accepted immutable `v0.16.1` image, Docker
+   healthy, `/app/VERSION=0.16.1`, user 1000:100, read-only root, the two expected
    mounts, the 1 GB/256-PID ceilings, and bounded logging. Then pipe
    `verify-runtime.mjs` into Node inside the container. It requires direct NAS
    static HTML, `authRequired:true`, anonymous protected-route 401, successful

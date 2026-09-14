@@ -1,4 +1,4 @@
-<!-- doc-version: 0.16.1 -->
+<!-- doc-version: 0.16.2 -->
 # LLM Start Guide - Plaud Mirror
 
 ## Read This First (Mandatory)
@@ -86,21 +86,27 @@ Recommended reading order:
 ## Current Focus (Snapshot)
 
 Source of truth: docs/llm/HANDOFF.md.
-- Last Updated: 2026-09-13 - GPT-5 Codex
-- Working on: **operator-authorized `v0.16.1` QNAP identity correction after
-  a clean first-attempt rollback.** `v0.16.0` source `f8ec2a3` passed CI and its
-  immutable image was published; `plaud-mirror/prd`, the mode-0600 bootstrap,
-  and the 12.21 GB NAS audio preseed were prepared without disclosure. After
-  quiescing dev-vm and making a coherent final copy, QNAP rejected the audited
-  generic 1000:1000 ownership because the live storage account is 1000:100 and
-  Docker root is remapped. No NAS writer, migration receipt, or Caddy change
-  occurred. The old `v0.15.0` container was immediately restored healthy with
-  PT15M and `restart=unless-stopped`. `v0.16.1` pins only the NAS runtime GID to
-  the live-verified 100 while retaining non-root execution and every storage,
-  HTTP, transcription, and protocol contract. Tests and three resumed exact
-  Opus passes are GO; publish the patch before retrying the quiesced cutover. D-026,
-  replay, Cortex, provider spend, Home Infra Protocol, and ForgeOS remain out
-  of scope.
+- Last Updated: 2026-09-14 - GPT-5 Codex
+- Working on: **operator-authorized `v0.16.2` verifier correction during
+  fail-closed NAS acceptance.** Audited `v0.16.1` source `6da09ee`, CI, image,
+  Doppler, stopped-source checksum receipt, and the strict SQLite probe passed.
+  NAS is now the single healthy writer at 720/720 and direct authenticated
+  runtime/Range checks pass; dev-vm remains `exited|restart=no`. Caddy still
+  points to dev-vm, so public ingress remains unavailable. The container gate
+  stopped proxy cutover only because `readlink -f` resolved QNAP `/share/*`
+  aliases while Docker inspect truthfully reports the declared bind sources;
+  both exact mounts were independently observed RW. `v0.16.2` removes that
+  mismatched resolution and compares the allowlisted declared paths. The
+  first exact Opus pass found the verifier correct but blocked the stale
+  from-scratch runbook and needless image rebuild. Attempt-2 steps 1-6 are now
+  an explicit completed record: never recopy stopped dev-vm state over the
+  authoritative NAS database. The resumed pass returned GO, closing both
+  findings; its one LOW heading ambiguity was adopted and the narrow exact
+  confirmation also returned GO. Publish only the source/host asset, copy only
+  `verify-container.sh`, and run
+  the complete container/runtime gate against the unchanged immutable
+  `v0.16.1` container before Caddy. D-026, replay, Cortex,
+  provider spend, Home Infra Protocol, and ForgeOS remain out of scope.
 - Previous: **v0.12.0 destructive-operation and coverage integrity is
   deployed and reconciled.** The first real
   operator deletion exposed weak 2xx acknowledgement and a false remote
