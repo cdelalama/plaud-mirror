@@ -32,6 +32,38 @@ The goal is *referenceable analysis*, not full transcripts. If a point is decide
 
 ---
 
+## 2026-09-14 - NAS Observer-Reconciliation Documentation Audit
+
+**Input:** Plaud Mirror `v0.16.3` documentation-only follow-up after Home Infra
+and Infra Portal accepted the NAS owner declaration; staged tree
+`c3caef9aff1a72d05197e282dd2955a0ba7020eb` and binary-diff SHA-256
+`5a21a61a58556016484831eff42526c4a0606a2b32a477dd68314f5bdb528a2a`.
+
+**Reviewers:** the same exact `claude-opus-5[1m]` high-effort session
+`aea2b76f-c688-49a1-8b66-b9bb6350521a`, permitted after the already recorded
+direct Fable quota exhaustion. Claude ran restricted and read-only with only
+Read/Glob/Grep, plan mode, no permission prompts, and no Agent, Task, or
+subagent use.
+
+### Summary Outcome
+
+- `GO`, with no blocker, high, or medium finding.
+- Owner source, runtime image, Home Infra source, Portal provenance, backup,
+  and stopped rollback identities are kept separate and stated consistently.
+- No stale instruction can restart dev-vm, overwrite authoritative NAS data,
+  claim premature disk reclamation, or imply a Home Infra Protocol/ForgeOS
+  change.
+- Remaining risk is operational and explicit: observation, the generic-webhook
+  drill, and a recoverable NAS backup/snapshot precede any separately
+  authorized exact-target dev-vm cleanup.
+
+### Follow-Through Landed
+
+- The GO and its zero-subagent/read-only provenance are recorded here and in
+  current handoff/history without changing runtime or the owner contract.
+
+---
+
 ## 2026-09-14 - NAS Owner-Contract Reconciliation Audit
 
 **Input:** Plaud Mirror `v0.16.3` staged owner-contract reconciliation from

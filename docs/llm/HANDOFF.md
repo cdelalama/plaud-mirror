@@ -6,7 +6,7 @@ This file is the live operational snapshot. Durable rationale lives in `docs/llm
 ## Current Status
 
 - Last Updated: 2026-09-14 - GPT-5 Codex
-- Session Focus: **accepted NAS runtime and `v0.16.3` owner-contract
+- Session Focus: **accepted NAS runtime and completed horizontal
   reconciliation.** Source/host patch `v0.16.2` is published at `9d6bce7` and
   CI run `34793046331` passed without an image. Its corrected verifier passed
   against the unchanged immutable `v0.16.1` NAS container. NAS `edge-caddy`
@@ -15,13 +15,24 @@ This file is the live operational snapshot. Durable rationale lives in `docs/llm
   run `16e03fb1-7b56-4854-81d1-6a8dfa85bfc4` completed with zero work and
   zero failures. `dev-vm` remains `exited|restart=no` with the quiesced backup
   retained. `v0.16.3` changes only owner truth to `host_id: nas` and Doppler
-  `prd` references so Home Infra/Portal can reconcile; it creates no image,
+  `prd` references so Home Infra/Portal can reconcile; it created no image,
   restart, copy, replay, Cortex delivery, provider spend, Home Infra Protocol
   change, or ForgeOS change. The same restricted exact Opus 5.1/high session
   first caught and then confirmed closure of two stale HANDOFF hazards; its
   remediated pass returned GO with no blocker, high, or medium finding and no
-  subagent use. Next: publish this contract release, then update Home Infra and
-  its Portal inputs.
+  subagent use. Published `v0.16.3` source `ffe28e9` passed CI run
+  `34794162860`. Home Infra `0.34.18` commits `f82fb02` and `0519d45` now
+  project Plaud Mirror as the canonical production service on NAS. The final
+  input sync used backup
+  `/share/Container/compose/infra-portal/input-backups/20260914T012258Z-before-0519d45`
+  and did not restart Infra Portal, Plaud Mirror, or edge-caddy. Portal
+  provenance reports catalog source `0519d45`, Plaud contract source
+  `ffe28e9`, and no warnings; the service is up at HTTP 200 and the sync job is
+  current on host `nas` with exact 720/720 coverage. The same restricted exact
+  Opus 5.1/high session returned GO on the documentation closure with no
+  blocker, high, or medium finding and no subagent use. Next: preserve the stopped
+  dev-vm rollback tree until post-cutover observation and a recoverable NAS
+  backup pass; cleanup remains a separate exact-target authorization.
 - Previous Session Focus: **v0.13.1 shutdown hardening is deployed and reconciled.** The scheduler now
   makes `stop()` terminal for callbacks already queued in the event loop, and
   every HTTP app test registers unconditional cleanup. Production runs clean
@@ -268,16 +279,21 @@ runtime authority by the verified 2026-07-20 v0.15.0 rollout above.
   and 608.0074 hours. USD 335.62 is a local estimate using the configured
   Deepgram rate as of 2026-07-18, not a Media2Text quotation. No batch starts
   without a fresh receiver quote plus separate operator budget and batch-size GO.
-- **NAS post-cutover reconciliation:** publish the exact-audited v0.16.3 owner
-  contract, update Home Infra and synchronize Portal inputs, then preserve a
-  deploy-free observation window and verify a recoverable NAS backup/snapshot.
+- **NAS post-cutover retention:** owner, Home Infra, and Portal reconciliation
+  are complete. Preserve a deploy-free observation window and verify a
+  recoverable NAS backup/snapshot.
   Never restart dev-vm or reconverge its stale copy over authoritative NAS
   state; the refusal gate is in
   `docs/operations/NAS_MIGRATION_2026-09-13.md`. Do not delete the dev-vm
   rollback source until those gates pass and the operator separately
   authorizes exact-target cleanup.
 - **Adapt the D-019 capture path to Plaud's first-party token model (queued 2026-07-13; do NOT start mid-soak):** when `pld_tokenstr` is absent, the Chrome extension should capture the `pld_ut`/`pld_urt` cookie pair (via the `chrome.cookies` API) and the backend should learn the mint/refresh lifecycle (`POST /user-app/auth/workspace/token/{id}`, `POST /auth/refresh-user-token` — endpoint facts from MIT applaud v0.5.11; see the D-019 amendment). Storing a refresh token pulls the scrypt KDF upgrade (H2, below) into the same slice. Upside: first credible fully-unattended renewal path for the Google-SSO account.
-- **D-018 ARMED (2026-06-11).** The operator stored the passphrase via `scripts/set-admin-passphrase.sh` (Doppler `plaud-mirror/dev` in the secondary "Startup Embassy" account; repo dir scoped via `doppler login --scope ~/src/plaud-mirror`; multi-account convention in `~/src/home-infra/docs/CONVENTIONS.md`) and restarted with the doppler-wrapped `up -d`. Verified: `/api/session` → `authRequired: true`, `/api/config` and audio routes → 401 without cookie (local AND through `https://plaud.lamanoriega.com/`), `userSummary` redacted, access-control warning gone from `health.warnings`, panel login works. **Operational rule from now on: every container recreate must be `doppler run --project plaud-mirror --config dev -- docker compose up -d`** — a bare `up -d` disarms the lock (see DEPLOY_PLAYBOOK). Optional future hardening: a gitignored compose override file on this host making the env var required.
+- **D-018 ARMED (2026-06-11).** The original dev-vm activation used
+  `doppler run --project plaud-mirror --config dev -- docker compose up -d` and
+  verified authenticated local and canonical routes. That command is now
+  historical/development-only: production recreation on NAS must use the
+  audited `deploy/nas/start.sh` path with `plaud-mirror/prd`. Never run the
+  old dev-vm rollback instance merely to re-arm authentication.
 - File downstream feedback to LLM-DocKit about the clobber-on-sync pattern: `dockit-sync --apply` overwrites scripts that carry local extensions (`copy` strategy), forcing a manual re-merge every sync (happened 2026-05-13, 2026-06-10 with v0.6.1, 2026-06-18 before v0.9.3, and again during the v0.9.6 sync on 2026-06-19). Proposal: a `merge`/`copy-with-markers` strategy for `scripts/dockit-validate-session.sh` and version scripts, or upstream absorption of the local checks (DF-028 already covers `scripts/check-prose-drift.sh`).
 - Home Infra Protocol adoption is registered: `~/src/home-infra/catalog/project-contracts.yml` lists `plaud-mirror`, the NAS portal inputs include a bundled Plaud Mirror contract copy, and Infra Portal reads `plaud-mirror-recordings-sync` from `/api/sync-jobs`.
 - Protocol status was freshly observed at 720/720 with `condition=ok`, zero
@@ -307,16 +323,19 @@ The six items GPT-5 flagged in the 2026-04-23 review are closed:
    exact coverage plus legacy tombstone migration without another destructive
    call.~~ Done 2026-07-16 from clean source `8df5c35`; Home Infra 0.6.6 and
    live Portal provenance are reconciled.
-2. Reconcile the accepted `v0.16.1` NAS runtime through the v0.16.3 owner
-   contract and Home Infra/Portal; preserve the dev-vm source until the
-   observation, recoverable-backup, and separately authorized cleanup gates.
+2. ~~Reconcile the accepted `v0.16.1` NAS runtime through the v0.16.3 owner
+   contract and Home Infra/Portal.~~ Done 2026-09-14: owner source `ffe28e9`,
+   Home Infra `0.34.18` source `0519d45`, and warning-free Portal provenance
+   agree on NAS. Preserve the dev-vm source until the observation,
+   recoverable-backup, and separately authorized cleanup gates.
 3. Preserve current PT15M evidence, then start the final joint five-day window
    only at the D-026 roadmap's defined last-deploy/canary/automatic-run point;
    run the live generic-webhook drill before claiming the Phase 3 exit gate.
 4. ~~Publish and deploy v0.14.2, then reconcile the Media2Text path through a
    terminal callback and lease release.~~ Done 2026-07-17 from `a993936`; MP3
-   and final OGG canaries are terminal. Home Infra 0.7.11 is the latest
-   synchronized catalog/provenance release.
+   and final OGG canaries are terminal. Home Infra 0.7.11 was the synchronized
+   catalog/provenance release for that historical milestone; current observer
+   truth is Home Infra 0.34.18 at `0519d45`.
 5. ~~Deploy `v0.15.0` and classify the three retained failures without
    rewriting terminal history.~~ Done 2026-07-20 from runtime source `e0aec3f`.
 6. Execute only the separately authorized waves in
@@ -359,9 +378,9 @@ Do not collapse those phases casually.
 
 ## Next Session
 
-- The active runtime is immutable v0.16.1 on NAS and dev-vm is stopped. Publish
-  audited v0.16.3 owner truth, then reconcile Home Infra and Portal. Do not
-  rebuild, recreate, recopy stopped source data, or restart dev-vm.
+- The active runtime is immutable v0.16.1 on NAS and dev-vm is stopped.
+  v0.16.3 owner truth and Home Infra/Portal reconciliation are complete. Do
+  not rebuild, recreate, recopy stopped source data, or restart dev-vm.
 - Retain the dev-vm rollback tree until a recoverable NAS backup/snapshot and
   the post-cutover observation gate pass. Disk cleanup requires a separate
   exact-target authorization.
@@ -418,11 +437,11 @@ Do not collapse those phases casually.
 ## Trace Anchor
 
 - Role: executor
-- Subject: Reconcile accepted NAS production truth into owner and observer contracts
-- Release target: Plaud Mirror 0.16.3 contract/documentation only; runtime remains immutable 0.16.1 on NAS.
-- Repo state: main at published `9d6bce7` with v0.16.3 candidate changes; one enabled Media2Text destination, 720/720 coverage, 98 terminal deliveries, no replay or Cortex delivery.
-- Validation: corrected container/runtime verifier, canonical HTTPS, first NAS-owned PT15M run, exact image/user/hardening state, and stopped dev-vm rollback all pass. Prior v0.16.2 exact Opus review returned GO.
-- Next gate: exact Claude audit and publish v0.16.3, then reconcile Home Infra and Portal without changing Home Infra Protocol or ForgeOS.
+- Subject: Preserve accepted NAS production truth after owner and observer reconciliation
+- Release target: Plaud Mirror 0.16.3 documentation follow-up only; runtime remains immutable 0.16.1 on NAS.
+- Repo state: main published `ffe28e9`; Home Infra 0.34.18 source `0519d45` and live Portal agree on NAS; one enabled Media2Text destination, 720/720 coverage, 98 terminal deliveries, no replay or Cortex delivery.
+- Validation: source CI, corrected container/runtime verifier, canonical HTTPS, first NAS-owned PT15M run, exact image/user/hardening state, stopped dev-vm rollback, Home Infra gates, input sync, warning-free Portal readback, and exact Opus documentation audit pass.
+- Next gate: post-cutover observation plus recoverable NAS backup; reclaiming the retained dev-vm data requires separate exact-target authorization.
 
 ## Key Decisions (Links)
 

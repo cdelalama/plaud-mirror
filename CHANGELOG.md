@@ -19,6 +19,9 @@ This project follows Semantic Versioning (SemVer): MAJOR.MINOR.PATCH.
 - This is a source/contract/documentation release only. No `v0.16.3` image is
   built or published, the immutable `v0.16.1` container remains running, and
   no runtime restart or data copy occurs.
+- The documentation follow-up records completed Home Infra `0.34.18` and
+  warning-free Infra Portal projection without changing the owner contract or
+  running container.
 
 ### Fixed
 

@@ -1179,6 +1179,12 @@ not another runtime release: immutable `v0.16.1` continues without rebuild or
 restart. Home Infra may now project the owner truth; Home Infra Protocol and
 ForgeOS still require no schema or artifact change.
 
+That observer projection completed on 2026-09-14: Home Infra `0.34.18`
+source `0519d45` and live Infra Portal provenance agree on Plaud contract
+source `ffe28e9`, canonical production placement on `nas`, and a current
+720/720 sync job without warnings. This is separate evidence from owner
+declaration and runtime acceptance; none substitutes for the others.
+
 The old dev-vm data remains a stopped rollback source until NAS serving,
 automatic-run evidence, observation, and recoverable backup/snapshot gates
 pass. Its deletion is a separate exact-target lifecycle action.

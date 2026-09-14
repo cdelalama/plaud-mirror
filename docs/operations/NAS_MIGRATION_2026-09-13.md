@@ -353,3 +353,10 @@ Accepted on 2026-09-14 UTC:
   truth for Home Infra ingestion without an image, restart, copy, replay,
   Cortex delivery, provider spend, Home Infra Protocol change, or ForgeOS
   change.
+- Owner source `ffe28e9` passed CI run `34794162860`. Home Infra `0.34.18`
+  commits `f82fb02` and `0519d45` then projected the service as canonical
+  production on `nas`. The final Portal input sync created backup
+  `/share/Container/compose/infra-portal/input-backups/20260914T012258Z-before-0519d45`
+  and performed no container restart. Live readback reported catalog source
+  `0519d45`, Plaud contract source `ffe28e9`, empty provenance warnings, HTTP
+  200, and a current NAS-owned sync job with exact 720/720 coverage.

@@ -15,7 +15,7 @@ This document is the canonical phase boundary for Plaud Mirror. If implementatio
 - Current canonical ingress terminates at NAS `edge-caddy` and routes to the
   loopback-only `v0.16.1` Plaud Mirror runtime. Direct and canonical checks pass
   at exact 720/720 coverage; `dev-vm` is stopped with restart disabled.
-- Current source candidate: `v0.16.3`; accepted runtime image: immutable
+- Current published source: `v0.16.3` at `ffe28e9`; accepted runtime image: immutable
   `v0.16.1`. `v0.16.0` added the audited,
   fail-closed NAS deployment and quiesced migration surface; this patch pins
   QNAP's live storage identity 1000:100 after attempt 1 rolled back before NAS
@@ -24,9 +24,11 @@ This document is the canonical phase boundary for Plaud Mirror. If implementatio
   declared-versus-resolved bind-source mismatch after runtime checks passed;
   `v0.16.2` corrected only that host-side gate and was published without an
   image. The verifier, proxy cutover, canonical acceptance, and first NAS-owned
-  automatic run then passed. `v0.16.3` reconciles the owner contract to
+  automatic run then passed. `v0.16.3` reconciled the owner contract to
   `host_id: nas` and production secret references; it also produces no image
-  and does not recreate the healthy `v0.16.1` container.
+  and did not recreate the healthy `v0.16.1` container. Home Infra
+  `0.34.18` source `0519d45` and warning-free Portal provenance now project
+  that owner truth as canonical production on NAS.
 - Current operational gate: the final Phase 3 window is a joint five-day
   freeze after the last planned Plaud Mirror and Media2Text control-plane
   deploys, one successful connection canary, and Plaud's first completed
@@ -114,8 +116,8 @@ This document is the canonical phase boundary for Plaud Mirror. If implementatio
   disconnect/archive. An honest `v0.17.x`/`v0.18.x` split is pre-authorized if
   the backend control-plane work is too large for one release. No implementation
   is authorized by this roadmap entry alone.
-- Current phase: **Phase 5 NAS placement is accepted and its owner contract is
-  being reconciled horizontally; Phase 6 connection control, bulk replay, the
+- Current phase: **Phase 5 NAS placement and horizontal observer reconciliation
+  are accepted; Phase 6 connection control, bulk replay, the
   joint five-day freeze, and the independent generic-webhook drill remain
   pending**
 - Deployment target: NAS production; dev-vm remains development/rollback only

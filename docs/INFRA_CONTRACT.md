@@ -13,6 +13,9 @@ changing cadence, freshness, ownership, or the sync engine.
 The contract is an upstream input to `home-infra`. Plaud Mirror owns the sync
 engine and its protocol status endpoint; `home-infra` owns the portal registry
 that tells Infra Portal where to find the contract and status snapshot.
+Home Infra `0.34.18` source `0519d45` has accepted the NAS owner declaration,
+and live Portal provenance reports that catalog source plus Plaud contract
+source `ffe28e9` with no warnings.
 
 ## Sync Job
 

@@ -87,7 +87,7 @@ Recommended reading order:
 
 Source of truth: docs/llm/HANDOFF.md.
 - Last Updated: 2026-09-14 - GPT-5 Codex
-- Working on: **accepted NAS runtime and `v0.16.3` owner-contract
+- Working on: **accepted NAS runtime and completed horizontal
   reconciliation.** Source/host patch `v0.16.2` is published at `9d6bce7` and
   CI run `34793046331` passed without an image. Its corrected verifier passed
   against the unchanged immutable `v0.16.1` NAS container. NAS `edge-caddy`
@@ -96,13 +96,24 @@ Source of truth: docs/llm/HANDOFF.md.
   run `16e03fb1-7b56-4854-81d1-6a8dfa85bfc4` completed with zero work and
   zero failures. `dev-vm` remains `exited|restart=no` with the quiesced backup
   retained. `v0.16.3` changes only owner truth to `host_id: nas` and Doppler
-  `prd` references so Home Infra/Portal can reconcile; it creates no image,
+  `prd` references so Home Infra/Portal can reconcile; it created no image,
   restart, copy, replay, Cortex delivery, provider spend, Home Infra Protocol
   change, or ForgeOS change. The same restricted exact Opus 5.1/high session
   first caught and then confirmed closure of two stale HANDOFF hazards; its
   remediated pass returned GO with no blocker, high, or medium finding and no
-  subagent use. Next: publish this contract release, then update Home Infra and
-  its Portal inputs.
+  subagent use. Published `v0.16.3` source `ffe28e9` passed CI run
+  `34794162860`. Home Infra `0.34.18` commits `f82fb02` and `0519d45` now
+  project Plaud Mirror as the canonical production service on NAS. The final
+  input sync used backup
+  `/share/Container/compose/infra-portal/input-backups/20260914T012258Z-before-0519d45`
+  and did not restart Infra Portal, Plaud Mirror, or edge-caddy. Portal
+  provenance reports catalog source `0519d45`, Plaud contract source
+  `ffe28e9`, and no warnings; the service is up at HTTP 200 and the sync job is
+  current on host `nas` with exact 720/720 coverage. The same restricted exact
+  Opus 5.1/high session returned GO on the documentation closure with no
+  blocker, high, or medium finding and no subagent use. Next: preserve the stopped
+  dev-vm rollback tree until post-cutover observation and a recoverable NAS
+  backup pass; cleanup remains a separate exact-target authorization.
 - Previous: **v0.12.0 destructive-operation and coverage integrity is
   deployed and reconciled.** The first real
   operator deletion exposed weak 2xx acknowledgement and a false remote
