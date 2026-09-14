@@ -94,8 +94,9 @@ Source of truth: docs/llm/HANDOFF.md.
   now routes the canonical hostname to loopback; direct and canonical
   authenticated runtime/Range checks pass at 720/720. First NAS-owned PT15M
   run `16e03fb1-7b56-4854-81d1-6a8dfa85bfc4` completed with zero work and
-  zero failures. `dev-vm` remains `exited|restart=no` with the quiesced backup
-  retained. `v0.16.3` changes only owner truth to `host_id: nas` and Doppler
+  zero failures. `dev-vm` remains `exited|restart=no`; its control state and
+  quiesced SQLite backup are retained, but its recording tree is now empty.
+  `v0.16.3` changes only owner truth to `host_id: nas` and Doppler
   `prd` references so Home Infra/Portal can reconcile; it created no image,
   restart, copy, replay, Cortex delivery, provider spend, Home Infra Protocol
   change, or ForgeOS change. The same restricted exact Opus 5.1/high session
@@ -111,9 +112,18 @@ Source of truth: docs/llm/HANDOFF.md.
   `ffe28e9`, and no warnings; the service is up at HTTP 200 and the sync job is
   current on host `nas` with exact 720/720 coverage. The same restricted exact
   Opus 5.1/high session returned GO on the documentation closure with no
-  blocker, high, or medium finding and no subagent use. Next: preserve the stopped
-  dev-vm rollback tree until post-cutover observation and a recoverable NAS
-  backup pass; cleanup remains a separate exact-target authorization.
+  blocker, high, or medium finding and no subagent use. On 2026-09-14 the
+  operator explicitly authorized exact-target dev-vm audio cleanup after a
+  fresh checksum dry run compared every 1,441 file and 12,209,691,055 bytes
+  with zero created, transferred, missing, extra, or changed file. Exactly
+  `/home/cdelalama/src/plaud-mirror/runtime/recordings` was emptied;
+  `runtime/data` was untouched. Dev-vm root usage fell from 93% / 8.5 GB free
+  to 83% / 20 GB free. NAS remained healthy at 720/720 with the same file
+  count and bytes. No independent NAS backup was verified before cleanup, so
+  NAS is now the sole verified audio copy. The same restricted exact Opus
+  5.1/high session returned GO on this closure with two LOW completeness nits,
+  both adopted, and no subagent use. Next: continue observation and the
+  generic-webhook drill; establish a recoverable NAS backup separately.
 - Previous: **v0.12.0 destructive-operation and coverage integrity is
   deployed and reconciled.** The first real
   operator deletion exposed weak 2xx acknowledgement and a false remote

@@ -3,7 +3,7 @@
 
 > Version: 0.16.3 owner-contract reconciliation; 0.16.1 is the accepted runtime
 > Last Updated: 2026-09-14
-> Status: v0.16.0 added the source-owned NAS production surface and migration contract; v0.16.1 corrected its QNAP runtime identity after a clean pre-start rollback; v0.16.2 corrected declared-versus-resolved bind-source verification as a host asset. Direct and canonical acceptance plus the first NAS-owned automatic run passed against the unchanged immutable v0.16.1 container. v0.16.3 declares NAS/production truth for infrastructure consumers without a new image or restart; dev-vm is stopped rollback state. D-026 connection control and historical replay remain separate gates.
+> Status: v0.16.0 added the source-owned NAS production surface and migration contract; v0.16.1 corrected its QNAP runtime identity after a clean pre-start rollback; v0.16.2 corrected declared-versus-resolved bind-source verification as a host asset. Direct and canonical acceptance plus the first NAS-owned automatic run passed against the unchanged immutable v0.16.1 container. v0.16.3 declares NAS/production truth for infrastructure consumers without a new image or restart. After full checksum parity and explicit operator authorization, dev-vm recordings were removed; NAS is the sole verified audio copy and dev-vm retains control state only. D-026 connection control and historical replay remain separate gates.
 
 ## Overview
 

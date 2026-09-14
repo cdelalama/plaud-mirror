@@ -303,20 +303,20 @@ They are not an attempt-2 resume procedure.
 
 ## Rollback
 
-If NAS startup fails before proxy cutover, stop the exact NAS container with
-`/share/ZFS1_DATA/.qpkg/container-station/usr/bin/.libs/docker stop -t 90
-plaud-mirror`; no Compose secrets file is needed. If canonical validation fails
-after cutover, first restore and validate the timestamped Caddyfile, then stop
-the NAS container. If any NAS-side state mutation occurred, preserve it and
-reconcile it before restarting the old writer. On dev-vm run
-`docker update --restart=unless-stopped plaud-mirror-plaud-mirror-1`, then
-`doppler run --project plaud-mirror --config dev -- docker compose up -d
-plaud-mirror`, and verify it is healthy before restoring traffic. Never run
-both schedulers to make rollback look fast.
+The original dev-vm rollback sequence is retired after the source cleanup
+recorded below. Do not restart the old writer: its recording tree is empty and
+its retained control state is older than authoritative NAS state. A current
+recovery now requires either a coherent, restore-tested NAS backup or a
+separately designed reverse migration that copies both current NAS control
+state and recordings before any replacement writer starts. Never run two
+schedulers to make recovery look fast.
 
-Source cleanup is a later lifecycle action. It requires accepted NAS serving,
-the post-cutover observation window, a recoverable NAS snapshot/backup, and an
-exact target declaration. This runbook never deletes `runtime/` on dev-vm.
+The original source-cleanup gate required accepted NAS serving, observation, a
+recoverable NAS snapshot/backup, and an exact target declaration. On
+2026-09-14 the operator explicitly directed immediate space reclamation after
+fresh full-checksum parity, accepting NAS as the sole verified audio copy.
+Cleanup was limited to the exact `runtime/recordings` child; this runbook never
+deletes `runtime/data` or the `runtime/` root.
 
 ## Evidence receipt
 
@@ -347,8 +347,8 @@ Accepted on 2026-09-14 UTC:
 - `dev-vm` remains `exited`, `restart=no`. Its quiesced database backup
   `runtime/data/app.db.backup-20260913T235650Z-pre-nas` has SHA-256
   `8e5870b2f57dd7d8f705c215905b47b74e1e77e1143985f498896f397b626b9a`.
-  Old data is intentionally retained until the observation and recoverable
-  NAS backup/snapshot gates pass; deleting it is not part of this migration.
+  Control data remains retained. The recording copy was initially retained,
+  then removed by the separately authorized cleanup recorded below.
 - `v0.16.3` is the owner-contract reconciliation only. It publishes NAS/prd
   truth for Home Infra ingestion without an image, restart, copy, replay,
   Cortex delivery, provider spend, Home Infra Protocol change, or ForgeOS
@@ -360,3 +360,18 @@ Accepted on 2026-09-14 UTC:
   and performed no container restart. Live readback reported catalog source
   `0519d45`, Plaud contract source `ffe28e9`, empty provenance warnings, HTTP
   200, and a current NAS-owned sync job with exact 720/720 coverage.
+- Before cleanup, a fresh read-only rsync checksum dry run compared 2,164
+  entries (1,441 regular files and 723 directories), 12,209,691,055 bytes,
+  with zero created files, zero transferred files, and no missing, extra, or
+  changed path. NAS independently reported the same 1,441 files and byte total,
+  a healthy zero-restart container, and current 720/720 runtime health.
+- With explicit operator authorization, only
+  `/home/cdelalama/src/plaud-mirror/runtime/recordings` was emptied: 1,441
+  files / 12,209,691,055 bytes before, zero descendants after. Immediately
+  before deletion, `realpath`, filesystem, type, and symlink checks proved the
+  literal target was a local non-symlink directory on ext4 `/dev/vda2`.
+  `runtime/data` and its SQLite backup were untouched. Dev-vm root moved from
+  93% used / 8.5 GB free to 83% used / 20 GB free. The stopped container
+  remains `exited|restart=no`. This retires the old full rollback path; NAS is
+  the sole verified audio copy until a separate recoverable backup is
+  established.

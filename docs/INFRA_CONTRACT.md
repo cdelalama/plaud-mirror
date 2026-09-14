@@ -27,8 +27,8 @@ Current declaration after the accepted NAS cutover:
 - Source: `plaud`, `external`.
 - Production runtime: QNAP NAS (`host_id: nas`), service `plaud-mirror`.
   Direct and canonical acceptance plus the first NAS-owned automatic run passed
-  on 2026-09-14. `dev-vm` is a stopped rollback source, never a parallel
-  producer.
+  on 2026-09-14. `dev-vm` is stopped with restart disabled and its audio copy
+  has been removed; it is neither a producer nor a complete rollback source.
 - Schedule mode: `internal-loop`.
 - Cadence: `PT15M`.
 - Silence budget: `PT2H` (greater than cadence plus `max_runtime: PT1H`).

@@ -50,6 +50,13 @@ authenticated runtime/Range checks pass. NAS is the single healthy writer at
 failures. `dev-vm` remains stopped with restart disabled. `v0.16.3` changes
 only the project-owned placement and production-secret references so Home
 Infra can ingest current truth; it creates no image, restart, or data copy.
+After a fresh full-checksum comparison reported zero differences across all
+1,441 files and 12,209,691,055 bytes, the operator explicitly authorized
+emptying only dev-vm's `runtime/recordings`. `runtime/data` and its quiesced
+SQLite backup remain. Root usage fell from 93% to 83%, leaving 20 GB free.
+NAS remained healthy at 720/720 with the same recording-tree count and bytes.
+Because no independent NAS backup was verified first, NAS is now the sole
+verified audio copy and dev-vm is no longer a complete rollback source.
 
 `v0.15.0` source adds provider-neutral local review for retained transcription
 failures without modifying the frozen wire contract, retryability, or terminal

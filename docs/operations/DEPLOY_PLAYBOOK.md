@@ -7,7 +7,8 @@ ingress, and Home Infra observation are separate claims.
 
 ## Runtime ownership
 
-- `dev-vm`: local development and the retained pre-NAS rollback source.
+- `dev-vm`: local development plus retained control state only; its pre-NAS
+  recording copy was removed after exact parity and operator authorization.
 - NAS: production runs the accepted immutable `v0.16.1` image using
   `deploy/nas/`; source `v0.16.2` supplied the corrected host verifier and
   `v0.16.3` reconciles only the project-owned placement contract. Neither
@@ -166,11 +167,10 @@ tag/digest and run `./start.sh`. If a database migration is not backward
 compatible, restore its coherent pre-upgrade backup before starting the prior
 image.
 
-For the first host migration, restore the backed-up Plaud Caddy upstream,
-stop the NAS writer with the fixed Container Station Docker binary, reconcile
-any NAS-side state change, restore the old container's restart policy, and only
-then restart the unchanged Doppler-wrapped dev-vm runtime. Never run both
-schedulers. The old dev-vm data is retained until NAS serving, observation,
-backup, and explicit cleanup gates are complete. The one-time migration
-runbook carries the literal stop/restart commands so rollback does not depend
-on a removed temporary Compose env file.
+The original first-host rollback path is retired because dev-vm recordings
+were removed after exact checksum parity and explicit operator authorization.
+Do not restore its restart policy or start it as a writer: its retained SQLite
+state references audio that no longer exists locally. Recovery now requires a
+coherent NAS data restore or a separately designed reverse migration that
+copies current NAS control state and recordings before any writer starts.
+Never run both schedulers.

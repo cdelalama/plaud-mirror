@@ -32,6 +32,63 @@ The goal is *referenceable analysis*, not full transcripts. If a point is decide
 
 ---
 
+## 2026-09-14 - Dev-VM Audio Cleanup Closure Audit
+
+**Input:** operator-authorized deletion of only the verified local recording
+copy after full source/NAS checksum parity; base HEAD
+`239ddc3da6c9a048677f95d0f4a08bf02065d4e0`, initial staged tree
+`6eb44fc547bc8443c36e1222f1c3a0f27488dedf`, and binary-diff SHA-256
+`652e6019930848c9cdce7af9ba3d8823bb0d5d32c6f12c3cf54fa3f9fcb8f25e`.
+
+**Reviewers:** the same exact `claude-opus-5[1m]` high-effort session
+`aea2b76f-c688-49a1-8b66-b9bb6350521a`, permitted after the already recorded
+direct Fable quota exhaustion, followed by GPT-5 Codex reconciliation. Claude
+ran restricted and read-only with only Read/Glob/Grep, plan mode, no permission
+prompts, and no Agent, Task, or subagent use. It explicitly treated staged
+identity and supplied runtime evidence as asserted because shell access was not
+available.
+
+### Points of Agreement
+
+- The recorded 1,441 files / 12,209,691,055 bytes, zero-delta checksum, exact
+  deletion target, disk-space improvement, retained control state, and healthy
+  NAS 720/720 state are internally consistent.
+- Current instructions correctly retire dev-vm as an audio rollback writer and
+  forbid copying its stale control state over authoritative NAS state.
+- NAS being the sole verified audio copy without an independently verified
+  backup is prominent and remains an open resilience obligation.
+- Documentation-only follow-through needs no version bump and changes no
+  product, contract, runtime, or sibling artifact.
+
+### Points Raised (Pushback / Additions)
+
+1. **Persist the pre-delete target-identity proof.** The initial receipt did
+   not record that the literal target was a local non-symlink directory on
+   ext4 `/dev/vda2`.
+   - Resolution: Adopted.
+   - Rationale: this is the strongest evidence that recursive deletion could
+     not traverse a linked NAS path; it now lives in the migration receipt.
+2. **Remove the final ambiguous rollback description.** Confirmed Product
+   Direction still called dev-vm a "bounded rollback surface."
+   - Resolution: Adopted.
+   - Rationale: dev-vm retains stopped control-state residue only and is not a
+     complete audio rollback source; the current wording now says exactly that.
+
+### Summary Outcome
+
+- `GO`, with no blocker, high, or medium finding and two LOW completeness
+  findings, both adopted.
+- Remaining operational risks are unchanged: NAS lacks a verified recoverable
+  audio backup, the reverse-migration recovery path is not rehearsed, and the
+  observation window plus generic-webhook drill remain open.
+
+### Follow-Through Landed
+
+- Both LOW findings were reconciled in the same candidate before publication;
+  a narrow same-session readback confirms the final staged tree.
+
+---
+
 ## 2026-09-14 - NAS Observer-Reconciliation Documentation Audit
 
 **Input:** Plaud Mirror `v0.16.3` documentation-only follow-up after Home Infra

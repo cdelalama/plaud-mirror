@@ -1185,9 +1185,14 @@ source `ffe28e9`, canonical production placement on `nas`, and a current
 720/720 sync job without warnings. This is separate evidence from owner
 declaration and runtime acceptance; none substitutes for the others.
 
-The old dev-vm data remains a stopped rollback source until NAS serving,
-automatic-run evidence, observation, and recoverable backup/snapshot gates
-pass. Its deletion is a separate exact-target lifecycle action.
+The original decision retained old dev-vm data as a stopped rollback source
+until NAS serving, automatic-run evidence, observation, and recoverable backup
+gates passed. On 2026-09-14 the operator explicitly authorized deleting only
+the local recording tree after a fresh checksum comparison proved exact parity
+for all 1,441 files / 12,209,691,055 bytes. Control state and the quiesced
+SQLite backup remain, but dev-vm is no longer a complete rollback source. No
+independent NAS backup had been verified, so NAS became the sole verified audio
+copy; backup resilience remains an explicit open obligation.
 
 ### Context
 
@@ -1211,8 +1216,8 @@ one SQLite database.
   its product model or authorization gate.
 - The minor version is deliberate under the pre-1.0 rule: physical placement
   changes, while the application schema, logical data, HTTP/wire contracts,
-  and public hostname remain backward compatible and the exact rollback source
-  is retained.
+  and public hostname remain backward compatible. The original exact rollback
+  source was later retired by the operator-authorized cleanup amendment above.
 - Source assets, an image push, container health, canonical ingress, first
   automatic run, and Home Infra projection are recorded as separate evidence.
 - SQLite integrity is checked on every launcher invocation, while the strict

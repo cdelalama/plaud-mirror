@@ -22,6 +22,11 @@ This project follows Semantic Versioning (SemVer): MAJOR.MINOR.PATCH.
 - The documentation follow-up records completed Home Infra `0.34.18` and
   warning-free Infra Portal projection without changing the owner contract or
   running container.
+- After a full checksum dry run proved all 1,441 recording-tree files and
+  12,209,691,055 bytes identical, the operator authorized removal of the
+  dev-vm audio copy. Only `runtime/recordings` was emptied; control state was
+  retained and root free space increased from 8.5 GB to 20 GB. NAS is now the
+  sole verified audio copy because no independent backup was verified first.
 
 ### Fixed
 

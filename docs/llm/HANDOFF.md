@@ -13,8 +13,9 @@ This file is the live operational snapshot. Durable rationale lives in `docs/llm
   now routes the canonical hostname to loopback; direct and canonical
   authenticated runtime/Range checks pass at 720/720. First NAS-owned PT15M
   run `16e03fb1-7b56-4854-81d1-6a8dfa85bfc4` completed with zero work and
-  zero failures. `dev-vm` remains `exited|restart=no` with the quiesced backup
-  retained. `v0.16.3` changes only owner truth to `host_id: nas` and Doppler
+  zero failures. `dev-vm` remains `exited|restart=no`; its control state and
+  quiesced SQLite backup are retained, but its recording tree is now empty.
+  `v0.16.3` changes only owner truth to `host_id: nas` and Doppler
   `prd` references so Home Infra/Portal can reconcile; it created no image,
   restart, copy, replay, Cortex delivery, provider spend, Home Infra Protocol
   change, or ForgeOS change. The same restricted exact Opus 5.1/high session
@@ -30,9 +31,18 @@ This file is the live operational snapshot. Durable rationale lives in `docs/llm
   `ffe28e9`, and no warnings; the service is up at HTTP 200 and the sync job is
   current on host `nas` with exact 720/720 coverage. The same restricted exact
   Opus 5.1/high session returned GO on the documentation closure with no
-  blocker, high, or medium finding and no subagent use. Next: preserve the stopped
-  dev-vm rollback tree until post-cutover observation and a recoverable NAS
-  backup pass; cleanup remains a separate exact-target authorization.
+  blocker, high, or medium finding and no subagent use. On 2026-09-14 the
+  operator explicitly authorized exact-target dev-vm audio cleanup after a
+  fresh checksum dry run compared every 1,441 file and 12,209,691,055 bytes
+  with zero created, transferred, missing, extra, or changed file. Exactly
+  `/home/cdelalama/src/plaud-mirror/runtime/recordings` was emptied;
+  `runtime/data` was untouched. Dev-vm root usage fell from 93% / 8.5 GB free
+  to 83% / 20 GB free. NAS remained healthy at 720/720 with the same file
+  count and bytes. No independent NAS backup was verified before cleanup, so
+  NAS is now the sole verified audio copy. The same restricted exact Opus
+  5.1/high session returned GO on this closure with two LOW completeness nits,
+  both adopted, and no subagent use. Next: continue observation and the
+  generic-webhook drill; establish a recoverable NAS backup separately.
 - Previous Session Focus: **v0.13.1 shutdown hardening is deployed and reconciled.** The scheduler now
   makes `stop()` terminal for callbacks already queued in the event loop, and
   every HTTP app test registers unconditional cleanup. Production runs clean
@@ -201,7 +211,9 @@ This is now verified on the actual `dev-vm`, not assumed.
 - Production persistent paths are
   `/share/Container/runtime/plaud-mirror/data` (SQLite + encrypted secrets) and
   `/share/ProjectsData/plaud-mirror/recordings` (audio artifacts). The old
-  dev-vm `runtime/` tree is stopped rollback state, not current production.
+  dev-vm `runtime/data` tree is retained stopped control state, while its
+  recordings tree is empty; it is not current production or a complete
+  rollback source.
 
 ## Historical Dev-VM Shutdown Checkpoint (2026-07-18)
 
@@ -279,21 +291,19 @@ runtime authority by the verified 2026-07-20 v0.15.0 rollout above.
   and 608.0074 hours. USD 335.62 is a local estimate using the configured
   Deepgram rate as of 2026-07-18, not a Media2Text quotation. No batch starts
   without a fresh receiver quote plus separate operator budget and batch-size GO.
-- **NAS post-cutover retention:** owner, Home Infra, and Portal reconciliation
-  are complete. Preserve a deploy-free observation window and verify a
-  recoverable NAS backup/snapshot.
-  Never restart dev-vm or reconverge its stale copy over authoritative NAS
-  state; the refusal gate is in
-  `docs/operations/NAS_MIGRATION_2026-09-13.md`. Do not delete the dev-vm
-  rollback source until those gates pass and the operator separately
-  authorizes exact-target cleanup.
+- **NAS post-cutover resilience:** owner, Home Infra, Portal reconciliation,
+  full source/NAS checksum parity, and exact dev-vm audio cleanup are complete.
+  NAS is the sole verified audio copy because no independent NAS backup was
+  verified before the operator-authorized deletion. Establish and restore-test
+  a recoverable NAS backup/snapshot. Never restart dev-vm as a rollback writer
+  or copy its retained control state over authoritative NAS state.
 - **Adapt the D-019 capture path to Plaud's first-party token model (queued 2026-07-13; do NOT start mid-soak):** when `pld_tokenstr` is absent, the Chrome extension should capture the `pld_ut`/`pld_urt` cookie pair (via the `chrome.cookies` API) and the backend should learn the mint/refresh lifecycle (`POST /user-app/auth/workspace/token/{id}`, `POST /auth/refresh-user-token` — endpoint facts from MIT applaud v0.5.11; see the D-019 amendment). Storing a refresh token pulls the scrypt KDF upgrade (H2, below) into the same slice. Upside: first credible fully-unattended renewal path for the Google-SSO account.
 - **D-018 ARMED (2026-06-11).** The original dev-vm activation used
   `doppler run --project plaud-mirror --config dev -- docker compose up -d` and
   verified authenticated local and canonical routes. That command is now
   historical/development-only: production recreation on NAS must use the
   audited `deploy/nas/start.sh` path with `plaud-mirror/prd`. Never run the
-  old dev-vm rollback instance merely to re-arm authentication.
+  old dev-vm instance merely to re-arm authentication.
 - File downstream feedback to LLM-DocKit about the clobber-on-sync pattern: `dockit-sync --apply` overwrites scripts that carry local extensions (`copy` strategy), forcing a manual re-merge every sync (happened 2026-05-13, 2026-06-10 with v0.6.1, 2026-06-18 before v0.9.3, and again during the v0.9.6 sync on 2026-06-19). Proposal: a `merge`/`copy-with-markers` strategy for `scripts/dockit-validate-session.sh` and version scripts, or upstream absorption of the local checks (DF-028 already covers `scripts/check-prose-drift.sh`).
 - Home Infra Protocol adoption is registered: `~/src/home-infra/catalog/project-contracts.yml` lists `plaud-mirror`, the NAS portal inputs include a bundled Plaud Mirror contract copy, and Infra Portal reads `plaud-mirror-recordings-sync` from `/api/sync-jobs`.
 - Protocol status was freshly observed at 720/720 with `condition=ok`, zero
@@ -326,8 +336,9 @@ The six items GPT-5 flagged in the 2026-04-23 review are closed:
 2. ~~Reconcile the accepted `v0.16.1` NAS runtime through the v0.16.3 owner
    contract and Home Infra/Portal.~~ Done 2026-09-14: owner source `ffe28e9`,
    Home Infra `0.34.18` source `0519d45`, and warning-free Portal provenance
-   agree on NAS. Preserve the dev-vm source until the observation,
-   recoverable-backup, and separately authorized cleanup gates.
+   agree on NAS. The operator subsequently authorized exact local audio
+   cleanup after full checksum parity; the dev-vm recordings tree is empty and
+   NAS is the sole verified audio copy.
 3. Preserve current PT15M evidence, then start the final joint five-day window
    only at the D-026 roadmap's defined last-deploy/canary/automatic-run point;
    run the live generic-webhook drill before claiming the Phase 3 exit gate.
@@ -352,8 +363,8 @@ The six items GPT-5 flagged in the 2026-04-23 review are closed:
 ## Confirmed Product Direction
 
 - NAS is the confirmed production target from the `v0.16.x` acceptance slice;
-  dev-vm remains a
-  development and bounded rollback surface.
+  dev-vm remains a development surface with stopped control-state residue
+  only, not a complete audio rollback source.
 - The first usable release must include a small product-style web panel.
 - Manual bearer-token auth is acceptable first, but it must be encrypted at rest and survive restarts.
 - Historical backfill is required from day 1.
@@ -381,9 +392,10 @@ Do not collapse those phases casually.
 - The active runtime is immutable v0.16.1 on NAS and dev-vm is stopped.
   v0.16.3 owner truth and Home Infra/Portal reconciliation are complete. Do
   not rebuild, recreate, recopy stopped source data, or restart dev-vm.
-- Retain the dev-vm rollback tree until a recoverable NAS backup/snapshot and
-  the post-cutover observation gate pass. Disk cleanup requires a separate
-  exact-target authorization.
+- Dev-vm recordings were removed after exact checksum parity and explicit
+  operator authorization; only control state and the quiesced SQLite backup
+  remain. Do not call dev-vm a complete rollback source. Create and
+  restore-test a recoverable NAS audio backup as a separate resilience action.
 - Do not start historical replay until the operator explicitly approves the
   622-item / 608.0074-hour scope, a fresh Media2Text quotation, and a bounded batch.
 - LLM-DocKit 4.15.0 policy is already present. Use its exact Fable-preferred
@@ -402,7 +414,7 @@ Do not collapse those phases casually.
 - Run a filtered backfill from the panel.
 - Inspect:
   - `/api/health`
-  - `runtime/recordings/<recording-id>/metadata.json`
+  - `/share/ProjectsData/plaud-mirror/recordings/<recording-id>/metadata.json`
   - webhook receiver logs
 - Record the live findings before closing Phase 3.
 
@@ -437,11 +449,11 @@ Do not collapse those phases casually.
 ## Trace Anchor
 
 - Role: executor
-- Subject: Preserve accepted NAS production truth after owner and observer reconciliation
+- Subject: Preserve NAS-only audio authority after operator-authorized dev-vm cleanup
 - Release target: Plaud Mirror 0.16.3 documentation follow-up only; runtime remains immutable 0.16.1 on NAS.
-- Repo state: main published `ffe28e9`; Home Infra 0.34.18 source `0519d45` and live Portal agree on NAS; one enabled Media2Text destination, 720/720 coverage, 98 terminal deliveries, no replay or Cortex delivery.
-- Validation: source CI, corrected container/runtime verifier, canonical HTTPS, first NAS-owned PT15M run, exact image/user/hardening state, stopped dev-vm rollback, Home Infra gates, input sync, warning-free Portal readback, and exact Opus documentation audit pass.
-- Next gate: post-cutover observation plus recoverable NAS backup; reclaiming the retained dev-vm data requires separate exact-target authorization.
+- Repo state: main parent `239ddc3`; Home Infra 0.34.18 source `2de9e1d` and live Portal agree on NAS; dev-vm recordings are empty; one enabled Media2Text destination, 720/720 coverage, 98 terminal deliveries, no replay or Cortex delivery.
+- Validation: full checksum parity over 1,441 files / 12,209,691,055 bytes, exact-target deletion, dev-vm 83% with 20 GB free, healthy NAS 720/720, source CI, Home Infra/Portal provenance, and exact Opus cleanup-audit GO with both LOW nits adopted.
+- Next gate: recoverable NAS audio backup plus ongoing observation and generic-webhook drill; dev-vm is not a complete rollback source.
 
 ## Key Decisions (Links)
 
