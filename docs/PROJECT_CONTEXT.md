@@ -1,4 +1,4 @@
-<!-- doc-version: 0.16.2 -->
+<!-- doc-version: 0.16.3 -->
 # Project Context - Plaud Mirror
 
 ## Vision
@@ -26,9 +26,9 @@ Plaud Mirror is a server-first product with two runtime surfaces:
 
 Persistence is split between SQLite for state/indexes and the filesystem for mirrored audio artifacts. Secrets are encrypted at rest with a master key supplied by the surrounding deployment.
 
-## Current Status (2026-09-14, v0.16.2 NAS acceptance patch)
+## Current Status (2026-09-14, v0.16.3 placement reconciliation)
 
-The operator has promoted NAS placement ahead of the connection-control work
+The operator promoted NAS placement ahead of the connection-control work
 because dev-vm is at 89% disk utilization and the Plaud runtime holds 12 GB of
 audio. `v0.16.0` introduced a fail-closed QNAP deployment with immutable registry
 image, Doppler `prd` bootstrap, loopback-only HTTP, and split storage: small
@@ -40,10 +40,16 @@ rolled back before NAS startup or proxy change; `v0.16.1` corrects that runtime
 identity. Attempt 2 then started a healthy NAS-only writer and passed direct
 auth/runtime/Range checks, but the container verifier compared a resolved ZFS
 path with Docker's declared `/share/*` source. `v0.16.2` corrects only that
-host-side acceptance check; the existing immutable `v0.16.1` container stays
-running without rebuild or recreation. The NAS remains the single healthy
-writer. Production ingress remains unavailable against the stopped dev-vm
-until the patched asset passes and Caddy is moved.
+host-side acceptance check; published source `9d6bce7` and CI run `34793046331`
+passed without producing an image. The corrected host verifier passed against
+the unchanged immutable `v0.16.1` container. NAS `edge-caddy` now routes the
+canonical hostname to loopback `127.0.0.1:3040`; direct and canonical
+authenticated runtime/Range checks pass. NAS is the single healthy writer at
+720/720, and its first PT15M automatic run
+`16e03fb1-7b56-4854-81d1-6a8dfa85bfc4` completed with zero work and zero
+failures. `dev-vm` remains stopped with restart disabled. `v0.16.3` changes
+only the project-owned placement and production-secret references so Home
+Infra can ingest current truth; it creates no image, restart, or data copy.
 
 `v0.15.0` source adds provider-neutral local review for retained transcription
 failures without modifying the frozen wire contract, retryability, or terminal
@@ -235,8 +241,8 @@ What it still does not have:
 
 - resumable backfill
 - fully unattended re-login
-- live NAS cutover and post-cutover acceptance (source assets exist in
-  `v0.16.x`; deployment truth is recorded separately)
+- a completed final joint five-day stability window and live generic-webhook
+  drill after the accepted NAS cutover
 
 ## Phase Boundaries
 

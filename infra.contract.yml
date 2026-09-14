@@ -24,7 +24,7 @@ sync_jobs:
       cadence: PT15M
     stale_after: PT2H
     runtime:
-      host_id: dev-vm
+      host_id: nas
       service_id: plaud-mirror
     status_url: https://plaud.lamanoriega.com/api/protocol/sync-jobs/plaud-mirror-recordings-sync/status
     safety:
@@ -41,10 +41,10 @@ runbooks:
 secret_refs:
   - name: PLAUD_MIRROR_MASTER_KEY
     store: doppler
-    notes: doppler://plaud-mirror/dev/PLAUD_MIRROR_MASTER_KEY
+    notes: doppler://plaud-mirror/prd/PLAUD_MIRROR_MASTER_KEY
   - name: PLAUD_MIRROR_ADMIN_PASSPHRASE
     store: doppler
-    notes: doppler://plaud-mirror/dev/PLAUD_MIRROR_ADMIN_PASSPHRASE
+    notes: doppler://plaud-mirror/prd/PLAUD_MIRROR_ADMIN_PASSPHRASE
   - name: PLAUD_MIRROR_API_BASE
     store: doppler
-    notes: doppler://plaud-mirror/dev/PLAUD_MIRROR_API_BASE
+    notes: doppler://plaud-mirror/prd/PLAUD_MIRROR_API_BASE

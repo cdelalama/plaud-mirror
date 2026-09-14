@@ -4,6 +4,28 @@ All notable changes to Plaud Mirror are documented in this file.
 
 This project follows Semantic Versioning (SemVer): MAJOR.MINOR.PATCH.
 
+## [0.16.3] - 2026-09-14
+
+### Added
+
+- No new product capability.
+
+### Changed
+
+- The project-owned infra contract now records the accepted production truth:
+  `host_id: nas` and `doppler://plaud-mirror/prd` secret references. The public
+  hostname, application behavior, storage schema, and protocol remain
+  unchanged.
+- This is a source/contract/documentation release only. No `v0.16.3` image is
+  built or published, the immutable `v0.16.1` container remains running, and
+  no runtime restart or data copy occurs.
+
+### Fixed
+
+- Removed the final owner-side placement drift that still described the
+  stopped `dev-vm` rollback source as production after NAS canonical and
+  automatic-run acceptance had passed.
+
 ## [0.16.2] - 2026-09-14
 
 - This is a source and NAS host-asset patch only. The accepted immutable

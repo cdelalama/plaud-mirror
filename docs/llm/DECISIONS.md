@@ -1171,6 +1171,14 @@ declared, already allowlisted sources and does not mix the two namespaces.
 Destination, RW state, filesystem content, and host-path allowlists remain
 independent checks.
 
+The corrected `v0.16.2` host asset, direct and canonical checks, and the first
+NAS-owned PT15M run passed on 2026-09-14. `v0.16.3` therefore changes the
+project-owned contract from `host_id: dev-vm` to `host_id: nas` and its secret
+references from Doppler `dev` to `prd`. This is declaration reconciliation,
+not another runtime release: immutable `v0.16.1` continues without rebuild or
+restart. Home Infra may now project the owner truth; Home Infra Protocol and
+ForgeOS still require no schema or artifact change.
+
 The old dev-vm data remains a stopped rollback source until NAS serving,
 automatic-run evidence, observation, and recoverable backup/snapshot gates
 pass. Its deletion is a separate exact-target lifecycle action.

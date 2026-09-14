@@ -1,4 +1,4 @@
-<!-- doc-version: 0.16.2 -->
+<!-- doc-version: 0.16.3 -->
 # Infra Contract
 
 Plaud Mirror publishes a `home-infra-protocol` project contract in
@@ -19,13 +19,13 @@ that tells Infra Portal where to find the contract and status snapshot.
 `plaud-mirror-recordings-sync` is a `sync_jobs[]` entry because Plaud Mirror
 synchronizes local state from Plaud, an external authority.
 
-Current declaration before cutover:
+Current declaration after the accepted NAS cutover:
 
 - Source: `plaud`, `external`.
-- Production runtime: `dev-vm` (`host_id: dev-vm`), service `plaud-mirror`.
-  D-027 changes this to NAS only in a post-serving contract commit after direct
-  and canonical acceptance plus the first NAS automatic run. After that
-  commit, dev-vm is a stopped rollback source, never a parallel producer.
+- Production runtime: QNAP NAS (`host_id: nas`), service `plaud-mirror`.
+  Direct and canonical acceptance plus the first NAS-owned automatic run passed
+  on 2026-09-14. `dev-vm` is a stopped rollback source, never a parallel
+  producer.
 - Schedule mode: `internal-loop`.
 - Cadence: `PT15M`.
 - Silence budget: `PT2H` (greater than cadence plus `max_runtime: PT1H`).
@@ -37,6 +37,10 @@ continues to own and execute the loop; Home Infra only consumes its declared
 cadence and status. `stale_after: PT2H` exceeds both the 15-minute cadence and
 the one-hour maximum runtime, so consumers do not mark a legitimately long run
 stale before its next expected evidence window.
+
+Production secret references now use `doppler://plaud-mirror/prd`. Values are
+never published in this contract; a read-only service token materializes them
+on NAS tmpfs only for launcher execution.
 
 ## Status Snapshot
 

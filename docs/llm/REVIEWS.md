@@ -32,6 +32,62 @@ The goal is *referenceable analysis*, not full transcripts. If a point is decide
 
 ---
 
+## 2026-09-14 - NAS Owner-Contract Reconciliation Audit
+
+**Input:** Plaud Mirror `v0.16.3` staged owner-contract reconciliation from
+base HEAD `9d6bce7c2510e5accb0316858d60c306b5f65208`; initial staged tree
+`8df23db1c15f627408588ebea492a7fa7e089f0d` and binary-diff SHA-256
+`e7c2d9003c0ac629bfa24d578d8d815254c4c46be0f2a75487c0ada2ef4f109c`.
+
+**Reviewers:** the same exact `claude-opus-5[1m]` high-effort session
+`aea2b76f-c688-49a1-8b66-b9bb6350521a` used after direct Fable quota
+exhaustion, followed by GPT-5 Codex remediation. Claude ran restricted,
+read-only, with only Read/Glob/Grep, plan mode, no permission prompts, and no
+Agent, Task, or subagent use.
+
+### Points of Agreement
+
+- The project contract may now move from `host_id: dev-vm` to `host_id: nas`
+  and from Doppler `dev` to `prd`: direct/canonical checks and the first
+  NAS-owned automatic run are recorded as passed.
+- The release correctly creates no image, restart, recopy, protocol change,
+  ForgeOS artifact, replay, Cortex delivery, or provider spend.
+- The migration runbook now protects the authoritative NAS database from stale
+  dev-vm transfer steps and retains the old source for rollback.
+
+### Points Raised (Pushback / Additions)
+
+1. **Open Work still instructed destructive reconvergence from dev-vm.**
+   - Resolution: Adopted.
+   - Rationale: the stale item was the same hazard class previously removed
+     from the runbook. It now forbids restarting dev-vm or overwriting NAS and
+     points to the refusal gate.
+2. **Verified Runtime State still described dev-vm v0.15.0 as current.**
+   - Resolution: Adopted.
+   - Rationale: the live snapshot now leads with exact immutable v0.16.1 NAS
+     identity, canonical ingress, 720/720 coverage, automatic-run evidence,
+     retained rollback backup, and pending Home Infra projection.
+3. **Top Priority used pre-acceptance tense.**
+   - Resolution: Adopted after GO as a LOW wording refinement.
+   - Rationale: the priority now names reconciliation, observation, backup,
+     and separately authorized cleanup rather than re-accepting the runtime.
+
+### Summary Outcome
+
+- The initial pass returned `REQUEST CHANGES` with one HIGH and one MEDIUM,
+  both confined to HANDOFF prose. The remediated staged tree
+  `5385fe4562f186dd70f121f9cf64ed4b7fc56d50` / binary-diff SHA-256
+  `99ffb46894f9e2a2af6cabce330b8fb7a219532173dd87b9260b8460ab4f1806`
+  returned `GO` with no blocker, high, or medium finding.
+
+### Follow-Through Landed
+
+- Both findings and the LOW tense nit were adopted before publication.
+- Home Infra/Portal ingestion, observation, recoverable NAS backup/snapshot,
+  and any future exact-target dev-vm cleanup remain separate gates.
+
+---
+
 ## 2026-04-22 — Roadmap Review
 
 **Input:** Codex GPT-5's post-brainstorm implementation roadmap for the first usable Plaud Mirror release (appended to `HANDOFF.md`).

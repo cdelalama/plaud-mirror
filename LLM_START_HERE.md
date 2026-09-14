@@ -1,4 +1,4 @@
-<!-- doc-version: 0.16.2 -->
+<!-- doc-version: 0.16.3 -->
 # LLM Start Guide - Plaud Mirror
 
 ## Read This First (Mandatory)
@@ -87,26 +87,22 @@ Recommended reading order:
 
 Source of truth: docs/llm/HANDOFF.md.
 - Last Updated: 2026-09-14 - GPT-5 Codex
-- Working on: **operator-authorized `v0.16.2` verifier correction during
-  fail-closed NAS acceptance.** Audited `v0.16.1` source `6da09ee`, CI, image,
-  Doppler, stopped-source checksum receipt, and the strict SQLite probe passed.
-  NAS is now the single healthy writer at 720/720 and direct authenticated
-  runtime/Range checks pass; dev-vm remains `exited|restart=no`. Caddy still
-  points to dev-vm, so public ingress remains unavailable. The container gate
-  stopped proxy cutover only because `readlink -f` resolved QNAP `/share/*`
-  aliases while Docker inspect truthfully reports the declared bind sources;
-  both exact mounts were independently observed RW. `v0.16.2` removes that
-  mismatched resolution and compares the allowlisted declared paths. The
-  first exact Opus pass found the verifier correct but blocked the stale
-  from-scratch runbook and needless image rebuild. Attempt-2 steps 1-6 are now
-  an explicit completed record: never recopy stopped dev-vm state over the
-  authoritative NAS database. The resumed pass returned GO, closing both
-  findings; its one LOW heading ambiguity was adopted and the narrow exact
-  confirmation also returned GO. Publish only the source/host asset, copy only
-  `verify-container.sh`, and run
-  the complete container/runtime gate against the unchanged immutable
-  `v0.16.1` container before Caddy. D-026, replay, Cortex,
-  provider spend, Home Infra Protocol, and ForgeOS remain out of scope.
+- Working on: **accepted NAS runtime and `v0.16.3` owner-contract
+  reconciliation.** Source/host patch `v0.16.2` is published at `9d6bce7` and
+  CI run `34793046331` passed without an image. Its corrected verifier passed
+  against the unchanged immutable `v0.16.1` NAS container. NAS `edge-caddy`
+  now routes the canonical hostname to loopback; direct and canonical
+  authenticated runtime/Range checks pass at 720/720. First NAS-owned PT15M
+  run `16e03fb1-7b56-4854-81d1-6a8dfa85bfc4` completed with zero work and
+  zero failures. `dev-vm` remains `exited|restart=no` with the quiesced backup
+  retained. `v0.16.3` changes only owner truth to `host_id: nas` and Doppler
+  `prd` references so Home Infra/Portal can reconcile; it creates no image,
+  restart, copy, replay, Cortex delivery, provider spend, Home Infra Protocol
+  change, or ForgeOS change. The same restricted exact Opus 5.1/high session
+  first caught and then confirmed closure of two stale HANDOFF hazards; its
+  remediated pass returned GO with no blocker, high, or medium finding and no
+  subagent use. Next: publish this contract release, then update Home Infra and
+  its Portal inputs.
 - Previous: **v0.12.0 destructive-operation and coverage integrity is
   deployed and reconciled.** The first real
   operator deletion exposed weak 2xx acknowledgement and a false remote

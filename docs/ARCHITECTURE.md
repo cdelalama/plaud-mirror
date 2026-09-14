@@ -1,9 +1,9 @@
-<!-- doc-version: 0.16.2 -->
+<!-- doc-version: 0.16.3 -->
 # Plaud Mirror Architecture
 
-> Version: 0.16.2 host-verifier patch; 0.16.1 is the healthy NAS-only writer
+> Version: 0.16.3 owner-contract reconciliation; 0.16.1 is the accepted runtime
 > Last Updated: 2026-09-14
-> Status: v0.16.0 added the source-owned NAS production surface and migration contract; v0.16.1 corrected its QNAP runtime identity after a clean pre-start rollback; v0.16.2 corrects only declared-versus-resolved bind-source verification as a host asset. The immutable v0.16.1 container stays running; dev-vm is stopped and Caddy is unchanged until the patched gate passes. D-026 connection control and historical replay remain separate gates.
+> Status: v0.16.0 added the source-owned NAS production surface and migration contract; v0.16.1 corrected its QNAP runtime identity after a clean pre-start rollback; v0.16.2 corrected declared-versus-resolved bind-source verification as a host asset. Direct and canonical acceptance plus the first NAS-owned automatic run passed against the unchanged immutable v0.16.1 container. v0.16.3 declares NAS/production truth for infrastructure consumers without a new image or restart; dev-vm is stopped rollback state. D-026 connection control and historical replay remain separate gates.
 
 ## Overview
 

@@ -1,4 +1,4 @@
-<!-- doc-version: 0.16.2 -->
+<!-- doc-version: 0.16.3 -->
 # NAS Migration - 2026-09-13
 
 ## Scope and authority
@@ -59,11 +59,11 @@ Observed at 2026-09-13 21:31-21:47 UTC before any runtime mutation:
   direct authenticated runtime checks at 720/720. Container acceptance then
   exposed a verifier-only mismatch: Docker reports the declared `/share/*`
   bind source while `readlink -f` returns its backing `/share/ZFS*_DATA` path.
-  Both mounts were independently inspected as RW and the NAS remains the only
-  healthy writer; Caddy still targets the stopped dev-vm. `v0.16.2` changes
-  only the source-owned host verifier so it compares the exact declared source
-  paths. The accepted `v0.16.1` image stays running and is not rebuilt or
-  recreated for this correction.
+  Both mounts were independently inspected as RW and the NAS remained the only
+  healthy writer. `v0.16.2` changed only the source-owned host verifier so it
+  compares the exact declared source paths. Published source `9d6bce7` passed
+  CI run `34793046331`; the corrected asset passed against the unchanged
+  `v0.16.1` runtime before Caddy and automatic-run acceptance.
 
 ## Non-negotiable invariants
 
@@ -103,7 +103,7 @@ Observed at 2026-09-13 21:31-21:47 UTC before any runtime mutation:
    NAS `deploy/nas/.env`, mode 0600. Full values are materialized only in the
    NAS `/tmp` tmpfs for one `start.sh` invocation and removed on every exit.
 
-## Authoritative resume point after attempt 2
+## Historical authoritative resume point used after attempt 2
 
 Attempt 2 completed release/secret preparation, the recordings pre-seed, and
 quiesced cutover steps 1 through 6 below. The NAS `plaud-mirror` container is
@@ -111,7 +111,7 @@ now the only writer and its database may have advanced beyond the stopped
 dev-vm copy. The completed commands are retained as historical and recovery
 evidence; they are **not** the continuation path for attempt 2.
 
-Resume only with this sequence:
+The completed continuation was exactly:
 
 1. Publish the audited `v0.16.2` source commit. Do not build an image or
    recreate the running `v0.16.1` container.
@@ -261,7 +261,7 @@ They are not an attempt-2 resume procedure.
    For later upgrades run plain `./start.sh`: SQLite integrity remains
    mandatory, while the app is allowed to recover orphaned state. Never use
    `PLAUD_MIRROR_ALLOW_EMPTY_STATE=true` for migration or recovery.
-## Remaining acceptance steps (resume after verifier publication)
+## Completed acceptance steps 7-9 (historical; do not mutate by replaying)
 
 7. Before proxy change, require the accepted immutable `v0.16.1` image, Docker
    healthy, `/app/VERSION=0.16.1`, user 1000:100, read-only root, the two expected
@@ -320,5 +320,36 @@ exact target declaration. This runbook never deletes `runtime/` on dev-vm.
 
 ## Evidence receipt
 
-This section is filled only with observed facts after execution. Until then,
-source assets are a candidate and production remains on dev-vm.
+Accepted on 2026-09-14 UTC:
+
+- Source/host asset `v0.16.2` is published at `9d6bce7`; CI run
+  `34793046331` passed. No `v0.16.2` image was built or published.
+- NAS runs immutable `v0.16.1` digest
+  `sha256:77e0872e829d24b3a711707d0df9a6f16585ad6376aa39f78e906a140acd0cbe`
+  as UID:GID 1000:100, healthy, OOM-free, and restart count zero. The corrected
+  verifier and direct runtime verifier both passed.
+- The copied verifier SHA-256 is
+  `5c4fa3c11f6c99cd3daefa1ffc8057c79e6ad2c64ec63bb75cbb1810a20ff40c`.
+  Its pre-0.16.2 predecessor is retained at
+  `/share/Container/compose/plaud-mirror/verify-container.sh.backup-20260914T003428Z-pre-v0162`.
+- The persistent Caddyfile contains exactly one Plaud upstream to
+  `http://127.0.0.1:3040`. Because an in-place host edit changed the bind
+  inode, the first container-side reload still saw the old mounted inode and
+  canonical HTTPS returned 502. The complete validated host configuration was
+  then supplied to Caddy through stdin and reloaded without recreating or
+  restarting the proxy. The pre-change file remains at
+  `/share/Container/compose/edge-caddy/Caddyfile.backup-20260914T003510Z-pre-plaud-nas`.
+- Canonical session, static, authenticated health, protocol, and Range checks
+  pass. NAS-owned automatic run `16e03fb1-7b56-4854-81d1-6a8dfa85bfc4`
+  completed at `2026-09-14T00:24:22.870Z` with 720 examined, 720/720 coverage,
+  zero candidate/work/failure counters, no warning, and the next PT15M tick
+  scheduled.
+- `dev-vm` remains `exited`, `restart=no`. Its quiesced database backup
+  `runtime/data/app.db.backup-20260913T235650Z-pre-nas` has SHA-256
+  `8e5870b2f57dd7d8f705c215905b47b74e1e77e1143985f498896f397b626b9a`.
+  Old data is intentionally retained until the observation and recoverable
+  NAS backup/snapshot gates pass; deleting it is not part of this migration.
+- `v0.16.3` is the owner-contract reconciliation only. It publishes NAS/prd
+  truth for Home Infra ingestion without an image, restart, copy, replay,
+  Cortex delivery, provider spend, Home Infra Protocol change, or ForgeOS
+  change.

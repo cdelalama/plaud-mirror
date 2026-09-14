@@ -1,4 +1,4 @@
-<!-- doc-version: 0.16.2 -->
+<!-- doc-version: 0.16.3 -->
 # LLM Work Handoff
 
 This file is the live operational snapshot. Durable rationale lives in `docs/llm/DECISIONS.md`. Phase boundaries live in `docs/ROADMAP.md`.
@@ -6,26 +6,22 @@ This file is the live operational snapshot. Durable rationale lives in `docs/llm
 ## Current Status
 
 - Last Updated: 2026-09-14 - GPT-5 Codex
-- Session Focus: **operator-authorized `v0.16.2` verifier correction during
-  fail-closed NAS acceptance.** Audited `v0.16.1` source `6da09ee`, CI, image,
-  Doppler, stopped-source checksum receipt, and the strict SQLite probe passed.
-  NAS is now the single healthy writer at 720/720 and direct authenticated
-  runtime/Range checks pass; dev-vm remains `exited|restart=no`. Caddy still
-  points to dev-vm, so public ingress remains unavailable. The container gate
-  stopped proxy cutover only because `readlink -f` resolved QNAP `/share/*`
-  aliases while Docker inspect truthfully reports the declared bind sources;
-  both exact mounts were independently observed RW. `v0.16.2` removes that
-  mismatched resolution and compares the allowlisted declared paths. The
-  first exact Opus pass found the verifier correct but blocked the stale
-  from-scratch runbook and needless image rebuild. Attempt-2 steps 1-6 are now
-  an explicit completed record: never recopy stopped dev-vm state over the
-  authoritative NAS database. The resumed pass returned GO, closing both
-  findings; its one LOW heading ambiguity was adopted and the narrow exact
-  confirmation also returned GO. Publish only the source/host asset, copy only
-  `verify-container.sh`, and run
-  the complete container/runtime gate against the unchanged immutable
-  `v0.16.1` container before Caddy. D-026, replay, Cortex,
-  provider spend, Home Infra Protocol, and ForgeOS remain out of scope.
+- Session Focus: **accepted NAS runtime and `v0.16.3` owner-contract
+  reconciliation.** Source/host patch `v0.16.2` is published at `9d6bce7` and
+  CI run `34793046331` passed without an image. Its corrected verifier passed
+  against the unchanged immutable `v0.16.1` NAS container. NAS `edge-caddy`
+  now routes the canonical hostname to loopback; direct and canonical
+  authenticated runtime/Range checks pass at 720/720. First NAS-owned PT15M
+  run `16e03fb1-7b56-4854-81d1-6a8dfa85bfc4` completed with zero work and
+  zero failures. `dev-vm` remains `exited|restart=no` with the quiesced backup
+  retained. `v0.16.3` changes only owner truth to `host_id: nas` and Doppler
+  `prd` references so Home Infra/Portal can reconcile; it creates no image,
+  restart, copy, replay, Cortex delivery, provider spend, Home Infra Protocol
+  change, or ForgeOS change. The same restricted exact Opus 5.1/high session
+  first caught and then confirmed closure of two stale HANDOFF hazards; its
+  remediated pass returned GO with no blocker, high, or medium finding and no
+  subagent use. Next: publish this contract release, then update Home Infra and
+  its Portal inputs.
 - Previous Session Focus: **v0.13.1 shutdown hardening is deployed and reconciled.** The scheduler now
   makes `stop()` terminal for callbacks already queued in the event loop, and
   every HTTP app test registers unconditional cleanup. Production runs clean
@@ -160,21 +156,41 @@ This is now verified on the actual `dev-vm`, not assumed.
 
 ## Verified Runtime State
 
-- Container `plaud-mirror-plaud-mirror-1` is up and Docker healthy on `dev-vm`, port `3040` bound, running Plaud Mirror 0.15.0 from source `e0aec3f`; the deployed image digest is `sha256:10df26493fe5c08ec5fae1a7542587ded8938e935f28b201231798fb58ed237b`.
-- Fresh `GET /api/health` evidence at 2026-09-13T21:46:58Z reports operator and Plaud auth healthy, PT15M enabled, `warnings: []`, no active run, and exact coverage `{ remoteTotal: 720, mirrored: 720, dismissed: 0, missing: 0, localOnly: 0, upstreamDeleted: 1 }`.
-- The latest run `ffef1a78-80f0-4082-95ee-95951ec0eda1` completed after examining 720 records with zero candidates or failures. It follows one successful recovery download and two clean runs after six consecutive directory-creation failures for recording `8af9a0160ecb814574e8faebfe941701`; the retained error history moves with the database.
-- `GET /api/protocol/sync-jobs/plaud-mirror-recordings-sync/status` returns `version: "0.15.0"`, a future scheduler-owned `next_run_at`, `condition: "ok"`, and `severity: "none"` at 720/720.
-- SQLite contains 720 current physically referenced recording files plus one historical tombstone. `PRAGMA integrity_check` is `ok`; the consistent v0.15.0 pre-deploy backup remains retained as historical rollback evidence.
+- NAS container `plaud-mirror` is Docker healthy, OOM-free, restart count zero,
+  and runs immutable Plaud Mirror `v0.16.1` digest
+  `sha256:77e0872e829d24b3a711707d0df9a6f16585ad6376aa39f78e906a140acd0cbe`
+  as UID:GID 1000:100. Port 3040 is loopback-only; `edge-caddy` serves the
+  canonical HTTPS hostname.
+- Direct and canonical session, static, authenticated health, protocol, and
+  Range checks pass. Health reports operator and Plaud auth healthy, PT15M
+  enabled, `warnings: []`, no active run, and exact coverage
+  `{ remoteTotal: 720, mirrored: 720, dismissed: 0, missing: 0, localOnly: 0,
+  upstreamDeleted: 1 }`.
+- First NAS-owned automatic run `16e03fb1-7b56-4854-81d1-6a8dfa85bfc4`
+  completed at `2026-09-14T00:24:22.870Z` after examining 720 records with
+  zero candidates, downloads, enqueues, skips, or failures. The protocol
+  returns runtime version `0.16.1`, a future scheduler-owned `next_run_at`,
+  `condition: "ok"`, and `severity: "none"` at 720/720.
+- SQLite contains 720 current physically referenced recording files plus one
+  historical tombstone and passes `PRAGMA integrity_check`. The quiesced
+  dev-vm backup `app.db.backup-20260913T235650Z-pre-nas` remains retained with
+  SHA-256 `8e5870b2f57dd7d8f705c215905b47b74e1e77e1143985f498896f397b626b9a`.
 - Destination `76fe2f64-61e0-402f-997c-e2a9aba7d921` is enabled and primary. Ninety-eight terminal deliveries are tracked: 61 `transcribed` and 37 retained `failed`; no delivery is non-terminal. The original D-025 operator review metadata remains only on the three rows reviewed in July (two resolved and one active), rather than being inferred for the later failures.
 - The final provenance-correct OGG canary used recording `082298d30b32dfcfaa3fab312d9a36b7`, source SHA-256 `0f52872594aa61a3c4b522ad245d100ec7f95231750cdd98d9aa740bd8a778a9`, and transcript-record SHA-256 `d032644835480bfe174cd56940d3060341b91a269eca29a00fbd3849c087ec99`; both identities remain distinct and the delivery is terminal `transcribed`.
-- The July Home Infra/Infra Portal projection is historical and still points at the dev-vm deployment. It must not be relabelled as NAS truth until the new runtime serves directly and canonically, its first automatic run completes, and the Home Infra projection is reconciled.
+- The July Home Infra/Infra Portal projection is historical and still points
+  at dev-vm. NAS direct/canonical and first-automatic-run gates have now passed;
+  the remaining step is to ingest this project-owned v0.16.3 contract into
+  Home Infra and synchronize Portal inputs.
 - Bearer token saved via the web UI, auth validated with `/user/me`, encrypted at rest, survives restarts.
 - Manual sync and filtered backfill exercised against live Plaud. Latest confirmed sync run `5a970a84-3f44-4602-b727-3d1d12179349` examined 514 Plaud recordings, matched/downloaded 165 missing local audio files, skipped webhook enqueue because no webhook is configured, and completed without error; `plaudTotal` + stable `#N` ranks populate correctly.
 - Device catalog populates after sync via `/device/list`; the backfill selector renders operator nicknames.
 - `GET /api/backfill/candidates` returns annotated dry-run results against the live account (`state: "missing" | "mirrored" | "dismissed"`).
 - Inline audio playback via `<audio>` + HTTP Range works from the library.
 - Async sync (`POST /api/sync/run` → `202 → GET /api/sync/runs/:id` polling) verified: the panel surfaces `downloaded X of Y` live while a run is in flight.
-- Persistent paths: `runtime/data` (SQLite + encrypted secrets) and `runtime/recordings` (audio artifacts).
+- Production persistent paths are
+  `/share/Container/runtime/plaud-mirror/data` (SQLite + encrypted secrets) and
+  `/share/ProjectsData/plaud-mirror/recordings` (audio artifacts). The old
+  dev-vm `runtime/` tree is stopped rollback state, not current production.
 
 ## Historical Dev-VM Shutdown Checkpoint (2026-07-18)
 
@@ -239,9 +255,10 @@ runtime authority by the verified 2026-07-20 v0.15.0 rollout above.
 - The project entered Phase 5 at `0.10.0` for protocol integration. The
   `v0.16.x` acceptance slice now closes its deferred NAS placement gap while
   Phase 6 product work remains additive and separately gated.
-- Source assets do not prove migration. Until the evidence receipt in
-  `docs/operations/NAS_MIGRATION_2026-09-13.md` is complete, the authoritative
-  runtime remains `v0.15.0` on dev-vm.
+- Source assets alone do not prove migration. The evidence receipt in
+  `docs/operations/NAS_MIGRATION_2026-09-13.md` is now complete: runtime
+  authority is immutable `v0.16.1` on NAS, while v0.16.3 reconciles the owner
+  declaration and produces no runtime image.
 - Working-tree cleanliness and validator status are not asserted here — they age badly. Run `git status` and `scripts/dockit-validate-session.sh --human` for the current fact.
 
 ## Open Work
@@ -251,12 +268,14 @@ runtime authority by the verified 2026-07-20 v0.15.0 rollout above.
   and 608.0074 hours. USD 335.62 is a local estimate using the configured
   Deepgram rate as of 2026-07-18, not a Media2Text quotation. No batch starts
   without a fresh receiver quote plus separate operator budget and batch-size GO.
-- **Active NAS migration:** validate and exact-audit the `v0.16.1` QNAP
-  identity correction, publish its immutable image, re-quiesce the restored
-  dev-vm writer, reconverge the existing NAS copy, accept the
-  loopback NAS runtime, cut only the Plaud Caddy upstream, observe the first
-  PT15M run, then reconcile Home Infra. Do not delete the dev-vm rollback
-  source during this procedure.
+- **NAS post-cutover reconciliation:** publish the exact-audited v0.16.3 owner
+  contract, update Home Infra and synchronize Portal inputs, then preserve a
+  deploy-free observation window and verify a recoverable NAS backup/snapshot.
+  Never restart dev-vm or reconverge its stale copy over authoritative NAS
+  state; the refusal gate is in
+  `docs/operations/NAS_MIGRATION_2026-09-13.md`. Do not delete the dev-vm
+  rollback source until those gates pass and the operator separately
+  authorizes exact-target cleanup.
 - **Adapt the D-019 capture path to Plaud's first-party token model (queued 2026-07-13; do NOT start mid-soak):** when `pld_tokenstr` is absent, the Chrome extension should capture the `pld_ut`/`pld_urt` cookie pair (via the `chrome.cookies` API) and the backend should learn the mint/refresh lifecycle (`POST /user-app/auth/workspace/token/{id}`, `POST /auth/refresh-user-token` — endpoint facts from MIT applaud v0.5.11; see the D-019 amendment). Storing a refresh token pulls the scrypt KDF upgrade (H2, below) into the same slice. Upside: first credible fully-unattended renewal path for the Google-SSO account.
 - **D-018 ARMED (2026-06-11).** The operator stored the passphrase via `scripts/set-admin-passphrase.sh` (Doppler `plaud-mirror/dev` in the secondary "Startup Embassy" account; repo dir scoped via `doppler login --scope ~/src/plaud-mirror`; multi-account convention in `~/src/home-infra/docs/CONVENTIONS.md`) and restarted with the doppler-wrapped `up -d`. Verified: `/api/session` → `authRequired: true`, `/api/config` and audio routes → 401 without cookie (local AND through `https://plaud.lamanoriega.com/`), `userSummary` redacted, access-control warning gone from `health.warnings`, panel login works. **Operational rule from now on: every container recreate must be `doppler run --project plaud-mirror --config dev -- docker compose up -d`** — a bare `up -d` disarms the lock (see DEPLOY_PLAYBOOK). Optional future hardening: a gitignored compose override file on this host making the env var required.
 - File downstream feedback to LLM-DocKit about the clobber-on-sync pattern: `dockit-sync --apply` overwrites scripts that carry local extensions (`copy` strategy), forcing a manual re-merge every sync (happened 2026-05-13, 2026-06-10 with v0.6.1, 2026-06-18 before v0.9.3, and again during the v0.9.6 sync on 2026-06-19). Proposal: a `merge`/`copy-with-markers` strategy for `scripts/dockit-validate-session.sh` and version scripts, or upstream absorption of the local checks (DF-028 already covers `scripts/check-prose-drift.sh`).
@@ -288,8 +307,9 @@ The six items GPT-5 flagged in the 2026-04-23 review are closed:
    exact coverage plus legacy tombstone migration without another destructive
    call.~~ Done 2026-07-16 from clean source `8df5c35`; Home Infra 0.6.6 and
    live Portal provenance are reconciled.
-2. Complete and accept the `v0.16.1` NAS migration without a second scheduler
-   writer; preserve the dev-vm source until the backup/cleanup gate.
+2. Reconcile the accepted `v0.16.1` NAS runtime through the v0.16.3 owner
+   contract and Home Infra/Portal; preserve the dev-vm source until the
+   observation, recoverable-backup, and separately authorized cleanup gates.
 3. Preserve current PT15M evidence, then start the final joint five-day window
    only at the D-026 roadmap's defined last-deploy/canary/automatic-run point;
    run the live generic-webhook drill before claiming the Phase 3 exit gate.
@@ -339,11 +359,12 @@ Do not collapse those phases casually.
 
 ## Next Session
 
-- The active runtime is still v0.15.0 on dev-vm. Continue the corrected exact
-  `v0.16.1` NAS migration receipt; do not publish `host_id: nas` to Home Infra
-  before direct/canonical serving and the first NAS automatic run pass.
-- Never start NAS while dev-vm is running. Follow the one-time quiescence and
-  rollback sequence in `docs/operations/NAS_MIGRATION_2026-09-13.md`.
+- The active runtime is immutable v0.16.1 on NAS and dev-vm is stopped. Publish
+  audited v0.16.3 owner truth, then reconcile Home Infra and Portal. Do not
+  rebuild, recreate, recopy stopped source data, or restart dev-vm.
+- Retain the dev-vm rollback tree until a recoverable NAS backup/snapshot and
+  the post-cutover observation gate pass. Disk cleanup requires a separate
+  exact-target authorization.
 - Do not start historical replay until the operator explicitly approves the
   622-item / 608.0074-hour scope, a fresh Media2Text quotation, and a bounded batch.
 - LLM-DocKit 4.15.0 policy is already present. Use its exact Fable-preferred
@@ -374,7 +395,7 @@ Do not collapse those phases casually.
   - Phase 1 spike tests
   - encrypted-secret/store/service/server tests
   - built API/web integration smoke tests
-- Current `v0.16.1` candidate total is 215 tests (183 Node/integration + 32
+- Current `v0.16.3` source total is 215 tests (183 Node/integration + 32
   web), reproduced by the root suite. The new tests cover the NAS deployment
   invariants alongside the existing neutral contract, encrypted destination
   secrets, durable admission/status state,
@@ -397,11 +418,11 @@ Do not collapse those phases casually.
 ## Trace Anchor
 
 - Role: executor
-- Subject: Correct declared-versus-resolved QNAP bind-source verification
-- Release target: Plaud Mirror 0.16.2 source/host-verifier patch; 0.16.1 is the healthy NAS-only writer and public ingress is not yet cut over.
-- Repo state: main at published `6da09ee`, one enabled Media2Text destination, 720/720 coverage, 98 terminal deliveries (61 transcribed and 37 failed), no non-terminal media delivery, and no replay or Cortex delivery.
-- Validation: attempt 2 passed exact copy, receipt, strict SQLite probe, NAS startup, authenticated health/protocol/Range at 720/720, exact image/user/hardening state, and independent RW inspection of both binds. Only the verifier's resolved-source string comparison failed; Caddy was not changed. The resumed exact `v0.16.2` audit returned GO after closing stale recopy and image-rebuild instructions, and its narrow final pass returned GO after the LOW heading clarification.
-- Next gate: publish the source patch, copy only the corrected verifier, rerun both acceptance scripts against the unchanged v0.16.1 runtime, then cut Caddy and reconcile Home Infra without touching Home Infra Protocol or ForgeOS.
+- Subject: Reconcile accepted NAS production truth into owner and observer contracts
+- Release target: Plaud Mirror 0.16.3 contract/documentation only; runtime remains immutable 0.16.1 on NAS.
+- Repo state: main at published `9d6bce7` with v0.16.3 candidate changes; one enabled Media2Text destination, 720/720 coverage, 98 terminal deliveries, no replay or Cortex delivery.
+- Validation: corrected container/runtime verifier, canonical HTTPS, first NAS-owned PT15M run, exact image/user/hardening state, and stopped dev-vm rollback all pass. Prior v0.16.2 exact Opus review returned GO.
+- Next gate: exact Claude audit and publish v0.16.3, then reconcile Home Infra and Portal without changing Home Infra Protocol or ForgeOS.
 
 ## Key Decisions (Links)
 
