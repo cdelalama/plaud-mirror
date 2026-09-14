@@ -1194,6 +1194,17 @@ SQLite backup remain, but dev-vm is no longer a complete rollback source. No
 independent NAS backup had been verified, so NAS became the sole verified audio
 copy; backup resilience remains an explicit open obligation.
 
+**2026-09-14 lean-development amendment:** the operator subsequently approved
+retiring the remaining runnable dev-vm footprint. Exact-target checks and an
+independent review authorized deletion of only the rebuildable `node_modules`
+tree, the stopped zero-restart Plaud container, and its sole-tagged local image.
+The source checkout and `.env` remain so development can resume deliberately.
+The 15 MiB `runtime/data` tree also remains in full: NAS contains matching
+copies of the quiesced pre-cutover database and encrypted secret blob, but no
+independent current NAS snapshot/backup or restore proof exists. Keeping that
+small tree is the fail-closed consequence and the only Plaud custody outside
+NAS; it is evidence/recovery seed, not authority or a runnable rollback.
+
 ### Context
 
 On 2026-09-13 dev-vm's 117 GB root filesystem was 89% used with 13 GB free;

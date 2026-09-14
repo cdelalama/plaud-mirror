@@ -7,8 +7,9 @@ ingress, and Home Infra observation are separate claims.
 
 ## Runtime ownership
 
-- `dev-vm`: local development plus retained control state only; its pre-NAS
-  recording copy was removed after exact parity and operator authorization.
+- `dev-vm`: lean source checkout plus retained control-state custody only; its
+  pre-NAS recordings, stopped container, local Plaud image, and rebuildable
+  dependencies were removed through two exact operator-authorized passes.
 - NAS: production runs the accepted immutable `v0.16.1` image using
   `deploy/nas/`; source `v0.16.2` supplied the corrected host verifier and
   `v0.16.3` reconciles only the project-owned placement contract. Neither
@@ -22,6 +23,11 @@ Never run the dev-vm and NAS containers together. Both contain the same
 persisted scheduler and are not a distributed active/passive pair.
 
 ## Development on dev-vm
+
+No Plaud container, image, or `node_modules` tree is currently present on
+dev-vm. Development remains supported but deliberately cold: restore
+dependencies with `npm ci`, run tests, and build a fresh development image only
+for a named test slice. Never treat local recreation as production recovery.
 
 Preconditions:
 

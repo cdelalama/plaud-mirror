@@ -27,6 +27,12 @@ This project follows Semantic Versioning (SemVer): MAJOR.MINOR.PATCH.
   dev-vm audio copy. Only `runtime/recordings` was emptied; control state was
   retained and root free space increased from 8.5 GB to 20 GB. NAS is now the
   sole verified audio copy because no independent backup was verified first.
+- A second operator-authorized retirement pass removed only the rebuildable
+  `node_modules` tree, the exact stopped dev-vm container, and its sole-tagged
+  local Plaud image. The source checkout, `.env`, empty recordings directory,
+  and all 15,594,388 bytes of `runtime/data` remain. That control-state copy is
+  deliberately retained because it is now Plaud's only off-NAS custody while
+  a restore-tested NAS backup remains open.
 
 ### Fixed
 

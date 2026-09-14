@@ -47,7 +47,8 @@ canonical hostname to loopback `127.0.0.1:3040`; direct and canonical
 authenticated runtime/Range checks pass. NAS is the single healthy writer at
 720/720, and its first PT15M automatic run
 `16e03fb1-7b56-4854-81d1-6a8dfa85bfc4` completed with zero work and zero
-failures. `dev-vm` remains stopped with restart disabled. `v0.16.3` changes
+failures. The `dev-vm` writer was stopped with restart disabled before cutover.
+`v0.16.3` changes
 only the project-owned placement and production-secret references so Home
 Infra can ingest current truth; it creates no image, restart, or data copy.
 After a fresh full-checksum comparison reported zero differences across all
@@ -57,6 +58,15 @@ SQLite backup remain. Root usage fell from 93% to 83%, leaving 20 GB free.
 NAS remained healthy at 720/720 with the same recording-tree count and bytes.
 Because no independent NAS backup was verified first, NAS is now the sole
 verified audio copy and dev-vm is no longer a complete rollback source.
+With a second explicit operator GO, the retired local container, its sole-tagged
+image, and rebuildable `node_modules` were removed by literal path/ID. The
+checkout now occupies about 55 MiB instead of 211 MiB. `runtime/data` remains
+15,594,388 bytes and preserves the only off-NAS Plaud custody: its quiesced
+pre-NAS database backup and `secrets.enc` hashes still match the exact copies
+on NAS. This is deliberate fail-closed retention, not a runnable rollback; no
+local Plaud container or image remains. The bounded pass reduced root used
+bytes by 515,215,360, while unrelated concurrent dev-vm growth left the host at
+91 percent used. Global Docker reclamation is outside this authorization.
 
 `v0.15.0` source adds provider-neutral local review for retained transcription
 failures without modifying the frozen wire contract, retryability, or terminal

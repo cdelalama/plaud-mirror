@@ -94,8 +94,10 @@ Source of truth: docs/llm/HANDOFF.md.
   now routes the canonical hostname to loopback; direct and canonical
   authenticated runtime/Range checks pass at 720/720. First NAS-owned PT15M
   run `16e03fb1-7b56-4854-81d1-6a8dfa85bfc4` completed with zero work and
-  zero failures. `dev-vm` remains `exited|restart=no`; its control state and
-  quiesced SQLite backup are retained, but its recording tree is now empty.
+  zero failures. The `dev-vm` writer was stopped with `restart=no` before
+  cutover; its control state and quiesced SQLite backup are retained, but its
+  recording tree, retired container, local Plaud image, and dependencies are
+  now absent.
   `v0.16.3` changes only owner truth to `host_id: nas` and Doppler
   `prd` references so Home Infra/Portal can reconcile; it created no image,
   restart, copy, replay, Cortex delivery, provider spend, Home Infra Protocol
@@ -122,8 +124,18 @@ Source of truth: docs/llm/HANDOFF.md.
   count and bytes. No independent NAS backup was verified before cleanup, so
   NAS is now the sole verified audio copy. The same restricted exact Opus
   5.1/high session returned GO on this closure with two LOW completeness nits,
-  both adopted, and no subagent use. Next: continue observation and the
-  generic-webhook drill; establish a recoverable NAS backup separately.
+  both adopted, and no subagent use. A second explicit GO retired only
+  `node_modules`, container `f48768df...`, and image `10df2649...`; Docker
+  events show one container destroy, one image untag/delete, and no volume
+  destroy. The checkout fell from 211 MiB to 55 MiB and root used bytes fell by
+  515,215,360. All 15,594,388 bytes of `runtime/data`, `.env`, Git/source, and
+  the empty recordings directory remain. The pre-NAS database backup and
+  `secrets.enc` hashes are unchanged and match NAS copies. This is the only
+  off-NAS Plaud custody pending a recoverable backup, not current state or a
+  runnable rollback. Unrelated dev-vm growth left root at 91 percent; global
+  Docker cleanup is not authorized here. Next: establish and restore-test a
+  recoverable NAS backup, then continue observation and the generic-webhook
+  drill.
 - Previous: **v0.12.0 destructive-operation and coverage integrity is
   deployed and reconciled.** The first real
   operator deletion exposed weak 2xx acknowledgement and a false remote

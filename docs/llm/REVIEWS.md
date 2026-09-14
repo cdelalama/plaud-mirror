@@ -32,6 +32,58 @@ The goal is *referenceable analysis*, not full transcripts. If a point is decide
 
 ---
 
+## 2026-09-14 - Lean Dev-VM Retirement Audit
+
+**Input:** Carlos's explicit GO to retain a lean development checkout while
+removing only rebuildable/local runtime residue after the NAS migration.
+
+**Reviewers:** exact `claude-opus-5[1m]` at high effort in restricted read-only
+mode with Read/Glob/Grep only, followed by GPT-5 Codex reconciliation. No Agent,
+Task, shell, network, write, or subagent capability was available to Claude.
+
+### Points of Agreement
+
+- The exact stopped container, its sole-tagged local Plaud image, and
+  `node_modules` are safe retirement targets under the operator's GO.
+- No global Docker prune, wildcard deletion, NAS mutation, or volume deletion
+  belongs to this slice.
+- The source checkout remains the development surface; production remains the
+  immutable NAS runtime.
+
+### Points Raised (Pushback / Additions)
+
+1. **Retain all 15 MiB of local control state.** NAS has matching copies of the
+   quiesced database backup and `secrets.enc`, but no independent current Plaud
+   backup/snapshot or restore proof.
+   - Resolution: Adopted.
+   - Rationale: same-NAS duplication is not independent custody; the trivial
+     space saving does not justify deleting the only off-NAS Plaud artifact.
+2. **Record image irreproducibility.** The retired local image used a mutable
+   upstream base and cannot be claimed bit-reproducible.
+   - Resolution: Accepted as LOW and deleted under explicit authorization.
+   - Rationale: production runs a different accepted 0.16.1 image pinned by
+     registry digest, and the local rollback path was already retired.
+3. **Cold development loses immediate test capability.** Dependencies require
+   `npm ci` and native build/toolchain access before local tests resume.
+   - Resolution: Accepted as LOW and documented.
+
+### Summary Outcome
+
+- Pre-deletion `GO`, with no blocker, high, or medium finding and zero
+  subagents.
+- Allowed deletion was limited to one literal dependency directory, one exact
+  stopped container ID, and one exact image digest.
+
+### Follow-Through Landed
+
+- Postchecks found those three targets absent, retained hashes unchanged, one
+  container destroy, one image untag/delete, no volume destroy, and an
+  unchanged healthy NAS runtime with exact audio count and bytes.
+- Home Infra must absorb the new dev-vm footprint truth after owner-source
+  publication; the restore-tested NAS backup remains the first resilience gate.
+
+---
+
 ## 2026-09-14 - Dev-VM Audio Cleanup Closure Audit
 
 **Input:** operator-authorized deletion of only the verified local recording

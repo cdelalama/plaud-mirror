@@ -4,6 +4,40 @@ Append new entries at the top so the most recent activity is easiest to find.
 
 ## Log
 
+- 2026-09-14 - GPT-5 Codex - Executed Carlos's second explicit dev-vm cleanup
+  GO while preserving Plaud's only off-NAS control-state custody. Exact
+  preflight proved `node_modules` was a non-symlink local ext4 directory,
+  container `f48768df9e1cd364f08a4d28cfb8e533e0a8d19b3c5fe871a275d6e3d09c5dbb`
+  was stopped with `restart=no` and zero restarts, and it was the only consumer
+  of sole-tagged image
+  `sha256:10df26493fe5c08ec5fae1a7542587ded8938e935f28b201231798fb58ed237b`.
+  Removed only that 138,406,365-byte dependency tree, exact container, and
+  image; Docker events show one container destroy, one image untag/delete, and
+  no volume destroy. The checkout fell from 211 MiB to 55 MiB and root used
+  bytes fell by 515,215,360. Preserved `.env`, Git/source, empty recordings,
+  and all 15,594,388 bytes of `runtime/data`; its pre-NAS backup and
+  `secrets.enc` hashes remain unchanged and match NAS copies. Retention is
+  deliberate because no independent current NAS backup/snapshot or restore
+  proof exists. NAS remained 0.16.1 healthy at 720/720 with 1,441 files /
+  12,209,691,055 bytes and zero restarts. No NAS, Portal, Caddy, Doppler,
+  contract, protocol, ForgeOS, replay, spend, Cortex, or global Docker cleanup
+  was performed. Unrelated concurrent growth left dev-vm at 91 percent; 14.59
+  GB of images and 4.084 GB of build cache are reported reclaimable but remain
+  outside this authorization. The exact restricted `claude-opus-5[1m]`/high
+  pre-deletion review returned GO with no blocker/high/medium and no subagents,
+  requiring the fail-closed data retention and this documentation sweep. -
+  Files: [CHANGELOG.md, LLM_START_HERE.md, docs/ARCHITECTURE.md,
+  docs/INFRA_CONTRACT.md, docs/PROJECT_CONTEXT.md, docs/ROADMAP.md,
+  docs/operations/DEPLOY_PLAYBOOK.md,
+  docs/operations/NAS_MIGRATION_2026-09-13.md, docs/llm/DECISIONS.md,
+  docs/llm/HANDOFF.md, docs/llm/HISTORY.md, docs/llm/REVIEWS.md] - Version
+  impact: none (operator-authorized local lifecycle cleanup and documentation;
+  source remains 0.16.3 and NAS runtime remains immutable 0.16.1) - Trace:
+  role=executor; sent=2026-09-14 23:13:15 CEST (21:13:15 UTC);
+  commits=none; state=devvm-lean-checkout-runtime-footprint-retired;
+  validation=exact-target-opus-go-docker-events-hashes-disk-inodes-nas-health-count-bytes;
+  next=final-doc-audit-publish-home-infra-reconcile-then-separate-nas-backup.
+
 - 2026-09-14 - GPT-5 Codex - Executed the operator-authorized dev-vm audio cleanup after independently rechecking full source/NAS parity. A read-only rsync checksum dry run compared 2,164 entries, including 1,441 regular files / 12,209,691,055 bytes, and reported zero created or transferred files and no missing, extra, or changed content. NAS independently retained the same file/byte totals, a healthy zero-restart runtime, and current 720/720 coverage. Emptied only `/home/cdelalama/src/plaud-mirror/runtime/recordings`, leaving zero descendants while preserving `runtime/data`, the quiesced SQLite backup, and the stopped `exited|restart=no` container. Dev-vm root improved from 93% used / 8.5 GB free to 83% / 20 GB free. No independent NAS backup was verified first, so NAS is now the sole verified audio copy and dev-vm is not a complete rollback source. No NAS data, runtime, container, contract, secret, replay, Cortex, provider-spend, Home Infra Protocol, or ForgeOS mutation occurred. The same restricted exact Opus 5.1/high session returned GO with no blocker/high/medium, no subagents, and two LOW completeness findings; both were adopted by persisting the non-symlink/ext4 target check and removing the final ambiguous "bounded rollback surface" phrase. - Files: [CHANGELOG.md, LLM_START_HERE.md, docs/ARCHITECTURE.md, docs/INFRA_CONTRACT.md, docs/PROJECT_CONTEXT.md, docs/ROADMAP.md, docs/operations/DEPLOY_PLAYBOOK.md, docs/operations/NAS_MIGRATION_2026-09-13.md, docs/llm/DECISIONS.md, docs/llm/HANDOFF.md, docs/llm/HISTORY.md, docs/llm/REVIEWS.md] - Version impact: no (operator-authorized lifecycle cleanup and documentation only; source and runtime remain v0.16.3/v0.16.1) - Trace: role=executor; commits=239ddc3; state=dev-vm-audio-cleanup-complete-nas-sole-verified-copy; validation=full-rsync-checksum-zero-delta-count-byte-runtime-disk-exact-target-readback-and-exact-opus-go; next=publish-docs-home-infra-reconciliation-then-nas-backup
 
 - 2026-09-14 - GPT-5 Codex - Closed the post-publication observer loop for the accepted NAS migration without touching runtime. Home Infra `0.34.18` commits `f82fb02` and `0519d45` project Plaud Mirror as canonical production on `nas`; the final Portal input sync retained backup `/share/Container/compose/infra-portal/input-backups/20260914T012258Z-before-0519d45` and restarted no container. Live Portal readback reports catalog source `0519d45`, Plaud contract source `ffe28e9`, no provenance warnings, service HTTP 200, and a current NAS-owned sync job at exact 720/720 coverage. Updated Plaud's handoff, roadmap, context, decision, infra-contract explanation, changelog, migration receipt, and review record so no future session repeats the completed cutover or overwrites NAS from the retained dev-vm rollback copy. The same restricted exact Opus 5.1/high session returned GO with no blocker/high/medium and no subagent use. Runtime stays immutable `v0.16.1`; stopped dev-vm data remains pending observation, recoverable NAS backup, and separate exact-target cleanup authorization. - Files: [CHANGELOG.md, LLM_START_HERE.md, docs/INFRA_CONTRACT.md, docs/PROJECT_CONTEXT.md, docs/ROADMAP.md, docs/operations/NAS_MIGRATION_2026-09-13.md, docs/llm/DECISIONS.md, docs/llm/HANDOFF.md, docs/llm/HISTORY.md, docs/llm/REVIEWS.md] - Version impact: no (documentation-only closure on published 0.16.3) - Trace: role=executor; commits=ffe28e9,f82fb02,0519d45; state=nas-owner-observer-reconciled-runtime-unchanged; validation=source-ci-home-infra-gates-portal-sync-provenance-runtime-job-readback-exact-opus-go; next=observation-recoverable-nas-backup-then-separate-cleanup-authorization

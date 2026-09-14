@@ -304,12 +304,12 @@ They are not an attempt-2 resume procedure.
 ## Rollback
 
 The original dev-vm rollback sequence is retired after the source cleanup
-recorded below. Do not restart the old writer: its recording tree is empty and
-its retained control state is older than authoritative NAS state. A current
-recovery now requires either a coherent, restore-tested NAS backup or a
-separately designed reverse migration that copies both current NAS control
-state and recordings before any replacement writer starts. Never run two
-schedulers to make recovery look fast.
+recorded below. The old writer container and its local image no longer exist;
+do not recreate them from retained control state, which is older than
+authoritative NAS state. A current recovery requires either a coherent,
+restore-tested NAS backup or a separately designed reverse migration that
+copies both current NAS control state and recordings before any replacement
+writer starts. Never run two schedulers to make recovery look fast.
 
 The original source-cleanup gate required accepted NAS serving, observation, a
 recoverable NAS snapshot/backup, and an exact target declaration. On
@@ -344,7 +344,8 @@ Accepted on 2026-09-14 UTC:
   completed at `2026-09-14T00:24:22.870Z` with 720 examined, 720/720 coverage,
   zero candidate/work/failure counters, no warning, and the next PT15M tick
   scheduled.
-- `dev-vm` remains `exited`, `restart=no`. Its quiesced database backup
+- The dev-vm writer was stopped with `restart=no` through migration acceptance.
+  Its quiesced database backup
   `runtime/data/app.db.backup-20260913T235650Z-pre-nas` has SHA-256
   `8e5870b2f57dd7d8f705c215905b47b74e1e77e1143985f498896f397b626b9a`.
   Control data remains retained. The recording copy was initially retained,
@@ -371,7 +372,52 @@ Accepted on 2026-09-14 UTC:
   before deletion, `realpath`, filesystem, type, and symlink checks proved the
   literal target was a local non-symlink directory on ext4 `/dev/vda2`.
   `runtime/data` and its SQLite backup were untouched. Dev-vm root moved from
-  93% used / 8.5 GB free to 83% used / 20 GB free. The stopped container
-  remains `exited|restart=no`. This retires the old full rollback path; NAS is
-  the sole verified audio copy until a separate recoverable backup is
-  established.
+  93% used / 8.5 GB free to 83% used / 20 GB free. This retired the old full
+  rollback path; NAS is the sole verified audio copy until a separate
+  recoverable backup is established.
+
+## Lean dev-vm retirement receipt
+
+On 2026-09-14 the operator gave a second explicit GO to remove the remaining
+rebuildable Plaud runtime footprint while preserving a lean development
+checkout. The exact preflight proved:
+
+- `/home/cdelalama/src/plaud-mirror/node_modules` was a local non-symlink ext4
+  directory containing 138,406,365 logical bytes, rebuildable from tracked
+  `package-lock.json` SHA-256
+  `dc8c7cda797116f94cc6ef75ff6bb45d864264f76da4c4109907c6cc407cc837`;
+- container `f48768df9e1cd364f08a4d28cfb8e533e0a8d19b3c5fe871a275d6e3d09c5dbb`
+  was exactly `exited|restart=no|RestartCount=0`, with a 4,096-byte writable
+  layer and only the two expected local bind mounts;
+- that container was the only consumer of sole-tagged image
+  `sha256:10df26493fe5c08ec5fae1a7542587ded8938e935f28b201231798fb58ed237b`;
+  the image reported 80,906,894 bytes and a 272,777,216-byte root filesystem;
+- NAS held exact copies of the quiesced pre-NAS database backup and
+  `secrets.enc`, but no independent current Plaud snapshot/backup or restore
+  proof existed. The only observed ZFS `:init:` snapshot predates Plaud.
+
+The independently audited deletion removed exactly `node_modules`, the stopped
+container by full ID, and that image by full digest. Docker events record one
+container destroy, one image untag/delete, and no volume destroy. It did not
+run any global prune. Postchecks prove:
+
+- `node_modules`, the container ID, and the image digest are absent;
+- the checkout fell from 211 MiB to 55 MiB;
+- bounded root used bytes fell by 515,215,360 and inode use by 20,104;
+- `runtime/recordings` still has zero descendants;
+- `runtime/data` remains exactly 15,594,388 bytes, and hashes are unchanged for
+  `app.db.backup-20260913T235650Z-pre-nas`
+  (`8e5870b2f57dd7d8f705c215905b47b74e1e77e1143985f498896f397b626b9a`)
+  and `secrets.enc`
+  (`63819ff3b6166f12da49cb1b092dd3e9c92b49dd6440eeddbccb90fe5db5d692`);
+- `.env`, Git/source, the empty recordings directory, every NAS asset, and all
+  non-Plaud local containers/images/volumes remain outside the deletion set;
+- NAS remained healthy at runtime 0.16.1, 720/720, with 1,441 recording files /
+  12,209,691,055 bytes and restart count zero.
+
+The retained 15 MiB control tree is the only Plaud custody outside NAS. It is
+not current production or a runnable rollback, and it must not be deleted until
+an independently recoverable NAS backup is created and restore-tested. The
+host was already back at 91 percent because of unrelated concurrent growth;
+global Docker images and build cache remain a separate, unauthorized cleanup
+scope.

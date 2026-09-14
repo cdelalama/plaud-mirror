@@ -13,8 +13,10 @@ This file is the live operational snapshot. Durable rationale lives in `docs/llm
   now routes the canonical hostname to loopback; direct and canonical
   authenticated runtime/Range checks pass at 720/720. First NAS-owned PT15M
   run `16e03fb1-7b56-4854-81d1-6a8dfa85bfc4` completed with zero work and
-  zero failures. `dev-vm` remains `exited|restart=no`; its control state and
-  quiesced SQLite backup are retained, but its recording tree is now empty.
+  zero failures. The `dev-vm` writer was stopped with `restart=no` before
+  cutover; its control state and quiesced SQLite backup are retained, but its
+  recording tree, retired container, local Plaud image, and dependencies are
+  now absent.
   `v0.16.3` changes only owner truth to `host_id: nas` and Doppler
   `prd` references so Home Infra/Portal can reconcile; it created no image,
   restart, copy, replay, Cortex delivery, provider spend, Home Infra Protocol
@@ -41,8 +43,18 @@ This file is the live operational snapshot. Durable rationale lives in `docs/llm
   count and bytes. No independent NAS backup was verified before cleanup, so
   NAS is now the sole verified audio copy. The same restricted exact Opus
   5.1/high session returned GO on this closure with two LOW completeness nits,
-  both adopted, and no subagent use. Next: continue observation and the
-  generic-webhook drill; establish a recoverable NAS backup separately.
+  both adopted, and no subagent use. A second explicit GO retired only
+  `node_modules`, container `f48768df...`, and image `10df2649...`; Docker
+  events show one container destroy, one image untag/delete, and no volume
+  destroy. The checkout fell from 211 MiB to 55 MiB and root used bytes fell by
+  515,215,360. All 15,594,388 bytes of `runtime/data`, `.env`, Git/source, and
+  the empty recordings directory remain. The pre-NAS database backup and
+  `secrets.enc` hashes are unchanged and match NAS copies. This is the only
+  off-NAS Plaud custody pending a recoverable backup, not current state or a
+  runnable rollback. Unrelated dev-vm growth left root at 91 percent; global
+  Docker cleanup is not authorized here. Next: establish and restore-test a
+  recoverable NAS backup, then continue observation and the generic-webhook
+  drill.
 - Previous Session Focus: **v0.13.1 shutdown hardening is deployed and reconciled.** The scheduler now
   makes `stop()` terminal for callbacks already queued in the event loop, and
   every HTTP app test registers unconditional cleanup. Production runs clean
@@ -295,8 +307,9 @@ runtime authority by the verified 2026-07-20 v0.15.0 rollout above.
   full source/NAS checksum parity, and exact dev-vm audio cleanup are complete.
   NAS is the sole verified audio copy because no independent NAS backup was
   verified before the operator-authorized deletion. Establish and restore-test
-  a recoverable NAS backup/snapshot. Never restart dev-vm as a rollback writer
-  or copy its retained control state over authoritative NAS state.
+  a recoverable NAS backup/snapshot. The retired dev-vm container and image no
+  longer exist; never recreate dev-vm as a rollback writer or copy its retained
+  control state over authoritative NAS state.
 - **Adapt the D-019 capture path to Plaud's first-party token model (queued 2026-07-13; do NOT start mid-soak):** when `pld_tokenstr` is absent, the Chrome extension should capture the `pld_ut`/`pld_urt` cookie pair (via the `chrome.cookies` API) and the backend should learn the mint/refresh lifecycle (`POST /user-app/auth/workspace/token/{id}`, `POST /auth/refresh-user-token` — endpoint facts from MIT applaud v0.5.11; see the D-019 amendment). Storing a refresh token pulls the scrypt KDF upgrade (H2, below) into the same slice. Upside: first credible fully-unattended renewal path for the Google-SSO account.
 - **D-018 ARMED (2026-06-11).** The original dev-vm activation used
   `doppler run --project plaud-mirror --config dev -- docker compose up -d` and
@@ -363,8 +376,8 @@ The six items GPT-5 flagged in the 2026-04-23 review are closed:
 ## Confirmed Product Direction
 
 - NAS is the confirmed production target from the `v0.16.x` acceptance slice;
-  dev-vm remains a development surface with stopped control-state residue
-  only, not a complete audio rollback source.
+  dev-vm remains a lean, cold development checkout with control-state custody
+  only, not a runnable or complete audio rollback source.
 - The first usable release must include a small product-style web panel.
 - Manual bearer-token auth is acceptable first, but it must be encrypted at rest and survive restarts.
 - Historical backfill is required from day 1.
@@ -389,9 +402,10 @@ Do not collapse those phases casually.
 
 ## Next Session
 
-- The active runtime is immutable v0.16.1 on NAS and dev-vm is stopped.
-  v0.16.3 owner truth and Home Infra/Portal reconciliation are complete. Do
-  not rebuild, recreate, recopy stopped source data, or restart dev-vm.
+- The active runtime is immutable v0.16.1 on NAS. The retired dev-vm container,
+  its sole-tagged local Plaud image, and dependencies are absent. v0.16.3 owner
+  truth and Home Infra/Portal reconciliation are complete. Do not recreate a
+  local writer or recopy retained control state as recovery.
 - Dev-vm recordings were removed after exact checksum parity and explicit
   operator authorization; only control state and the quiesced SQLite backup
   remain. Do not call dev-vm a complete rollback source. Create and
@@ -449,11 +463,13 @@ Do not collapse those phases casually.
 ## Trace Anchor
 
 - Role: executor
-- Subject: Preserve NAS-only audio authority after operator-authorized dev-vm cleanup
+- Sent: 2026-09-14 23:13:15 CEST (21:13:15 UTC)
+- Subject: Retire the rebuildable Plaud dev-vm runtime footprint while preserving off-NAS control custody
 - Release target: Plaud Mirror 0.16.3 documentation follow-up only; runtime remains immutable 0.16.1 on NAS.
-- Repo state: main parent `239ddc3`; Home Infra 0.34.18 source `2de9e1d` and live Portal agree on NAS; dev-vm recordings are empty; one enabled Media2Text destination, 720/720 coverage, 98 terminal deliveries, no replay or Cortex delivery.
-- Validation: full checksum parity over 1,441 files / 12,209,691,055 bytes, exact-target deletion, dev-vm 83% with 20 GB free, healthy NAS 720/720, source CI, Home Infra/Portal provenance, and exact Opus cleanup-audit GO with both LOW nits adopted.
-- Next gate: recoverable NAS audio backup plus ongoing observation and generic-webhook drill; dev-vm is not a complete rollback source.
+- Resulting state: HEAD=unchanged (`db31929273babcaece51b8f81d3eb0b7498db295`); version=0.16.3; gate=cleared for exact local retirement; NAS backup remains open.
+- Repo state: main matched origin/main and was clean before this documentation-only retirement receipt.
+- Validation: exact-target preflight and Opus GO; one container/image and no volume removed; dependencies absent; retained data hashes unchanged; checkout 55 MiB; root used bytes reduced by 515,215,360; NAS healthy 720/720 with 1,441 files / 12,209,691,055 bytes.
+- Next gate: publish this receipt and reconcile Home Infra; separately establish a restore-tested NAS backup before deleting the retained 15 MiB control-state custody.
 
 ## Key Decisions (Links)
 
