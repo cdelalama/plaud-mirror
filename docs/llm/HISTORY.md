@@ -4,7 +4,7 @@ Append new entries at the top so the most recent activity is easiest to find.
 
 ## Log
 
-- 2026-09-23 - Codex - Adopted DocKit 4.16.2 delivery controls, visible skipped checks and exact Opus 5.5 high review policy. Existing deployment and acceptance gates remain unchanged. Files: docs/llm/DOCKIT_ADOPTION.md, LLM_START_HERE.md, scripts/dockit-delivery-*, scripts/dockit-validate-session.sh, docs/DELIVERY_CONTRACT.md. Version impact: 0.16.4 (source tooling only).
+- 2026-09-23 - Codex - Adopted DocKit 4.16.3 delivery controls, visible skipped checks and exact Opus 5.5 high review policy. Existing deployment and acceptance gates remain unchanged. Files: docs/llm/DOCKIT_ADOPTION.md, LLM_START_HERE.md, scripts/dockit-delivery-*, scripts/dockit-validate-session.sh, docs/DELIVERY_CONTRACT.md. Version impact: 0.16.4 (source tooling only).
 - 2026-09-14 - GPT-5 Codex - Executed Carlos's second explicit dev-vm cleanup
   GO while preserving Plaud's only off-NAS control-state custody. Exact
   preflight proved `node_modules` was a non-symlink local ext4 directory,

@@ -6,7 +6,7 @@ This file is the live operational snapshot. Durable rationale lives in `docs/llm
 ## Current Status
 
 - Last Updated: 2026-09-23 - Codex (DocKit fleet update).
-- Source tooling: DocKit 4.16.2 adopted; see `docs/llm/DOCKIT_ADOPTION.md`.
+- Source tooling: DocKit 4.16.3 adopted; see `docs/llm/DOCKIT_ADOPTION.md`.
   Existing project work and runtime acceptance remain authoritative below.
 
 
