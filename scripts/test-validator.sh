@@ -482,6 +482,35 @@ else
     note_fail "bump-version wrote package-lock top-level and root package versions"
 fi
 
+
+# Local extensions must survive upstream set -e and report real skipped coverage.
+LOCAL_REPO="$TMP_ROOT/local-checks"
+init_repo "$LOCAL_REPO"
+printf 'Last Updated: %s\n' "$TODAY" > "$LOCAL_REPO/docs/llm/HANDOFF.md"
+printf 'Last Updated: %s\n' "$TODAY" > "$LOCAL_REPO/LLM_START_HERE.md"
+expect_pass "local handoff dates match" "$VALIDATOR" --project "$LOCAL_REPO" --check handoff-start-here-sync --json
+printf 'Last Updated: 2000-01-01\n' > "$LOCAL_REPO/LLM_START_HERE.md"
+expect_fail "local handoff date mismatch fails" "$VALIDATOR" --project "$LOCAL_REPO" --check handoff-start-here-sync --json
+rm "$LOCAL_REPO/LLM_START_HERE.md"
+if "$VALIDATOR" --project "$LOCAL_REPO" --check handoff-start-here-sync --json > "$OUT" && grep -q '"skipped":true' "$OUT"; then
+    note_pass "missing local date inputs are explicitly skipped"
+else note_fail "missing local date inputs are explicitly skipped"; fi
+for local_check in prose-drift unabsorbed-artifact; do
+    printf '#!/bin/sh\necho fixture-finding\nexit 1\n' > "$LOCAL_REPO/scripts/check-$local_check.sh"
+    chmod +x "$LOCAL_REPO/scripts/check-$local_check.sh"
+done
+if "$VALIDATOR" --project "$LOCAL_REPO" --check prose-drift --json > "$OUT"; then
+    note_fail "local prose failure returns structured FAIL"
+elif grep -q '"status":"FAIL"' "$OUT"; then note_pass "local prose failure returns structured FAIL"
+else note_fail "local prose failure returns structured FAIL"; fi
+if "$VALIDATOR" --project "$LOCAL_REPO" --check unabsorbed-artifact --json > "$OUT" && grep -q '"status":"WARN"' "$OUT"; then
+    note_pass "local unabsorbed findings remain nonblocking WARN"
+else note_fail "local unabsorbed findings remain nonblocking WARN"; fi
+rm "$LOCAL_REPO/scripts/check-prose-drift.sh" "$LOCAL_REPO/scripts/check-unabsorbed-artifact.sh"
+if "$VALIDATOR" --project "$LOCAL_REPO" --check prose-drift --check unabsorbed-artifact --json > "$OUT" && grep -q '"skipped":2' "$OUT"; then
+    note_pass "missing local checks are counted as two skips"
+else note_fail "missing local checks are counted as two skips"; fi
+
 printf '\nValidator smoke: %d passed, %d failed\n' "$pass_count" "$fail_count"
 
 if [ "$fail_count" -gt 0 ]; then

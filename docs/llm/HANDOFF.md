@@ -1,9 +1,14 @@
-<!-- doc-version: 0.16.3 -->
+<!-- doc-version: 0.16.4 -->
 # LLM Work Handoff
 
 This file is the live operational snapshot. Durable rationale lives in `docs/llm/DECISIONS.md`. Phase boundaries live in `docs/ROADMAP.md`.
 
 ## Current Status
+
+- Last Updated: 2026-09-23 - Codex (DocKit fleet update).
+- Source tooling: DocKit 4.16.2 adopted; see `docs/llm/DOCKIT_ADOPTION.md`.
+  Existing project work and runtime acceptance remain authoritative below.
+
 
 - Last Updated: 2026-09-14 - GPT-5 Codex
 - Session Focus: **accepted NAS runtime and completed horizontal

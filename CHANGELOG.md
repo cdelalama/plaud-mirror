@@ -4,6 +4,14 @@ All notable changes to Plaud Mirror are documented in this file.
 
 This project follows Semantic Versioning (SemVer): MAJOR.MINOR.PATCH.
 
+## [0.16.4] - 2026-09-23
+
+### Changed
+- Updated DocKit delivery checks and Opus 5.5 review policy; no runtime deployment.
+
+
+
+
 ## [0.16.3] - 2026-09-14
 
 ### Added
