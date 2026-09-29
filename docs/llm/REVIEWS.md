@@ -1,5 +1,70 @@
 # Review Notes
 
+## 2026-09-29 - Ecosystem reassessment and local Dossier adoption
+
+**Input:** source-only 0.16.5 candidate based on 85f624f, selective DocKit
+4.17 alignment, curated local Dossier workflow and dated production observations.
+**Reviewers:** Codex executor; independent exact `claude-opus-5-5`, high effort,
+restricted Read/Glob/Grep only. Actual modelUsage canonicalModel is
+`claude-opus-5-5`; no substitute, shell, writes, MCP or subagents.
+Session: 1e21037b-8858-4133-8cbd-ff7af97f2dae. Private prompt, exact command and
+JSON results are retained under the operator's Plaud reanalysis state directory.
+
+### Points of Agreement
+
+- Keep the existing neutral intake contract, project ownership and local guards.
+- DocKit bootstrap/helper match upstream; Dossier declaration matches the
+  shared contract. Portal currently supports only the shared DocKit project.
+- Source, live operation, local capture, shared reader and recovery are distinct.
+- Failure counts reconcile: 72 producer failures = 3 admission + 69 processing.
+  Live evidence is supplied by the executor, not independently queried by Claude.
+
+### Points Raised (Pushback / Additions)
+
+1. **Premature capture claim and missing review receipt (MEDIUM).**
+   - Resolution: Adopted. Synopsis now states that capture evidence follows the
+     source commit; this entry records review and completed source checks.
+2. **Stale historical instructions and incomplete structure map (LOW).**
+   - Resolution: Adopted. Explicit historical-scope qualifier preserves old
+     evidence while current counts/model policy take precedence; tree updated.
+3. **Loopback reader availability and port collision (LOW).**
+   - Resolution: Adopted. Local-host/tunnel limits and the existing ForgeOS
+     preview port are explicit. No listener or browser acceptance is claimed.
+4. **Budget and retry precision (LOW).**
+   - Resolution: Adopted. At the configured rate the dollar cap binds at about
+     45.3 hours before the 50-hour duration ceiling. Only three admission
+     failures expose Plaud Retry; that action may incur spend.
+5. **Source anchors must remain reachable (MEDIUM plan condition).**
+   - Resolution: Adopted. Fast-forward only; preserve capture anchors on main.
+     Receipt-only drift is disclosed rather than generating recursive captures.
+
+### Summary Outcome
+
+Initial verdict: REQUEST_CHANGES for the two MEDIUM receipt/wording issues;
+PLAN_AGREEMENT/QUALIFIED for reachable anchors and loopback disclosure.
+Same-session confirmation returned SOURCE_GO and PLAN_AGREEMENT after all
+findings were accepted and remediated. Reviewed tree (non-commit object):
+907de64206025c88e50657dae648c1d6ad4d7f22. Actual canonicalModel was again
+claude-opus-5-5. This verdict update and accurate check/capture receipts are
+allowed metadata follow-through; final source Git identity is recorded later.
+No review grants runtime, replay, provider-spend or shared-publication authority.
+
+### Follow-Through Landed
+
+- 38/38 local validator regressions; 25 version targets; five frozen schemas.
+- Session validator PASS: 12 checked, 2 skipped, 2 warnings. The warnings are
+  retained HANDOFF length and external-context triggers from version markers;
+  no runtime/infra content changed. Durable Trace and orientation-drift checks
+  are disabled locally and are not claimed as validated.
+- Exact helper parity and shell syntax; upstream inert discovery test PASS.
+- ForgeOS shared-tool selftest: 15 checks PASS on Linux/Python 3.12.3/Git 2.43.
+  Synthetic clone/worktree fixture custody was archived with verified NAS
+  readback after releasing only its synthetic registration while retaining bytes.
+- Declaration and read-only registry check PASS: matched_supplied_registry against
+  the pinned Home Infra projection. Actual host binding follows the source commit.
+- Runtime application tests were not rerun: no runtime code/dependencies changed.
+  Real bind/capture/idempotency/export evidence follows in DOSSIER.md.
+
 ## 2026-09-23 - DocKit fleet source update
 
 Review: exact claude-opus-5-5, requested high effort, read-only Read/Glob/Grep.

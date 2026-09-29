@@ -4,6 +4,18 @@ All notable changes to Plaud Mirror are documented in this file.
 
 This project follows Semantic Versioning (SemVer): MAJOR.MINOR.PATCH.
 
+## [0.16.5] - 2026-09-29
+
+### Added
+- Registered local ForgeOS Dossier declaration, custody workflow and ecosystem reassessment.
+
+### Changed
+- Selectively align onboarding and Trace with DocKit 4.17.0 while retaining project validators.
+- Prepend current runtime, integration and next-step evidence to the preserved historical orientation.
+
+### Notes
+- Source tooling only. No production image, runtime, content contract, credential or paid processing change.
+
 ## [0.16.4] - 2026-09-23
 
 ### Changed

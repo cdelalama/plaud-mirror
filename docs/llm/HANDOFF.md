@@ -1,9 +1,40 @@
-<!-- doc-version: 0.16.4 -->
+<!-- doc-version: 0.16.5 -->
 # LLM Work Handoff
 
 This file is the live operational snapshot. Durable rationale lives in `docs/llm/DECISIONS.md`. Phase boundaries live in `docs/ROADMAP.md`.
 
 ## Current Status
+
+- Last Updated: 2026-09-29 - Codex
+- Owner: Carlos. Focus: project reassessment and explicitly authorized local
+  DocKit/Dossier adoption. Candidate source 0.16.5; NAS runtime stays 0.16.1.
+- Current evidence: Plaud 770/770 mirrored; primary transcription destination
+  enabled; 76 transcribed, 72 failed (70 requiring review), 622 not sent.
+  Media2Text runtime 0.39.3 has 69 failed intakes and 76 pending downstream
+  transcript obligations. These dated observations supersede older counts below.
+- Phase: accepted NAS placement; transcription recovery, bilateral connection
+  control, independent recovery and final joint stability acceptance remain open.
+- Read `docs/reviews/2026-09-29-project-reassessment.md` for the complete
+  ecosystem assessment and ordered next steps. Keep frozen content contracts.
+- DocKit: selective 4.17.0 onboarding/Trace/Dossier alignment; local validator
+  extensions are retained. See `docs/llm/DOCKIT_ADOPTION.md` for exact scope.
+- Dossier: registered identity plaud-mirror and shared offline tool 1.1.0.
+  See `docs/operations/DOSSIER.md`; capture/export evidence will follow the
+  first local capture. None exists at this source commit.
+  Shared publication, connected reader and independent backup remain open.
+- Next concrete steps: verify backup/restore; reconcile failed jobs and live
+  economic headroom with Media2Text; then freeze the bilateral provisioning
+  schemas before receiver profile storage and producer setup implementation.
+- This session authorizes local adoption, analysis and documentation. It does
+  not authorize paid work, replay, new credentials, deployment or shared serving.
+
+## Historical Status - superseded by the dated synopsis above
+
+Historical scope: all sections below retain earlier session evidence and plans,
+including Next Session, Testing Notes and Trace Anchor. Their dates, counts and
+model preferences are not current instructions. The current synopsis and the
+exact Opus 5.5 high review policy in LLM_START_HERE.md take precedence. Existing
+safety boundaries and unresolved acceptance requirements remain in force.
 
 - Last Updated: 2026-09-23 - Codex (DocKit fleet update).
 - Source tooling: DocKit 4.16.3 adopted; see `docs/llm/DOCKIT_ADOPTION.md`.

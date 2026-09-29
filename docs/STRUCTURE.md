@@ -1,4 +1,4 @@
-<!-- doc-version: 0.16.4 -->
+<!-- doc-version: 0.16.5 -->
 # Repository Structure Guide
 
 This document describes the actual Plaud Mirror repository layout as of the first usable Phase 2 slice.
@@ -7,6 +7,8 @@ This document describes the actual Plaud Mirror repository layout as of the firs
 
 ```text
 plaud-mirror/
++- .forgeos/dossier.json
++- .gitattributes
 +- README.md
 +- PRODUCT.md
 +- DESIGN.md
@@ -57,6 +59,7 @@ plaud-mirror/
 |  +- UPSTREAMS.md
 |  +- contracts/
 |  +- design/
+|  +- reviews/
 |  +- visual-gates/
 |  |  +- 0.11.0/
 |  +- llm/
@@ -67,6 +70,16 @@ plaud-mirror/
 +- tests/
 |  +- integration/
 ```
+
+## Local project evidence
+
+- `.forgeos/dossier.json`: registered project identity, shared offline tool pin
+  and explicit curated-source allowlist; no credentials or executable paths.
+- `docs/operations/DOSSIER.md`: local custody, capture, export and delivery limits.
+- `docs/reviews/2026-09-29-project-reassessment.md`: current ecosystem assessment.
+- `scripts/dockit-trace-status.sh`: shared DocKit Trace helper.
+- Private Dossier records and reviewed exports live outside Git; no runtime
+  Dossier engine or reader is bundled into this application.
 
 ## Directory Descriptions
 

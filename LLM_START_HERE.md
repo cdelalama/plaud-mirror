@@ -1,7 +1,7 @@
-<!-- doc-version: 0.16.4 -->
+<!-- doc-version: 0.16.5 -->
 # LLM Start Guide - Plaud Mirror
 
-- Last Updated: 2026-09-23 - Codex (DocKit fleet update).
+- Last Updated: 2026-09-29 - Codex
 - Tooling update: see `docs/llm/DOCKIT_ADOPTION.md`; historical project status below is preserved.
 
 ## Read This First (Mandatory)
@@ -89,6 +89,31 @@ Recommended reading order:
 ## Current Focus (Snapshot)
 
 Source of truth: docs/llm/HANDOFF.md.
+
+- Last Updated: 2026-09-29 - Codex
+- Owner: Carlos. Focus: project reassessment and explicitly authorized local
+  DocKit/Dossier adoption. Candidate source 0.16.5; NAS runtime stays 0.16.1.
+- Current evidence: Plaud 770/770 mirrored; primary transcription destination
+  enabled; 76 transcribed, 72 failed (70 requiring review), 622 not sent.
+  Media2Text runtime 0.39.3 has 69 failed intakes and 76 pending downstream
+  transcript obligations. These dated observations supersede older counts below.
+- Phase: accepted NAS placement; transcription recovery, bilateral connection
+  control, independent recovery and final joint stability acceptance remain open.
+- Read `docs/reviews/2026-09-29-project-reassessment.md` for the complete
+  ecosystem assessment and ordered next steps. Keep frozen content contracts.
+- DocKit: selective 4.17.0 onboarding/Trace/Dossier alignment; local validator
+  extensions are retained. See `docs/llm/DOCKIT_ADOPTION.md` for exact scope.
+- Dossier: registered identity plaud-mirror and shared offline tool 1.1.0.
+  See `docs/operations/DOSSIER.md`; capture/export evidence will follow the
+  first local capture. None exists at this source commit.
+  Shared publication, connected reader and independent backup remain open.
+- Next concrete steps: verify backup/restore; reconcile failed jobs and live
+  economic headroom with Media2Text; then freeze the bilateral provisioning
+  schemas before receiver profile storage and producer setup implementation.
+- This session authorizes local adoption, analysis and documentation. It does
+  not authorize paid work, replay, new credentials, deployment or shared serving.
+
+Historical snapshots below are retained evidence, not current instructions.
 - Last Updated: 2026-09-14 - GPT-5 Codex
 - Working on: **accepted NAS runtime and completed horizontal
   reconciliation.** Source/host patch `v0.16.2` is published at `9d6bce7` and
@@ -268,16 +293,24 @@ Use the Do Not Touch section in docs/llm/HANDOFF.md to flag any files or areas t
 <!-- DOCKIT-TEMPLATE:START trace-protocol -->
 ## Trace Protocol
 
-For execution or audit work, begin each substantive execution report or audit
-verdict with a compact `Trace` header, then write the normal explanation in
-prose. The header is for orientation; it does not replace the message.
+Every substantive assistant turn in a DocKit-governed session must begin with
+a compact `Trace` header, then continue with the normal explanation in prose.
+This includes execution, audit, design opinions, recommendations,
+brainstorming, clarifying questions, status reports, and go/no-go calls.
+
+A turn is substantive if the operator might need to find it when returning to
+a multi-window workflow: it contains a decision, opinion, recommendation,
+status, audit, action, or clarifying question. Non-substantive turns such as a
+pure acknowledgement under 50 characters do not require Trace, but emitting
+Trace is always safe. The header is for orientation; it does not replace the
+message.
 
 Required chat header fields:
-- `Role`: `executor` or `auditor`
+- `Role`: `executor`, `auditor`, or `advisor`
 - `Sent`: `YYYY-MM-DD HH:MM:SS <local-tz> (HH:MM:SS UTC)`. The order and
   precision are mandatory: local time first, UTC second in parentheses, seconds
   included on both sides.
-- `Subject`: current task, or commit hash/title being implemented or audited
+- `Subject`: current task, question, recommendation, or commit hash/title being implemented or audited
 - `Resulting state`: what this message leaves true after it is sent
 - `Repo state`: local branch vs origin and worktree status verified now
 - `Validation`: checks run and result
@@ -294,6 +327,13 @@ Time verification:
   `.dockit-config.yml` when the project sets one.
 - If the agent cannot verify the clock, write:
   `Sent: unverified client time YYYY-MM-DD HH:MM:SS <claimed-tz>`.
+- Prefer generating the close-out scaffold immediately before sending it:
+  ```sh
+  scripts/dockit-trace-status.sh --role executor --subject "<commit/task>" \
+    --validation "<checks>" --next "<next gate>"
+  ```
+  This prints current HEAD, local/upstream state, worktree cleanliness, version,
+  and verified local/UTC time from git/date instead of relying on memory.
 
 Recommended `Resulting state` shape:
 
@@ -304,9 +344,9 @@ Resulting state: HEAD=<hash|unchanged (hash)>; version=<version|none>; gate=<ope
 Examples:
 
 ```text
-Resulting state: HEAD=01f90bb; version=<version>; gate=cleared; supersedes audit of d6fc816
+Resulting state: HEAD=01f90bb; version=4.9.1; gate=cleared; supersedes audit of d6fc816
 Resulting state: HEAD=unchanged (01f90bb); version=none; gate=cleared; ready for next slice
-Resulting state: HEAD=unchanged (d6fc816); version=none; gate=blocked; requires executor patch in the next release
+Resulting state: HEAD=unchanged (d6fc816); version=none; gate=blocked; requires executor patch DocKit 4.9.1
 ```
 
 Use clear prose after the header. Explain what changed, why it matters, what
@@ -322,9 +362,19 @@ half is enforced by `scripts/dockit-validate-session.sh --check trace-protocol`:
 - `docs/llm/HANDOFF.md` must contain a `## Trace Anchor` section.
 - HANDOFF Trace Anchor commit times may use `YYYY-MM-DD HH:MM:SS UTC` or
   `YYYY-MM-DD HH:MM UTC`.
+- A committed HANDOFF Trace Anchor is a durable repo-side anchor, not a
+  guaranteed live HEAD pointer. Prefer neutral labels such as `Subject:` or
+  `Trace target:`. Projects can set
+  `trace_protocol.reject_current_anchor_label: true` to fail anchors labelled
+  `Current target:` or `Current audit target:`.
 - `docs/llm/HISTORY.md` entries dated on or after `trace_protocol.since` that
   reference backtick-quoted commit hashes must end with an inline footer:
-  `Trace: role=executor|auditor; commits=hash1,hash2; state=...; validation=...; next=...`
+  `Trace: role=executor|auditor|advisor; commits=hash1,hash2; state=...; validation=...; next=...`
+- `commits=` contains only commits from the current repository. When the same
+  HISTORY entry names a backtick-quoted commit from another repository, insert
+  `external=repo@hash[,repo@hash];` immediately after `commits=...;`. The exact
+  external hash must also appear in backticks in the entry. Example:
+  `Trace: role=executor; commits=abc1234; external=forgeos@def5678; state=...; validation=...; next=...`
 
 Projects can set the local timezone used in `Sent` with:
 
@@ -333,7 +383,7 @@ trace_protocol:
   local_timezone: Europe/Madrid
 ```
 
-Projects that do not use executor/auditor windows can disable the chat-side
+Projects that do not use Trace-oriented LLM windows can disable the chat-side
 convention with:
 
 ```yaml

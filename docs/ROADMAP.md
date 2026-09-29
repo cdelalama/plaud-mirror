@@ -1,4 +1,4 @@
-<!-- doc-version: 0.16.4 -->
+<!-- doc-version: 0.16.5 -->
 # Plaud Mirror Roadmap
 
 This document is the canonical phase boundary for Plaud Mirror. If implementation scope starts to cross a phase boundary, update this document before claiming the work is part of the current phase.
@@ -10,7 +10,26 @@ This document is the canonical phase boundary for Plaud Mirror. If implementatio
 - If a feature depends on the next phase's guarantees, it belongs to the next phase.
 - Handoff, README, and architecture docs must point back here when there is any doubt about scope.
 
-## Current Target
+## Current execution view - 2026-09-29
+
+Source 0.16.5 is local governance/Dossier work; production remains 0.16.1.
+The current assessment is `docs/reviews/2026-09-29-project-reassessment.md`.
+Local DocKit/Dossier adoption is authorized. The next product sequence is
+recovery evidence and failed-intake reconciliation, receiver-owned cost/scope,
+then the already-ratified bilateral connection program. Each implementation,
+deployment, paid canary and historical replay retains its existing scope gate.
+
+Mirror runtime reports 770/770. Transcription coverage is 76 transcribed,
+72 failed and 622 not sent. Existing source/runtime evidence and normative phase
+boundaries remain; there is no new phase closure or bulk-replay authorization.
+The old wave brief's DocKit versions and Plaud 0.16/0.17 split are historical:
+current alignment is DocKit 4.17; Plaud control-plane work remains 0.17/0.18
+as already assigned by D-027 and the later roadmap amendment.
+
+## Historical Target - 2026-09-14
+
+The following dated baseline preserves prior acceptance and phase rationale.
+Current source versions, counts and local tooling are given above.
 
 - Current canonical ingress terminates at NAS `edge-caddy` and routes to the
   loopback-only `v0.16.1` Plaud Mirror runtime. Direct and canonical checks pass

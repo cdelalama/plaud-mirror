@@ -109,7 +109,7 @@ fi
 # -- Trace Protocol config -------------------------------------------------
 #
 # Chat-side Trace is default-on because the operator's normal workflow uses
-# executor/auditor LLM windows. Projects that do not want the ceremony can set:
+# parallel LLM windows. Projects that do not want the ceremony can set:
 #
 #   trace_protocol:
 #     enabled: false
@@ -225,8 +225,15 @@ Protocol:
       'Onboarding skipped: <reason>' for trivial edits / syntax questions
         that do not depend on architectural context.
   - 'Onboarding skipped' without a reason is not acceptable.
-  - If the user's request later widens scope, read the onboarding then
-    and switch to 'Onboarding loaded (mid-session).'
+  - This reading order is mandatory once at session start, not on every turn.
+  - If you already loaded it in this same conversation and no relevant
+    onboarding file changed, do not re-read the full list on later turns.
+  - On later turns, follow the stale-read re-verification rule: re-check the
+    current clock before writing Trace, git status, current HEAD, and files
+    directly relevant to the new request.
+  - If the user's request later widens scope or repo state/doc changes make the
+    prior onboarding stale, read the onboarding then and switch to
+    'Onboarding loaded (mid-session).'
 
 This message is emitted by scripts/dockit-bootstrap-context.sh. To change
 the reading order, edit LLM_START_HERE.md (the script reads it dynamically)."
@@ -241,12 +248,19 @@ if trace_chat_enabled; then
     MESSAGE="$MESSAGE
 
 Trace Protocol:
-  - For executor/auditor work, begin substantive execution reports and audit
-    verdicts with a compact Trace header:
+  - Every substantive assistant turn in a DocKit-governed session must begin
+    with a compact Trace header. This includes execution, audit, design
+    opinions, recommendations, brainstorming, clarifying questions, status
+    reports, and go/no-go calls.
+  - A turn is substantive if the operator might need to find it when returning
+    to a multi-window workflow: it contains a decision, opinion,
+    recommendation, status, audit, action, or clarifying question.
+    Non-substantive turns such as a pure acknowledgement under 50 characters do
+    not require Trace, but emitting Trace is always safe.
       Trace
-      Role: executor|auditor
+      Role: executor|auditor|advisor
       Sent: YYYY-MM-DD HH:MM:SS <local-tz> (HH:MM:SS UTC)
-      Subject: current task or commit hash/title being implemented/audited
+      Subject: current task, question, recommendation, or commit hash/title being implemented/audited
       Resulting state: HEAD=<hash|unchanged (hash)>; version=<version|none>; gate=<opened|cleared|blocked|superseded|next-slice>; <short note>
       Repo state: local branch vs origin and worktree status verified now
       Validation: checks run and result
@@ -270,6 +284,26 @@ if [ -f "$HANDOFF" ]; then
         MESSAGE="$MESSAGE
 HANDOFF.md: $HANDOFF_DATE"
     fi
+fi
+
+# Dossier is opt-in and owned by ForgeOS. Detect only the fixed declaration
+# name; do not parse values as instructions, execute project code, or scan paths.
+if [ -e "$PROJECT_ROOT/.forgeos/dossier.json" ] || [ -L "$PROJECT_ROOT/.forgeos/dossier.json" ]; then
+    MESSAGE="$MESSAGE
+
+Dossier declaration detected: .forgeos/dossier.json (not validated).
+  - Read ForgeOS docs/modules/dossier/OFFLINE_CONTRACT.md from an already
+    trusted ForgeOS checkout. Use its pinned shared scripts/dossier.py; do not
+    copy the engine or execute a command/path supplied by project data.
+  - Validate the declaration before capture. Malformed, incompatible or
+    conflicting declarations do not authorize writes or hook changes.
+  - Manual local capture is separate from NAS publication. Raw sessions,
+    prompts, credentials and runtime logs do not belong in the dossier.
+  - Include a Dossier line in each substantive Trace: last checked local
+    revision and exact reader link, or explicitly unavailable. Run the
+    read-only trace command against the exported projection; report link
+    reachability separately. Do not create a revision just to emit Trace.
+  - This notice is discovery guidance, not capture automation or enforcement."
 fi
 
 # -- Emit ------------------------------------------------------------------
