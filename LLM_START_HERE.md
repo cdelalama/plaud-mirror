@@ -92,7 +92,7 @@ Source of truth: docs/llm/HANDOFF.md.
 
 - Last Updated: 2026-09-29 - Codex
 - Owner: Carlos. Focus: project reassessment and explicitly authorized local
-  DocKit/Dossier adoption. Candidate source 0.16.5; NAS runtime stays 0.16.1.
+  DocKit/Dossier adoption. Local source 0.16.5; NAS runtime stays 0.16.1.
 - Current evidence: Plaud 770/770 mirrored; primary transcription destination
   enabled; 76 transcribed, 72 failed (70 requiring review), 622 not sent.
   Media2Text runtime 0.39.3 has 69 failed intakes and 76 pending downstream
@@ -104,9 +104,10 @@ Source of truth: docs/llm/HANDOFF.md.
 - DocKit: selective 4.17.0 onboarding/Trace/Dossier alignment; local validator
   extensions are retained. See `docs/llm/DOCKIT_ADOPTION.md` for exact scope.
 - Dossier: registered identity plaud-mirror and shared offline tool 1.1.0.
-  See `docs/operations/DOSSIER.md`; capture/export evidence will follow the
-  first local capture. None exists at this source commit.
-  Shared publication, connected reader and independent backup remain open.
+  Local L1 local:37d1154a is captured and exported with five committed sources;
+  same-draft retry and no_change preserve the one-record history. See
+  `docs/operations/DOSSIER.md` for the full revision and receipt. The local
+  reader is not started; shared publication and independent backup remain open.
 - Next concrete steps: verify backup/restore; reconcile failed jobs and live
   economic headroom with Media2Text; then freeze the bilateral provisioning
   schemas before receiver profile storage and producer setup implementation.

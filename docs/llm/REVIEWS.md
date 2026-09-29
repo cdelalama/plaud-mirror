@@ -65,6 +65,22 @@ No review grants runtime, replay, provider-spend or shared-publication authority
 - Runtime application tests were not rerun: no runtime code/dependencies changed.
   Real bind/capture/idempotency/export evidence follows in DOSSIER.md.
 
+
+### Local capture follow-through
+
+Source commit 9385e71c1d30e70b573ccad241864c00c3d7e846 is reachable on main by
+fast-forward. The actual L1 receipt is in docs/operations/DOSSIER.md: registry
+check, bind, capture, already_captured retry, no_change with stable one-record
+history, exact export/Trace and real worktree reuse all pass. No listener exists
+on the reserved loopback port. Initial preflight rejected an uppercase client
+identifier, and export required explicit private-directory creation; both were
+corrected without changing captured history. Private failed-attempt evidence is
+retained. This is the accurate receipt-only follow-through allowed by SOURCE_GO;
+the independent reviewer did not reproduce these executor-run local operations.
+Final receipt-only session validation: PASS, 12 checked, 2 skipped, one retained
+HANDOFF-length warning. All 25 version targets pass. The primary checkout's
+bootstrap also emits the mandatory reading order and inert Dossier discovery.
+
 ## 2026-09-23 - DocKit fleet source update
 
 Review: exact claude-opus-5-5, requested high effort, read-only Read/Glob/Grep.

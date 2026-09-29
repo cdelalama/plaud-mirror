@@ -37,8 +37,8 @@ python3 "$DOSSIER_TOOL" --project "$DOSSIER_PROJECT" latest
 ```
 
 Private custody defaults to the user's XDG state root, otherwise
-`~/.local/state/forgeos/dossier`. Before adoption, the exact Plaud binding and
-project history are absent there. No known legacy Plaud Dossier is declared;
+`~/.local/state/forgeos/dossier`. Before the first bind, the exact Plaud binding and
+project history were verified absent there. No known legacy Plaud Dossier is declared;
 this is not a search for unknown private histories. Start native captures and
 leave other projects' custody unchanged. Never replace a binding or break a
 lock without inspecting the exact retained state.
@@ -57,7 +57,8 @@ Curate all five sections: current status, roadmap, decisions, changes and
 sources. Pin allowlisted source bytes to committed revisions. Keep recording
 titles, raw transcripts, prompts, secrets, full logs and personal identifiers
 out. Use null session identity when the actual client identity is unavailable.
-Store draft JSON outside Git with private permissions, then run `check --input`
+Use a lowercase author client identifier such as `codex`. Store draft JSON
+outside Git with private permissions, then run `check --input`
 before `capture --input`. Retry with the same UUID and bytes. A `no_change`
 assessment must preserve the latest revision and history length.
 
@@ -66,7 +67,8 @@ main; never squash or rebase it away after capture. A later receipt-only commit
 can correctly make `latest` report `may_be_behind_or_working_tree`; this is source
 drift disclosure, not loss of the immutable local snapshot.
 
-Export only to the private state root's `exports/plaud-mirror` directory using
+Explicitly create the private state root's `exports/plaud-mirror` directory
+with mode 0700 before the first export. Export only there using
 `export --reviewed-for-sharing`, after content review. `trace --export-file`
 must verify that exact export. Captures and exports do not publish themselves.
 Report the last local revision and reader availability separately in Trace.
@@ -85,4 +87,49 @@ Local VM custody is not an independent physical backup. The VM and NAS share
 hardware. No daemon, capture hook, scheduled backup, shared publication,
 browser acceptance or native Windows proof is installed or claimed here.
 Preserve immutable records and the original draft; independent backup/restore
-remains open. A verification receipt follows the first actual capture.
+remains open. The actual local receipt follows.
+
+## Actual local receipt - 2026-09-29
+
+- Source commit: 9385e71c1d30e70b573ccad241864c00c3d7e846, integrated into
+  local main by fast-forward before capture. It remains the immutable source
+  anchor; this later receipt is not recursively captured.
+- Tool version/hash matched the trusted 1.1.0 pin above.
+- Read-only `check --registry` returned `matched_supplied_registry`; initial
+  `bind` returned `bound: plaud-mirror`, `publication: not_configured`.
+- The curated draft passed `check --input`. It contains five committed/hash-pinned
+  sources, current status, seven roadmap milestones, four decisions and two
+  changes. Author is codex, actual client session unknown/null.
+- Observed at 2026-09-29T15:04:52Z; recorded at 2026-09-29T15:06:34Z.
+- First capture returned `captured_local`, L1:
+  `local:37d1154a2f97958abd60775aa93d8c69822678aa359dd8afbced82e85249e695`.
+- Same UUID/bytes returned `already_captured`. An explicit `no_change` draft
+  based on L1 returned `no_change`; the revision and single-record hash inventory
+  were unchanged. The primary checkout and isolated worktree report the same L1.
+- Author-reviewed export:
+  `~/.local/state/forgeos/dossier/exports/plaud-mirror/plaud-mirror.json`.
+  SHA-256: c76d61fd068338fe254f1e1a690e6fa84f9ce80e7eb0216b5f0ec2fe94d7a102.
+- Exact export Trace verified the local chain and five source anchors, reporting
+  `at_head` before this receipt. Subsequent receipt-only HEAD is correctly
+  disclosed as `may_be_behind_or_working_tree`; L1 remains valid.
+- Separate probe at 15:07:18 UTC: loopback port 4319 has no reachable listener.
+  Reader/browser acceptance and shared publication are not delivered.
+- Detailed private draft, command outputs and adoption receipt are retained under
+  `~/.local/state/plaud-mirror/reanalysis-20260929`. Custody files/directories
+  are private; the sanitized export is under private directory parents.
+- The archived selftest fixtures are synthetic evidence only. They are not
+  backup custody of this real L1. Independent backup/restore remains unverified.
+
+Exact Trace output at capture (the link is reserved, not reachable in that probe):
+
+```text
+Dossier: [Plaud Mirror · L1 local en este host, sin publicar](http://127.0.0.1:4319/dossier/local/plaud-mirror?revision=local%3A37d1154a2f97958abd60775aa93d8c69822678aa359dd8afbced82e85249e695) · 2026-09-29T15:04:52Z · fuentes=at_head · enlace: exportación comprobada, acceso no comprobado por este comando
+```
+
+Repeat the read-only check from the usual project checkout:
+
+```sh
+python3 "$DOSSIER_TOOL" --project "$DOSSIER_PROJECT" latest
+python3 "$DOSSIER_TOOL" --project "$DOSSIER_PROJECT" trace \
+  --export-file "$HOME/.local/state/forgeos/dossier/exports/plaud-mirror/plaud-mirror.json"
+```
