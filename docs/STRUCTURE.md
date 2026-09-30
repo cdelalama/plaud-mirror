@@ -169,3 +169,5 @@ Read in this order before changing runtime scope:
 - `docs/integrations/CODEX.md`: optional Codex hook integration.
 
 Dossier language correction and delivery: `docs/operations/DOSSIER_LANGUAGE_2026-09-30.md`.
+
+Spanish Dossier delivery receipt: `docs/operations/DOSSIER_LANGUAGE_2026-09-30.json`.
