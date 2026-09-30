@@ -90,25 +90,23 @@ Recommended reading order:
 ## Current Focus (Snapshot)
 
 - Last Updated: 2026-09-30 - Codex
-- Source 0.16.6 adopts current applicable DocKit 4.18.0 features and prepares
-  complete curated Dossier history. Plaud NAS application remains 0.16.1.
-- Owner request explicitly authorizes shared technical publication and a visible
-  Dossier action on the existing Portal project card. It does not authorize
-  transcription spend, historical replay or Plaud/Media2Text deployment.
-- Local L1 is immutable. The next native capture preserves it and adds a dated
-  retrospective of phases, releases, decisions, unresolved work and sources.
-  Publication and browser/restore receipts follow in docs/operations/DOSSIER.md.
-- Read docs/reviews/2026-09-30-dossier-retrospective.md for coverage and
-  docs/reviews/2026-09-29-operational-consensus.md for the previously agreed
-  operational-first recommendation. M0-M3 remain proposed, not implemented or
-  an owner-wide roadmap amendment. Existing normative phase gates stand.
-- Historical observation on September 29: 770 mirrored, 76 transcribed,
-  72 failed, 622 not sent. These counts are dated, not refreshed by this work.
-- Current review: exact Opus 5.5 high; source/publication/runtime/physical
-  recovery evidence remain distinct. Independent audio/Dossier backup is open.
-- Next: finish reviewed shared delivery; then choose the first private reading
-  destination and authorize the bounded transcript-export implementation.
-
+- Plaud source 0.16.6 adopts applicable DocKit 4.18.0. Its complete documented
+  history is now available from Dossier on the existing Infra Portal card.
+- Portal 0.33.2 serves 28 milestones, 28 decisions, 19 historical change
+  summaries and 34 pinned sources. Native L1/S1 and L2/S2 remain immutable.
+- Exact Opus 5.5 high returned SOURCE_GO and plan AGREEMENT. Live transport,
+  API/history and 33 browser checks pass; isolated same-NAS restore is verified.
+  Receipt: docs/operations/DOSSIER_PLAUD_DELIVERY_2026-09-30.json.
+- Plaud NAS application remains 0.16.1. Plaud/Media2Text IDs, images and start
+  times are unchanged; no provider spend or historical replay was performed.
+- Historical September 29 counts (770 mirrored, 76 transcribed, 72 failed,
+  622 not sent) remain dated observations, not fresh production counts.
+- Read docs/reviews/2026-09-30-dossier-retrospective.md for documented coverage
+  and docs/reviews/2026-09-29-operational-consensus.md for the operational-first
+  recommendation. M0-M3 remain proposed; normative phase 3/5/6 gates stay open.
+- Next: record the delivered-state capture, maintain curated Dossier updates,
+  resolve independent physical recovery and choose the first private transcript
+  reading destination for bounded M0 implementation.
 
 <!-- DOCKIT-TEMPLATE:START checklist -->
 ## Getting Started Checklist

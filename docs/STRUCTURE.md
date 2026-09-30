@@ -75,7 +75,9 @@ plaud-mirror/
 
 - `.forgeos/dossier.json`: registered project identity, shared offline tool pin
   and explicit curated-source allowlist; no credentials or executable paths.
-- `docs/operations/DOSSIER.md`: local custody, capture, export and delivery limits.
+- `docs/operations/DOSSIER.md`: local custody, capture, shared delivery and recovery.
+- `docs/operations/DOSSIER_PLAUD_DELIVERY_2026-09-30.json`: verified Portal/card, exact history and logical restore receipt.
+- `docs/llm/WORK_INDEX.md` and `docs/llm/work/`: portable ownership and disposition of retained task workspaces.
 - `docs/reviews/2026-09-29-project-reassessment.md`: current ecosystem assessment.
 - `scripts/dockit-trace-status.sh`: shared DocKit Trace helper.
 - Private Dossier records and reviewed exports live outside Git; no runtime

@@ -24,6 +24,20 @@ is not runtime or independent physical recovery acceptance. Actual delivery and
 restore evidence follows in the owning Dossier runbooks.
 
 
+Executor follow-through: source anchors published without squashing; Portal
+0.33.2 immutable image deployed with all eleven mounts; twelve transport checks,
+exact live API/history, 33 browser checks and coherent isolated S1/S2 restore
+pass. This is executor-supplied runtime evidence, not independent reviewer
+reproduction. Receipt: docs/operations/DOSSIER_PLAUD_DELIVERY_2026-09-30.json.
+
+Final same-session review conditionally approves delivery documentation and L3
+curation after explicit normalization disclosure, L1/L2 mapping, provenance
+receipt, line-structure attempt and W2 status correction. All were applied. The
+unchanged sharing filter rejected the line-structured trial before recording;
+L2 remained current and immutable. The accepted fallback discloses collapsed
+line structure while correcting D-017 in prose. No further review was required
+by that verdict for these specified corrections.
+
 ## 2026-09-29 - Ecosystem reassessment and local Dossier adoption
 
 **Input:** source-only 0.16.5 candidate based on 85f624f, selective DocKit

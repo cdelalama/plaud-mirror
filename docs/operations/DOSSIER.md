@@ -168,3 +168,54 @@ mounts retained. Admission and publication precede advertising the link.
 Actual receipt will record exact local/shared revisions, card and five sections,
 negative project/revision/role checks, unchanged adjacent histories and isolated
 same-NAS restoration. Independent physical recovery remains open.
+
+## Actual shared delivery - 2026-09-30
+
+Plaud Mirror is readable at https://infra.lamanoriega.com/dossier/shared/plaud-mirror
+and through Dossier on its existing project card. Exact Opus 5.5 high returned
+SOURCE_GO and plan AGREEMENT after the recorded corrections. Applicable DocKit
+4.18.0 is adopted in Plaud 0.16.6; the trusted ForgeOS offline engine remains
+1.1.0 and the shared coordinator 0.1.0. No copied engine or automatic capture.
+
+The retrospective contains 28 milestones, 28 decisions (27 accepted historical
+decisions plus one explicitly proposed operating sequence), 19 change summaries
+covering 84 detailed historical entries, and 34 pinned source documents. Native
+L1 and its original observation are preserved as S1; L2 is published as S2.
+Source commits are retained on main. The current shared delivery will receive
+one meaningful L3 observation; later receipt-only commits do not recurse.
+
+Portal 0.33.2 runs reviewed source aa3b7cfe3f5be73838fb1db8eebcafb9ea421a11
+at immutable image digest sha256:0b039719aefbf97077ea2f6473b6a529c6a993b5b03ae6a42a5fd12f546937a4.
+All eleven mounts and existing readers were preserved. SQLite Online Backup
+passed quick_check before recreation. The first NAS build failed on a busy ZFS
+layer mount; read-only diagnosis found no held mount, and one bounded retry of
+the identical reviewed source succeeded. No mount cleanup or Docker restart.
+
+The live catalog is c33eb29cb485140d27c9eeca8e4bcda0201dcecc, with only the
+Portal release metadata and Plaud Dossier link changed; bind inodes and all other
+catalog values are preserved. Actual provenance has no warnings. Dedicated
+Plaud fixed-project transport passed twelve read/mutation/identity negatives.
+Existing DocKit and Home Infra histories are byte-identical to their preimages.
+
+Actual HTTPS API/history checks and 33 browser checks pass at 390, 840 and
+1440 pixels: five sections, four roadmap views, exact permalinks, keyboard-only
+activation, 44-pixel touch access, no horizontal overflow or page errors. A
+separately labeled index-failure simulation hides the card link. The executor
+inspected actual card and roadmap screenshots. This does not claim owner visual
+acceptance or physical phone/golden parity.
+
+Coherent backup restored S1 and S2 into previously absent, isolated NAS custody;
+both exact revisions match. The first local verification process ended with
+SIGTERM after restore; read-only inspection resumed against the retained store
+without replaying restore, and verified exact current/history content. This is
+logical recovery on the same NAS, not independent hardware recovery. Independent
+audio and Dossier backup placement remains open. Plaud and Media2Text container
+IDs, images and start times match preflight; no audio processing or spend ran.
+
+Machine-readable evidence: DOSSIER_PLAUD_DELIVERY_2026-09-30.json in this
+directory. Private command outputs, failed attempts and coherent backups remain
+under operator custody; no keys, raw sessions or personal content are published.
+
+### Curation correction disclosed during final review
+
+L2/S2 differs from the reviewed draft by sharing-driven normalization: decision line breaks were collapsed, a credential-store URI was expressed as prose, and D-017 tab escapes were inadvertently rendered as the word tab. L3 corrects D-017 in prose. The unchanged filter rejected the line-structured L3 trial before capture; decision line breaks therefore remain collapsed, with structured original text preserved in pinned sources.

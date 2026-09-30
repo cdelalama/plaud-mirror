@@ -1,0 +1,131 @@
+{
+  "date": "2026-09-30",
+  "review": {
+    "verdict": "SOURCE_GO",
+    "consensus": "AGREEMENT",
+    "model": "claude-opus-5-5",
+    "effort": "high"
+  },
+  "source_commits": {
+    "plaud": "504ed39df4a5cd93f111c2f92cbb261cd0e1b414",
+    "portal": "aa3b7cfe3f5be73838fb1db8eebcafb9ea421a11",
+    "home_infra": "bd3536e13a21282e644aaac6a8954f4c04a194f7"
+  },
+  "portal": {
+    "state": "serving",
+    "source": "aa3b7cfe3f5be73838fb1db8eebcafb9ea421a11",
+    "version": "0.33.2",
+    "image": "registry.lamanoriega.com/infra-portal:0.33.2@sha256:0b039719aefbf97077ea2f6473b6a529c6a993b5b03ae6a42a5fd12f546937a4",
+    "id": "ee814ff24ae50c503db95e5668965430c6fe93942f5e4ee6974b846e362353f6",
+    "all_mounts_preserved": 11,
+    "previous_image": "registry.lamanoriega.com/infra-portal:0.33.1@sha256:f0ca4f6b7a4322dec29b0c3ca5a2d52d005351f7c2ccd39f7edcb29bfdc18dab",
+    "projects": {
+      "projects": [
+        {
+          "project_id": "llm-dockit",
+          "display_name": "LLM-DocKit",
+          "revision": "shared:f731e1766c4ab7a6d03e3f97dcecea374b25e7e103199ab71c10616112d952c2"
+        },
+        {
+          "project_id": "home-infra",
+          "display_name": "Home Infra",
+          "revision": "shared:3942003f2049179ab8e626ae3c4f3b056b2075c915840776237c990863ed2b41"
+        },
+        {
+          "project_id": "plaud-mirror",
+          "display_name": "Plaud Mirror",
+          "revision": "shared:4078869fabb312a76a1ff4e7864fe3f2b6e96e830377d9749a38526954fdf4dc"
+        }
+      ],
+      "unavailable": 0
+    },
+    "rollback_applied": false,
+    "bindings_verified_inside_container": true
+  },
+  "catalog": {
+    "state": "promoted",
+    "commit": "c33eb29cb485140d27c9eeca8e4bcda0201dcecc",
+    "changed_services": [
+      "infra",
+      "plaud-mirror"
+    ],
+    "all_other_catalog_values_preserved": true,
+    "bind_inodes_preserved": true,
+    "backup": "/share/ZFS18_DATA/homes/cdelalama/forgeos-dossier/backups/catalog-plaud-20260930"
+  },
+  "transport": {
+    "state": "passed",
+    "checks": [
+      "Plaud reader works",
+      "reader denies submit",
+      "reader denies status",
+      "reader denies backup",
+      "reader denies genesis",
+      "reader denies policy",
+      "reader denies publish",
+      "reader denies cross-project read",
+      "forced command ignores caller command",
+      "id_ed25519 denies Plaud",
+      "home-infra-reader denies Plaud",
+      "writer denies cross-project read"
+    ]
+  },
+  "api": {
+    "state": "passed",
+    "observed_at": "2026-09-30T08:57:46.421949+00:00",
+    "records": 2,
+    "milestones": 28,
+    "decisions": 28,
+    "sources": 34,
+    "other_histories_unchanged": true,
+    "exact_history_and_negative_routes": true,
+    "catalog_link_verified": true,
+    "read_bytes": 141673
+  },
+  "browser": {
+    "widths": [
+      390,
+      840,
+      1440
+    ],
+    "checks": 33,
+    "errors": 0,
+    "scope": "Actual NAS-backed HTTPS browser with separately labeled failure simulation"
+  },
+  "restore": {
+    "state": "verified",
+    "scope": "isolated restore on same NAS; not independent physical recovery",
+    "shared_revision": "shared:4078869fabb312a76a1ff4e7864fe3f2b6e96e830377d9749a38526954fdf4dc",
+    "records": 2,
+    "backup_sha256": "9149ae75175cfe4b7a357b1ab3457552e74678a19bbab917738f9619fdc27319",
+    "original_records_preserved": true,
+    "all_exact_historical_reads": true,
+    "physical_backup_destination": "pending operator choice"
+  },
+  "sqlite_backup": {
+    "quick_check": "ok",
+    "sha256": "7c105b3a0d0431963bc67bbd0946a322ea1f99d09b282cdcc17cdbc8fd6d67dd"
+  },
+  "producers_unchanged": true,
+  "limits": [
+    "Independent physical Dossier/audio recovery remains open.",
+    "Native Windows and physical phone/golden acceptance were not tested.",
+    "No transcription, replay, producer deployment or provider spending performed."
+  ],
+  "revisions": {
+    "S1": "shared:a767c4a4af72da2a5a2ee156420cf89758d0ff7a70ef3b5e6b2df606ce1862a5",
+    "S2": "shared:4078869fabb312a76a1ff4e7864fe3f2b6e96e830377d9749a38526954fdf4dc",
+    "L1": "local:37d1154a2f97958abd60775aa93d8c69822678aa359dd8afbced82e85249e695",
+    "L2": {
+      "disposition": "captured_local",
+      "local_revision": "local:3573f26108b7af12bb1735e6bdb720b022783f3928aee49007a2c366045e54a2",
+      "submission": "deferred"
+    }
+  },
+  "curation_normalization": "L2/S2 differs from the reviewed draft by sharing-driven normalization: decision line breaks were collapsed, a credential-store URI was expressed as prose, and D-017 tab escapes were inadvertently rendered as the word tab. L3 corrects D-017 in prose. The unchanged filter rejected the line-structured L3 trial before capture; decision line breaks therefore remain collapsed, with structured original text preserved in pinned sources.",
+  "provenance": {
+    "checkedAt": "2026-09-30T08:57:36.089Z",
+    "catalogCommit": "c33eb29cb485140d27c9eeca8e4bcda0201dcecc",
+    "warnings": []
+  }
+}
