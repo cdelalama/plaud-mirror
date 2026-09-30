@@ -1,4 +1,4 @@
-<!-- doc-version: 0.16.8 -->
+<!-- doc-version: 0.16.9 -->
 # LLM Start Guide - Plaud Mirror
 
 - Last Updated: 2026-09-30 - Codex
@@ -99,7 +99,7 @@ Recommended reading order:
 ## Current Focus (Snapshot)
 
 - Last Updated: 2026-09-30 - Codex
-- Source 0.16.8 reconciles Dossier documentation and reviewed upstream baselines;
+- Source 0.16.9 records M0 preparation and completes minor audit documentation;
   it adds no runtime behavior. Applicable DocKit 4.18.1 is adopted from published
   main. DocKit release-tag baseline: v4.17.0 (4.18.1 has no release tag).
 - Portal 0.33.4 serves the Spanish Plaud L4/S4 Dossier: 28 milestones, 28
@@ -120,10 +120,10 @@ Recommended reading order:
   broader product localization remains separate from the delivered Dossier.
 - Scope and verification: docs/operations/DOSSIER_AUDIT_CLOSURE_2026-09-30.md.
   The historical partial-onboarding spot-check does not supply a current GO.
-- Next: after this bounded documentation closure, choose the first private
-  reading destination for existing transcripts (M0), then a bounded new recording
-  (M1), daily reliability (M2), and Cortex (M3). This ordering remains a proposal;
-  phase 3/5/6 acceptance and independent physical recovery remain open.
+- M0: Carlos selected desktop and mobile. Media2Text owns offline Markdown
+  preparation; private transfer and actual reading/search acceptance remain
+  open. Next are separately scoped M1 new recording, M2 reliability and M3
+  Cortex. Phase 3/5/6 acceptance and independent recovery stay open.
 
 
 <!-- DOCKIT-TEMPLATE:START checklist -->

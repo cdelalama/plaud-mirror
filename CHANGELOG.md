@@ -4,6 +4,23 @@ All notable changes to Plaud Mirror are documented in this file.
 
 This project follows Semantic Versioning (SemVer): MAJOR.MINOR.PATCH.
 
+## [0.16.9] - 2026-09-30
+
+### Added
+
+- Record desktop/mobile M0 preparation owned by Media2Text, with private
+  transfer and actual-device acceptance still pending.
+
+### Changed
+
+- Acknowledge the complete-onboarding audit separately from the older partial
+  spot-check; preserve historical receipts and operational acceptance gates.
+
+### Fixed
+
+- Clarify architecture version/date and historical password-endpoint lifetime.
+
+
 ## [0.16.8] - 2026-09-30
 
 - Reconcile current Dossier source, runtime and Spanish revision documentation.

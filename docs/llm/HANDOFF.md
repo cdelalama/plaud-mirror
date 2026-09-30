@@ -1,4 +1,4 @@
-<!-- doc-version: 0.16.8 -->
+<!-- doc-version: 0.16.9 -->
 # LLM Work Handoff
 
 This file is the live operational snapshot. Durable rationale lives in `docs/llm/DECISIONS.md`. Phase boundaries live in `docs/ROADMAP.md`.
@@ -6,7 +6,7 @@ This file is the live operational snapshot. Durable rationale lives in `docs/llm
 ## Current Status
 
 - Last Updated: 2026-09-30 - Codex
-- Source 0.16.8 reconciles Dossier documentation and reviewed upstream baselines;
+- Source 0.16.9 records M0 preparation and completes minor audit documentation;
   it adds no runtime behavior. Applicable DocKit 4.18.1 is adopted from published
   main. DocKit release-tag baseline: v4.17.0 (4.18.1 has no release tag).
 - Portal 0.33.4 serves the Spanish Plaud L4/S4 Dossier: 28 milestones, 28
@@ -27,22 +27,30 @@ This file is the live operational snapshot. Durable rationale lives in `docs/llm
   broader product localization remains separate from the delivered Dossier.
 - Scope and verification: docs/operations/DOSSIER_AUDIT_CLOSURE_2026-09-30.md.
   The historical partial-onboarding spot-check does not supply a current GO.
-- Next: after this bounded documentation closure, choose the first private
-  reading destination for existing transcripts (M0), then a bounded new recording
-  (M1), daily reliability (M2), and Cortex (M3). This ordering remains a proposal;
-  phase 3/5/6 acceptance and independent physical recovery remain open.
+- Carlos supplied the subsequent full-onboarding audit at 21:18:27 UTC; it
+  approves the prior closure. Architecture/unused password TTL wording is
+  clarified without changing auth behavior or rewriting historical receipts.
+- M0: Carlos chose both desktop and mobile. Media2Text owns the offline
+  Markdown preparation and records its local delivery in
+  docs/operations/M0_MARKDOWN_READING.md in that repository. Fresh 21:35 UTC
+  read-only inventory: 76 v1 records, 75 eligible and one provenance exclusion.
+  Existing web reading/download passed 1440/390 viewport checks; no full M0
+  acceptance follows. Private device transfer and actual reading/search remain.
+- Next: finish M0 device acceptance, then scope M1 new recording, M2 daily
+  reliability and M3 Cortex. Phase 3/5/6 acceptance and independent physical
+  recovery remain open. No producer/runtime/provider change is included.
 
 
 ## Trace Anchor
 
 - Role: executor
-- Sent: 2026-09-30 21:03:56 CEST (19:03:56 UTC)
-- Subject: Bounded Dossier documentation and upstream-review closure.
-- Resulting state: version=0.16.8; documentation closure; exact Opus conditions resolved.
-- Repo state: managed work/dossier-audit-closure-20260930 from published 1f2cd13.
-- Validation: version sync; historical receipt preserved; scoped registry checks;
-  upstream and full session results recorded in the closure review.
-- Next gate: separately scoped M0 and independent physical recovery.
+- Sent: 2026-09-30 23:35:27 CEST (21:35:27 UTC)
+- Subject: Desktop/mobile M0 preparation and complete-audit acknowledgement.
+- Resulting state: version=0.16.9; documentation follow-up; NAS unchanged.
+- Repo state: managed work/m0-reading-followup-20260930 from published a577528.
+- Validation: fresh Media2Text read-only inventory and browser viewport checks;
+  exact source review and document validators recorded in REVIEWS.
+- Next gate: Media2Text private transfer and real-device M0 acceptance.
 
 ## Historical Status - superseded by Current Status above
 

@@ -1,4 +1,4 @@
-<!-- doc-version: 0.16.8 -->
+<!-- doc-version: 0.16.9 -->
 # Plaud Mirror Roadmap
 
 This document is the canonical phase boundary for Plaud Mirror. If implementation scope starts to cross a phase boundary, update this document before claiming the work is part of the current phase.
@@ -12,20 +12,24 @@ This document is the canonical phase boundary for Plaud Mirror. If implementatio
 
 ## Current execution view - 2026-09-30
 
-Source 0.16.8 reconciles documentation and reviewed upstream baselines.
+Source 0.16.9 records M0 preparation and completes minor audit documentation.
 Applicable DocKit 4.18.1 comes from published main.
 DocKit release-tag baseline: v4.17.0.
 Plaud production remains 0.16.1. Spanish L4/S4 is delivered through Portal
 0.33.4; the original L1/S1 through L3/S3 history is retained. The operator
-authorized this bounded audit follow-up, not implementation of M0-M3.
+completed the bounded audit follow-up and then selected desktop and mobile
+for M0. Media2Text now owns bounded offline Markdown preparation; real-device
+transfer, reading and search acceptance remain open. M1-M3 are subsequent
+scoped work, not completed or automatically activated.
 See docs/operations/DOSSIER_AUDIT_CLOSURE_2026-09-30.md,
 docs/operations/DOSSIER.md and
 [retrospective](reviews/2026-09-30-dossier-retrospective.md).
 
 The [September 29 consensus](reviews/2026-09-29-operational-consensus.md)
 recommends existing Markdown value (M0), a bounded new-recording path (M1),
-daily reliability (M2), then Cortex retrieval (M3). These are proposed sequencing,
-not implemented milestones or an amendment to other owners' plans. Full bilateral
+daily reliability (M2), then Cortex retrieval (M3). M0 preparation has started
+with Media2Text's corresponding owner roadmap update; later milestones remain
+proposed sequencing and do not amend Cortex's plan. Full bilateral
 provisioning remains accepted backlog, with its eight waves preserved below and
 in the connection brief. No new paid canary or bulk replay is authorized here.
 

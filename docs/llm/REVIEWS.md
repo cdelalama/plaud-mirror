@@ -1,3 +1,45 @@
+## 2026-09-30 - M0 owner preparation and Plaud documentation follow-up
+
+- Auditor: exact claude-opus-5-5, high effort; actual modelUsage verified in
+  each round. Read-only session 151ff611-275b-4ad9-bf7e-68e03cca6e7a; full
+  Media2Text onboarding loaded before review. No writes, network or delegation.
+- Command: claude -p --resume <session> --model claude-opus-5-5 --effort high
+  --restricted --tools Read,Glob,Grep --allowedTools Read,Glob,Grep
+  --permission-mode dontAsk --strict-mcp-config --mcp-config <empty>
+  --max-turns 32 (follow-up 16) --output-format json, with candidate roots and
+  private evidence packet explicitly admitted.
+- First reviewed Media2Text tree: 0c92c4a04434afc9371c886c6b2d99f12dfa946a.
+  Plaud tree: 43a6a7c2e4f5253d1b89652a9a7613ec98ef1cca.
+  Follow-up Media2Text tree: c92ba70d7a07798b4038595c8100c88e22417311.
+- Conditional GO: R1 corrects HANDOFF date/source meaning and removes obsolete
+  version-number reservation. R2 makes markup escaping contextual so ordinary
+  e-mail, decimals, percentages, COVID-19 and a=b remain searchable. Both exact
+  fixes are applied; the auditor explicitly requires no new full round after
+  their specified byte/test checks and C1. Plaud's mechanical 0.16.9 documentation
+  bump resolves the version-policy observation; runtime remains unchanged.
+- C1 PASS: 228 tests (18 exporter cases); engine and web builds; API contract;
+  version/naming/manifest/session checks; both dependency installs and audits
+  (zero findings); Plaud session/prose checks; diff checks. First test attempt
+  lacked the isolated worktree's web dependencies; rerun used its own locked
+  dependencies. An accidental nested storage-admission wrapper was stopped;
+  the canonical single-wrapper build passed. Neither is hidden runtime evidence.
+- Compatible dependency locks are included; NAS security remediation remains a
+  separately scoped runtime upgrade, not an effect of source publication.
+- Actual HTTPS checks at 1440/390 render every paragraph of one eligible Plaud
+  record identically to its canonical payload; anonymous access is 401. Private
+  export has 75 notes, one excluded record, repeated identical bytes and fresh
+  regeneration matching all 76 file hashes. The NAS ZIP readback is byte-identical.
+  These executor checks do not constitute physical-device acceptance.
+- Complete native session capture source/copy SHA-256 after source round 1:
+  4419b5fb36f9d26f287d26611c2e22536793cec533cc237af1f531b0c4033f7c.
+  After follow-up:
+  8e1ea4469f5f47dcaff0935dd6db9ee39009f1b51ba125b1c292cdd741f48d14.
+  Raw commands, results, patches, test logs and hash-verified captures remain in
+  private M0 custody outside Git. No transcripts or credentials are committed.
+- Allowed follow-through: record validation/review metadata, close retained
+  preparation tasks and publish source. Device transfer, actual reading/search,
+  deployment, spend, replay and automatic synchronization remain separate.
+
 ## 2026-09-30 - Bounded Dossier audit and upstream baseline closure
 
 - Scope: reconcile current Spanish delivery/source/runtime documentation,

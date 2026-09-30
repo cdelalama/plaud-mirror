@@ -76,3 +76,21 @@ Keep the proposed order: M0 existing transcripts in a useful private reading
 destination; M1 one bounded new recording; M2 daily reliability; M3 Cortex.
 This closure does not select the destination or implement that roadmap. Phase
 3/5/6 acceptance and independent recovery remain explicit separate work.
+
+## Subsequent complete-onboarding operator-supplied audit
+
+Carlos supplied a second audit dated 2026-09-30 23:18:27 CEST
+(21:18:27 UTC), explicitly reporting full onboarding. It approves Plaud
+a577528 / 0.16.8 and the Home Infra d84b86b closure, while acknowledging later
+unrelated Home Infra commits. It confirms both CI and Upstream Watch green,
+current registry/runtime separation, preserved historical receipts, and S4.
+This is a separately attributed supplied audit, not a retrospective upgrade of
+the partial 16:21 UTC spot-check or executor reproduction of every claim.
+
+Its minor observations are retained: S4 is a language-only historical
+observation; an ordinary meaningful capture should refresh its summary. The
+ARCHITECTURE heading and unused password-endpoint TTL wording are now clarified.
+Old workflow failures and independent recovery/phase acceptance remain history
+and open work respectively. M0 preparation follows in its owning Media2Text
+repository; both desktop and mobile were selected. Physical device reading and
+private transfer remain acceptance gates.
