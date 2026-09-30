@@ -1,0 +1,10 @@
+{
+  "artifacts": [],
+  "branch": "work/dossier-portal-history-20260930",
+  "id": "dossier-portal-history-20260930",
+  "next_step": "Complete this task and record its result or explicit pending disposition.",
+  "project": "plaud-mirror",
+  "purpose": "Adopt current DocKit, curate project history and deliver Plaud Dossier in Infra Portal",
+  "schema": 1,
+  "state": "active"
+}
