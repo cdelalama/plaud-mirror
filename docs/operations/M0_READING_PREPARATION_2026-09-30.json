@@ -1,0 +1,73 @@
+{
+  "schema_version": 1,
+  "observed_at": "2026-09-30T22:07:09Z",
+  "scope": "M0 private reading preparation and updated Spanish project Dossier; real devices pending",
+  "source": {
+    "plaud_mirror": {
+      "commit": "820f80424b37d77cf5dc633fa088aa228adbf780",
+      "version": "0.16.9"
+    },
+    "media2text": {
+      "commit": "17d98fdfe0e41134aba49f360262672f67aed22a",
+      "version": "0.41.0"
+    }
+  },
+  "runtime": {
+    "plaud_mirror": "0.16.1",
+    "media2text": "0.39.3",
+    "infra_portal": "0.33.4",
+    "restarted": false
+  },
+  "reading_projection": {
+    "records": 76,
+    "eligible": 75,
+    "excluded": 1,
+    "generated_files": 76,
+    "private_nas_copy_verified": true,
+    "repeat_and_fresh_regeneration_verified": true,
+    "device_transfer_complete": false,
+    "real_device_acceptance": false
+  },
+  "dossier": {
+    "local_revision": "local:27c3c4d227248401f794fe3e38dfea7221236530ef6d1aff0c25c72f9cb85f72",
+    "shared_revision": "shared:cf08cedca7c1d276f06d9774d77ba1738054c01dcc0981790f2a1ec402804b70",
+    "shared_history_count": 5,
+    "prior_four_records_unchanged": true,
+    "milestones": 28,
+    "decisions": 29,
+    "accepted_decisions": 28,
+    "proposed_decisions": 1,
+    "sources": 35,
+    "changes": 22,
+    "browser_widths": [
+      1440,
+      390
+    ],
+    "browser_result": "PASS"
+  },
+  "source_review": {
+    "model": "claude-opus-5-5",
+    "effort": "high",
+    "conditions": "R1 and R2 fixed; C1 passes; curation wording conditions applied",
+    "full_suite": 228,
+    "export_tests": 18,
+    "builds": "engine and web PASS",
+    "dependency_audits": "0 findings",
+    "curation_capture_sha256": "67379ad69a8379c12ce6d8f02c1907b1a7e38245d64b02093c1cde3294993e59"
+  },
+  "ci": {
+    "media2text": 36783518297,
+    "plaud_source": 36783518037
+  },
+  "recovery": {
+    "S5_backup_received_and_integrity_verified": true,
+    "backup_payload_sha256": "49e07b55a2b76b457b34acbd1220fd3129a1e49a321b7cd1dc55807b25adec1c",
+    "current_S5_restore_tested": false,
+    "independent_physical_recovery": false,
+    "backup_client_wait_seconds": 60,
+    "original_client_wait_seconds": 25,
+    "first_attempt": "failed after publication; new backup file absent",
+    "retry_seconds": 32.044,
+    "runtime_or_engine_modified_for_retry": false
+  }
+}

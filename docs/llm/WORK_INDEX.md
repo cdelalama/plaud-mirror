@@ -8,4 +8,4 @@ This index describes retained work, not permission to delete it.
 - [dossier-language-20260930](work/dossier-language-20260930.json): closed; Separate technical documentation language from Spanish operator-facing Dossier content
 - [dossier-audit-closure-20260930](work/dossier-audit-closure-20260930.json): closed; Reconcile Dossier delivery documentation and review upstream drift
 
-- [m0-reading-followup-20260930](work/m0-reading-followup-20260930.json): active; Record complete audit and desktop/mobile M0 preparation with minor documentation corrections
+- [m0-reading-followup-20260930](work/m0-reading-followup-20260930.json): closed; Record complete audit and desktop/mobile M0 preparation with minor documentation corrections

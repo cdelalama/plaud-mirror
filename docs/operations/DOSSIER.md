@@ -8,10 +8,11 @@ transcription, credentials and shared publication are separate operations.
 
 ## Current delivery and receipt interpretation - 2026-09-30
 
-The current reader serves Spanish L4/S4 on Portal 0.33.4. Its exact revision is
-`shared:dafe90eaa931f07967f6affca61e33757ef653208b4b89e07d7f5c704e00eb91`.
-Use [the language delivery receipt](DOSSIER_LANGUAGE_2026-09-30.md) for the
-current chain; the S1/S2/S3 sections below retain the earlier delivery facts.
+The current reader serves Spanish L5/S5 on Portal 0.33.4. Its exact revision is
+`shared:cf08cedca7c1d276f06d9774d77ba1738054c01dcc0981790f2a1ec402804b70`.
+See [the M0 preparation receipt](M0_READING_PREPARATION_2026-09-30.md).
+M0 is in progress with device transfer/acceptance open. The language delivery
+receipt preserves L4/S4 history; S1-S4 remain immutable and readable.
 
 Native `submission: deferred` describes local capture, not subsequent remote
 publication status. ForgeOS OFFLINE_CONTRACT explicitly distinguishes that

@@ -2,9 +2,9 @@
   "artifacts": [],
   "branch": "work/m0-reading-followup-20260930",
   "id": "m0-reading-followup-20260930",
-  "next_step": "Complete this task and record its result or explicit pending disposition.",
+  "next_step": "Reviewed M0 preparation and L5/S5 progress delivered; retain checkout and evidence. Device transfer/search acceptance, independent physical recovery, runtime security upgrade and shared-reader latency remain separate follow-up.",
   "project": "plaud-mirror",
   "purpose": "Record complete audit and desktop/mobile M0 preparation with minor documentation corrections",
   "schema": 1,
-  "state": "active"
+  "state": "closed"
 }

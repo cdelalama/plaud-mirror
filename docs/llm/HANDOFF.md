@@ -9,10 +9,10 @@ This file is the live operational snapshot. Durable rationale lives in `docs/llm
 - Source 0.16.9 records M0 preparation and completes minor audit documentation;
   it adds no runtime behavior. Applicable DocKit 4.18.1 is adopted from published
   main. DocKit release-tag baseline: v4.17.0 (4.18.1 has no release tag).
-- Portal 0.33.4 serves the Spanish Plaud L4/S4 Dossier: 28 milestones, 28
-  decisions (27 accepted and one proposed), 21 changes and 35 pinned sources.
-  Original L1/S1 through L3/S3 remain immutable and readable. Delivery receipt:
-  docs/operations/DOSSIER_LANGUAGE_2026-09-30.json.
+- Portal 0.33.4 serves the Spanish Plaud L5/S5 Dossier: 28 milestones, 29
+  decisions (28 accepted and one proposed), 22 changes and 35 pinned sources.
+  Original L1/S1 through L4/S4 remain immutable and readable. Delivery receipt:
+  docs/operations/M0_READING_PREPARATION_2026-09-30.json.
 - Local capture submission: deferred and explicit shared publication are separate
   facts. Preserve native receipts; see docs/operations/DOSSIER.md.
 - Plaud NAS runtime remains 0.16.1; Media2Text remains 0.39.3. Read-only Docker

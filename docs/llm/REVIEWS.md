@@ -1,3 +1,22 @@
+## 2026-09-30 - M0 Dossier curation and delivered-state receipt
+
+Exact claude-opus-5-5 high, same independent read-only session
+151ff611-275b-4ad9-bf7e-68e03cca6e7a, actual canonical model metadata verified.
+Command is the source-review command below with --max-turns 8 and a bounded
+curation prompt; no raw transcripts or credential files were read.
+CURATION_GO required explicitly pending headline wording and attribution of
+browser evidence to the existing web library. Both exact corrections and the
+optional annotation/preparation clarifications are applied. Mechanical source
+pinning to published 820f804, final receipt metadata and task closure were
+explicitly allowed without another review. All 35 sources are verified.
+Complete native capture source/copy SHA-256:
+67379ad69a8379c12ce6d8f02c1907b1a7e38245d64b02093c1cde3294993e59.
+L5 retry preserves one local revision; S5 exact readback, S1-S4 preservation,
+both browser widths and backup receipt pass. The first S5 backup attempt failed
+under the 25-second client wait; a bounded read-only 60-second caller retry
+succeeded. No installed engine/runtime modification or new restore acceptance.
+See docs/operations/M0_READING_PREPARATION_2026-09-30.md and its JSON receipt.
+
 ## 2026-09-30 - M0 owner preparation and Plaud documentation follow-up
 
 - Auditor: exact claude-opus-5-5, high effort; actual modelUsage verified in

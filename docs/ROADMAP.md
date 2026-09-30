@@ -15,8 +15,8 @@ This document is the canonical phase boundary for Plaud Mirror. If implementatio
 Source 0.16.9 records M0 preparation and completes minor audit documentation.
 Applicable DocKit 4.18.1 comes from published main.
 DocKit release-tag baseline: v4.17.0.
-Plaud production remains 0.16.1. Spanish L4/S4 is delivered through Portal
-0.33.4; the original L1/S1 through L3/S3 history is retained. The operator
+Plaud production remains 0.16.1. Spanish L5/S5 is delivered through Portal
+0.33.4; the original L1/S1 through L4/S4 history is retained. The operator
 completed the bounded audit follow-up and then selected desktop and mobile
 for M0. Media2Text now owns bounded offline Markdown preparation; real-device
 transfer, reading and search acceptance remain open. M1-M3 are subsequent
