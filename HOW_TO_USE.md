@@ -1,4 +1,4 @@
-<!-- doc-version: 0.16.7 -->
+<!-- doc-version: 0.16.8 -->
 # How to Use This Repository
 
 This guide explains how Plaud Mirror is operated end-to-end and how it stays aligned with both `LLM-DocKit` (the governance scaffold it adopts) and the Plaud ecosystem upstreams it watches.

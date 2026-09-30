@@ -1,3 +1,44 @@
+## 2026-09-30 - Bounded Dossier audit and upstream baseline closure
+
+- Scope: reconcile current Spanish delivery/source/runtime documentation,
+  preserve native/shared receipts and acknowledge two reviewed watch baselines.
+- Independent auditor: exact `claude-opus-5-5`, high effort; effective
+  modelUsage canonicalModel verified. Resumed session:
+  `151ff611-275b-4ad9-bf7e-68e03cca6e7a`.
+- Command: `claude -p --resume 151ff611-275b-4ad9-bf7e-68e03cca6e7a
+  --model claude-opus-5-5 --effort high --restricted --tools Read,Glob,Grep
+  --allowedTools Read,Glob,Grep --permission-mode plan --strict-mcp-config
+  --mcp-config <empty-server-config> --max-turns 32 --output-format json`
+  with the two candidate roots and private packet directory explicitly admitted.
+- Reviewed Plaud tree: 90134da6eab3cadbe69edae5e1682d641867105a.
+  Reviewed Home Infra tree: 7748b30c24f0920c08979283ef99443c06f71f16.
+- Verdict: REQUEST_CHANGES for R1 and R2, with explicit conditional approval of
+  publication after their byte/content checks and session/diff revalidation.
+  R1 restores the entire pre-existing Zigbee heading/body byte-for-byte while
+  moving the Plaud block. R2 adds a dated D-019 amendment preserving the
+  historical statement and qualifies PROJECT_CONTEXT's lifetime description.
+  Both are applied. The auditor explicitly requires no further full round for
+  these specified fixes; no new behavior is introduced.
+- Optional findings addressed: keep reader-latency/localization follow-ups,
+  correct the historical-heading reference, use current Plaud runtime evidence
+  authority and record version impact. Earlier records/acceptances are retained.
+- Validation: both session validators pass; 26 Plaud / 11 Home Infra version
+  targets synchronize; all eight upstream refs match; historical receipt is
+  byte-identical; scoped registry schema/render/session/release audits pass.
+  Re-run session/diff checks after this allowed follow-through. Handoff-length
+  and external-document-trigger advisories are not runtime evidence.
+- Approved sequence: record this review and exact capture, close only the two
+  task records, publish Plaud, refresh only its published registry pin/version/
+  time, regenerate and revalidate, then publish Home Infra 0.47.4. This sequence
+  does not authorize deployment, Dossier capture, replay or provider invocation.
+- Private evidence: `~/.local/state/plaud-mirror/dossier-audit-closure-20260930/`.
+  Result SHA-256: d5d48defa25f3a8435b0687d70755aeeae7aaeb67be8784517108ad59dd3d98a.
+  Complete native transcript copied by caller after the round; source/copy
+  SHA-256: b59fcf4b6ef05a0f141022f2b5867bf5aad1ea0bf017bf4ea6f54f4fa7d70993.
+  Prompt, exact argv, candidate hashes, raw response and transcript remain
+  outside Git. Live SSH/API observations are executor evidence, not reproduced
+  by the read-only source auditor. Production/physical acceptance stays separate.
+
 ## 2026-09-30 - Full Spanish curation and live acceptance
 
 Exact Opus 5.5 high (canonicalModel verified) reviewed every human field and

@@ -1,4 +1,4 @@
-<!-- doc-version: 0.16.7 -->
+<!-- doc-version: 0.16.8 -->
 # Plaud Mirror Roadmap
 
 This document is the canonical phase boundary for Plaud Mirror. If implementation scope starts to cross a phase boundary, update this document before claiming the work is part of the current phase.
@@ -12,9 +12,14 @@ This document is the canonical phase boundary for Plaud Mirror. If implementatio
 
 ## Current execution view - 2026-09-30
 
-Source 0.16.6 is documentation and current applicable DocKit 4.18 adoption;
-Plaud production remains 0.16.1. The operator authorized shared Dossier delivery
-and historical documentation curation. See docs/operations/DOSSIER.md and
+Source 0.16.8 reconciles documentation and reviewed upstream baselines.
+Applicable DocKit 4.18.1 comes from published main.
+DocKit release-tag baseline: v4.17.0.
+Plaud production remains 0.16.1. Spanish L4/S4 is delivered through Portal
+0.33.4; the original L1/S1 through L3/S3 history is retained. The operator
+authorized this bounded audit follow-up, not implementation of M0-M3.
+See docs/operations/DOSSIER_AUDIT_CLOSURE_2026-09-30.md,
+docs/operations/DOSSIER.md and
 [retrospective](reviews/2026-09-30-dossier-retrospective.md).
 
 The [September 29 consensus](reviews/2026-09-29-operational-consensus.md)

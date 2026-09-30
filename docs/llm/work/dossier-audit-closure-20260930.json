@@ -1,0 +1,10 @@
+{
+  "artifacts": [],
+  "branch": "work/dossier-audit-closure-20260930",
+  "id": "dossier-audit-closure-20260930",
+  "next_step": "Reviewed documentation and watch-baseline closure complete; publish through this closure, retain checkout/evidence, then separately scope M0. Runtime and independent recovery remain unchanged.",
+  "project": "plaud-mirror",
+  "purpose": "Reconcile Dossier delivery documentation and review upstream drift",
+  "schema": 1,
+  "state": "closed"
+}

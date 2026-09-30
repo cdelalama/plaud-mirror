@@ -1,4 +1,4 @@
-<!-- doc-version: 0.16.7 -->
+<!-- doc-version: 0.16.8 -->
 # Plaud Mirror Architecture
 
 > Version: 0.16.3 owner-contract reconciliation; 0.16.1 is the accepted runtime
@@ -166,7 +166,7 @@ The operator's account is Google SSO, so there is no Plaud password to store and
 3. `/connect` (served by the SPA; public path, but its POST is gated) strips the fragment with `history.replaceState`, reads the `captureId` from mirror `localStorage`, and `POST /api/connect/complete { token, captureId }`.
 4. The backend consumes the `captureId` (single-use, must be live → else 409), then validates the bearer against Plaud and stores it via `service.saveAccessToken`.
 
-The bearer travels only in a URL fragment (never sent to a server, never logged) and one same-origin authenticated POST. The ~300-day TTL means this is a roughly-once-a-year interaction.
+The bearer travels only in a URL fragment (never sent to a server, never logged) and one same-origin authenticated POST. Token lifetime is not a fixed 300-day guarantee. The September 30 upstream review reports shorter-lived tokens and HttpOnly cookie capture in other clients; these are external observations, not a measurement of this account. D-019 cookie/refresh adaptation remains pending; the current extension has no cookies permission and cannot read HttpOnly cookies. See docs/UPSTREAMS.md. No auth implementation changes in 0.16.8.
 
 ### Operator panel shell (v0.9.0)
 

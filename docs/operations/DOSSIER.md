@@ -6,6 +6,20 @@ source tooling and curated local project history. Production mirroring,
 transcription, credentials and shared publication are separate operations.
 
 
+## Current delivery and receipt interpretation - 2026-09-30
+
+The current reader serves Spanish L4/S4 on Portal 0.33.4. Its exact revision is
+`shared:dafe90eaa931f07967f6affca61e33757ef653208b4b89e07d7f5c704e00eb91`.
+Use [the language delivery receipt](DOSSIER_LANGUAGE_2026-09-30.md) for the
+current chain; the S1/S2/S3 sections below retain the earlier delivery facts.
+
+Native `submission: deferred` describes local capture, not subsequent remote
+publication status. ForgeOS OFFLINE_CONTRACT explicitly distinguishes that
+field from a shared receipt. The historical JSON records L3 with that native
+value and S3 separately; both are correct. Preserve the original JSON and
+immutable native/shared records. Do not rewrite local metadata to `published`
+or recapture merely to remove the apparent discrepancy.
+
 ## Operator-facing language (2026-09-30 clarification)
 
 Carlos requires Spanish for every human-readable Dossier field, including
@@ -151,7 +165,10 @@ python3 "$DOSSIER_TOOL" --project "$DOSSIER_PROJECT" trace \
   --export-file "$HOME/.local/state/forgeos/dossier/exports/plaud-mirror/plaud-mirror.json"
 ```
 
-## Current shared delivery scope - 2026-09-30
+## Historical shared delivery plan - 2026-09-30
+
+This was the pre-delivery plan. Its future-tense steps were completed in the
+receipts below; it is not the current work queue.
 
 The operator explicitly requested publication in the existing Plaud Mirror
 Portal card and preservation of the documented past. Portal 0.33.1 already
@@ -181,7 +198,11 @@ Actual receipt will record exact local/shared revisions, card and five sections,
 negative project/revision/role checks, unchanged adjacent histories and isolated
 same-NAS restoration. Independent physical recovery remains open.
 
-## Actual shared delivery - 2026-09-30
+## Historical shared delivery receipt - S1/S2/S3, 2026-09-30
+
+This section records the earlier Portal 0.33.2 delivery. Current Spanish L4/S4
+and Portal 0.33.4 are recorded in DOSSIER_LANGUAGE_2026-09-30.md and its JSON
+receipt; retain the original source/version observations below.
 
 Plaud Mirror is readable at https://infra.lamanoriega.com/dossier/shared/plaud-mirror
 and through Dossier on its existing project card. Exact Opus 5.5 high returned
@@ -193,8 +214,9 @@ The retrospective contains 28 milestones, 28 decisions (27 accepted historical
 decisions plus one explicitly proposed operating sequence), 19 change summaries
 covering 84 detailed historical entries, and 34 pinned source documents. Native
 L1 and its original observation are preserved as S1; L2 is published as S2.
-Source commits are retained on main. The current shared delivery will receive
-one meaningful L3 observation; later receipt-only commits do not recurse.
+Source commits are retained on main. L3 was captured and explicitly published
+as S3; exact identities are recorded in the final observation below. Later
+receipt-only commits do not recursively create new observations.
 
 Portal 0.33.2 runs reviewed source aa3b7cfe3f5be73838fb1db8eebcafb9ea421a11
 at immutable image digest sha256:0b039719aefbf97077ea2f6473b6a529c6a993b5b03ae6a42a5fd12f546937a4.

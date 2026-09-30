@@ -4,6 +4,21 @@ All notable changes to Plaud Mirror are documented in this file.
 
 This project follows Semantic Versioning (SemVer): MAJOR.MINOR.PATCH.
 
+## [0.16.8] - 2026-09-30
+
+- Reconcile current Dossier source, runtime and Spanish revision documentation.
+- Preserve historical local receipts and explain explicit shared publication.
+- Review two watch-only upstream changes and acknowledge their new baselines.
+- Remove fixed bearer-lifetime claims; retain D-019 auth adaptation as pending.
+- No runtime deployment, code adoption, replay or provider invocation.
+
+
+### Added
+
+### Changed
+
+### Fixed
+
 ## [0.16.7] - 2026-09-30
 
 - Separate English technical sources from Spanish operator-facing Dossier prose.

@@ -1,38 +1,4 @@
-<!-- doc-version: 0.16.7 -->
-## 2026-09-30 - Spanish Dossier delivered and verified
-
-Last Updated: 2026-09-30 - Codex.
-English engineering sources and Spanish operator-facing prose are now explicit
-in DocKit, ForgeOS and all three adopters. Portal 0.33.4 serves Spanish Plaud
-L4/S4, Home Infra L3/S3 and DocKit L4/S4; exact original history remains readable.
-Separate exact Opus high source/curation GO, 193 tests, live API and all three
-projects at 390/840/1440 px pass. Complete decision reasons and source fields
-are verified in the actual reader. The measured complete-history SSH read now
-has a bounded 30-second deadline. Eleven mounts and three bindings are intact.
-All three coherent backups restore in isolated same-NAS custody.
-Owner: docs/operations/DOSSIER_LANGUAGE_2026-09-30.md.
-Next: normal curated use; independent physical recovery and broader product
-localization remain separate. Re-measure if a complete-history read exceeds 20 s.
-
-
-## 2026-09-30 - Spanish operator-facing Dossier correction
-
-Last Updated: 2026-09-30 - Codex.
-Source version 0.16.7 is a documentation-policy patch; deployed producers are unchanged.
-Carlos explicitly requires Spanish for product/operator prose while canonical
-engineering documents remain English. The correction covers all authored
-Dossier fields, source titles/summaries and navigation, not only chat text.
-The source Language Policy and owning Dossier instructions now state this
-boundary. Portal 0.33.3 labels the section Hoja de ruta; route and technical
-identifiers retain their values. Prior immutable English revisions remain
-historical evidence. New Spanish revisions are prepared for Plaud, Home Infra
-and DocKit; source review, exact capture/publication and live-reader checks
-precede the delivery receipt. No product-roadmap gate is closed by translation.
-Owner: docs/operations/DOSSIER_LANGUAGE_2026-09-30.md.
-Next: exact Opus independent review, source publication and Spanish reader delivery.
-Follow-up: audit remaining product screens against the Spanish policy; this
-delivery changes the Dossier reader and its entry points only.
-
+<!-- doc-version: 0.16.8 -->
 # LLM Work Handoff
 
 This file is the live operational snapshot. Durable rationale lives in `docs/llm/DECISIONS.md`. Phase boundaries live in `docs/ROADMAP.md`.
@@ -40,25 +6,45 @@ This file is the live operational snapshot. Durable rationale lives in `docs/llm
 ## Current Status
 
 - Last Updated: 2026-09-30 - Codex
-- Plaud source 0.16.6 adopts applicable DocKit 4.18.0. Its complete documented
-  history is now available from Dossier on the existing Infra Portal card.
-- Portal 0.33.2 serves 28 milestones, 28 decisions, 19 historical change
-  summaries and 34 pinned sources. Native L1/S1 through L3/S3 remain immutable.
-- Exact Opus 5.5 high returned SOURCE_GO and plan AGREEMENT. Live transport,
-  API/history and 33 browser checks pass; isolated same-NAS restore is verified.
-  Receipt: docs/operations/DOSSIER_PLAUD_DELIVERY_2026-09-30.json.
-- Plaud NAS application remains 0.16.1. Plaud/Media2Text IDs, images and start
-  times are unchanged; no provider spend or historical replay was performed.
-- Historical September 29 counts (770 mirrored, 76 transcribed, 72 failed,
-  622 not sent) remain dated observations, not fresh production counts.
-- Read docs/reviews/2026-09-30-dossier-retrospective.md for documented coverage
-  and docs/reviews/2026-09-29-operational-consensus.md for the operational-first
-  recommendation. M0-M3 remain proposed; normative phase 3/5/6 gates stay open.
-- Next: maintain curated Dossier updates,
-  resolve independent physical recovery and choose the first private transcript
-  reading destination for bounded M0 implementation.
+- Source 0.16.8 reconciles Dossier documentation and reviewed upstream baselines;
+  it adds no runtime behavior. Applicable DocKit 4.18.1 is adopted from published
+  main. DocKit release-tag baseline: v4.17.0 (4.18.1 has no release tag).
+- Portal 0.33.4 serves the Spanish Plaud L4/S4 Dossier: 28 milestones, 28
+  decisions (27 accepted and one proposed), 21 changes and 35 pinned sources.
+  Original L1/S1 through L3/S3 remain immutable and readable. Delivery receipt:
+  docs/operations/DOSSIER_LANGUAGE_2026-09-30.json.
+- Local capture submission: deferred and explicit shared publication are separate
+  facts. Preserve native receipts; see docs/operations/DOSSIER.md.
+- Plaud NAS runtime remains 0.16.1; Media2Text remains 0.39.3. Read-only Docker
+  inspection on September 30 confirmed healthy containers and September 19
+  start times. This correction does not deploy, replay or invoke a provider.
+- September 29 counts (770 mirrored; 76 transcribed, 72 failed, 622 not sent)
+  remain historical observations, not fresh production counts.
+- D-004 records the September 30 watch-only review of OpenPlaud/Riffado and
+  plaud-toolkit. D-019 cookie/session adaptation remains open; no upstream
+  implementation is imported. Report CI and Upstream Watch separately.
+- Existing delivery follow-ups: re-measure complete-history reads above 20 s;
+  broader product localization remains separate from the delivered Dossier.
+- Scope and verification: docs/operations/DOSSIER_AUDIT_CLOSURE_2026-09-30.md.
+  The historical partial-onboarding spot-check does not supply a current GO.
+- Next: after this bounded documentation closure, choose the first private
+  reading destination for existing transcripts (M0), then a bounded new recording
+  (M1), daily reliability (M2), and Cortex (M3). This ordering remains a proposal;
+  phase 3/5/6 acceptance and independent physical recovery remain open.
 
-## Historical Status - superseded by the dated synopsis above
+
+## Trace Anchor
+
+- Role: executor
+- Sent: 2026-09-30 21:03:56 CEST (19:03:56 UTC)
+- Subject: Bounded Dossier documentation and upstream-review closure.
+- Resulting state: version=0.16.8; documentation closure; exact Opus conditions resolved.
+- Repo state: managed work/dossier-audit-closure-20260930 from published 1f2cd13.
+- Validation: version sync; historical receipt preserved; scoped registry checks;
+  upstream and full session results recorded in the closure review.
+- Next gate: separately scoped M0 and independent physical recovery.
+
+## Historical Status - superseded by Current Status above
 
 Historical scope: all sections below retain earlier session evidence and plans,
 including Next Session, Testing Notes and Trace Anchor. Their dates, counts and
@@ -526,7 +512,7 @@ Do not collapse those phases casually.
 - Docker packaging includes a local-base fallback for this `dev-vm`; always verify the live `/api/health.version` after a Doppler-wrapped compose rebuild instead of trusting an older handoff snapshot.
 - Live Plaud re-auth through the Chrome extension still requires the operator's Chrome/Plaud session and cannot be completed by an agent without those browser credentials; the operator confirmed it healthy before this UI redesign.
 
-## Trace Anchor
+## Historical Trace Anchor
 
 - Role: executor
 - Sent: 2026-09-14 23:13:15 CEST (21:13:15 UTC)

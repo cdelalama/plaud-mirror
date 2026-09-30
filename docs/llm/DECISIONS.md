@@ -81,6 +81,22 @@ Plaud integrations depend on unofficial and evolving behavior. Auth keys, region
 
 ---
 
+### D-004 amendment - 2026-09-30 reviewed watch baselines
+
+Both detected changes are classified **watch**, with no imported code or
+runtime adoption. OpenPlaud/Riffado advances v0.5.4 to v0.6.4; plaud-toolkit
+advances 810c7ceb330693f39ec6078f0b794b18f068ba0f to
+b9eade2a804843aa70e58e8c1a60eb352e916727. Review scope, licensing, exact
+comparisons and implications are in docs/UPSTREAMS.md. Baselines acknowledge
+this bounded review; they do not assert an exhaustive upstream security audit.
+The two primary references are unchanged. Cookie/user/workspace-token changes
+reinforce D-019's existing follow-up; toolkit password-login churn is not the
+current Plaud browser-bearer path. No auth, sync, credential or provider action
+is authorized by a green watch result. Report runtime CI and upstream vigilance
+as separate checks. Keep the existing M0-M3 proposed sequence.
+
+---
+
 ## D-005 - License boundary is conservative
 
 **Status:** accepted
@@ -614,6 +630,20 @@ Consequences for this decision:
 
 This amendment records facts and intent only; the provider selection above is
 unchanged until the adaptation ships.
+
+### D-019 amendment - 2026-09-30 token lifetime and capture limits
+
+The original approximately 300-day / yearly-renewal statement above is a
+historical assumption, not a current guarantee. The September 30 upstream
+review in docs/UPSTREAMS.md reports shorter-lived tokens and HttpOnly cookie
+capture in other clients. It does not measure this account's bearer lifetime.
+Current page-storage capture cannot read HttpOnly cookies; the Chrome extension
+has no cookies permission. First-party cookie/refresh adaptation remains open,
+with its own source review and regression coverage. Do not repeatedly call the
+password endpoint, import watch-only code, or infer re-auth compatibility from
+container health. This amendment changes guidance only, not deployed auth.
+
+---
 
 ## D-020 - Plaud recording sync adopts Home Infra Protocol as a status contract
 

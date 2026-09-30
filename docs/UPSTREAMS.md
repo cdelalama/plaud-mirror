@@ -1,7 +1,7 @@
-<!-- doc-version: 0.16.7 -->
+<!-- doc-version: 0.16.8 -->
 # Upstream Strategy
 
-Last verified against GitHub: 2026-07-14
+Last verified against GitHub: 2026-09-30 (all eight tracked references).
 
 Plaud Mirror is its own project, but it is intentionally informed by existing work in the Plaud ecosystem. This document records:
 - which upstreams matter
@@ -66,6 +66,43 @@ and explicit `{ status: 0 }` are the only accepted acknowledgements. Any other
 `GET /file/detail/<id>` before deciding whether another DELETE is necessary.
 This is a local fail-closed policy, not a claim that Plaud has published a
 stable mutation response contract.
+
+## 2026-09-30 Baseline Review (two watch-only upstreams)
+
+The checker returned CHANGED only for OpenPlaud and plaud-toolkit; the two
+primary references and the other four tracked references remain CURRENT.
+This is an upstream-review disposition, not a runtime compatibility audit or
+code adoption. Baselines acknowledge reviewed references, not dependencies.
+
+- `openplaud/openplaud` `v0.5.4 -> v0.6.4`: **watch**, AGPL-3.0 unchanged.
+  GitHub redirects this repository to `riffado/riffado`; retain the existing
+  tracked alias. Reviewed the release changelog through v0.6.4, the 119-commit
+  comparison inventory and tagged auth/client/workspace/response-parser files.
+  The compare API caps its file inventory at 300; this is not an exhaustive
+  source/security audit. Relevant changes: user/workspace-token distinction,
+  non-destructive reconnect, cookie-based connector capture, device-response
+  validation and server-side background sync. Plaud already validates device
+  envelopes with Zod and owns its scheduler; no upstream implementation is
+  imported. HttpOnly cookie capture corroborates the existing D-019 adaptation
+  backlog; today's healthy runtime does not prove future re-auth compatibility.
+  Bulk transcript/AI, hosted billing and export features remain outside this
+  audio-first maintenance slice.
+- `sergivalverde/plaud-toolkit` `810c7ceb330693f39ec6078f0b794b18f068ba0f ->
+  b9eade2a804843aa70e58e8c1a60eb352e916727`: **watch**, license still
+  unasserted. Reviewed both commits and the auth/client/type/test/integration
+  patches. A fixed 30-day early-refresh buffer caused repeated password logins;
+  upstream now bounds it by token lifetime and adds token-only Google-SSO use,
+  expiry messaging and token-region inference. These are upstream observations,
+  not measurements of Carlos's token. Plaud's current browser-bearer mode does
+  not call the password endpoint per request. No code is copied or adopted.
+
+Sources: [Riffado release](https://github.com/riffado/riffado/releases/tag/v0.6.4),
+[tagged changelog](https://github.com/riffado/riffado/blob/v0.6.4/CHANGELOG.md),
+[release comparison](https://github.com/riffado/riffado/compare/v0.5.4...v0.6.4),
+[toolkit comparison](https://github.com/sergivalverde/plaud-toolkit/compare/810c7ceb330693f39ec6078f0b794b18f068ba0f...b9eade2a804843aa70e58e8c1a60eb352e916727).
+
+D-004 records the disposition. D-019 remains the owner of any future cookie/
+refresh implementation and regression tests. Keep existing M0-M3 ordering.
 
 ## 2026-07-13 Baseline Review (five drifted upstreams)
 

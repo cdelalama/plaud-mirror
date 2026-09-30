@@ -1,4 +1,4 @@
-<!-- doc-version: 0.16.7 -->
+<!-- doc-version: 0.16.8 -->
 # Authentication and Sync Operations
 
 This runbook defines the live behavior of Plaud Mirror's auth and sync surface. Phase 2 is fully shipped. Phase 3 added the scheduler, durable outbox, health observability, and access/recovery timeouts. `v0.10.3` makes artifact integrity truthful; `v0.10.4` makes scheduler completion, runtime ceilings, outbox recovery, pagination, and shutdown truthful before the soak. Resumable backfill and fully unattended re-login stay deferred.
@@ -93,7 +93,7 @@ Because the operator's Plaud account is Google SSO (no password, and Plaud forbi
 3. Log into Plaud normally (Google). In that Plaud tab, press **Plaud Mirror Connector** → **Send token to mirror**.
 4. The extension reads the bearer from Plaud's browser storage and navigates the tab to the mirror's `/connect#token=...` page, which completes the capture against the live `captureId`. The token is validated against Plaud and stored.
 
-The Plaud bearer lasts ~300 days, so this is a roughly-once-a-year, no-DevTools, no-password action. Manual paste remains the universal fallback. The bookmarklet is now copy-only fallback, not the recommended path: dragging a React-rendered `javascript:` link proved unreliable because React replaces it with a defensive throw before Chrome stores it. Telegram is **not** a capture channel — it cannot read browser storage; it is only a possible future notification surface.
+Do not promise a fixed 300-day bearer lifetime or yearly renewal. Upstream reports reviewed on September 30 describe shorter-lived tokens and HttpOnly session cookies; they do not establish this account's token lifetime. Current capture reads page storage and cannot read HttpOnly cookies. If no supported bearer is available, stop and use the existing D-019 adaptation backlog rather than repeatedly attempting login. No cookie permission, secret, or auth behavior changes in 0.16.8; see docs/UPSTREAMS.md. Manual paste remains the universal fallback. The bookmarklet is now copy-only fallback, not the recommended path: dragging a React-rendered `javascript:` link proved unreliable because React replaces it with a defensive throw before Chrome stores it. Telegram is **not** a capture channel — it cannot read browser storage; it is only a possible future notification surface.
 
 Two things the capture must get right (both fixed in v0.7.3):
 
@@ -104,7 +104,7 @@ Two things the capture must get right (both fixed in v0.7.3):
 
 ### Later Mode: Fully automatic re-login
 
-Fully unattended re-login (no operator tap at all) remains a roadmap item. For a Google-SSO account it is only reachable via Plaud's official OAuth/MCP, which is deferred/watch (see D-019); for an email+password account the private `POST /auth/access-token` endpoint would enable it (also documented in D-019) but does not apply here. It is not part of the current deployment contract.
+Fully unattended re-login (no operator tap at all) remains a roadmap item. For a Google-SSO account, official OAuth/MCP and the separately reviewed first-party cookie/refresh path remain deferred/watch (see D-019); for an email+password account the private `POST /auth/access-token` endpoint would enable it (also documented in D-019) but does not apply here. It is not part of the current deployment contract.
 
 ## Auth State
 

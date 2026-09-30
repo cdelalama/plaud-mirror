@@ -1,4 +1,4 @@
-<!-- doc-version: 0.16.7 -->
+<!-- doc-version: 0.16.8 -->
 # Repository Structure Guide
 
 This document describes the actual Plaud Mirror repository layout as of the first usable Phase 2 slice.
@@ -171,3 +171,5 @@ Read in this order before changing runtime scope:
 Dossier language correction and delivery: `docs/operations/DOSSIER_LANGUAGE_2026-09-30.md`.
 
 Spanish Dossier delivery receipt: `docs/operations/DOSSIER_LANGUAGE_2026-09-30.json`.
+
+Bounded Dossier audit closure and upstream review: `docs/operations/DOSSIER_AUDIT_CLOSURE_2026-09-30.md`.
