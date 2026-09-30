@@ -1,4 +1,4 @@
-<!-- doc-version: 0.16.6 -->
+<!-- doc-version: 0.16.7 -->
 # Plaud Mirror Roadmap
 
 This document is the canonical phase boundary for Plaud Mirror. If implementation scope starts to cross a phase boundary, update this document before claiming the work is part of the current phase.

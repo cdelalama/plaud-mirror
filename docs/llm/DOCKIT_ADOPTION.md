@@ -78,3 +78,10 @@ Validation and independent review are recorded in the source fleet report:
 
 The upstream regression suite runs in the DocKit source repository, where its
 control-plane fixtures exist. Existing adopter regression files are preserved.
+
+## 2026-09-30 language-policy clarification
+
+Explicitly adopted the DocKit 4.18.1 source/product language distinction.
+Spanish operator-facing prose is independent of English technical sources.
+This is a reviewed project-local policy edit, not a full-template sync or
+claim that unrelated helper versions, host hooks or private sync state changed.

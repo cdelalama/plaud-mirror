@@ -1,4 +1,4 @@
-<!-- doc-version: 0.16.6 -->
+<!-- doc-version: 0.16.7 -->
 # Delivery evidence contract v1
 
 Status: schema 1 delivered in DocKit 4.16.0; not deployment authorization.

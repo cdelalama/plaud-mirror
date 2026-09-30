@@ -1,4 +1,23 @@
-<!-- doc-version: 0.16.6 -->
+<!-- doc-version: 0.16.7 -->
+
+## 2026-09-30 - Spanish operator-facing Dossier correction
+
+Last Updated: 2026-09-30 - Codex.
+Source version 0.16.7 is a documentation-policy patch; deployed producers are unchanged.
+Carlos explicitly requires Spanish for product/operator prose while canonical
+engineering documents remain English. The correction covers all authored
+Dossier fields, source titles/summaries and navigation, not only chat text.
+The source Language Policy and owning Dossier instructions now state this
+boundary. Portal 0.33.3 labels the section Hoja de ruta; route and technical
+identifiers retain their values. Prior immutable English revisions remain
+historical evidence. New Spanish revisions are prepared for Plaud, Home Infra
+and DocKit; source review, exact capture/publication and live-reader checks
+precede the delivery receipt. No product-roadmap gate is closed by translation.
+Owner: docs/operations/DOSSIER_LANGUAGE_2026-09-30.md.
+Next: exact Opus independent review, source publication and Spanish reader delivery.
+Follow-up: audit remaining product screens against the Spanish policy; this
+delivery changes the Dossier reader and its entry points only.
+
 # LLM Work Handoff
 
 This file is the live operational snapshot. Durable rationale lives in `docs/llm/DECISIONS.md`. Phase boundaries live in `docs/ROADMAP.md`.

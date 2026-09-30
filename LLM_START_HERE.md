@@ -1,4 +1,23 @@
-<!-- doc-version: 0.16.6 -->
+<!-- doc-version: 0.16.7 -->
+
+## 2026-09-30 - Spanish operator-facing Dossier correction
+
+Last Updated: 2026-09-30 - Codex.
+Source version 0.16.7 is a documentation-policy patch; deployed producers are unchanged.
+Carlos explicitly requires Spanish for product/operator prose while canonical
+engineering documents remain English. The correction covers all authored
+Dossier fields, source titles/summaries and navigation, not only chat text.
+The source Language Policy and owning Dossier instructions now state this
+boundary. Portal 0.33.3 labels the section Hoja de ruta; route and technical
+identifiers retain their values. Prior immutable English revisions remain
+historical evidence. New Spanish revisions are prepared for Plaud, Home Infra
+and DocKit; source review, exact capture/publication and live-reader checks
+precede the delivery receipt. No product-roadmap gate is closed by translation.
+Owner: docs/operations/DOSSIER_LANGUAGE_2026-09-30.md.
+Next: exact Opus independent review, source publication and Spanish reader delivery.
+Follow-up: audit remaining product screens against the Spanish policy; this
+delivery changes the Dossier reader and its entry points only.
+
 # LLM Start Guide - Plaud Mirror
 
 - Last Updated: 2026-09-30 - Codex
@@ -23,10 +42,19 @@ Recommended reading order:
 ## Critical Rules (Non-Negotiable)
 
 ### Language Policy
-- All code and documentation: English
-- Conversation with the user: Spanish
-- Comments in code: English
-- File names: English
+- Canonical engineering documentation, code identifiers, comments and file names: English.
+- Conversation with Carlos and all operator-facing prose: Spanish.
+- Product copy includes UI labels, dialogs, accessibility text, dashboards,
+  reports and every human-readable field in a Dossier projection. This rule
+  also applies when that content is stored in JSON or generated from English
+  technical documents. Translate its meaning before capture/publication.
+- Keep product names, exact commands, code literals, paths, schema keys, IDs,
+  enum values, hashes and source bytes unchanged. Source titles and explanatory
+  summaries shown to the operator are Spanish; technical source files remain English.
+- A language correction creates a newly dated revision. Preserve original
+  observations, immutable historical revisions, status, evidence and permissions.
+- Before delivery, review every visible field and inspect the real reader in
+  Spanish. Schema validation alone does not prove language or translation quality.
 
 ### Project-Specific Rules
 - Do not introduce plaintext storage for Plaud passwords, tokens, or master keys.

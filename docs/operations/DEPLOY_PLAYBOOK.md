@@ -1,4 +1,4 @@
-<!-- doc-version: 0.16.6 -->
+<!-- doc-version: 0.16.7 -->
 # Deploy Playbook
 
 This runbook separates local development, NAS production, upgrades, migration,

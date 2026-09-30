@@ -4,6 +4,19 @@ All notable changes to Plaud Mirror are documented in this file.
 
 This project follows Semantic Versioning (SemVer): MAJOR.MINOR.PATCH.
 
+## [0.16.7] - 2026-09-30
+
+- Separate English technical sources from Spanish operator-facing Dossier prose.
+- Define complete translation review while retaining original source pins and immutable history.
+- Preserve runtime behavior, engine bytes and existing roadmap acceptance gates.
+
+
+### Added
+
+### Changed
+
+### Fixed
+
 ## [0.16.6] - 2026-09-30
 
 - Adopt current applicable DocKit 4.18 features while retaining local guards.
