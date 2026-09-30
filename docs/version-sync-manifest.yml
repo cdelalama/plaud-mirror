@@ -39,3 +39,5 @@ targets:
 - path: docs/operations/UPSTREAM_WATCH.md marker: html-comment
 - path: docs/operations/NAS_MIGRATION_2026-09-13.md marker: html-comment
 - path: docs/DELIVERY_CONTRACT.md marker: html-comment
+
+- path: docs/integrations/CODEX.md marker: html-comment

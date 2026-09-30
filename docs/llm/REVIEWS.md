@@ -1,5 +1,29 @@
 # Review Notes
 
+## 2026-09-30 - Plaud shared Dossier and project-card delivery
+
+Independent exact claude-opus-5-5 at high effort, verified from returned
+canonicalModel metadata. Session: 31d07f46-a54f-4ca5-a12c-bcac0c8d2ebe. Restricted Read/Glob/Grep;
+no shell, edits, MCP or delegated agents. Prompt/command/JSON evidence remains
+in private operator custody. Source trees: Plaud 597ce71cbeacb5804a95aee3785271a54ed2b6b4; Portal 394ad4092e54ef479cae0b167acbbaf752806163;
+Home Infra e8bb783d45aa5a95c943ee739fca023070361e7b. Result: SOURCE_GO and plan AGREEMENT.
+
+Initial findings: invisible catalog links required a scoped Portal patch;
+publish all historical source anchors; allow all L1/L2 paths; retain open phase
+gates; refresh outdated source. Source review additionally corrected a managed
+marker, staged/worktree mismatch and three grouped historical release summaries,
+and removed an unrelated Portal helper. All accepted and closed by delta review.
+A focused keyboard propagation correction preserves native Dossier activation.
+
+Validation: Plaud 38 local smoke cases, session/version checks; Portal 193 tests,
+full typecheck/build and final two admission tests; Home Infra catalog/orientation
+and session checks. Existing long-handoff and unrelated catalog expiry advisories
+remain visible. Runtime scripts preserve request identity, freshly fetched source,
+SQLite recovery, eleven mounts, reader isolation and verified rollback. Source GO
+is not runtime or independent physical recovery acceptance. Actual delivery and
+restore evidence follows in the owning Dossier runbooks.
+
+
 ## 2026-09-29 - Ecosystem reassessment and local Dossier adoption
 
 **Input:** source-only 0.16.5 candidate based on 85f624f, selective DocKit

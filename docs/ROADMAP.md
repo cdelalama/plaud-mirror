@@ -1,4 +1,4 @@
-<!-- doc-version: 0.16.5 -->
+<!-- doc-version: 0.16.6 -->
 # Plaud Mirror Roadmap
 
 This document is the canonical phase boundary for Plaud Mirror. If implementation scope starts to cross a phase boundary, update this document before claiming the work is part of the current phase.
@@ -10,21 +10,26 @@ This document is the canonical phase boundary for Plaud Mirror. If implementatio
 - If a feature depends on the next phase's guarantees, it belongs to the next phase.
 - Handoff, README, and architecture docs must point back here when there is any doubt about scope.
 
-## Current execution view - 2026-09-29
+## Current execution view - 2026-09-30
 
-Source 0.16.5 is local governance/Dossier work; production remains 0.16.1.
-The current assessment is `docs/reviews/2026-09-29-project-reassessment.md`.
-Local DocKit/Dossier adoption is authorized. The next product sequence is
-recovery evidence and failed-intake reconciliation, receiver-owned cost/scope,
-then the already-ratified bilateral connection program. Each implementation,
-deployment, paid canary and historical replay retains its existing scope gate.
+Source 0.16.6 is documentation and current applicable DocKit 4.18 adoption;
+Plaud production remains 0.16.1. The operator authorized shared Dossier delivery
+and historical documentation curation. See docs/operations/DOSSIER.md and
+[retrospective](reviews/2026-09-30-dossier-retrospective.md).
 
-Mirror runtime reports 770/770. Transcription coverage is 76 transcribed,
-72 failed and 622 not sent. Existing source/runtime evidence and normative phase
-boundaries remain; there is no new phase closure or bulk-replay authorization.
-The old wave brief's DocKit versions and Plaud 0.16/0.17 split are historical:
-current alignment is DocKit 4.17; Plaud control-plane work remains 0.17/0.18
-as already assigned by D-027 and the later roadmap amendment.
+The [September 29 consensus](reviews/2026-09-29-operational-consensus.md)
+recommends existing Markdown value (M0), a bounded new-recording path (M1),
+daily reliability (M2), then Cortex retrieval (M3). These are proposed sequencing,
+not implemented milestones or an amendment to other owners' plans. Full bilateral
+provisioning remains accepted backlog, with its eight waves preserved below and
+in the connection brief. No new paid canary or bulk replay is authorized here.
+
+September 29 observations: 770 mirrored; 76 transcribed, 72 failed, 622 not sent.
+Phase 3 stability and generic-webhook acceptance, Phase 5 independent recovery
+and its historical dual-host exit wording, and Phase 6 completion remain open.
+Dev-vm is intentionally development-only; do not reactivate a production writer
+to satisfy obsolete wording. Resolve that wording by a separate explicit roadmap
+amendment. No phase is silently closed by this retrospective.
 
 ## Historical Target - 2026-09-14
 

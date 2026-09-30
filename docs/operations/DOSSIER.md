@@ -74,7 +74,12 @@ must verify that exact export. Captures and exports do not publish themselves.
 Report the last local revision and reader availability separately in Trace.
 Capture meaningful state changes; do not create recursive receipt-only updates.
 
-## Shared delivery and recovery
+## Historical local-only delivery boundary - September 29
+
+The following paragraph describes the earlier observation. It is superseded by
+the current multi-project delivery scope below.
+
+### Previous shared delivery and recovery
 
 The verified production Portal reader currently accepts only `llm-dockit` in
 configuration, request, DTO and route. Its restricted transport is also scoped
@@ -133,3 +138,33 @@ python3 "$DOSSIER_TOOL" --project "$DOSSIER_PROJECT" latest
 python3 "$DOSSIER_TOOL" --project "$DOSSIER_PROJECT" trace \
   --export-file "$HOME/.local/state/forgeos/dossier/exports/plaud-mirror/plaud-mirror.json"
 ```
+
+## Current shared delivery scope - 2026-09-30
+
+The operator explicitly requested publication in the existing Plaud Mirror
+Portal card and preservation of the documented past. Portal 0.33.1 already
+supports multiple configured Dossiers. A small Portal 0.33.2 UI patch joins
+verified publications to explicit Home Infra catalog Dossier links and exact
+project IDs. Admission alone never creates a card; Plaud already has one.
+
+Home Infra owns the committed home-infra-dossiers admission catalog, fixed
+Plaud reader/writer transport and shared genesis. The local binding retains
+home-infra-projects identity; the two namespaces have different purposes.
+Genesis must allow the union of all historical sources, including L1 and the
+new retrospective. Preserve L1 and its observation time; publish it now as S1,
+then publish L2 with the current retrospective. Do not fabricate old captures.
+
+Coverage: seven normative phases, all 27 durable decisions including amendments,
+eight connection waves, release history and the proposed M0-M3 consensus. The
+source inventory includes every project documentation file (excluding agent/GitHub
+templates). Dossier is a reviewed technical synthesis with pinned evidence,
+not a dump of raw sessions, recordings, transcripts or private runtime logs.
+The retrospective records original dates in its prose; UI observation dates
+are capture dates, not invented dates of historical decisions.
+
+Before runtime application: independent source review, published source anchors,
+immutable Portal image, coherent SQLite backup, exact prior Compose and all
+mounts retained. Admission and publication precede advertising the link.
+Actual receipt will record exact local/shared revisions, card and five sections,
+negative project/revision/role checks, unchanged adjacent histories and isolated
+same-NAS restoration. Independent physical recovery remains open.

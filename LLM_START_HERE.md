@@ -1,7 +1,7 @@
-<!-- doc-version: 0.16.5 -->
+<!-- doc-version: 0.16.6 -->
 # LLM Start Guide - Plaud Mirror
 
-- Last Updated: 2026-09-29 - Codex
+- Last Updated: 2026-09-30 - Codex
 - Tooling update: see `docs/llm/DOCKIT_ADOPTION.md`; historical project status below is preserved.
 
 ## Read This First (Mandatory)
@@ -43,6 +43,7 @@ Recommended reading order:
 - Update docs/llm/HANDOFF.md every time you make a change.
 - Append an entry to docs/llm/HISTORY.md in every session.
 - HISTORY format defaults to `any`: either `- YYYY-MM-DD - <LLM_NAME> - ...` or `YYYY-MM-DD - <LLM_NAME> - ...` is accepted. Set top-level `history_format: dash` or `history_format: no-dash` in `.dockit-config.yml` when a project wants strict enforcement.
+- Projects with a phase-based roadmap can opt into semantic phase drift checks with `.dockit-config.yml` `orientation_drift.enabled: true`; this fails when entry docs describe a completed roadmap phase as "next".
 - Put long-form rationale in docs/llm/DECISIONS.md and link to it from HANDOFF.
 - Prefer ASCII-only in docs/llm/* to avoid Windows encoding issues.
 <!-- DOCKIT-TEMPLATE:END doc-update-rules -->
@@ -88,140 +89,26 @@ Recommended reading order:
 
 ## Current Focus (Snapshot)
 
-Source of truth: docs/llm/HANDOFF.md.
+- Last Updated: 2026-09-30 - Codex
+- Source 0.16.6 adopts current applicable DocKit 4.18.0 features and prepares
+  complete curated Dossier history. Plaud NAS application remains 0.16.1.
+- Owner request explicitly authorizes shared technical publication and a visible
+  Dossier action on the existing Portal project card. It does not authorize
+  transcription spend, historical replay or Plaud/Media2Text deployment.
+- Local L1 is immutable. The next native capture preserves it and adds a dated
+  retrospective of phases, releases, decisions, unresolved work and sources.
+  Publication and browser/restore receipts follow in docs/operations/DOSSIER.md.
+- Read docs/reviews/2026-09-30-dossier-retrospective.md for coverage and
+  docs/reviews/2026-09-29-operational-consensus.md for the previously agreed
+  operational-first recommendation. M0-M3 remain proposed, not implemented or
+  an owner-wide roadmap amendment. Existing normative phase gates stand.
+- Historical observation on September 29: 770 mirrored, 76 transcribed,
+  72 failed, 622 not sent. These counts are dated, not refreshed by this work.
+- Current review: exact Opus 5.5 high; source/publication/runtime/physical
+  recovery evidence remain distinct. Independent audio/Dossier backup is open.
+- Next: finish reviewed shared delivery; then choose the first private reading
+  destination and authorize the bounded transcript-export implementation.
 
-- Last Updated: 2026-09-29 - Codex
-- Owner: Carlos. Focus: project reassessment and explicitly authorized local
-  DocKit/Dossier adoption. Local source 0.16.5; NAS runtime stays 0.16.1.
-- Current evidence: Plaud 770/770 mirrored; primary transcription destination
-  enabled; 76 transcribed, 72 failed (70 requiring review), 622 not sent.
-  Media2Text runtime 0.39.3 has 69 failed intakes and 76 pending downstream
-  transcript obligations. These dated observations supersede older counts below.
-- Phase: accepted NAS placement; transcription recovery, bilateral connection
-  control, independent recovery and final joint stability acceptance remain open.
-- Read `docs/reviews/2026-09-29-project-reassessment.md` for the complete
-  ecosystem assessment and ordered next steps. Keep frozen content contracts.
-- DocKit: selective 4.17.0 onboarding/Trace/Dossier alignment; local validator
-  extensions are retained. See `docs/llm/DOCKIT_ADOPTION.md` for exact scope.
-- Dossier: registered identity plaud-mirror and shared offline tool 1.1.0.
-  Local L1 local:37d1154a is captured and exported with five committed sources;
-  same-draft retry and no_change preserve the one-record history. See
-  `docs/operations/DOSSIER.md` for the full revision and receipt. The local
-  reader is not started; shared publication and independent backup remain open.
-- Next concrete steps: verify backup/restore; reconcile failed jobs and live
-  economic headroom with Media2Text; then freeze the bilateral provisioning
-  schemas before receiver profile storage and producer setup implementation.
-- This session authorizes local adoption, analysis and documentation. It does
-  not authorize paid work, replay, new credentials, deployment or shared serving.
-
-Historical snapshots below are retained evidence, not current instructions.
-- Last Updated: 2026-09-14 - GPT-5 Codex
-- Working on: **accepted NAS runtime and completed horizontal
-  reconciliation.** Source/host patch `v0.16.2` is published at `9d6bce7` and
-  CI run `34793046331` passed without an image. Its corrected verifier passed
-  against the unchanged immutable `v0.16.1` NAS container. NAS `edge-caddy`
-  now routes the canonical hostname to loopback; direct and canonical
-  authenticated runtime/Range checks pass at 720/720. First NAS-owned PT15M
-  run `16e03fb1-7b56-4854-81d1-6a8dfa85bfc4` completed with zero work and
-  zero failures. The `dev-vm` writer was stopped with `restart=no` before
-  cutover; its control state and quiesced SQLite backup are retained, but its
-  recording tree, retired container, local Plaud image, and dependencies are
-  now absent.
-  `v0.16.3` changes only owner truth to `host_id: nas` and Doppler
-  `prd` references so Home Infra/Portal can reconcile; it created no image,
-  restart, copy, replay, Cortex delivery, provider spend, Home Infra Protocol
-  change, or ForgeOS change. The same restricted exact Opus 5.1/high session
-  first caught and then confirmed closure of two stale HANDOFF hazards; its
-  remediated pass returned GO with no blocker, high, or medium finding and no
-  subagent use. Published `v0.16.3` source `ffe28e9` passed CI run
-  `34794162860`. Home Infra `0.34.18` commits `f82fb02` and `0519d45` now
-  project Plaud Mirror as the canonical production service on NAS. The final
-  input sync used backup
-  `/share/Container/compose/infra-portal/input-backups/20260914T012258Z-before-0519d45`
-  and did not restart Infra Portal, Plaud Mirror, or edge-caddy. Portal
-  provenance reports catalog source `0519d45`, Plaud contract source
-  `ffe28e9`, and no warnings; the service is up at HTTP 200 and the sync job is
-  current on host `nas` with exact 720/720 coverage. The same restricted exact
-  Opus 5.1/high session returned GO on the documentation closure with no
-  blocker, high, or medium finding and no subagent use. On 2026-09-14 the
-  operator explicitly authorized exact-target dev-vm audio cleanup after a
-  fresh checksum dry run compared every 1,441 file and 12,209,691,055 bytes
-  with zero created, transferred, missing, extra, or changed file. Exactly
-  `/home/cdelalama/src/plaud-mirror/runtime/recordings` was emptied;
-  `runtime/data` was untouched. Dev-vm root usage fell from 93% / 8.5 GB free
-  to 83% / 20 GB free. NAS remained healthy at 720/720 with the same file
-  count and bytes. No independent NAS backup was verified before cleanup, so
-  NAS is now the sole verified audio copy. The same restricted exact Opus
-  5.1/high session returned GO on this closure with two LOW completeness nits,
-  both adopted, and no subagent use. A second explicit GO retired only
-  `node_modules`, container `f48768df...`, and image `10df2649...`; Docker
-  events show one container destroy, one image untag/delete, and no volume
-  destroy. The checkout fell from 211 MiB to 55 MiB and root used bytes fell by
-  515,215,360. All 15,594,388 bytes of `runtime/data`, `.env`, Git/source, and
-  the empty recordings directory remain. The pre-NAS database backup and
-  `secrets.enc` hashes are unchanged and match NAS copies. This is the only
-  off-NAS Plaud custody pending a recoverable backup, not current state or a
-  runnable rollback. Unrelated dev-vm growth left root at 91 percent; global
-  Docker cleanup is not authorized here. Next: establish and restore-test a
-  recoverable NAS backup, then continue observation and the generic-webhook
-  drill.
-- Previous: **v0.12.0 destructive-operation and coverage integrity is
-  deployed and reconciled.** The first real
-  operator deletion exposed weak 2xx acknowledgement and a false remote
-  coverage partition. The new release journals deletion state/events,
-  reconciles uncertain outcomes before retry, accepts only explicit mutation
-  success, blocks Restore during unresolved deletion, and commits physical
-  coverage by full-list generation. Runtime source `8df5c35` passed all 190
-  tests, CI, backup, audits, and visual gates before deployment. Live health is
-  exact at 626/626 current remote rows, zero dismissed/missing/local-only, and
-  one confirmed upstream tombstone; auth, PT15M, SQLite integrity, warnings,
-  outbox, and protocol `ok/none` pass. Home Infra 0.6.6 external commit
-  f161f39 is synchronized with warning-free Portal provenance. Home Infra
-  Protocol and Infra Portal required no code change. Plaud-first delivery to
-  Media2Text is now operator-ratified, but the producer review of Media Intake
-  v1 at Media2Text commit `c982ced` returned REQUEST CHANGES before
-  implementation. D-022 requires collection-aware identity, authenticated
-  artifact fetch, pinned artifact lifetime, and durable completion/status
-  reconciliation back to Plaud Mirror so the product can show exact
-  transcription coverage. The deployed runtime remains untouched; no adapter,
-  endpoint, canary, or additional real deletion was invoked.
-- Previous (2026-07-10, v0.10.7 soak activation): Physical reconciliation examined all
-  619 recordings with zero candidates/failures. The contract declares
-  `internal-loop`, `cadence: PT15M`, and `stale_after: PT2H`. Runtime v0.10.7
-  is Docker healthy; its first automatic tick finished after the underlying
-  619-record sync completed with zero work/failures, and Infra Portal reports
-  `stale=false`, producer/display `ok`. Both Node 20 timeout tests
-  keep the event loop alive until their unref'ed abort timers fire; runtime
-  behavior is unchanged from `v0.10.4`. Scheduled ticks await the
-  actual mirror run; whole-run cancellation defaults to one hour; pagination
-  is bounded; outbox setup failures requeue claims and all eight waits precede
-  a ninth final attempt; SIGTERM drains work before SQLite closes; compose has
-  a healthcheck; dependency audits are clean. The 3-5 day soak is running.
-- Previous (v0.10.0): Plaud recording sync now publishes the Home Infra Protocol contract/status surface. This did **not** rewrite the Plaud sync engine: the existing scheduler/manual sync/backfill/outbox flow remains the producer. New `infra.contract.yml` declares `plaud-mirror-recordings-sync` as a `home-infra-protocol` `sync_jobs[]` entry; `packages/shared/src/protocol.ts` models the status snapshot; `apps/api/src/runtime/protocol-status.ts` maps existing `ServiceHealth` into protocol checks; and public routes `GET /api/protocol/sync-jobs/plaud-mirror-recordings-sync/status` plus alias `/api/protocol/status` return a sanitized snapshot for Infra Portal/Hermes consumers. Home Infra commit `5df02e3` registers the contract and the NAS portal input sync copied Plaud Mirror contract source `fcbb7d9`; Infra Portal `/api/sync-jobs` now includes `plaud-mirror-recordings-sync`.
-- Previous (v0.9.6): LLM-DocKit 4.9.6 adopter sync, no runtime deployment. Applied the 4.9.6 sync from `~/src/LLM-DocKit` and kept the useful upstream guardrails: HISTORY format defaults to `any` with strict dash/no-dash opt-in, version tooling supports `json-version`, `yaml-info-version`, and `package-lock-version`, and Trace v1.3 requires seconds in chat `Sent` headers plus stale-read re-verification guidance. The raw sync again dropped Plaud Mirror's local validator checks (`handoff-start-here-sync`, `prose-drift`, `unabsorbed-artifact`) from the copied `scripts/dockit-validate-session.sh`; they were reinserted before commit. `scripts/test-validator.sh` reports 32 smoke cases, including the intentional upstream rule that HANDOFF Trace Anchor commit times may omit seconds while chat `Sent` headers must include seconds. `docs/version-sync-manifest.yml` tracks `package-lock.json` via `package-lock-version`, raising version-sync from 21 to 22 targets and clearing the stale lockfile version.
-- Previous (v0.9.5): mobile operator shell made usable. The `v0.9.0` redesign and `v0.9.1` full-viewport shell still behaved too much like desktop on phones: the mobile rail hid labels and showed only icons, the status strip occupied too much vertical space, and Library row actions could fall to the lower-left of a mobile row. v0.9.5 keeps backend routes, auth, sync, storage, scheduler, webhook, secrets, and `.env` behavior unchanged while adding a labeled mobile view selector (`Vista` / `View`), replacing the large mobile status strip with one compact chip row, and pinning Library dismiss/restore actions to the top-right on narrow screens. Tests: 154 (127 Node/integration + 27 web). Runtime state after deploy: container and `/api/health` report `0.9.5`, auth healthy, EU API base, catalog complete at 580/580, operator lock armed.
-- Previous (v0.9.4): Library playback and scrolling fixed in the redesigned panel. The `v0.9.0` Library had two operator-visible regressions in the full-viewport shell: Compact Play only toggled React state and did not start the native audio element, and the recordings list did not own a reliable scroll area. v0.9.4 keeps the backend and data contracts unchanged while making each playable row keep a real `<audio>` in the DOM, calling `audio.play()` inside the compact button's user gesture, pausing stale rows when another row starts, widening Full-mode player rows on desktop, and giving Library a table-owned scroll region under its fixed header/toolbar/pagebar. Tests: 153 (127 Node/integration + 26 web). Runtime state after deploy: auth healthy, EU API base, catalog complete at 517/517, operator lock armed.
-- Previous (v0.9.3): DocKit trace protocol merged without losing local guardrails. A raw LLM-DocKit sync had landed in the working tree after v0.9.2 and added trace-protocol scaffolding, but also removed Plaud Mirror's local governance protections: `handoff-start-here-sync`, `prose-drift`, `unabsorbed-artifact`, and `json-version` package-manifest handling. v0.9.3 keeps the useful upstream pieces (`LLM_START_HERE.md` Trace Protocol section, bootstrap Trace guidance, validator `trace-protocol` check, read-only skip refinement, and smoke tests) while restoring the local extensions. `scripts/check-version-sync.sh` again checks 21 targets, and `scripts/dockit-validate-session.sh --human` reports 12 checks: the previous 11 plus trace-protocol, skipped unless explicitly enabled in `.dockit-config.yml`. `scripts/test-validator.sh` passes 17/17.
-- Previous (v0.9.2): Main sync action now downloads the displayed missing count. Live investigation showed the Main cockpit button inherited the Historical Backfill form's conservative draft `limit=1`, so a click could examine the full Plaud catalog while downloading only one missing recording. `apps/web/src/App.tsx` decouples Main from the Backfill draft: Main computes the displayed missing count from health, sends that count to `POST /api/sync/run` capped at the existing 1000-item backend ceiling, forces `forceDownload:false`, labels the button with the exact count (`Descargar N` / `Download N`), and asks for confirmation at 25+ downloads. Backfill keeps its own `limit=1` default because it is an advanced filtered tool. Tests: 151 (127 Node/integration + 24 web). Operational full sync run `5a970a84-3f44-4602-b727-3d1d12179349` completed with `examined=514`, `matched=165`, `downloaded=165`, `skipped=165` (webhook skipped because no webhook is configured), `enqueued=0`, and no error; health/SQLite show `recordingsCount=514`, `plaudTotal=514`, missing `0`.
-- Previous (v0.9.1): full-viewport operator shell + documentation drift cleanup. The `v0.9.0` redesign copied the standalone reference frame too literally, rendering production as a centered 1240px card on a grey presentation canvas. `apps/web/src/styles.css` removed the outer card frame (`max-width`, page padding, border, radius, shadow), made the operator frame fill `100vh`/`100%`, kept the 212px rail pinned to the left edge on desktop, and let `.operator-content` own vertical scrolling. Existing screens, components, copy, endpoints, auth/reconnect flows, and mobile breakpoints stayed intact. Tests: 150 (127 Node/integration + 23 web).
-- Previous (v0.9.0): reference-driven operator panel redesign. Absorbed `docs/design/reference/plaud-mirror-panel-standalone.html` into the real React/Vite panel without backend API changes or secret/env edits. The panel now uses the dense light-console visual system from the reference (212px rail, Archivo/Space Grotesk/JetBrains Mono, green accent, state colors) and real five-screen navigation: Main, Library, Backfill, Configuration, Operations. Existing capabilities stay wired: operator login, health/status, Chrome-extension reconnect + manual token fallback, scheduler/webhook config, sync/backfill, recordings playback/dismiss/restore, outbox retry, and errors/runs. Added ES/EN operator chrome persisted in localStorage. Tests 148 -> 150 (127 Node + 23 web).
-- Previous (v0.8.1): backend Plaud validation fingerprint aligned with Plaud Web. The operator proved the extension-captured EU user token is valid in the Plaud Web console, while the backend received an HTML `403` from Plaud/Cloudflare. Diagnosis: token and region were correct; the stale server-side Plaud request context was the mismatch (`Origin/Referer: https://app.plaud.ai` plus custom `plaud-mirror-phase1/...` user-agent). Fix: `PlaudClient` now sends `Origin/Referer: https://web.plaud.ai`, a browser-like Chrome UA, and browser `sec-fetch-*` headers. Extension flow unchanged. Tests 147 -> 148. v0.8.0 below.
-- Previous (v0.8.0): definitive Phase 4 delivery path: local Chrome extension. Post-diagnosis confirmed the v0.7.x draggable bookmarklet path is broken as a recommended UX because React replaces `javascript:` hrefs with a defensive throw before Chrome stores the bookmark. Product decision: stop patching draggable bookmarklets as the main path. v0.8.0 adds `apps/chrome-extension/` ("Plaud Mirror Connector"), a local unpacked Manifest V3 extension that reads the active Plaud tab's user bearer (`pld_tokenstr` first, storage scan fallback), injects in Chrome's `MAIN` world, stores only the mirror origin, and redirects to the existing `/connect#token=...` capture handshake. Panel UX is extension-first; bookmarklet is copy-only fallback. Phase 4 spans `0.7.x`-`0.8.x` at that point. Tests 145 -> 147 (126 Node + 21 web). v0.7.6 below.
-- Previous (v0.7.6): bookmarklet no longer fails silently. Operator tried the "Reconectar Plaud Mirror" bookmarklet on app.plaud.ai and saw no visible action. Fix: `buildBookmarklet` is short (<2 KB), focuses on `pld_tokenstr`, scans storage as fallback, and shows a Plaud Mirror alert for every outcome. Tests 145. This path is now fallback only.
-- Previous (v0.7.5): friendly rejection for masked/redacted token pastes. Operator hit `Cannot convert argument to a ByteString... index 7 value 9679`; `9679` is `●`, so the pasted value was `Bearer ●●●...`. `saveAccessToken` now rejects mask characters and other header-unsafe token characters before building the Plaud `Authorization` header, returning a clear 400. Deploy follow-up: Dockerfile switched from a hanging `npm prune --omit=dev` to a `prod-deps` stage (`npm ci --omit=dev`) for the runtime image. Tests 144. Live dev-vm verified on `0.7.5`, with operator auth armed and EU API base set. v0.7.4 (PII/info-leak fix) below.
-- Previous (v0.7.4): closed the PII/info-leak from v0.7.3: Plaud's raw error body was reaching the public `/api/health` via `auth.lastError`/`lastSync.error`/`lastErrors`; the `PlaudApiError.message` is generic again and the body is surfaced only on the authenticated token-save response. Also fixed stale `plaud-token.ts` comments. Tests 143. Dated 2026-06-13 per explicit operator request. v0.7.3 (validation 403 fix) below.
-- Previous (v0.7.3): fixed the 403 on token validation: root cause was wrong token type (the capture grabbed the per-workspace token, but `/user/me` wants the global user token `pld_tokenstr`) on top of a region mismatch (account is EU → `PLAUD_MIRROR_API_BASE=https://api-euc1.plaud.ai` in Doppler). Extractor now prefers `pld_tokenstr`; `saveAccessToken` normalizes messy pastes; Plaud's rejection body is surfaced. Tests 142. Operator still needs to re-run reconnect to validate. v0.7.2 (bookmarklet encoding fix) below.
-- Previous (v0.7.2): fixed the bookmarklet that silently did nothing (`buildBookmarklet` was percent-encoding the whole body → browser ran encoded text → syntax error; now raw executable `javascript:`, regression-guarded). Plus `window.open` null-check and a rewritten, numbered reconnect card (the operator didn't know the bookmarks bar and clicked instead of dragging). 141 tests. Operator still needs to run the now-working reconnect to fix the Plaud token (degraded since 2026-05-13). Earlier patch (v0.7.1) below.
-- Previous focus (v0.7.0): **Phase 4 entered: browser-assisted Plaud re-auth (D-019).** Google-SSO account = no password possible (credentials-login out); official OAuth/MCP deferred-watch. Chosen: capture the browser's existing bearer via a panel-initiated single-use capture session + a bookmarklet (extraction adapted from MIT `iiAtlas`, attributed). Routes `/api/connect/start` + `/api/connect/complete`; `/connect` landing (`ConnectPlaud`); `apps/web/src/plaud-token.ts`. ~300-day token → ~once-a-year tap. Manual paste stays fallback; Telegram is NOT a capture channel. Tests 130 → 141. Next: re-validate the Plaud token (degraded since 2026-05-13) via the new flow; observability UI + soak still pending. Earlier patch (v0.6.3) below.
-- Previous focus (v0.6.3 patch): trap-based terminal-state restore in `scripts/set-admin-passphrase.sh` (low finding from the operator's audit of v0.6.2; Ctrl-C mid-prompt could leave the terminal without echo). No runtime change. Residual operativo: armar D-018 ejecutando el helper + `doppler run -- docker compose up -d`, luego verificar 401 en `/api/config` sin cookie. Previous day below.
-- Previous focus (2026-06-10 - Claude Fable 5): **v0.6.0 — Phase 3 hardening release** from the 2026-06-10 security review (findings C1/H1/H3, operator-confirmed). Operator access control (D-018): `PLAUD_MIRROR_ADMIN_PASSPHRASE` + signed HttpOnly session cookie gates every `/api/*` route; new `apps/api/src/runtime/operator-auth.ts`, session routes with login throttle, `LoginGate` in the panel, PII redaction on the public `/api/health`; backward compatible (unset = open + warning) — **operator must add the env var to the dev-vm `.env` to arm it**. Startup crash recovery (D-013 amendment): orphaned `running` sync runs failed at boot (they deadlocked the anti-overlap guard forever), orphaned `delivering` outbox rows re-queued at-least-once with backoff budget intact. Plaud client timeouts: `AbortSignal.timeout` on every API call (30 s) and audio download (10 min). ROADMAP re-cut: Phase 3 = `0.5.x`–`0.6.x`, Phase 4 (re-login) → `0.7.x`. Tests 116 → 130 (116 backend + 14 web). Closed same session as patch **v0.6.1**: dockit-sync to LLM-DocKit 4.8.2 (validator merged preserving local guardrails; smoke suite 9/9). Patch **v0.6.2** adds `scripts/set-admin-passphrase.sh` (operator-run, stores the D-018 passphrase in Doppler `plaud-mirror/dev`, creates the Doppler project on first run). Queued next (HANDOFF Open Work): observability UI in the panel, scrypt KDF upgrade, Phase 4 spike of Plaud credentials login, DF to LLM-DocKit about clobber-on-sync.
-- Previous focus (2026-05-14 - Claude Opus 4.7): closed the pending LLM-DocKit 4.8 sync and infra-exposure docs from the 2026-05-13 Codex session as patch release **v0.5.6** (governance/sync; no runtime change); local guardrails (`json-version`, D-016, D-017) preserved through the sync.
-- Previous focus (2026-05-13 - Codex): Infra exposure + DocKit sync hygiene. `home-infra` is registering Plaud Mirror as an operator-visible service at `https://plaud.lamanoriega.com/` through NAS `edge-caddy` to the dev-vm backend `http://10.0.0.110:3040`. Local runtime was verified alive on dev-vm: `/api/health` returns version `0.5.5`, auth `healthy`, scheduler disabled, `recordingsCount: 345`, `plaudTotal: 391`, last sync completed at `2026-05-13T17:56:16.859Z`. LLM-DocKit upstream is `4.8.0`; this repo now has the 4.8 SessionStart hook and `scripts/dockit-bootstrap-context.sh`, while preserving project-specific `json-version`, `prose-drift` (D-016), and `unabsorbed-artifact` (D-017) guardrails that the upstream template does not carry.
-- Previous focus (v0.5.3 release): durable webhook outbox (D-013). Webhook delivery is decoupled from sync: each successfully-mirrored recording pushes its payload into a new `webhook_outbox` SQLite table with an explicit FSM (`pending → delivering → delivered | retry_waiting → permanently_failed`), and a dedicated `OutboxWorker` retries with exponential backoff (30s → 8h, 8 attempts, ~16h cumulative window) before escalating. The HMAC signature is recomputed at delivery time so a rotated `webhookSecret` is honoured for items still in the queue. New routes `GET /api/outbox` (failed list) and `POST /api/outbox/:id/retry`. New `health.outbox` block. New `SyncRunSummary.enqueued` counter; `delivered` keeps its original semantic and structurally stays at 0 from now on. Panel gets a new "Webhook outbox" card (counters + permanently-failed list + Retry button per row). Test count: 102 → 113 (102 backend + 11 web).
-- Previous focus (v0.5.2 release, 2026-04-25): `v0.5.2` adds **panel-driven scheduler configuration**. The user explicitly asked for the scheduler to be configurable from the UI ("no me interesa que esté en el .env"), so the scheduler interval moves from "env-var only" to "persisted in SQLite, settable via `PUT /api/config`, hot-applied with no restart." The env var is downgraded to a one-time seed for fresh installs. Tercer roadmap shift en `0.5.x`: outbox (D-013) → `v0.5.3`, full health (D-014) → `v0.5.4`.
-- Status: `v0.5.2` shipped. Code: new module `apps/api/src/runtime/scheduler-manager.ts` with `SchedulerManager.applyInterval(ms)` (start / stop / swap-cadence in place, idempotent for unchanged values, throws below the 60 000 ms floor); `RuntimeConfig.schedulerIntervalMs` and `UpdateRuntimeConfigRequest.schedulerIntervalMs?` added to the shared schema (`.default(0)` so older clients still parse); `RuntimeStore.seedSchedulerDefaults(ms)` writes the env-var bootstrap value only when the SQLite row is absent; `RuntimeStore.saveConfig` accepts the new field and persists via the existing `settings` key/value table; `service.updateConfig` validates the floor at the request boundary (HTTP 400 for sub-floor positives), persists, then calls a new reconfigure hook so the live `Scheduler` is started / stopped / swapped via the manager; `service.setSchedulerReconfigureHook(fn)` mirrors `setSchedulerStatusProvider`; `apps/api/src/server.ts` now constructs a `SchedulerManager` unconditionally, wires both hooks, and applies the persisted interval after `service.initialize()` (env-var seed runs first); the inline `Scheduler` instantiation in `createApp` is gone. Web: new "Continuous sync scheduler" card on the Configuration tab with a live status block (state, interval, next/last tick, last reason) and a form (`Interval (minutes, 0 disables)`); helpers `formatSchedulerInput` / `parseSchedulerInput` round-trip minutes ↔ ms; `handleSaveScheduler` posts to `PUT /api/config { schedulerIntervalMs }`. Tests: 9 new (1 store round-trip + seed-only-once, 7 in the new `scheduler-manager.test.ts`, 1 service `updateConfig`). Test totals: **102** (91 backend + 11 web), up from 93 at `v0.5.1`. Doc sweep: CHANGELOG `[0.5.2]` filled (Added/Changed/Notes); ROADMAP "Current target" → `v0.5.2` and entry note rewritten to mention panel-driven config + push outbox to `v0.5.3` and full-health to `v0.5.4`; PROJECT_CONTEXT current-status rewritten to lead with the panel UX win; ARCHITECTURE status header + "What Phase 3 Adds" / "Continuous sync scheduler" / "Next Architectural Step" all updated to describe the SchedulerManager + SQLite-as-source-of-truth flow + the env var as a one-time seed; AUTH_AND_SYNC env-var matrix replaced with a unified value matrix that applies regardless of source (panel or seed) plus an explicit "to take an existing install back to disabled, set the value to 0 in the panel — removing the env var no longer changes anything" warning; API_CONTRACT route table + `PUT /api/config` example + Phase Boundary Note all updated; HOW_TO_USE "Configuring the scheduler" rewritten to lead with panel steps and demote env-var to "Optional: bootstrap from the env var" subsection; test count bumped to 102 with breakdown. HANDOFF / LLM_START_HERE kept in sync. Next session: `v0.5.3` for the durable webhook outbox per D-013.
-
-Keep this section synchronized with the "Current Status" block in docs/llm/HANDOFF.md.
 
 <!-- DOCKIT-TEMPLATE:START checklist -->
 ## Getting Started Checklist
@@ -460,3 +347,30 @@ Recovery must remain available independently of ordinary delivery checks.
 Keep source publication, deployment and actual user acceptance separate. A short
 HANDOFF names the observed result, current blocker and next concrete step.
 <!-- DOCKIT-TEMPLATE:END delivery-evidence -->
+
+<!-- DOCKIT-TEMPLATE:START workspace-ownership -->
+### Parent-owned task workspaces
+
+The source root contains admitted primary projects. Tasks, experiments, reviews,
+disk investigations and delivery branches belong to an existing project; their
+folder names never make them independent projects. A new top-level project needs
+an explicit operator purpose and `devenv admission add PROJECT` after validating
+its canonical repository. Visibility is independent from lifecycle and sessions.
+
+On managed hosts use `task-workspace create --project OWNER --task ID --purpose
+"Specific result"`. Worktrees live under the host's hidden worktree root and
+host-local locations stay out of portable project records. Start by reading
+`docs/llm/WORK_INDEX.md` when present and `task-workspace status --project .`.
+After adoption or completion, export the validated `docs/llm/work/*.json` records
+and index into a reviewed task checkout, update the parent's handoff/history,
+validate, commit and safely publish. Record a disposition and next step even when
+work is paused or incomplete. An export does not prove publication; verify the
+records against a freshly fetched `refs/remotes/origin/*` reference.
+
+Never infer deletion eligibility from age, a clean Git status, a merged branch,
+or a closed task. Ignored evidence, untracked material and active processes need
+separate custody checks. Preserve unknown, dirty, unpublished and active work.
+Do not create task-named siblings under the source root or auto-admit directories.
+The PATH guard protects supported CLI workflows; direct Git binaries and other
+clients can bypass it, so project admission and reconciliation remain essential.
+<!-- DOCKIT-TEMPLATE:END workspace-ownership -->

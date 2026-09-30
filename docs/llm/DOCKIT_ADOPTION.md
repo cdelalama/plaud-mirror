@@ -1,3 +1,26 @@
+# DocKit 4.18.0 adoption - 2026-09-30
+
+Upstream: 4.18.0 at ae2bd1df20587974f4c7496032bbb6db176cbb34,
+verified against fetched origin/main. Plaud source 0.16.6 is tooling/docs only.
+
+Adopted the current bootstrap, workspace validator, session gate, optional Codex
+hook installer and integration instructions. Reconciled current managed onboarding
+sections and Claude SessionStart/Stop hooks. Existing PostToolUse/PreCompact hooks
+retain identical behavior. The validator adds upstream work-records while retaining
+all three local drift/orientation checks and the existing smoke-test corpus.
+Delivery helpers already match upstream; the current contract is refreshed.
+The upstream Trace version example is qualified as DocKit to avoid a local
+cross-product prose-version false positive. Optional Codex hook installation is
+not automatic; the supplied integration guide describes its host requirement.
+
+The upstream full dry-run was inspected before editing. No force sync or private
+sync-state rewrite ran. This is current applicable-feature adoption with deliberate
+project variants (validator/tests/version targets/hooks), not byte parity with a
+blank scaffold. Historical full-template state is not evidence of current parity.
+Exact source review and validation are recorded in REVIEWS.md.
+
+## Preserved earlier adoption receipts
+
 # DocKit selective adoption - 2026-09-29
 
 Upstream: 4.17.0 at d065a38602656ce8936e3ecfc6f0bedb7beafd27,

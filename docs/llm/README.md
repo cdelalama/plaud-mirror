@@ -52,3 +52,7 @@ The project owner uses a few abbreviations in conversation. Treat them as equiva
 - **HO** → `docs/llm/HANDOFF.md` (the handoff). E.g. "escribe en el HO" = "update HANDOFF.md".
 
 When in doubt, confirm the expansion in a single sentence before acting rather than guessing.
+
+Current Dossier history: `docs/reviews/2026-09-30-dossier-retrospective.md`.
+Prior operational consensus: `docs/reviews/2026-09-29-operational-consensus.md`.
+Parent task records use `docs/llm/WORK_INDEX.md` when exported.

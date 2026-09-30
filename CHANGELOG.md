@@ -4,6 +4,18 @@ All notable changes to Plaud Mirror are documented in this file.
 
 This project follows Semantic Versioning (SemVer): MAJOR.MINOR.PATCH.
 
+## [0.16.6] - 2026-09-30
+
+- Adopt current applicable DocKit 4.18 features while retaining local guards.
+- Curate complete project history and prepare shared Dossier delivery.
+- Preserve the operational-first consensus as a proposal, with no runtime change.
+
+### Added
+
+### Changed
+
+### Fixed
+
 ## [0.16.5] - 2026-09-29
 
 ### Added

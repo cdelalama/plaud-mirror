@@ -1,4 +1,4 @@
-<!-- doc-version: 0.16.5 -->
+<!-- doc-version: 0.16.6 -->
 # NAS Migration - 2026-09-13
 
 ## Scope and authority

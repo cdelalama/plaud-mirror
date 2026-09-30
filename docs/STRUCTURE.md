@@ -1,4 +1,4 @@
-<!-- doc-version: 0.16.5 -->
+<!-- doc-version: 0.16.6 -->
 # Repository Structure Guide
 
 This document describes the actual Plaud Mirror repository layout as of the first usable Phase 2 slice.
@@ -159,3 +159,9 @@ Read in this order before changing runtime scope:
 4. `docs/ROADMAP.md`
 5. `docs/ARCHITECTURE.md`
 6. `docs/operations/AUTH_AND_SYNC.md`
+
+- `docs/reviews/2026-09-29-operational-consensus.md`: preserved agreed proposal.
+- `docs/reviews/2026-09-30-dossier-retrospective.md`: source-grounded historical coverage.
+- `scripts/dockit-workspace.py`: upstream portable task-record validation.
+- `scripts/dockit-session-gate.sh`: session-aware Claude documentation gate.
+- `docs/integrations/CODEX.md`: optional Codex hook integration.

@@ -1,3 +1,4 @@
+- 2026-09-30 - Codex - Prepare DocKit 4.18 and shared Dossier retrospective under explicit operator request; preserve local L1, historical evidence and all runtime gates. Source version 0.16.6; independent exact Opus source review and actual publication receipts follow.
 # LLM Change History
 
 Append new entries at the top so the most recent activity is easiest to find.
