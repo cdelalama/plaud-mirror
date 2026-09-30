@@ -219,3 +219,18 @@ under operator custody; no keys, raw sessions or personal content are published.
 ### Curation correction disclosed during final review
 
 L2/S2 differs from the reviewed draft by sharing-driven normalization: decision line breaks were collapsed, a credential-store URI was expressed as prose, and D-017 tab escapes were inadvertently rendered as the word tab. L3 corrects D-017 in prose. The unchanged filter rejected the line-structured L3 trial before capture; decision line breaks therefore remain collapsed, with structured original text preserved in pinned sources.
+
+## Delivered-state capture and final recovery
+
+Native L3: `local:9257e8a48888f8bbae6c502d750e4cdeeb39dacca9a9c0721e478faeb4b676c1`.
+Published S3: `shared:31319f4a61b3db8442446b594535b0db47cd5ce0ba87552a537289086d4b3d67`.
+The same UUID and bytes return already_captured; reviewed export passes. All
+34 sources are pinned to the published delivery receipt commit. L3 marks the
+Dossier milestone done and corrects the D-017 portability footnote in the
+projection, preserving exact original source and immutable L1/L2. Exact Opus
+5.5 high conditionally approved documentation and curation; every specified
+correction was applied and verified. Live API and browser verify
+all three revisions and current delivered status; adjacent histories remain
+unchanged. Final coherent backup restores all three exact revisions in an
+absent isolated NAS store. Independent physical recovery remains open.
+This final receipt-only commit intentionally creates no recursive L4.

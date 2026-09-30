@@ -38,6 +38,12 @@ L2 remained current and immutable. The accepted fallback discloses collapsed
 line structure while correcting D-017 in prose. No further review was required
 by that verdict for these specified corrections.
 
+Final same-session exact Opus 5.5 high review conditionally approved delivery
+and curation after specified corrections; all were applied and checked, with
+actual canonicalModel verified. Meaningful L3/S3 publication
+and final three-revision restore passed; this final receipt-only update creates
+no recursive capture. Runtime checks remain executor-supplied evidence.
+
 ## 2026-09-29 - Ecosystem reassessment and local Dossier adoption
 
 **Input:** source-only 0.16.5 candidate based on 85f624f, selective DocKit

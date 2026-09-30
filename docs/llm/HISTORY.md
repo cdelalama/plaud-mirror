@@ -1,3 +1,5 @@
+- 2026-09-30 - Codex - Captured and published delivered-state L3/S3; preserved all three exact revisions and restored final coherent backup in isolated NAS custody. Close the scoped workspace with checkout retained. Version impact: none (receipt only). Trace: role=executor; state=L3-S3-delivered-and-logical-recovery-verified; validation=exact-opus-curation-api-browser-backup-restore; next=independent-physical-recovery-and-proposed-M0
+
 - 2026-09-30 - Codex - Delivered Plaud Dossier and visible project-card reader with preserved native history, exact Opus 5.5 high consensus, 33 live browser checks and isolated coherent restore. Plaud/Media2Text producers unchanged. Version impact: none (delivery receipts). Trace: role=executor; state=shared-reader-serving; validation=transport-api-browser-backup-restore; next=delivered-state-capture-and-independent-physical-recovery
 
 - 2026-09-30 - Codex - Prepare DocKit 4.18 and shared Dossier retrospective under explicit operator request; preserve local L1, historical evidence and all runtime gates. Source version 0.16.6; independent exact Opus source review and actual publication receipts follow.

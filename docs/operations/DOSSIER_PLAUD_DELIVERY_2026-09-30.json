@@ -72,15 +72,15 @@
   },
   "api": {
     "state": "passed",
-    "observed_at": "2026-09-30T08:57:46.421949+00:00",
-    "records": 2,
+    "observed_at": "2026-09-30T09:11:07.870263+00:00",
+    "records": 3,
     "milestones": 28,
     "decisions": 28,
     "sources": 34,
     "other_histories_unchanged": true,
     "exact_history_and_negative_routes": true,
     "catalog_link_verified": true,
-    "read_bytes": 141673
+    "read_bytes": 277040
   },
   "browser": {
     "widths": [
@@ -95,9 +95,9 @@
   "restore": {
     "state": "verified",
     "scope": "isolated restore on same NAS; not independent physical recovery",
-    "shared_revision": "shared:4078869fabb312a76a1ff4e7864fe3f2b6e96e830377d9749a38526954fdf4dc",
-    "records": 2,
-    "backup_sha256": "9149ae75175cfe4b7a357b1ab3457552e74678a19bbab917738f9619fdc27319",
+    "shared_revision": "shared:31319f4a61b3db8442446b594535b0db47cd5ce0ba87552a537289086d4b3d67",
+    "records": 3,
+    "backup_sha256": "d207ab84146958578a3e0fe9e87a574e2a189a52bd83b9fa33217792bb698423",
     "original_records_preserved": true,
     "all_exact_historical_reads": true,
     "physical_backup_destination": "pending operator choice"
@@ -120,12 +120,50 @@
       "disposition": "captured_local",
       "local_revision": "local:3573f26108b7af12bb1735e6bdb720b022783f3928aee49007a2c366045e54a2",
       "submission": "deferred"
-    }
+    },
+    "L3": {
+      "disposition": "captured_local",
+      "local_revision": "local:9257e8a48888f8bbae6c502d750e4cdeeb39dacca9a9c0721e478faeb4b676c1",
+      "submission": "deferred"
+    },
+    "S3": "shared:31319f4a61b3db8442446b594535b0db47cd5ce0ba87552a537289086d4b3d67"
   },
   "curation_normalization": "L2/S2 differs from the reviewed draft by sharing-driven normalization: decision line breaks were collapsed, a credential-store URI was expressed as prose, and D-017 tab escapes were inadvertently rendered as the word tab. L3 corrects D-017 in prose. The unchanged filter rejected the line-structured L3 trial before capture; decision line breaks therefore remain collapsed, with structured original text preserved in pinned sources.",
   "provenance": {
     "checkedAt": "2026-09-30T08:57:36.089Z",
     "catalogCommit": "c33eb29cb485140d27c9eeca8e4bcda0201dcecc",
     "warnings": []
+  },
+  "final_browser": {
+    "state": "passed",
+    "observed_at": "2026-09-30T09:12:13.418Z",
+    "scope": "Live S3 content and retained exact S1/S2/S3 reader; prior full card and unavailable-index checks retained",
+    "checks": [
+      {
+        "width": 390,
+        "currentRevision": "shared:31319f4a61b3db8442446b594535b0db47cd5ce0ba87552a537289086d4b3d67",
+        "sections": 5,
+        "historyReads": 3,
+        "errors": 0,
+        "noHorizontalOverflow": true
+      },
+      {
+        "width": 1440,
+        "currentRevision": "shared:31319f4a61b3db8442446b594535b0db47cd5ce0ba87552a537289086d4b3d67",
+        "sections": 5,
+        "historyReads": 3,
+        "errors": 0,
+        "noHorizontalOverflow": true
+      }
+    ]
+  },
+  "delivery_review": {
+    "verdict": "DELIVERY_DOCUMENTATION_GO",
+    "curation": "CURATION_GO",
+    "model": "claude-opus-5-5",
+    "effort": "high",
+    "basis": "Conditional approval; all specified corrections applied and checked; no further round required by reviewer",
+    "review_sha256": "a022d19feed2a4eeb9b4c57c2dc852513cf2b4c2ad6497a651bc76b688f2f8c0",
+    "line_structure_trial": "Rejected before recording by unchanged sharing filter; accepted flattened fallback explicitly disclosed"
   }
 }

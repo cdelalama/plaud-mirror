@@ -9,7 +9,7 @@ This file is the live operational snapshot. Durable rationale lives in `docs/llm
 - Plaud source 0.16.6 adopts applicable DocKit 4.18.0. Its complete documented
   history is now available from Dossier on the existing Infra Portal card.
 - Portal 0.33.2 serves 28 milestones, 28 decisions, 19 historical change
-  summaries and 34 pinned sources. Native L1/S1 and L2/S2 remain immutable.
+  summaries and 34 pinned sources. Native L1/S1 through L3/S3 remain immutable.
 - Exact Opus 5.5 high returned SOURCE_GO and plan AGREEMENT. Live transport,
   API/history and 33 browser checks pass; isolated same-NAS restore is verified.
   Receipt: docs/operations/DOSSIER_PLAUD_DELIVERY_2026-09-30.json.
@@ -20,7 +20,7 @@ This file is the live operational snapshot. Durable rationale lives in `docs/llm
 - Read docs/reviews/2026-09-30-dossier-retrospective.md for documented coverage
   and docs/reviews/2026-09-29-operational-consensus.md for the operational-first
   recommendation. M0-M3 remain proposed; normative phase 3/5/6 gates stay open.
-- Next: record the delivered-state capture, maintain curated Dossier updates,
+- Next: maintain curated Dossier updates,
   resolve independent physical recovery and choose the first private transcript
   reading destination for bounded M0 implementation.
 
