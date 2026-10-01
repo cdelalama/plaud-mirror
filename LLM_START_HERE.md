@@ -1,10 +1,10 @@
 <!-- doc-version: 0.16.10 -->
 
-Current delivery: Portal 0.33.7 serves Spanish Plaud L6/S6 with clear M0 steps and
-two retained work lines. See docs/operations/OPERATOR_CLARITY_2026-10-01.md.
-Carlos has accepted M0 reading/search/offline use on computer and Android. Before
-Plaud S7, resolve reader headroom and standard backup capacity or demonstrate
-adequate measured read headroom plus validated complete backup. S6 remains usable.
+Current delivery: Portal 0.33.7 serves Spanish Plaud L7/S7 with M0 accepted on
+computer and Android and the agent-owned M1 preparation next. All six earlier
+revisions remain exact. Reader headroom and complete archive/restore passed.
+See docs/operations/DOSSIER_M0_CLOSEOUT_2026-10-02.md. The standard 2 MB backup
+API limit and independent physical recovery remain separate follow-up.
 
 
 ## Operator clarity and roadmap continuity - 2026-10-01
@@ -155,24 +155,25 @@ Recommended reading order:
 - Last Updated: 2026-10-01 - Codex
 - Source 0.16.10 clarifies M0 and roadmap continuity under the shared policy;
   it adds no runtime behavior. The prior DocKit 4.18.1 adoption remains, with the
-  selectively adopted 4.18.2 operator-clarity rule; this is not full template identity.
-- Portal 0.33.7 serves the Spanish Plaud L6/S6 Dossier: 28 milestones, 29
-  decisions (28 accepted and one proposed), 23 changes and 35 pinned sources.
-  Original L1/S1 through L5/S5 remain immutable and readable. Delivery receipt:
-  docs/operations/OPERATOR_CLARITY_2026-10-01.json.
+  selectively adopted 4.18.3 operator-clarity/closeout rule; this is not full template identity.
+- Portal 0.33.7 serves Spanish Plaud L7/S7: M0 done, M1 proposed next; 28
+  milestones, 30 decisions (29 accepted and one proposed), 24 changes and 35
+  pinned sources. L1/S1 through L6/S6 remain immutable and readable. Receipt:
+  docs/operations/DOSSIER_M0_CLOSEOUT_2026-10-02.md.
 - Local capture submission: deferred and explicit shared publication are separate
   facts. Preserve native receipts; see docs/operations/DOSSIER.md.
 - Plaud NAS runtime remains 0.16.1; Media2Text remains 0.39.3. Read-only Docker
   inspection on October 1 confirmed unchanged producer containers and September 19
-  start times. Only the Portal reader was deployed; no replay or provider call.
+  start times. The earlier Portal 0.33.7 deployment remains unchanged; this
+  closeout changed only two Dossier CPU ceilings. No replay or provider call.
 - September 29 counts (770 mirrored; 76 transcribed, 72 failed, 622 not sent)
   remain historical observations, not fresh production counts.
 - D-004 records the September 30 watch-only review of OpenPlaud/Riffado and
   plaud-toolkit. D-019 cookie/session adaptation remains open; no upstream
   implementation is imported. Report CI and Upstream Watch separately.
-- Before Plaud S7: address measured 23.53-second complete-history read headroom
-  and standard backup capacity. The coherent archive fallback restored all six
-  records; this does not repair the standard API or establish recurring disaster recovery.
+- S7 capacity gate satisfied: seven-record read 10.259 seconds and complete
+  archive restores all seven records exactly. Standard backup API limit remains;
+  this does not establish recurring or independent disaster recovery.
 - Scope and verification: docs/operations/DOSSIER_AUDIT_CLOSURE_2026-09-30.md.
   The historical partial-onboarding spot-check does not supply a current GO.
 - M0: Carlos accepted reading/search/offline use on computer and Android on

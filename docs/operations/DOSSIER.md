@@ -8,14 +8,14 @@ transcription, credentials and shared publication are separate operations.
 
 ## Current delivery and receipt interpretation - 2026-10-01
 
-The current reader serves Spanish L6/S6 on Portal 0.33.7. Exact revision:
-`shared:04aee2be34e6815da046799f479d6804903497ec0d05efd9b4b7a1eefb965c59`.
-See [the clarity delivery receipt](OPERATOR_CLARITY_2026-10-01.md).
-M0 now gives concrete download/open/search/offline steps for computer and Android;
-Carlos has since accepted both devices (M0_ACCEPTANCE_2026-10-01.md), but S6
-still shows the earlier open state. S1-S5 are exact immutable history. Before S7,
-address measured reader headroom and the standard backup size limit, or prove
-adequate fresh headroom and complete validated backup. Current S6 remains usable.
+The current reader serves Spanish L7/S7 on Portal 0.33.7. Exact revision:
+`shared:53b5fb0388ca2129d80585eedd1506dcb8b9e2aff3616c07036831c7db0dab2e`.
+M0 is done by the operator's confirmation; M1 is proposed next and starts with
+agent connection/provider/cost preparation. All six earlier revisions remain
+exact. The seven-record read takes 10.259 seconds and the complete post-S7
+archive restores every record exactly. This satisfies the prior S7 gate; the
+standard JSON backup size limit and independent recovery remain open.
+See [the M0 closeout receipt](DOSSIER_M0_CLOSEOUT_2026-10-02.md).
 
 Native `submission: deferred` describes local capture, not subsequent remote
 publication status. ForgeOS OFFLINE_CONTRACT explicitly distinguishes that
