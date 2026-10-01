@@ -6,13 +6,15 @@ source tooling and curated local project history. Production mirroring,
 transcription, credentials and shared publication are separate operations.
 
 
-## Current delivery and receipt interpretation - 2026-09-30
+## Current delivery and receipt interpretation - 2026-10-01
 
-The current reader serves Spanish L5/S5 on Portal 0.33.4. Its exact revision is
-`shared:cf08cedca7c1d276f06d9774d77ba1738054c01dcc0981790f2a1ec402804b70`.
-See [the M0 preparation receipt](M0_READING_PREPARATION_2026-09-30.md).
-M0 is in progress with device transfer/acceptance open. The language delivery
-receipt preserves L4/S4 history; S1-S4 remain immutable and readable.
+The current reader serves Spanish L6/S6 on Portal 0.33.7. Exact revision:
+`shared:04aee2be34e6815da046799f479d6804903497ec0d05efd9b4b7a1eefb965c59`.
+See [the clarity delivery receipt](OPERATOR_CLARITY_2026-10-01.md).
+M0 now gives concrete download/open/search/offline steps for computer and Android;
+actual-device acceptance is open. S1-S5 are exact immutable history. Before S7,
+address measured reader headroom and the standard backup size limit, or prove
+adequate fresh headroom and complete validated backup. Current S6 remains usable.
 
 Native `submission: deferred` describes local capture, not subsequent remote
 publication status. ForgeOS OFFLINE_CONTRACT explicitly distinguishes that

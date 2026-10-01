@@ -18,3 +18,5 @@ Suggested structure for new runbooks:
 3. Procedure
 4. Validation
 5. Rollback or escalation
+
+- `OPERATOR_CLARITY_2026-10-01.md` and `.json`: shared clarity protocol, actual reader delivery and retained capacity follow-up.

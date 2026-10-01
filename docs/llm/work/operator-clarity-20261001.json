@@ -2,9 +2,9 @@
   "artifacts": [],
   "branch": "work/operator-clarity-20261001",
   "id": "operator-clarity-20261001",
-  "next_step": "Complete this task and record its result or explicit pending disposition.",
+  "next_step": "Reader and shared protocol delivered; Carlos tries M0; owners resolve reader/backup capacity before Plaud S7. Retain ordinary priorities.",
   "project": "plaud-mirror",
   "purpose": "Make operator roadmaps actionable, preserve branch continuity and publish the shared clarity protocol",
   "schema": 1,
-  "state": "active"
+  "state": "closed"
 }

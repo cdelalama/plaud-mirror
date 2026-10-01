@@ -1,0 +1,244 @@
+{
+  "observed_at": "2026-10-01T15:40:11Z",
+  "state": "reader_delivered; M0 device acceptance pending",
+  "portal": {
+    "state": "serving",
+    "source": "d37de4c02d01cfcb9442ccac4ac61e306690e1c6",
+    "version": "0.33.7",
+    "image": "registry.lamanoriega.com/infra-portal:0.33.7@sha256:8b6703fa912f09faafa1fa9619c4b3e63c0f2bc87097ace917fcfdfeb928412f",
+    "id": "a98a3a68a33359ce2146911296e04ed8aa722511d96d3ff67ab21ceb7565c702",
+    "all_mounts_preserved": 11,
+    "previous_image": "registry.lamanoriega.com/infra-portal:0.33.4@sha256:b86af96c917f2919daf456ce893dbb3dd48230a808db83c2565a530c999b4636",
+    "projects": {
+      "projects": [
+        {
+          "project_id": "llm-dockit",
+          "display_name": "LLM-DocKit",
+          "revision": "shared:58c9b5f6c1961e6ebe2768e61b98b8482132895dd0a38276f21d69549219df75"
+        },
+        {
+          "project_id": "home-infra",
+          "display_name": "Home Infra",
+          "revision": "shared:b629556a6000ec99119d0739eba55441738dc6b068b82e9b6687a0ad29f01056"
+        },
+        {
+          "project_id": "plaud-mirror",
+          "display_name": "Plaud Mirror",
+          "revision": "shared:04aee2be34e6815da046799f479d6804903497ec0d05efd9b4b7a1eefb965c59"
+        },
+        {
+          "project_id": "tech-library",
+          "display_name": "Biblioteca técnica del Spitfire",
+          "revision": "shared:34b8b87d50a82aec501da809e9a54e15bb46efeddff26883308f7b6ba7f0dab8"
+        }
+      ],
+      "unavailable": 0
+    },
+    "rollback_applied": true,
+    "bindings_byte_identical": true,
+    "rollback_scope": "first attempt only; second attempt delivered 0.33.7"
+  },
+  "local_revision": "local:9684b148e6d5062b80000b01832ad69579f6206b7d59f193b0df0b1fc6cd0e2e",
+  "shared_revision": "shared:04aee2be34e6815da046799f479d6804903497ec0d05efd9b4b7a1eefb965c59",
+  "reader_url": "https://infra.lamanoriega.com/dossier/shared/plaud-mirror?revision=shared%3A04aee2be34e6815da046799f479d6804903497ec0d05efd9b4b7a1eefb965c59",
+  "content": {
+    "prior_records_preserved_exactly": 5,
+    "records": 6,
+    "current_revision": "shared:04aee2be34e6815da046799f479d6804903497ec0d05efd9b4b7a1eefb965c59",
+    "native_content_exact": true,
+    "milestones": 28,
+    "decisions": 29,
+    "sources": 35,
+    "changes": 23,
+    "source_commit": "6f57b37c730efb8e3e25d4ccd0f94b37c7607ff7",
+    "read_seconds": 23.53
+  },
+  "browser": {
+    "state": "PASS",
+    "observedAt": "2026-10-01T15:32:34.432Z",
+    "checks": [
+      {
+        "project": "llm-dockit",
+        "width": 1440,
+        "fourTabs": true,
+        "authoredBanner": true,
+        "noInventedCurrentPhase": true,
+        "noOverflow": true,
+        "pageErrors": 0,
+        "revision": "shared:58c9b5f6c1961e6ebe2768e61b98b8482132895dd0a38276f21d69549219df75"
+      },
+      {
+        "project": "llm-dockit",
+        "width": 390,
+        "fourTabs": true,
+        "authoredBanner": true,
+        "noInventedCurrentPhase": true,
+        "noOverflow": true,
+        "pageErrors": 0,
+        "revision": "shared:58c9b5f6c1961e6ebe2768e61b98b8482132895dd0a38276f21d69549219df75"
+      },
+      {
+        "project": "home-infra",
+        "width": 1440,
+        "fourTabs": true,
+        "authoredBanner": true,
+        "noInventedCurrentPhase": true,
+        "noOverflow": true,
+        "pageErrors": 0,
+        "revision": "shared:b629556a6000ec99119d0739eba55441738dc6b068b82e9b6687a0ad29f01056"
+      },
+      {
+        "project": "home-infra",
+        "width": 390,
+        "fourTabs": true,
+        "authoredBanner": true,
+        "noInventedCurrentPhase": true,
+        "noOverflow": true,
+        "pageErrors": 0,
+        "revision": "shared:b629556a6000ec99119d0739eba55441738dc6b068b82e9b6687a0ad29f01056"
+      },
+      {
+        "project": "plaud-mirror",
+        "width": 1440,
+        "fourTabs": true,
+        "authoredBanner": true,
+        "noInventedCurrentPhase": true,
+        "noOverflow": true,
+        "pageErrors": 0,
+        "revision": "shared:04aee2be34e6815da046799f479d6804903497ec0d05efd9b4b7a1eefb965c59"
+      },
+      {
+        "project": "plaud-mirror",
+        "width": 390,
+        "fourTabs": true,
+        "authoredBanner": true,
+        "noInventedCurrentPhase": true,
+        "noOverflow": true,
+        "pageErrors": 0,
+        "revision": "shared:04aee2be34e6815da046799f479d6804903497ec0d05efd9b4b7a1eefb965c59"
+      },
+      {
+        "project": "tech-library",
+        "width": 1440,
+        "fourTabs": true,
+        "authoredBanner": true,
+        "noInventedCurrentPhase": true,
+        "noOverflow": true,
+        "pageErrors": 0,
+        "revision": "shared:34b8b87d50a82aec501da809e9a54e15bb46efeddff26883308f7b6ba7f0dab8"
+      },
+      {
+        "project": "tech-library",
+        "width": 390,
+        "fourTabs": true,
+        "authoredBanner": true,
+        "noInventedCurrentPhase": true,
+        "noOverflow": true,
+        "pageErrors": 0,
+        "revision": "shared:34b8b87d50a82aec501da809e9a54e15bb46efeddff26883308f7b6ba7f0dab8"
+      }
+    ],
+    "historicalRevisionReadable": "shared:a767c4a4af72da2a5a2ee156420cf89758d0ff7a70ef3b5e6b2df606ce1862a5"
+  },
+  "producers": [
+    {
+      "name": "/youtube2text-api",
+      "image": "registry.lamanoriega.com/youtube2text-api:0.39.3",
+      "started_at": "2026-09-19T01:10:47.871017463Z",
+      "unchanged": true
+    },
+    {
+      "name": "/youtube2text-web",
+      "image": "registry.lamanoriega.com/youtube2text-web:0.39.3",
+      "started_at": "2026-09-19T01:10:48.895250297Z",
+      "unchanged": true
+    },
+    {
+      "name": "/plaud-mirror",
+      "image": "registry.lamanoriega.com/plaud-mirror:0.16.1@sha256:77e0872e829d24b3a711707d0df9a6f16585ad6376aa39f78e906a140acd0cbe",
+      "started_at": "2026-09-19T01:10:44.507653272Z",
+      "unchanged": true
+    }
+  ],
+  "recovery": {
+    "method": "coherent complete store archive under existing publisher lock; read-only NAS mount",
+    "archive_sha256": "b54a642363fcdc8b45099348cdb8bab203a729b808517ea758748f06ad3daace",
+    "archive_bytes": 2314240,
+    "restored_records": 6,
+    "all_record_bytes_exact": true,
+    "current_revision": "shared:04aee2be34e6815da046799f479d6804903497ec0d05efd9b4b7a1eefb965c59",
+    "restore_location": "isolated private dev-vm directory; explicit private modes after safe tar extraction",
+    "ongoing_independent_backup": false,
+    "standard_backup_api": "failed: backup exceeds pilot limit (2000000 bytes)",
+    "retained_old_backup_sha256": "49e07b55a2b76b457b34acbd1220fd3129a1e49a321b7cd1dc55807b25adec1c"
+  },
+  "global_instructions": [
+    {
+      "owner": "codex",
+      "target": "/home/cdelalama/.codex/AGENTS.md",
+      "before_sha256": "ac7a52525e30ffc5c8f38a965b03d2c9c4c0b7646e764b05365a24e3d966f116",
+      "after_sha256": "b51b9e2c9ee32057bed6d676e8a26e701a6ba6169eebade52c2ab8aab55ba93c",
+      "readback_exact": true
+    },
+    {
+      "owner": "claude",
+      "target": "/home/cdelalama/.claude/CLAUDE.md",
+      "before_sha256": "abb90b74fac444d1c27a315834fd97edca017fc8c049a794c656c3be0a2aa7be",
+      "after_sha256": "3fd6eeb8f9339347afca38d0fd80f01af074a315fbf42284b36c6b176b953dc4",
+      "readback_exact": true
+    },
+    {
+      "owner": "workspace",
+      "target": "/home/cdelalama/src/AGENTS.md",
+      "before_sha256": "9dea79579bb0c7368ced6e117a9d3eca8ee787be16727c83a4aa12e02bd574ab",
+      "after_sha256": "7dc59a9072da6626d899536b6e8f66aebf23f57757fc1831ef54488659eb8a16",
+      "readback_exact": true
+    }
+  ],
+  "source_audit": {
+    "session_id": "151ff611-275b-4ad9-bf7e-68e03cca6e7a",
+    "model": "claude-opus-5-5",
+    "effort": "high",
+    "sha256": "5158d1be34f5520ba5b5f5875880d916630cc1c85b97da5176fb06ac9e0fdc80",
+    "copy_verified": true
+  },
+  "render_audit": {
+    "model": "claude-opus-5-5",
+    "effort": "high",
+    "session_id": "151ff611-275b-4ad9-bf7e-68e03cca6e7a",
+    "sha256": "2ee67ba97853d4016a4f2b549725f5e9ce99c56dee3b5c2a68b4103ed7baf080",
+    "copy_verified": true
+  },
+  "validation": {
+    "portal_tests": 195,
+    "portal_typecheck": "PASS",
+    "portal_build": "PASS",
+    "owner_session_checks": "all six PASS; existing handoff-length warnings",
+    "registry": "38 projects; zero errors/warnings"
+  },
+  "incidents": [
+    {
+      "kind": "deploy-provenance-check",
+      "first_attempt": "rolled back and verified",
+      "cause": "Docker development image ID was OCI index digest; NAS uses image config ID",
+      "correction": "verify NAS-local image ID and exact immutable registry digest and OCI source separately",
+      "second_attempt": "healthy; all mounts/bindings preserved"
+    },
+    {
+      "kind": "shared-publish-timeout",
+      "result": "S6 committed; status/read confirmed exact content and no pending candidate; mutation never retried"
+    },
+    {
+      "kind": "standard-backup-limit",
+      "result": "post-S6 standard backup exceeds 2000000-byte pilot limit; coherent archive fallback restored all six records"
+    }
+  ],
+  "next_publication_gate": "Before Plaud S7, address measured full-history reader headroom (23.53 seconds versus 30-second Portal cutoff) and standard backup capacity; reviewed capacity work or fresh adequate read measurement plus validated complete backup required. Current S6 remains readable.",
+  "limitations": [
+    "No physical-device M0 acceptance",
+    "No automatic recurring independent disaster-recovery custody",
+    "Other projects receive shared protocol and reader fixes; old curated content is updated at its next meaningful capture",
+    "Portal integration-closure remains next ordinary Portal work",
+    "Original visual golden unchanged; Carlos visual acceptance remains separate"
+  ]
+}

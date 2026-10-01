@@ -177,3 +177,6 @@ Bounded Dossier audit closure and upstream review: `docs/operations/DOSSIER_AUDI
 ## Operator clarity - 2026-10-01
 
 The managed `operator-clarity` block in `LLM_START_HERE.md` governs visible status and roadmap changes.
+
+Operator-clarity delivery evidence: `docs/operations/OPERATOR_CLARITY_2026-10-01.md`
+and its sanitized JSON receipt.

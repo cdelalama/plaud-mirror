@@ -1161,3 +1161,7 @@ spawn subagents.
 - Security review before implementing credential storage (recommend invoking `/security-review`).
 - Contract review before freezing the first HTTP API and webhook payload.
 - Deployment review before publishing the first Docker image.
+
+## 2026-10-01 - Actual rendered clarity review
+
+Exact `claude-opus-5-5`, high effort, same independent session; canonicalModel verified. RENDER_GO after seven actual screenshots plus S6 browser/readback receipts. Native capture SHA256 `2ee67ba97853d4016a4f2b549725f5e9ce99c56dee3b5c2a68b4103ed7baf080`. Source approval and rendered review do not prove actual-device acceptance. F1 is retained: before S7, address full-history latency/headroom; executor also identified the standard backup size limit and verified the complete archive fallback. Old Home Infra/DocKit content requires its next meaningful recuration; no fleet-content rewrite claim.

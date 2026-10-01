@@ -1,5 +1,12 @@
 <!-- doc-version: 0.16.10 -->
 
+Current delivery: Portal 0.33.7 serves Spanish Plaud L6/S6 with clear M0 steps and
+two retained work lines. See docs/operations/OPERATOR_CLARITY_2026-10-01.md.
+M0 still requires Carlos to read/search offline on computer and Android. Before
+Plaud S7, resolve reader headroom and standard backup capacity or demonstrate
+adequate measured read headroom plus validated complete backup. S6 remains usable.
+
+
 ## Operator clarity and roadmap continuity - 2026-10-01
 
 Last Updated: 2026-10-01 - Codex.
