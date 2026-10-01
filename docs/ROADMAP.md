@@ -21,15 +21,16 @@ that the earlier phases have finished or that every proposed later step is GO.
 
 | Work line | Current position | Next action and relationship |
 | --- | --- | --- |
-| Use the transcripts now, current priority | M0: 75 notes and Spanish index prepared; not tried on Carlos's devices | Carlos downloads the prepared ZIP from his personal NAS folder, extracts it and opens LEEME in Obsidian on the computer. Then copy to Android and test reading/search offline. Media2Text owns the preparation and fixes. |
-| Follow the daily-use path, proposed next | M1 one new recording, M2 daily reliability, M3 Cortex | Scope M1 after M0 works, with current cost checked before processing. M2 must reconcile the existing Phase 3 tests; it cannot weaken or silently close them. M3 remains owned by Cortex. |
+| Use the existing transcripts, accepted | M0 complete: Carlos confirmed the notes work on computer and Android on October 1, in response to the reading/search/offline question | Keep using the 75-note collection. Operator acceptance is recorded in docs/operations/M0_ACCEPTANCE_2026-10-01.md; it does not claim automatic updates. |
+| Follow the daily-use path, proposed next | M1 one new recording, M2 daily reliability, M3 Cortex | The agent first checks the current Plaud-to-Media2Text connection and cost limits, then prepares one named-recording test with an estimate; Carlos approves the chosen recording and cost before any processing. M2 must reconcile the existing Phase 3 tests; it cannot weaken or silently close them. M3 remains owned by Cortex. |
 | Complete and harden the base project, retained | Phase 3 stability/webhook, Phase 5 independent recovery, Phase 6 remaining product work; connection waves W2-W8 | Keep their original IDs, acceptance and ownership. They are separate work, not newly running jobs and not prerequisites for reading the prepared M0 files. Paid replay remains separately gated. |
 
-The immediate operator instructions are Media2Text's
+Carlos accepted M0 on October 1. The retained operator instructions are Media2Text's
 `docs/operations/M0_READING_GUIDE.es.md`; the technical owner procedure is
 `docs/operations/M0_MARKDOWN_READING.md`. Completion means Carlos can open the
 index and a transcript, find two remembered words and read offline on both the
-computer and Android. A technical export PASS does not prove that outcome.
+computer and Android. His explicit confirmation closes this outcome; a technical
+export PASS alone would not. The next action belongs to the agent: M1 preflight.
 Automatic synchronization is not installed. The dated 75-note result is not a
 fresh inventory or a statement that new audio is already being processed.
 

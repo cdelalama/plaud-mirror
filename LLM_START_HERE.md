@@ -2,7 +2,7 @@
 
 Current delivery: Portal 0.33.7 serves Spanish Plaud L6/S6 with clear M0 steps and
 two retained work lines. See docs/operations/OPERATOR_CLARITY_2026-10-01.md.
-M0 still requires Carlos to read/search offline on computer and Android. Before
+Carlos has accepted M0 reading/search/offline use on computer and Android. Before
 Plaud S7, resolve reader headroom and standard backup capacity or demonstrate
 adequate measured read headroom plus validated complete backup. S6 remains usable.
 
@@ -16,10 +16,11 @@ current usefulness, one named next action, observable completion and the fate
 of earlier work after priority changes. Existing priorities and runtime gates
 remain. Source and installed-policy review are tracked in REVIEWS.md.
 
-Immediate user step: download the prepared notes ZIP from the personal NAS
-folder and open LEEME in Obsidian on the computer; then copy to Android and
-try search/offline reading. See Media2Text docs/operations/M0_READING_GUIDE.es.md.
-M0 is selected; M1-M3 are proposed next. Base phases and connection work remain
+M0 accepted by Carlos on 2026-10-01: notes work on computer and Android, in
+response to the explicit reading/search/offline question. Receipt:
+docs/operations/M0_ACCEPTANCE_2026-10-01.md. Next agent action: check the
+connection and current cost limits before preparing one new-recording M1 test.
+M0 is complete; M1-M3 are proposed next. Base phases and connection work remain
 retained obligations, not completed or newly activated parallel execution.
 
 # LLM Start Guide - Plaud Mirror
@@ -166,10 +167,11 @@ Recommended reading order:
   records; this does not repair the standard API or establish recurring disaster recovery.
 - Scope and verification: docs/operations/DOSSIER_AUDIT_CLOSURE_2026-09-30.md.
   The historical partial-onboarding spot-check does not supply a current GO.
-- M0: Carlos selected desktop and mobile. Media2Text owns offline Markdown
-  preparation; private transfer and actual reading/search acceptance remain
-  open. Next are separately scoped M1 new recording, M2 reliability and M3
-  Cortex. Phase 3/5/6 acceptance and independent recovery stay open.
+- M0: Carlos accepted reading/search/offline use on computer and Android on
+  October 1. Media2Text owns the completed reading preparation. Next agent action:
+  check the Plaud connection and current cost limits before preparing one M1
+  recording test. M2 reliability and M3 Cortex remain later proposals; Phase
+  3/5/6 acceptance and independent recovery stay open.
 
 
 <!-- DOCKIT-TEMPLATE:START checklist -->

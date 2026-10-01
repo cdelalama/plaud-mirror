@@ -180,3 +180,5 @@ The managed `operator-clarity` block in `LLM_START_HERE.md` governs visible stat
 
 Operator-clarity delivery evidence: `docs/operations/OPERATOR_CLARITY_2026-10-01.md`
 and its sanitized JSON receipt.
+
+- `docs/operations/M0_ACCEPTANCE_2026-10-01.md`: Carlos's acceptance of M0 on computer and Android, next M1 preflight and the retained Dossier publication gate.

@@ -20,3 +20,5 @@ Suggested structure for new runbooks:
 5. Rollback or escalation
 
 - `OPERATOR_CLARITY_2026-10-01.md` and `.json`: shared clarity protocol, actual reader delivery and retained capacity follow-up.
+
+- `docs/operations/M0_ACCEPTANCE_2026-10-01.md`: Carlos's acceptance of M0 on computer and Android, next M1 preflight and the retained Dossier publication gate.

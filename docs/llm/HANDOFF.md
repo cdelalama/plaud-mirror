@@ -2,7 +2,7 @@
 
 Current delivery: Portal 0.33.7 serves Spanish Plaud L6/S6 with clear M0 steps and
 two retained work lines. See docs/operations/OPERATOR_CLARITY_2026-10-01.md.
-M0 still requires Carlos to read/search offline on computer and Android. Before
+Carlos has accepted M0 reading/search/offline use on computer and Android. Before
 Plaud S7, resolve reader headroom and standard backup capacity or demonstrate
 adequate measured read headroom plus validated complete backup. S6 remains usable.
 
@@ -16,10 +16,11 @@ current usefulness, one named next action, observable completion and the fate
 of earlier work after priority changes. Existing priorities and runtime gates
 remain. Source and installed-policy review are tracked in REVIEWS.md.
 
-Immediate user step: download the prepared notes ZIP from the personal NAS
-folder and open LEEME in Obsidian on the computer; then copy to Android and
-try search/offline reading. See Media2Text docs/operations/M0_READING_GUIDE.es.md.
-M0 is selected; M1-M3 are proposed next. Base phases and connection work remain
+M0 accepted by Carlos on 2026-10-01: notes work on computer and Android, in
+response to the explicit reading/search/offline question. Receipt:
+docs/operations/M0_ACCEPTANCE_2026-10-01.md. Next agent action: check the
+connection and current cost limits before preparing one new-recording M1 test.
+M0 is complete; M1-M3 are proposed next. Base phases and connection work remain
 retained obligations, not completed or newly activated parallel execution.
 
 # LLM Work Handoff
@@ -58,14 +59,27 @@ This file is the live operational snapshot. Durable rationale lives in `docs/llm
   Markdown preparation and records its local delivery in
   docs/operations/M0_MARKDOWN_READING.md in that repository. September 30, 21:35 UTC
   read-only inventory: 76 v1 records, 75 eligible and one provenance exclusion.
-  Existing web reading/download passed 1440/390 viewport checks; no full M0
-  acceptance follows. Private device transfer and actual reading/search remain.
-- Next: finish M0 device acceptance, then scope M1 new recording, M2 daily
+  Existing web reading/download passed 1440/390 viewport checks. Separately,
+  Carlos confirmed notes work on both actual devices on October 1; M0 is complete
+  by operator acceptance, not by inferring success from viewport checks.
+- Next: the agent checks the connection and current cost limits for one M1
+  recording, then prepares that bounded test. Later proposals remain M2 daily
   reliability and M3 Cortex. Phase 3/5/6 acceptance and independent physical
   recovery remain open. No producer/runtime/provider change is included.
 
 
 ## Trace Anchor
+
+- Role: executor
+- Sent: 2026-10-01 22:24:08 CEST (20:24:08 UTC)
+- Subject: Carlos accepts M0 reading on computer and Android.
+- Resulting state: version=0.16.10; M0 accepted by operator; M1 preflight is next.
+- Repo state: bounded receipt updates on clean main baseline 65ffa2a; Media2Text baseline 9d0d0f8.
+- Validation: explicit operator reply to the reading/search/offline question; documentation checks pass.
+- Next gate: agent checks one-recording connection and budget; no provider call is authorised by acceptance.
+- Dossier: L6 and shared S6 remain the earlier immutable open-M0 snapshot; before S7 retain the reader/backup capacity gate.
+
+Previous reader-delivery trace:
 
 - Role: executor
 - Sent: 2026-10-01 17:46:20 CEST (15:46:20 UTC)

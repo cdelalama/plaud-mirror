@@ -12,7 +12,8 @@ The current reader serves Spanish L6/S6 on Portal 0.33.7. Exact revision:
 `shared:04aee2be34e6815da046799f479d6804903497ec0d05efd9b4b7a1eefb965c59`.
 See [the clarity delivery receipt](OPERATOR_CLARITY_2026-10-01.md).
 M0 now gives concrete download/open/search/offline steps for computer and Android;
-actual-device acceptance is open. S1-S5 are exact immutable history. Before S7,
+Carlos has since accepted both devices (M0_ACCEPTANCE_2026-10-01.md), but S6
+still shows the earlier open state. S1-S5 are exact immutable history. Before S7,
 address measured reader headroom and the standard backup size limit, or prove
 adequate fresh headroom and complete validated backup. Current S6 remains usable.
 
