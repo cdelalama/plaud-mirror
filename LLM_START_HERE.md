@@ -145,24 +145,25 @@ Recommended reading order:
 
 - Last Updated: 2026-10-01 - Codex
 - Source 0.16.10 clarifies M0 and roadmap continuity under the shared policy;
-  it adds no runtime behavior. Applicable DocKit 4.18.1 is adopted from published
-  main. DocKit release-tag baseline: v4.17.0 (4.18.1 has no release tag).
-- Portal 0.33.4 serves the Spanish Plaud L5/S5 Dossier: 28 milestones, 29
-  decisions (28 accepted and one proposed), 22 changes and 35 pinned sources.
-  Original L1/S1 through L4/S4 remain immutable and readable. Delivery receipt:
-  docs/operations/M0_READING_PREPARATION_2026-09-30.json.
+  it adds no runtime behavior. The prior DocKit 4.18.1 adoption remains, with the
+  selectively adopted 4.18.2 operator-clarity rule; this is not full template identity.
+- Portal 0.33.7 serves the Spanish Plaud L6/S6 Dossier: 28 milestones, 29
+  decisions (28 accepted and one proposed), 23 changes and 35 pinned sources.
+  Original L1/S1 through L5/S5 remain immutable and readable. Delivery receipt:
+  docs/operations/OPERATOR_CLARITY_2026-10-01.json.
 - Local capture submission: deferred and explicit shared publication are separate
   facts. Preserve native receipts; see docs/operations/DOSSIER.md.
 - Plaud NAS runtime remains 0.16.1; Media2Text remains 0.39.3. Read-only Docker
-  inspection on September 30 confirmed healthy containers and September 19
-  start times. This correction does not deploy, replay or invoke a provider.
+  inspection on October 1 confirmed unchanged producer containers and September 19
+  start times. Only the Portal reader was deployed; no replay or provider call.
 - September 29 counts (770 mirrored; 76 transcribed, 72 failed, 622 not sent)
   remain historical observations, not fresh production counts.
 - D-004 records the September 30 watch-only review of OpenPlaud/Riffado and
   plaud-toolkit. D-019 cookie/session adaptation remains open; no upstream
   implementation is imported. Report CI and Upstream Watch separately.
-- Existing delivery follow-ups: re-measure complete-history reads above 20 s;
-  broader product localization remains separate from the delivered Dossier.
+- Before Plaud S7: address measured 23.53-second complete-history read headroom
+  and standard backup capacity. The coherent archive fallback restored all six
+  records; this does not repair the standard API or establish recurring disaster recovery.
 - Scope and verification: docs/operations/DOSSIER_AUDIT_CLOSURE_2026-09-30.md.
   The historical partial-onboarding spot-check does not supply a current GO.
 - M0: Carlos selected desktop and mobile. Media2Text owns offline Markdown
