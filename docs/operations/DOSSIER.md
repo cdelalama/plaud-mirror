@@ -272,3 +272,17 @@ all three revisions and current delivered status; adjacent histories remain
 unchanged. Final coherent backup restores all three exact revisions in an
 absent isolated NAS store. Independent physical recovery remains open.
 This final receipt-only commit intentionally creates no recursive L4.
+
+## Meaningful closeout - 2026-10-02
+
+Carlos requires the executing agent to update the existing admitted shared
+Dossier when operator state changes, without asking again. Follow the shared
+DocKit closeout rule. M0 acceptance must be captured/published and read back in
+the real reader; leaving S6 pending is incomplete delivery. A receipt-only
+commit is no_change and does not demand a recursive capture. This rule does
+not install a background process or authorize new transcription expenditure.
+
+For this correction, the source of operator acceptance is the October 1
+receipt, already reflected in the allowlisted ROADMAP and HANDOFF. Use those
+committed sources without broadening the shared source policy. S7 must show M0
+done and the agent's M1 connection/provider/cost preparation as the next action.

@@ -1,4 +1,15 @@
 <!-- doc-version: 0.16.10 -->
+## Dossier closeout correction - 2026-10-01
+
+Last Updated: 2026-10-01 - Codex.
+Meaningful Dossier changes are an agent-owned delivery step, without an operator
+reminder. Preserve source scope, review and immutable history; receipt-only
+commits do not trigger another capture. Plaud M0 acceptance needs S7; M1 next
+action is agent connection/provider/cost preparation, not paid processing.
+Current task: reviewed host read-headroom correction and complete backup/restore
+before publication; final reader receipt will record the observed outcome.
+Other project priorities and runtime acceptance remain unchanged.
+
 
 Current delivery: Portal 0.33.7 serves Spanish Plaud L6/S6 with clear M0 steps and
 two retained work lines. See docs/operations/OPERATOR_CLARITY_2026-10-01.md.
