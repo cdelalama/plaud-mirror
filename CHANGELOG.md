@@ -4,6 +4,10 @@ All notable changes to Plaud Mirror are documented in this file.
 
 This project follows Semantic Versioning (SemVer): MAJOR.MINOR.PATCH.
 
+## [0.16.10] - 2026-10-01
+
+- Clarify operator outcomes, next actions and roadmap work lines under the shared DocKit rule.
+
 ## [0.16.9] - 2026-09-30
 
 ### Added

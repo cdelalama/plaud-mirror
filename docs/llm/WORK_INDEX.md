@@ -9,3 +9,5 @@ This index describes retained work, not permission to delete it.
 - [dossier-audit-closure-20260930](work/dossier-audit-closure-20260930.json): closed; Reconcile Dossier delivery documentation and review upstream drift
 
 - [m0-reading-followup-20260930](work/m0-reading-followup-20260930.json): closed; Record complete audit and desktop/mobile M0 preparation with minor documentation corrections
+
+- [operator-clarity-20261001](work/operator-clarity-20261001.json): active; Make operator roadmaps actionable, preserve branch continuity and publish the shared clarity protocol

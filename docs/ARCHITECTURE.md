@@ -1,7 +1,7 @@
-<!-- doc-version: 0.16.9 -->
+<!-- doc-version: 0.16.10 -->
 # Plaud Mirror Architecture
 
-> Source: 0.16.9; owner contract reconciled at 0.16.3; accepted runtime 0.16.1
+> Source: 0.16.10; owner contract reconciled at 0.16.3; accepted runtime 0.16.1
 > Last Updated: 2026-09-30 (D-019 lifetime amendment; runtime unchanged)
 > Status: v0.16.0 added the source-owned NAS production surface and migration contract; v0.16.1 corrected its QNAP runtime identity after a clean pre-start rollback; v0.16.2 corrected declared-versus-resolved bind-source verification as a host asset. Direct and canonical acceptance plus the first NAS-owned automatic run passed against the unchanged immutable v0.16.1 container. v0.16.3 declares NAS/production truth for infrastructure consumers without a new image or restart. After full checksum parity and explicit operator authorization, dev-vm recordings were removed. A second authorized retirement pass removed the local container, sole-tagged image, and rebuildable dependencies while retaining the 15 MiB control-state tree as Plaud's only off-NAS custody. NAS is the sole verified audio copy. D-026 connection control and historical replay remain separate gates.
 

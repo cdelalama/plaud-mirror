@@ -1,12 +1,28 @@
-<!-- doc-version: 0.16.9 -->
+<!-- doc-version: 0.16.10 -->
+
+## Operator clarity and roadmap continuity - 2026-10-01
+
+Last Updated: 2026-10-01 - Codex.
+Carlos requires actionable operator status across projects. The managed
+operator-clarity rule is selectively adopted; author/reviewer must inspect
+current usefulness, one named next action, observable completion and the fate
+of earlier work after priority changes. Existing priorities and runtime gates
+remain. Source and installed-policy review are tracked in REVIEWS.md.
+
+Immediate user step: download the prepared notes ZIP from the personal NAS
+folder and open LEEME in Obsidian on the computer; then copy to Android and
+try search/offline reading. See Media2Text docs/operations/M0_READING_GUIDE.es.md.
+M0 is selected; M1-M3 are proposed next. Base phases and connection work remain
+retained obligations, not completed or newly activated parallel execution.
+
 # LLM Work Handoff
 
 This file is the live operational snapshot. Durable rationale lives in `docs/llm/DECISIONS.md`. Phase boundaries live in `docs/ROADMAP.md`.
 
 ## Current Status
 
-- Last Updated: 2026-09-30 - Codex
-- Source 0.16.9 records M0 preparation and completes minor audit documentation;
+- Last Updated: 2026-10-01 - Codex
+- Source 0.16.10 clarifies M0 and roadmap continuity under the shared policy;
   it adds no runtime behavior. Applicable DocKit 4.18.1 is adopted from published
   main. DocKit release-tag baseline: v4.17.0 (4.18.1 has no release tag).
 - Portal 0.33.4 serves the Spanish Plaud L5/S5 Dossier: 28 milestones, 29

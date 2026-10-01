@@ -1,4 +1,4 @@
-<!-- doc-version: 0.16.9 -->
+<!-- doc-version: 0.16.10 -->
 # Repository Structure Guide
 
 This document describes the actual Plaud Mirror repository layout as of the first usable Phase 2 slice.
@@ -173,3 +173,7 @@ Dossier language correction and delivery: `docs/operations/DOSSIER_LANGUAGE_2026
 Spanish Dossier delivery receipt: `docs/operations/DOSSIER_LANGUAGE_2026-09-30.json`.
 
 Bounded Dossier audit closure and upstream review: `docs/operations/DOSSIER_AUDIT_CLOSURE_2026-09-30.md`.
+
+## Operator clarity - 2026-10-01
+
+The managed `operator-clarity` block in `LLM_START_HERE.md` governs visible status and roadmap changes.

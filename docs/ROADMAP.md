@@ -1,4 +1,4 @@
-<!-- doc-version: 0.16.9 -->
+<!-- doc-version: 0.16.10 -->
 # Plaud Mirror Roadmap
 
 This document is the canonical phase boundary for Plaud Mirror. If implementation scope starts to cross a phase boundary, update this document before claiming the work is part of the current phase.
@@ -10,7 +10,37 @@ This document is the canonical phase boundary for Plaud Mirror. If implementatio
 - If a feature depends on the next phase's guarantees, it belongs to the next phase.
 - Handoff, README, and architecture docs must point back here when there is any doubt about scope.
 
-## Current execution view - 2026-09-30
+## Current priority and retained work lines - 2026-10-01
+
+The route is now explicit. The older phase plan builds and hardens the Plaud
+mirror; the eight connection waves improve setup between Plaud and Media2Text.
+The September 29 consensus introduced M0-M3 to obtain practical value sooner.
+Carlos chose reading on both devices on September 30 and requested this clear
+branch explanation on October 1. This is a priority clarification, not a claim
+that the earlier phases have finished or that every proposed later step is GO.
+
+| Work line | Current position | Next action and relationship |
+| --- | --- | --- |
+| Use the transcripts now, current priority | M0: 75 notes and Spanish index prepared; not tried on Carlos's devices | Carlos downloads the prepared ZIP from his personal NAS folder, extracts it and opens LEEME in Obsidian on the computer. Then copy to Android and test reading/search offline. Media2Text owns the preparation and fixes. |
+| Follow the daily-use path, proposed next | M1 one new recording, M2 daily reliability, M3 Cortex | Scope M1 after M0 works, with current cost checked before processing. M2 must reconcile the existing Phase 3 tests; it cannot weaken or silently close them. M3 remains owned by Cortex. |
+| Complete and harden the base project, retained | Phase 3 stability/webhook, Phase 5 independent recovery, Phase 6 remaining product work; connection waves W2-W8 | Keep their original IDs, acceptance and ownership. They are separate work, not newly running jobs and not prerequisites for reading the prepared M0 files. Paid replay remains separately gated. |
+
+The immediate operator instructions are Media2Text's
+`docs/operations/M0_READING_GUIDE.es.md`; the technical owner procedure is
+`docs/operations/M0_MARKDOWN_READING.md`. Completion means Carlos can open the
+index and a transcript, find two remembered words and read offline on both the
+computer and Android. A technical export PASS does not prove that outcome.
+Automatic synchronization is not installed. The dated 75-note result is not a
+fresh inventory or a statement that new audio is already being processed.
+
+Why this order: useful reading can be tried with the existing collection and
+connection before implementing the complete new setup workflow. Foundation
+recovery and reliability remain important retained obligations. Independent work
+lines do not authorize simultaneous runtime changes or a new production writer.
+The next source/runtime deployment belongs to its owner and retains its checks.
+
+## Preparation baseline - 2026-09-30
+
 
 Source 0.16.9 records M0 preparation and completes minor audit documentation.
 Applicable DocKit 4.18.1 comes from published main.

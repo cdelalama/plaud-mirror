@@ -85,3 +85,11 @@ Explicitly adopted the DocKit 4.18.1 source/product language distinction.
 Spanish operator-facing prose is independent of English technical sources.
 This is a reviewed project-local policy edit, not a full-template sync or
 claim that unrelated helper versions, host hooks or private sync state changed.
+
+
+## 2026-10-01 - Selective operator-clarity policy
+
+Adopted only the managed operator-clarity section from LLM-DocKit 4.18.2.
+Existing hooks, template identity, source pins and project priorities remain.
+This is reviewed manual section adoption in an existing checkout, not a full
+template upgrade or a claim that historical publications were rewritten.

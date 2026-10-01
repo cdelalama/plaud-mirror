@@ -1,4 +1,7 @@
+- 2026-10-01 - Codex - Applied the shared operator-clarity rule and explicit roadmap continuity requested by Carlos. Plain next actions and user-observable completion replace technical shorthand; earlier priorities, history and acceptance remain. Source and curation review precede delivery. Trace: role=executor; state=clarity-candidate; validation=review-and-owner-checks-pending; next=source-review-and-verified-reader
+
 - 2026-09-30 - Codex - Published reviewed M0 source and Spanish L5/S5 progress; preserved S1-S4, verified actual reader and private 75-note NAS artifact, and retained before/after shared backups with the client-timeout retry declared. Device transfer/acceptance and runtime security remediation remain open. Version impact: none (delivery receipt for 0.16.9). Trace: role=executor; commits=820f804; state=L5-S5-published-M0-device-acceptance-open; validation=228-tests-builds-contracts-audits-CI-Opus-and-exact-reader; next=phone-transfer-and-real-device-reading
+
 
 - 2026-09-30 - Codex - Recorded the operator-supplied complete-onboarding audit separately from the historical partial spot-check; clarified architecture and unused password-endpoint lifetime wording; recorded desktop/mobile M0 preparation owned by Media2Text with actual device acceptance pending. Version impact: patch 0.16.9 (documentation refinements; runtime unchanged). Trace: role=executor; commits=none; state=M0-preparation-and-audit-acknowledgement; validation=read-only-inventory-browser-and-reviewed-source; next=private-transfer-and-real-device-acceptance
 
