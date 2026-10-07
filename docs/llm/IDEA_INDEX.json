@@ -58,5 +58,13 @@
       }
     }
   ],
-  "task_reconciliations": []
+  "task_reconciliations": [
+    {
+      "task": "docs/llm/work/idea-continuity-20261007.json",
+      "ideas": [
+        "REF-ROADMAP"
+      ],
+      "no_ideas_reason": null
+    }
+  ]
 }
