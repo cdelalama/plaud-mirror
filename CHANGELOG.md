@@ -6,11 +6,11 @@ This project follows Semantic Versioning (SemVer): MAJOR.MINOR.PATCH.
 
 ## [0.16.11] - 2026-10-07
 
-### Added
-
 ### Changed
 
-### Fixed
+- Prepare one verified post-M0 note without duplicate transcription spend.
+- Record fresh connection, cost and source-identity evidence, with actual-device
+  acceptance pending and the existing automatic processing path explicit.
 
 ## [0.16.10] - 2026-10-01
 
