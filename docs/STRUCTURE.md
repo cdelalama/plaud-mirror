@@ -1,4 +1,4 @@
-<!-- doc-version: 0.16.10 -->
+<!-- doc-version: 0.16.11 -->
 # Repository Structure Guide
 
 This document describes the actual Plaud Mirror repository layout as of the first usable Phase 2 slice.
@@ -184,3 +184,5 @@ and its sanitized JSON receipt.
 - `docs/operations/M0_ACCEPTANCE_2026-10-01.md`: Carlos's acceptance of M0 on computer and Android, next M1 preflight and the retained Dossier publication gate.
 
 - `docs/operations/DOSSIER_M0_CLOSEOUT_2026-10-02.md`: M0 acceptance in the shared reader, meaningful closeout protocol and complete recovery evidence.
+
+M1 preparation: `docs/operations/M1_PREPARATION_2026-10-07.md`; task custody: `docs/llm/work/m1-preparation-20261007.json`.

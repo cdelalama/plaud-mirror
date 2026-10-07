@@ -1,4 +1,4 @@
-<!-- doc-version: 0.16.10 -->
+<!-- doc-version: 0.16.11 -->
 # Plaud Mirror Architecture
 
 > Source: 0.16.10; owner contract reconciled at 0.16.3; accepted runtime 0.16.1

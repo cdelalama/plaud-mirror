@@ -1,0 +1,10 @@
+{
+  "artifacts": [],
+  "branch": "work/m1-preparation-20261007",
+  "id": "m1-preparation-20261007",
+  "next_step": "Complete reviewed zero-spend note preparation, NAS package and Plaud Dossier delivery; Carlos then verifies the note on computer and Android. Preserve existing runtime and paid-processing gates.",
+  "project": "plaud-mirror",
+  "purpose": "Prepare one new recording test, verify receiver cost and connection, obtain Opus consensus and independent review",
+  "schema": 1,
+  "state": "active"
+}

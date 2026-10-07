@@ -1,4 +1,4 @@
-<!-- doc-version: 0.16.10 -->
+<!-- doc-version: 0.16.11 -->
 # Plaud Mirror
 
 Self-hosted Plaud audio mirror with a local operator panel, manual/continuous

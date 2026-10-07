@@ -11,3 +11,5 @@ This index describes retained work, not permission to delete it.
 - [m0-reading-followup-20260930](work/m0-reading-followup-20260930.json): closed; Record complete audit and desktop/mobile M0 preparation with minor documentation corrections
 
 - [operator-clarity-20261001](work/operator-clarity-20261001.json): closed; Make operator roadmaps actionable, preserve branch continuity and publish the shared clarity protocol
+
+- [m1-preparation-20261007](work/m1-preparation-20261007.json): active; Prepare one verified post-M0 note and its cost with Opus consensus and independent audit.

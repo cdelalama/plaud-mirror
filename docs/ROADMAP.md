@@ -1,4 +1,4 @@
-<!-- doc-version: 0.16.10 -->
+<!-- doc-version: 0.16.11 -->
 # Plaud Mirror Roadmap
 
 This document is the canonical phase boundary for Plaud Mirror. If implementation scope starts to cross a phase boundary, update this document before claiming the work is part of the current phase.
@@ -9,6 +9,24 @@ This document is the canonical phase boundary for Plaud Mirror. If implementatio
 - "Current phase" means the minimum scope that must exist before the next phase starts.
 - If a feature depends on the next phase's guarantees, it belongs to the next phase.
 - Handoff, README, and architecture docs must point back here when there is any doubt about scope.
+
+## M1 preparation update - 2026-10-07
+
+M0 remains accepted. M1 is now in progress under Carlos's preparation GO.
+Fresh evidence changed the immediate action: an October 2 recording already
+completed through the existing automatic path. Prepare its verified note at
+USD 0 incremental transcription cost, deliver the separate one-note package,
+then Carlos checks that note on computer and Android. Do not claim device
+acceptance, an attended new provider call or automatic note synchronization.
+See `docs/operations/M1_PREPARATION_2026-10-07.md` for exact evidence and review.
+
+This refines the September 29 proposal: no runtime upgrade is needed to read an
+existing v1 result. A future Media2Text upgrade must first extend the v1-only
+collector for v2. Daily cycles, economic blocking/pause behavior and note updates
+belong to M2; retained Phase 3 criteria still apply. Historical failures, bulk
+replay, physical recovery and Cortex remain separate obligations, not silently
+completed or activated work. The existing automatic destination remains enabled;
+future manual paid-test approval is not a runtime-wide spending interlock.
 
 ## Current priority and retained work lines - 2026-10-01
 
@@ -22,7 +40,7 @@ that the earlier phases have finished or that every proposed later step is GO.
 | Work line | Current position | Next action and relationship |
 | --- | --- | --- |
 | Use the existing transcripts, accepted | M0 complete: Carlos confirmed the notes work on computer and Android on October 1, in response to the reading/search/offline question | Keep using the 75-note collection. Operator acceptance is recorded in docs/operations/M0_ACCEPTANCE_2026-10-01.md; it does not claim automatic updates. |
-| Follow the daily-use path, proposed next | M1 one new recording, M2 daily reliability, M3 Cortex | The agent first checks the current Plaud-to-Media2Text connection and cost limits, then prepares one named-recording test with an estimate; Carlos approves the chosen recording and cost before any processing. M2 must reconcile the existing Phase 3 tests; it cannot weaken or silently close them. M3 remains owned by Cortex. |
+| Follow the daily-use path | M1 in progress: one post-M0 note; M2 and M3 remain later | The agent delivers a verified already-transcribed October 2 note at zero incremental transcription cost; Carlos then reads it on computer and Android. A fresh paid test would require its own exact scope and cost approval. M2 must reconcile the existing Phase 3 tests; it cannot weaken or silently close them. M3 remains owned by Cortex. |
 | Complete and harden the base project, retained | Phase 3 stability/webhook, Phase 5 independent recovery, Phase 6 remaining product work; connection waves W2-W8 | Keep their original IDs, acceptance and ownership. They are separate work, not newly running jobs and not prerequisites for reading the prepared M0 files. Paid replay remains separately gated. |
 
 Carlos accepted M0 on October 1. The retained operator instructions are Media2Text's
@@ -30,7 +48,7 @@ Carlos accepted M0 on October 1. The retained operator instructions are Media2Te
 `docs/operations/M0_MARKDOWN_READING.md`. Completion means Carlos can open the
 index and a transcript, find two remembered words and read offline on both the
 computer and Android. His explicit confirmation closes this outcome; a technical
-export PASS alone would not. The next action belongs to the agent: M1 preflight.
+export PASS alone would not. The next action belongs to the agent: complete reviewed M1 note delivery; then Carlos checks it on both devices.
 Automatic synchronization is not installed. The dated 75-note result is not a
 fresh inventory or a statement that new audio is already being processed.
 
