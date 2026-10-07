@@ -56,3 +56,7 @@ When in doubt, confirm the expansion in a single sentence before acting rather t
 Current Dossier history: `docs/reviews/2026-09-30-dossier-retrospective.md`.
 Prior operational consensus: `docs/reviews/2026-09-29-operational-consensus.md`.
 Parent task records use `docs/llm/WORK_INDEX.md` when exported.
+
+## Idea continuity
+
+Read `docs/llm/IDEA_INDEX.json` before relevant brainstorming. Policy: `docs/IDEA_CONTINUITY.md`. Existing owner registers retain decision authority and roadmap priority. Coverage is the declared batch only.

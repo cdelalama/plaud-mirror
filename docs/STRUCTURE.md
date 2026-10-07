@@ -1,4 +1,4 @@
-<!-- doc-version: 0.16.11 -->
+<!-- doc-version: 0.16.12 -->
 # Repository Structure Guide
 
 This document describes the actual Plaud Mirror repository layout as of the first usable Phase 2 slice.
@@ -188,3 +188,9 @@ and its sanitized JSON receipt.
 M1 preparation: `docs/operations/M1_PREPARATION_2026-10-07.md`; task custody: `docs/llm/work/m1-preparation-20261007.json`.
 
 - `docs/operations/M1_DELIVERY_2026-10-07.md`: package/reader/recovery receipt; device acceptance stays separate.
+
+## Idea continuity
+
+- `docs/IDEA_CONTINUITY.md`: shared capture, recall and closeout rules.
+- `docs/llm/IDEA_INDEX.json`: project-owned references, untracked ideas and bounded coverage batches.
+- `scripts/dockit-ideas.py`: pinned structural and baseline validation.

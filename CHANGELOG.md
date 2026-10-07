@@ -4,6 +4,17 @@ All notable changes to Plaud Mirror are documented in this file.
 
 This project follows Semantic Versioning (SemVer): MAJOR.MINOR.PATCH.
 
+## [0.16.12] - 2026-10-07
+
+### Changed
+- Preserve project ideas through a pinned continuity index, session/CI checks and bounded historical recovery without changing product priorities.
+
+### Added
+
+### Changed
+
+### Fixed
+
 ## [0.16.11] - 2026-10-07
 
 ### Changed

@@ -1,0 +1,62 @@
+{
+  "schema": 1,
+  "project": "plaud-mirror",
+  "validator_sha256": "b1fe8e98663e6d03b440ed05a35578ffee5787750ba4f5adef32e672db521def",
+  "registers": [
+    {
+      "path": "docs/llm/DECISIONS.md",
+      "pattern": "^#{2,6}\\s+(D-\\d{3})\\b"
+    }
+  ],
+  "batches": [
+    {
+      "id": "B001-audit-20261007",
+      "date": "2026-10-07",
+      "sources": [
+        {
+          "path": "docs/llm/DECISIONS.md",
+          "revision": "1535d81e2994354b7901825d313ae48fc63b35b3"
+        },
+        {
+          "path": "docs/ROADMAP.md",
+          "revision": "1535d81e2994354b7901825d313ae48fc63b35b3"
+        }
+      ],
+      "excluded": [
+        "Full contents of all historic commits and native conversations; no broad private corpus promotion."
+      ],
+      "unknown": [
+        "Other hosts, external chats, retired worktrees, and complete historical capture coverage."
+      ],
+      "coverage_claim": "declared_corpus_only",
+      "remaining_backfill": "Review further historical suggestions and retained work in bounded attributed batches. The initial audit inventoried 2343 commit metadata entries and 625 Markdown paths across eight repos; those counts are not semantic review.",
+      "cursor": "Resume from this batch sources and the remaining historical queue; no exhaustive scan has been claimed."
+    }
+  ],
+  "entries": [
+    {
+      "id": "REF-ROADMAP",
+      "record": "reference",
+      "kind": "operator_request",
+      "title": "Retained base phases and M0-M3 product journey",
+      "origin": {
+        "date": "2026-10-07",
+        "attribution": "Existing owner register, reviewed in bounded continuity audit",
+        "sources": [
+          {
+            "path": "docs/ROADMAP.md",
+            "revision": "1535d81e2994354b7901825d313ae48fc63b35b3"
+          }
+        ]
+      },
+      "batch": "B001-audit-20261007",
+      "owner": "plaud-mirror",
+      "recall_trigger": "Before changing Plaud priorities or starting paid transcription; preserve M1 actual-device acceptance and earlier recovery/product work.",
+      "ref": {
+        "path": "docs/ROADMAP.md",
+        "contains": "# Plaud Mirror Roadmap"
+      }
+    }
+  ],
+  "task_reconciliations": []
+}
