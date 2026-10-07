@@ -24,3 +24,8 @@ Suggested structure for new runbooks:
 - `docs/operations/M0_ACCEPTANCE_2026-10-01.md`: Carlos's acceptance of M0 on computer and Android, next M1 preflight and the retained Dossier publication gate.
 
 - `docs/operations/DOSSIER_M0_CLOSEOUT_2026-10-02.md`: M0 acceptance in the shared reader, meaningful closeout protocol and complete recovery evidence.
+
+## M1 preparation (2026-10-07)
+
+- [Preparation and limits](M1_PREPARATION_2026-10-07.md)
+- [Delivery receipt](M1_DELIVERY_2026-10-07.md)

@@ -7,11 +7,11 @@ Fresh read-only evidence proves a post-M0 recording (October 2, 14:39 Madrid,
 6m11s) already completed through Plaud and Media2Text. Reuse its verified note:
 incremental transcription cost USD 0. The separate one-note package and Spanish
 LEEME are delivered to the private NAS folder and byte-verified. Exact Opus
-consensus is GO with R1-R4 applied; independent audit and Dossier delivery remain
-pending. Package: Media2Text-private/M1-20261007/Prueba-M1-20261007.zip.
+consensus is GO with R1-R4 applied; independent SOURCE_GO/RENDER_GO/DELIVERED_GO
+are recorded. Portal 0.34.2 serves verified L8/S8 with seven old revisions preserved. Package: Media2Text-private/M1-20261007/Prueba-M1-20261007.zip.
 M0 remains done; M1 is in progress, not accepted on the two devices yet.
-After delivery, Carlos opens the new note on computer and Android and confirms
-it corresponds to the recording and is readable offline. The agent owns delivery
+Carlos now opens the new note on computer and Android and confirms recognition,
+reading, phrase search and offline use on both devices. The agent owns delivery
 and documentation. M2 then owns daily reliability and note-update delivery;
 M3, base phases and connection waves retain their separate obligations.
 
@@ -23,10 +23,11 @@ another recording before that scope is explicit. Current 30-day internal ledger:
 USD 21.050780 of 25, 2,288.1286 of 3,000 minutes, zero unresolved reservations.
 The chosen result has one completed October 2 reservation estimated USD 0.056970;
 this is not a vendor invoice. No cap, provider, runtime or frozen contract changed.
-See docs/operations/M1_PREPARATION_2026-10-07.md. Older dated observations below are retained history.
+See docs/operations/M1_PREPARATION_2026-10-07.md and
+docs/operations/M1_DELIVERY_2026-10-07.md. Older dated observations below are retained history.
 
 
-Current delivery: Portal 0.33.7 serves Spanish Plaud L7/S7 with M0 accepted on
+Historical delivery (2026-10-01): Portal 0.33.7 served Spanish Plaud L7/S7 with M0 accepted on
 computer and Android and the agent-owned M1 preparation next. All six earlier
 revisions remain exact. Reader headroom and complete archive/restore passed.
 See docs/operations/DOSSIER_M0_CLOSEOUT_2026-10-02.md. The standard 2 MB backup

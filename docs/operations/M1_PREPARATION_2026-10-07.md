@@ -1,7 +1,7 @@
 # M1 preparation: use a verified recording made after M0
 
-Status: one-note package delivered and byte-verified; independent review and
-shared Dossier delivery pending. M1 device acceptance remains open.
+Status: one-note package and L8/S8 delivered and verified; exact Opus consensus,
+independent source/curation and actual reader/delivery review cleared. M1 device acceptance remains open.
 Scope: the operator's October 7 GO to prepare one test with Opus consensus and
 independent audit. No new paid processing, replay, deployment, budget change,
 provider switch or automatic device synchronization is authorized by this record.
@@ -16,7 +16,7 @@ Reuse its immutable result instead of paying to transcribe the same audio again.
 The prepared private package contains that note and a Spanish LEEME with exact
 computer/Android instructions. Its incremental transcription cost is USD 0.
 
-The next operator action, after reviewed delivery, is to open that new note on
+The next operator action, now that reviewed delivery is complete, is to open that new note on
 both devices and confirm that it corresponds to the recording and is readable
 offline. Preparation, NAS package delivery and actual-device acceptance are
 separate. M1 stays in progress until Carlos confirms the latter. A new attended
@@ -154,3 +154,5 @@ Private package: `Media2Text-private/M1-20261007/Prueba-M1-20261007.zip`,
 NAS readback is byte-identical. The private manifest maps the trial filename to
 the exporter's stable identity filename; keep the trial folder separate when
 M2 later delivers a complete updated vault. No device-copy claim is made.
+
+Delivery/recovery/audit receipts: [M1 delivery](M1_DELIVERY_2026-10-07.md).

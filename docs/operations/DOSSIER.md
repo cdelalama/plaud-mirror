@@ -6,9 +6,22 @@ source tooling and curated local project history. Production mirroring,
 transcription, credentials and shared publication are separate operations.
 
 
-## Current delivery and receipt interpretation - 2026-10-01
+## Current delivery - 2026-10-07
 
-The current reader serves Spanish L7/S7 on Portal 0.33.7. Exact revision:
+Portal 0.34.2 serves Spanish L8/S8: one post-M0 note is delivered privately at
+USD 0 incremental transcription cost. M1 is in progress until Carlos confirms
+recognition, reading, search and offline use on computer and Android. Exact
+local revision `local:03f81e818bf3dbec371530449d03610ab1f79ee21c93603cdd73159dc43a6903` and shared revision `shared:2ed0e6383ccfd69d0196c2a3f786ca12d4fee829adab14deb8a3a276e9cf9afa`.
+[Exact reader](https://infra.lamanoriega.com/dossier/shared/plaud-mirror?revision=shared%3A2ed0e6383ccfd69d0196c2a3f786ca12d4fee829adab14deb8a3a276e9cf9afa). Seven earlier records remain exact; eight-record read,
+actual 390/1440 px reader and complete isolated restore pass. This remains
+same-NAS recovery, not independent hardware recovery. Opus RENDER_GO and
+DELIVERED_GO cover preparation only. See [delivery receipt](M1_DELIVERY_2026-10-07.md).
+Receipt-only closure is no_change and does not recapture. The enabled automatic
+processing path remains live; this test added no provider invocation.
+
+## Historical delivery and receipt interpretation - 2026-10-01
+
+The October 1 reader served Spanish L7/S7 on Portal 0.33.7. Exact revision:
 `shared:53b5fb0388ca2129d80585eedd1506dcb8b9e2aff3616c07036831c7db0dab2e`.
 M0 is done by the operator's confirmation; M1 is proposed next and starts with
 agent connection/provider/cost preparation. All six earlier revisions remain
