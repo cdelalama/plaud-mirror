@@ -1270,3 +1270,63 @@ one SQLite database.
   cryptographic boundary.
 - Historical transcription replay, new provider work, Cortex delivery,
   connection-control implementation, and paid processing remain out of scope.
+
+## D-028 - Agent development is a persistent isolated environment, not a production clone
+
+**Status:** accepted by operator on 2026-09-15; first staged as an unpublished
+0.16.4 candidate whose exact audit was blocked by provider quota, then
+re-applied to current `main` and published as v0.17.0 on 2026-11-12 after the
+operator confirmed he wants the development environment.
+
+### Decision
+
+Unqualified agent work in the Plaud Mirror repository targets a first-class
+development environment on `dev-vm`. NAS remains the only production authority.
+The two runtimes may be live concurrently only because development has a fresh
+database, generated local secrets, no Plaud bearer, a disabled scheduler, a
+different port and hostname, and an explicit Home Infra
+`state_policy: isolated` identity.
+
+The supported lifecycle is `npm run dev:agent*`, backed by
+`compose.development.yml` and a fail-closed development server entrypoint. The
+default `compose.yml` delegates to this definition so a plain local Compose
+invocation cannot remount the retired production-like `./runtime` tree.
+Development state lives outside the repository and is never copied into NAS.
+
+Development must contain useful product data. A read-only selector runs inside
+the NAS production container, chooses up to three representative recordings
+bounded by file size, and emits a private manifest. The local launcher copies
+only those files and validates their byte size and SHA-256 before seeding fresh
+rows. It never copies production SQLite, `secrets.enc`, Plaud credentials,
+destination credentials, scheduler state, or the full audio corpus. Sample
+identities and titles remain private and uncommitted.
+
+Home Infra registers production and development as different service ids with
+the same `project_id: plaud-mirror`. Home Infra Protocol already defines
+`environment: development`, preview lifecycle, isolated state policy, and
+parallel-environment grouping; it needs no schema change. Infra Portal owns the
+explicit All/Production/Development navigation and must compute status only
+from the runtimes visible in the selected environment. ForgeOS remains a
+read-only discoverer of the owning project and Home Infra declarations.
+
+### Consequences
+
+- LLM-DocKit onboarding directs agents to check the development runtime and to
+  start/rebuild it when live product evidence is needed.
+- `npm run dev:agent:status` is the executable boundary: port 3041, scheduler
+  off, Plaud auth absent, operator auth armed, and at least one sample.
+- The environment loader rejects a partial `development + isolated` identity;
+  the launcher refuses symlinked/escaping paths and unmarked non-empty roots;
+  the seed importer rejects oversized or out-of-root sample material.
+- Production actions retain their own explicit authorization gates. Starting
+  development is not a production deploy or a second writer.
+- Development has ordinary network reachability for deliberate integration
+  testing. It is accurately described as isolated state with no automatic or
+  production authority, not as air-gapped.
+- Sample refresh and development-state deletion are separate lifecycle actions;
+  refresh requires a stopped runtime, and deletion still needs exact-target
+  authorization.
+
+This decision narrows D-027's concurrency rule: two production-state writers
+remain forbidden. A separately isolated development runtime is explicitly
+permitted.

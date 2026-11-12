@@ -316,6 +316,23 @@ export class RuntimeStore {
     return row.count;
   }
 
+  retireDevelopmentSamplesExcept(activeIds: string[], retiredAt: string): number {
+    if (activeIds.length === 0) {
+      throw new Error("Development sample reconciliation requires at least one active id");
+    }
+    const placeholders = activeIds.map(() => "?").join(", ");
+    const result = this.db.prepare(`
+      UPDATE recordings
+      SET dismissed = 1,
+          dismissed_at = ?,
+          local_path = NULL,
+          bytes_written = 0
+      WHERE dismissed = 0
+        AND id NOT IN (${placeholders})
+    `).run(retiredAt, ...activeIds);
+    return result.changes;
+  }
+
   commitUpstreamInventory(
     remoteRecordingIds: string[],
     artifactVerifiedIds: string[],

@@ -308,6 +308,80 @@ The goal is *referenceable analysis*, not full transcripts. If a point is decide
 
 ---
 
+## 2026-11-12 - Agent Development Runtime Publication Review (Codex)
+
+**Input:** Plaud Mirror 0.17.0 re-application of the 2026-09-15 candidate
+`61a1fc6` onto `main` `13f480c`, first as local commit `325f46d`. Author:
+Claude Code (`claude-opus-5-5`); reviewer from a different model family:
+Codex CLI with the user's configured GPT-6 model, `codex exec --sandbox
+read-only` over a private clone of the commit. The reviewer reported that the
+session does not expose an exact model identifier.
+
+### Summary Outcome
+
+- Round 0 on dev-vm did not review: its sandbox failed to start (`bwrap:
+  loopback: Failed RTM_NEWADDR`). Repeated on OCTA against a private clone.
+- Round 1: NEEDS_CHANGES with three findings, no functional loss or
+  duplication against `61a1fc6`, `deploy/nas` and the Dockerfile untouched,
+  minor 0.17.0 judged appropriate.
+  1. Blocking: `container_running()` treated any `docker inspect` failure as
+     stopped, so `refresh-samples` could replace sample audio under a running
+     copy. Fixed: explicit running/stopped/absent states, inspection errors stop
+     the command, and `up`/`down`/`refresh-samples` take an exclusive lock.
+     Two integration regressions cover the error and absent cases.
+  2. Non-blocking: the isolated identity accepted a positive scheduler
+     interval in the generic loader and kept a persisted positive value.
+     Fixed in the loader and in shared initialization, with tests.
+  3. Blocking: handoff/onboarding/history claimed the rebuild before it
+     happened. Reworded; the rebuild receipt follows publication separately.
+- Round 2 on fixed commit (same parent, 12 files changed only):
+  GO_WITH_NOTES, model `gpt-6.1-sol`, reasoning effort high, read-only,
+  session `01a1cd13-61a9-7d43-8507-d67988e2dc5a` (round 1 session
+  `01a1cd05-4d97-7b62-9c94-7286b9d9dd8d`, same model and effort). All three
+  findings closed. One non-blocking note: credential generation in
+  `prepare` ran outside the lock, so two concurrent first runs could write
+  different credentials. Applied by moving the lock into `prepare`; not
+  reviewed again.
+
+## 2026-09-15 - Agent Development Runtime Audit (two exact attempts blocked)
+
+**Input:** The final coordinated candidate included Plaud Mirror `v0.16.4`
+from base `0b5b97c5ea8b5f28114adb866fd291bc07a1cee7`, staged tree
+`07df9a4afa2299bca8a5432d7a65303d53546b7c`, and binary-diff SHA-256
+`d2815b647ed70d2c32dcb66d6b2c577efe8280165bc3a6261bcd96ff5998f48b`;
+Infra Portal staged tree `79ddb184ff253fac81efd3db38d0cfb55d16e998`;
+and Home Infra staged tree `3b85a6c6861ba56077e2acc9526968ef8fdd80ff`.
+
+**Reviewer requested:** exact `claude-fable-5-1` at high effort, restricted
+read-only with only Read/Glob/Grep, no settings, browser, network, shell,
+writes, session persistence, or subagents.
+
+### Summary Outcome
+
+- The first exact request returned HTTP 429 in session
+  `dd1c952f-ec41-4757-8b6e-1bfce16a3abe` against the earlier staged identity.
+- After all hardening, validation, browser inspection, and concurrent Home
+  Infra rebases were complete, the exact request was repeated against the
+  identities above. It returned the same `You've reached your Fable limit.`
+  before reading input in session `6b45f1f5-655f-4104-82a7-e0814daee35f`.
+- Both responses report zero input/output tokens, zero model usage, and zero
+  spawned subagents. Therefore no independent review occurred and no GO is
+  claimed.
+- Publication, Home Infra activation, DNS/Caddy mutation, Portal deployment,
+  and live canonical acceptance remain blocked pending a successful exact
+  Fable pass over the final candidate identity.
+- Executor validation before the final attempt passed 194 Node/integration tests,
+  32 web tests, 25/25 version targets, Compose rendering, diff hygiene, and
+  DocKit with only the expected not-yet-reconciled Home Infra trigger warning.
+
+### Follow-Through Landed
+
+- The final audit packet remains
+  `/tmp/plaud-agent-development-final-audit-20260915.txt` on this
+  dev-vm for exact retry; it contains no private sample identifiers, titles,
+  audio, or secrets.
+- No fallback model was used.
+
 ## 2026-09-14 - Lean Dev-VM Retirement Audit
 
 **Input:** Carlos's explicit GO to retain a lean development checkout while

@@ -1,4 +1,4 @@
-<!-- doc-version: 0.16.12 -->
+<!-- doc-version: 0.17.0 -->
 # Plaud Mirror Roadmap
 
 This document is the canonical phase boundary for Plaud Mirror. If implementation scope starts to cross a phase boundary, update this document before claiming the work is part of the current phase.
@@ -86,7 +86,8 @@ September 29 observations: 770 mirrored; 76 transcribed, 72 failed, 622 not sent
 Phase 3 stability and generic-webhook acceptance, Phase 5 independent recovery
 and its historical dual-host exit wording, and Phase 6 completion remain open.
 Dev-vm is intentionally development-only; do not reactivate a production writer
-to satisfy obsolete wording. Resolve that wording by a separate explicit roadmap
+to satisfy obsolete wording. Since 2026-11-12 (v0.17.0) it hosts the D-028
+isolated agent-development runtime, which is not a production writer. Resolve that wording by a separate explicit roadmap
 amendment. No phase is silently closed by this retrospective.
 
 ## Historical Target - 2026-09-14

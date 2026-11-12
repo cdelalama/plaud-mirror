@@ -1,4 +1,4 @@
-<!-- doc-version: 0.16.12 -->
+<!-- doc-version: 0.17.0 -->
 # Plaud Mirror
 
 Self-hosted Plaud audio mirror with a local operator panel, manual/continuous
@@ -39,6 +39,9 @@ The repository now contains the full Phase 2 slice, the complete Phase 3 runtime
 - Docker packaging for local `dev-vm` development and a fail-closed NAS
   production deployment: dev-vm uses image identity 1000:1000, while QNAP
   overrides only the runtime group to its live storage identity 1000:100
+- an agent-native, isolated development runtime on `dev-vm`, with separate
+  external state, generated development-only credentials, scheduling disabled,
+  and a bounded SHA-256-verified sample of real recordings
 
 The current re-auth path is browser-assisted: the panel starts a one-time capture session and the local Chrome extension sends the Plaud browser token back through `/connect`. The v0.9.x panel absorbs `docs/design/reference/plaud-mirror-panel-standalone.html` as its visual source reference, uses a full-viewport production shell on wide monitors, makes the Main cockpit's "Sync missing" action download the displayed missing count instead of inheriting the Backfill form's conservative limit, and keeps the mobile shell readable with labeled navigation and compact status chips. Resumable backfill and fully unattended re-login remain later phases. The `v0.16.x` NAS deployment closes the long-deferred production-placement slice without changing those product flows.
 
@@ -71,10 +74,22 @@ Then open `http://localhost:3040`.
 
 ```bash
 cd ~/src/plaud-mirror
-doppler run --project plaud-mirror --config dev -- docker compose up -d --build
+npm run dev:agent
+npm run dev:agent:credentials
 ```
 
-The `dev-vm` deployment keeps operator access control in Doppler (`plaud-mirror/dev`). A bare `docker compose up` can recreate the container without `PLAUD_MIRROR_ADMIN_PASSPHRASE` and disarm the panel lock unless the same value is also present in a local `.env`.
+Open `http://dev.lamanoriega.com:3041/`. The launcher builds the
+checked-out source, uses a generated development-only passphrase, keeps state
+outside the repository, disables scheduled Plaud sync, and verifies that at
+least one representative audio sample is present. It does not read Doppler or
+reuse production credentials.
+
+Agents treat unqualified work in this repository as development work. They
+check `npm run dev:agent:status` after onboarding and rebuild with
+`npm run dev:agent` when a requested change needs live review. Production on
+NAS is a separate authority and still requires an explicit production action
+or GO. See
+[`docs/operations/AGENT_DEVELOPMENT.md`](docs/operations/AGENT_DEVELOPMENT.md).
 
 If Docker Hub is timing out, the Dockerfile accepts `PLAUD_MIRROR_DOCKER_BUILD_IMAGE` and `PLAUD_MIRROR_DOCKER_RUNTIME_IMAGE` build-arg overrides so you can point the build at a locally cached Node base. Acceptable substitutes:
 
@@ -84,10 +99,10 @@ If Docker Hub is timing out, the Dockerfile accepts `PLAUD_MIRROR_DOCKER_BUILD_I
 
 Pentesting distributions such as `vxcontrol/kali-linux:latest` are **not** acceptable substitutes. Kali is a security-tooling base, inflates the attack surface of this service, and does not belong in a Plaud mirror's runtime — even if it happens to be cached locally for an unrelated project.
 
-Runtime data lands in:
+Development runtime data lands outside Git in:
 
-- `./runtime/data`
-- `./runtime/recordings`
+- `${XDG_STATE_HOME:-$HOME/.local/state}/plaud-mirror-development/data`
+- `${XDG_STATE_HOME:-$HOME/.local/state}/plaud-mirror-development/recordings`
 
 ### Docker on the NAS
 
@@ -102,8 +117,10 @@ Control state and recordings use separate datasets:
 - `/share/Container/runtime/plaud-mirror/data`
 - `/share/ProjectsData/plaud-mirror/recordings`
 
-Do not copy a live `app.db` or start the NAS container alongside the dev-vm
-scheduler. Follow the quiesced migration, validation, and rollback gates in
+Do not copy a live `app.db` or point a second runtime at production state. The
+isolated development runtime may coexist because it has separate state, no
+Plaud credential, and no scheduler. Follow the quiesced migration, validation,
+and rollback gates in
 [`docs/operations/DEPLOY_PLAYBOOK.md`](docs/operations/DEPLOY_PLAYBOOK.md).
 
 ## Phase 1 Spike
@@ -122,7 +139,8 @@ This remains useful for live Plaud validation and metadata discovery.
 ```bash
 npm test
 npm start
-doppler run --project plaud-mirror --config dev -- docker compose up -d --build
+npm run dev:agent
+npm run dev:agent:status
 scripts/check-version-sync.sh
 scripts/dockit-validate-session.sh --human
 ```
@@ -140,6 +158,7 @@ scripts/dockit-validate-session.sh --human
 | [docs/contracts/README.md](docs/contracts/README.md) | Provider-neutral Transcription Intake v1 contract and conformance gate |
 | [docs/operations/AUTH_AND_SYNC.md](docs/operations/AUTH_AND_SYNC.md) | Auth model and sync behavior |
 | [docs/operations/DEPLOY_PLAYBOOK.md](docs/operations/DEPLOY_PLAYBOOK.md) | Docker deployment and rollback |
+| [docs/operations/AGENT_DEVELOPMENT.md](docs/operations/AGENT_DEVELOPMENT.md) | Agent-native development runtime, data, and safety contract |
 | [docs/UPSTREAMS.md](docs/UPSTREAMS.md) | Which upstreams are tracked, what is adopted, what is rejected |
 | [PRODUCT.md](PRODUCT.md) | Operator, product-purpose, and interaction principles |
 | [DESIGN.md](DESIGN.md) | Current operator-panel visual system and component rules |

@@ -1,4 +1,4 @@
-<!-- doc-version: 0.16.12 -->
+<!-- doc-version: 0.17.0 -->
 # Deploy Playbook
 
 This runbook separates local development, NAS production, upgrades, migration,
@@ -7,9 +7,10 @@ ingress, and Home Infra observation are separate claims.
 
 ## Runtime ownership
 
-- `dev-vm`: lean source checkout plus retained control-state custody only; its
-  pre-NAS recordings, stopped container, local Plaud image, and rebuildable
-  dependencies were removed through two exact operator-authorized passes.
+- `dev-vm`: source checkout plus the isolated agent-development runtime on
+  port 3041. Its state and bounded sample audio live outside the repository.
+  The retired pre-NAS control-state custody remains separate and is never
+  mounted by development.
 - NAS: production runs the accepted immutable `v0.16.1` image using
   `deploy/nas/`; source `v0.16.2` supplied the corrected host verifier and
   `v0.16.3` reconciles only the project-owned placement contract. Neither
@@ -19,31 +20,32 @@ ingress, and Home Infra observation are separate claims.
 - Plaud Mirror: owns its SQLite state, encrypted secret blob, recording files,
   in-process PT15M scheduler, and public Home Infra Protocol snapshot.
 
-Never run the dev-vm and NAS containers together. Both contain the same
-persisted scheduler and are not a distributed active/passive pair.
+Never run two containers against the production state or credentials. The
+isolated development container may coexist with NAS production because it has
+fresh SQLite, generated local secrets, no Plaud bearer, and a forced-off
+scheduler. It is not an active/passive pair or a recovery path.
 
 ## Development on dev-vm
 
-No Plaud container, image, or `node_modules` tree is currently present on
-dev-vm. Development remains supported but deliberately cold: restore
-dependencies with `npm ci`, run tests, and build a fresh development image only
-for a named test slice. Never treat local recreation as production recovery.
-
-Preconditions:
-
-- Docker and Docker Compose are available.
-- `PLAUD_MIRROR_MASTER_KEY` and `PLAUD_MIRROR_ADMIN_PASSPHRASE` are supplied.
-- Current development secrets come from `doppler://plaud-mirror/dev`.
+Development is a persistent product environment for agents, not a cold
+production clone. The canonical workflow is:
 
 ```sh
 cd ~/src/plaud-mirror
-doppler run --project plaud-mirror --config dev -- docker compose up -d --build
+npm run dev:agent:status
+npm run dev:agent
+npm run dev:agent:credentials
 ```
 
-Every recreate must remain Doppler-wrapped unless an equivalent gitignored
-environment is deliberately installed. A bare recreate can omit the admin
-passphrase and disarm operator authentication. Verify `/api/session` reports
-`authRequired: true`.
+The launcher generates its own development-only master key and operator
+passphrase, binds the panel on `10.0.0.110:3041`, keeps data under the user's
+external state directory, forces the scheduler off, and validates a bounded
+set of real audio samples. It does not consume Doppler. A plain
+`docker compose up` delegates to the same safe development definition rather
+than mounting `./runtime`.
+
+The full agent lifecycle, sample provenance, and destructive-reset boundary
+live in [AGENT_DEVELOPMENT.md](AGENT_DEVELOPMENT.md).
 
 If Docker Hub cannot supply `node:24-bookworm-slim`, the Dockerfile accepts
 `PLAUD_MIRROR_DOCKER_BUILD_IMAGE` and `PLAUD_MIRROR_DOCKER_RUNTIME_IMAGE`.

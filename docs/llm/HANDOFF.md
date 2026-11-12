@@ -1,4 +1,17 @@
-<!-- doc-version: 0.16.12 -->
+<!-- doc-version: 0.17.0 -->
+
+## Agent development runtime published - 2026-11-12
+
+Last Updated: 2026-11-12 - Claude Code (claude-opus-5-5).
+Carlos confirmed he wants a development copy to work on the product. D-028's
+isolated `dev-vm` runtime, staged unpublished since 2026-09-15, is re-applied
+to current `main` as 0.17.0. After publication the dev-vm container is rebuilt
+from this exact source and the rebuild receipt is recorded separately; NAS
+production 0.16.1 is unchanged. Use
+`npm run dev:agent:status` before live product work and
+`docs/operations/AGENT_DEVELOPMENT.md` for the full contract. Direct URL only
+(`http://dev.lamanoriega.com:3041/`); a private canonical hostname and an Infra
+Portal Development tab remain optional later actions needing separate approval.
 
 ## Idea continuity delivery receipt - 2026-10-07
 

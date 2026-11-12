@@ -48,6 +48,62 @@ test("loadServerEnvironment honours an explicit 0 (operator opts out)", () => {
   assert.equal(env.schedulerIntervalMs, 0);
 });
 
+test("loadServerEnvironment preserves the isolated development identity", () => {
+  const env = loadServerEnvironment({
+    PLAUD_MIRROR_MASTER_KEY: "x",
+    PLAUD_MIRROR_ENVIRONMENT: "development",
+    PLAUD_MIRROR_STATE_POLICY: "isolated",
+  });
+  assert.equal(env.deploymentEnvironment, "development");
+  assert.equal(env.statePolicy, "isolated");
+});
+
+test("loadServerEnvironment rejects unknown deployment identity values", () => {
+  assert.throws(
+    () => loadServerEnvironment({
+      PLAUD_MIRROR_MASTER_KEY: "x",
+      PLAUD_MIRROR_ENVIRONMENT: "staging",
+    }),
+    /PLAUD_MIRROR_ENVIRONMENT must be one of production, development/,
+  );
+  assert.throws(
+    () => loadServerEnvironment({
+      PLAUD_MIRROR_MASTER_KEY: "x",
+      PLAUD_MIRROR_STATE_POLICY: "shared",
+    }),
+    /PLAUD_MIRROR_STATE_POLICY must be one of none, read_only, isolated, production_write/,
+  );
+});
+
+test("loadServerEnvironment rejects a partial isolated-development identity", () => {
+  assert.throws(
+    () => loadServerEnvironment({
+      PLAUD_MIRROR_MASTER_KEY: "x",
+      PLAUD_MIRROR_ENVIRONMENT: "development",
+    }),
+    /development requires PLAUD_MIRROR_STATE_POLICY=isolated/,
+  );
+  assert.throws(
+    () => loadServerEnvironment({
+      PLAUD_MIRROR_MASTER_KEY: "x",
+      PLAUD_MIRROR_STATE_POLICY: "isolated",
+    }),
+    /isolated requires PLAUD_MIRROR_ENVIRONMENT=development/,
+  );
+});
+
+test("loadServerEnvironment rejects scheduling under the isolated development identity", () => {
+  assert.throws(
+    () => loadServerEnvironment({
+      PLAUD_MIRROR_MASTER_KEY: "x",
+      PLAUD_MIRROR_ENVIRONMENT: "development",
+      PLAUD_MIRROR_STATE_POLICY: "isolated",
+      PLAUD_MIRROR_SCHEDULER_INTERVAL_MS: "60000",
+    }),
+    /isolated development identity requires PLAUD_MIRROR_SCHEDULER_INTERVAL_MS=0/,
+  );
+});
+
 test("loadServerEnvironment rejects a positive value below the 60s floor", () => {
   assert.throws(
     () =>

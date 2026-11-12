@@ -179,6 +179,11 @@ export class PlaudMirrorService {
     // of truth — operator changes from the panel persist; the env var
     // is irrelevant on subsequent boots.
     this.store.seedSchedulerDefaults(this.environment.schedulerIntervalMs);
+    if (this.isIsolatedDevelopment()) {
+      // D-028: the isolated development identity never schedules Plaud work,
+      // even when its SQLite state carries a positive interval from elsewhere.
+      this.store.saveConfig({ schedulerIntervalMs: 0 });
+    }
 
     // Startup crash recovery (D-013 amendment, v0.6.0). A process that
     // died mid-flight can leave two kinds of orphans, both of which are
@@ -329,6 +334,10 @@ export class PlaudMirrorService {
   async updateConfig(input: unknown): Promise<RuntimeConfig> {
     const parsed = UpdateRuntimeConfigRequestSchema.parse(input);
 
+    if (this.isIsolatedDevelopment() && (parsed.schedulerIntervalMs ?? 0) > 0) {
+      throw createHttpError(403, "The isolated development runtime cannot enable Plaud scheduling");
+    }
+
     if (parsed.schedulerIntervalMs !== undefined) {
       // Validate at the request boundary so the panel sees a 4xx error
       // synchronously instead of the operator wondering why /api/health
@@ -374,6 +383,7 @@ export class PlaudMirrorService {
   }
 
   async saveAccessToken(input: unknown): Promise<AuthStatus> {
+    this.assertPlaudRemoteAccessAllowed("store Plaud credentials");
     const parsed = SaveAccessTokenRequestSchema.parse(input);
     // Normalize a possibly-messy paste: strip surrounding quotes and a leading
     // "Bearer "/"bearer " prefix. Plaud stores the token in localStorage as a
@@ -431,6 +441,7 @@ export class PlaudMirrorService {
   }
 
   async runSync(input: unknown = {}): Promise<StartSyncRunResponse> {
+    this.assertPlaudRemoteAccessAllowed("run Plaud synchronization");
     const parsed = SyncFiltersSchema.parse({
       limit: this.environment.defaultSyncLimit,
       ...normalizeObject(input),
@@ -447,6 +458,7 @@ export class PlaudMirrorService {
   }
 
   async runBackfill(input: unknown = {}): Promise<StartSyncRunResponse> {
+    this.assertPlaudRemoteAccessAllowed("run Plaud backfill");
     const parsed = SyncFiltersSchema.parse({
       limit: this.environment.defaultSyncLimit,
       ...normalizeObject(input),
@@ -468,6 +480,7 @@ export class PlaudMirrorService {
    * distinction (they always say `running` and let the caller poll).
    */
   async runScheduledSync(): Promise<{ id: string; started: boolean }> {
+    this.assertPlaudRemoteAccessAllowed("run scheduled Plaud synchronization");
     const filters = SyncFiltersSchema.parse({
       limit: this.environment.defaultSyncLimit,
       forceDownload: false,
@@ -686,6 +699,7 @@ export class PlaudMirrorService {
   }
 
   async restoreRecording(recordingId: string): Promise<RecordingRestoreResult> {
+    this.assertPlaudRemoteAccessAllowed("restore audio from Plaud");
     this.assertSafeRecordingId(recordingId);
 
     if (this.activeUpstreamDeletionIds.has(recordingId)) {
@@ -756,6 +770,7 @@ export class PlaudMirrorService {
   async permanentlyDeleteRecordingFromPlaud(
     recordingId: string,
   ): Promise<RecordingUpstreamDeleteResult> {
+    this.assertPlaudRemoteAccessAllowed("delete recordings from Plaud");
     this.assertSafeRecordingId(recordingId);
     if (this.activeUpstreamDeletionIds.has(recordingId)) {
       throw createHttpError(409, `Recording ${recordingId} already has a Plaud deletion in progress`);
@@ -1435,6 +1450,7 @@ export class PlaudMirrorService {
   }
 
   private async loadValidatedClient(signal?: AbortSignal): Promise<{ client: PlaudClient; secrets: StoredSecrets }> {
+    this.assertPlaudRemoteAccessAllowed("contact Plaud");
     const secrets = await this.secrets.load();
     if (!secrets.accessToken) {
       throw new PlaudAuthError("No Plaud bearer token is configured");
@@ -1483,6 +1499,17 @@ export class PlaudMirrorService {
     }
 
     return new PlaudClient(config);
+  }
+
+  private isIsolatedDevelopment(): boolean {
+    return this.environment.deploymentEnvironment === "development"
+      && this.environment.statePolicy === "isolated";
+  }
+
+  private assertPlaudRemoteAccessAllowed(action: string): void {
+    if (this.isIsolatedDevelopment()) {
+      throw createHttpError(403, `The isolated development runtime cannot ${action}`);
+    }
   }
 }
 

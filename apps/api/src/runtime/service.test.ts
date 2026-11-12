@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, unlink, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, unlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -98,6 +98,77 @@ test("PlaudMirrorService saves a validated token into encrypted storage", async 
   assert.equal((await service.getAuthStatus()).configured, true);
 
   service.close();
+});
+
+test("isolated development cannot gain Plaud authority or enable its scheduler", async () => {
+  const root = await mkdtemp(join(tmpdir(), "plaud-mirror-isolated-development-"));
+  const environment: ServerEnvironment = {
+    ...createEnvironment(root),
+    deploymentEnvironment: "development",
+    statePolicy: "isolated",
+  };
+  const store = new RuntimeStore({
+    dbPath: join(environment.dataDir, "app.db"),
+    dataDir: environment.dataDir,
+    recordingsDir: environment.recordingsDir,
+    defaultSyncLimit: environment.defaultSyncLimit,
+  });
+  const secrets = new SecretStore(join(environment.dataDir, "secrets.enc"), environment.masterKey);
+  let plaudFetchCalls = 0;
+  const service = new PlaudMirrorService(environment, store, secrets, {
+    plaudFetchImpl: async () => {
+      plaudFetchCalls += 1;
+      return createJsonResponse({ status: 0, data: {} });
+    },
+  });
+  await service.initialize();
+
+  await assert.rejects(
+    service.saveAccessToken({ accessToken: "candidate-token" }),
+    /isolated development runtime cannot store Plaud credentials/,
+  );
+  await assert.rejects(
+    service.updateConfig({ schedulerIntervalMs: 60_000 }),
+    /isolated development runtime cannot enable Plaud scheduling/,
+  );
+  await assert.rejects(
+    service.runSync(),
+    /isolated development runtime cannot run Plaud synchronization/,
+  );
+  assert.equal((await secrets.load()).accessToken, null);
+  assert.equal((await service.getConfig()).schedulerIntervalMs, 0);
+  assert.equal(plaudFetchCalls, 0);
+
+  service.close();
+  await rm(root, { recursive: true, force: true });
+});
+
+test("isolated development forces a persisted positive scheduler interval to zero", async () => {
+  const root = await mkdtemp(join(tmpdir(), "plaud-mirror-isolated-scheduler-"));
+  const environment: ServerEnvironment = {
+    ...createEnvironment(root),
+    schedulerIntervalMs: 900_000,
+    deploymentEnvironment: "development",
+    statePolicy: "isolated",
+  };
+  await mkdir(environment.dataDir, { recursive: true });
+  const store = new RuntimeStore({
+    dbPath: join(environment.dataDir, "app.db"),
+    dataDir: environment.dataDir,
+    recordingsDir: environment.recordingsDir,
+    defaultSyncLimit: environment.defaultSyncLimit,
+  });
+  store.saveConfig({ schedulerIntervalMs: 600_000 });
+  const secrets = new SecretStore(join(environment.dataDir, "secrets.enc"), environment.masterKey);
+  const service = new PlaudMirrorService(environment, store, secrets, {
+    plaudFetchImpl: async () => createJsonResponse({ status: 0, data: {} }),
+  });
+  await service.initialize();
+
+  assert.equal((await service.getConfig()).schedulerIntervalMs, 0);
+
+  service.close();
+  await rm(root, { recursive: true, force: true });
 });
 
 test("PlaudMirrorService updateConfig persists schedulerIntervalMs and dispatches the reconfigure hook", async () => {

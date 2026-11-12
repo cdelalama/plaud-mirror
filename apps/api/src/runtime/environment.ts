@@ -36,6 +36,10 @@ export interface ServerEnvironment {
    * HOW_TO_USE.md and AUTH_AND_SYNC.md but NOT applied automatically.
    */
   schedulerIntervalMs: number;
+  /** Optional deployment identity used to enforce isolated development policy. */
+  deploymentEnvironment?: "production" | "development";
+  /** Home Infra state-policy projection for this runtime. */
+  statePolicy?: "none" | "read_only" | "isolated" | "production_write";
 }
 
 export function loadServerEnvironment(env: NodeJS.ProcessEnv = process.env): ServerEnvironment {
@@ -63,6 +67,31 @@ export function loadServerEnvironment(env: NodeJS.ProcessEnv = process.env): Ser
   // (disabled) so an operator upgrading from 0.4.x to 0.5.x without
   // setting the variable keeps Phase 2's manual-only behavior.
   const schedulerIntervalMs = parseSchedulerInterval(env.PLAUD_MIRROR_SCHEDULER_INTERVAL_MS, 0);
+  const deploymentEnvironment = parseOptionalEnum(
+    env.PLAUD_MIRROR_ENVIRONMENT,
+    ["production", "development"] as const,
+    "PLAUD_MIRROR_ENVIRONMENT",
+  );
+  const statePolicy = parseOptionalEnum(
+    env.PLAUD_MIRROR_STATE_POLICY,
+    ["none", "read_only", "isolated", "production_write"] as const,
+    "PLAUD_MIRROR_STATE_POLICY",
+  );
+  if (deploymentEnvironment === "development" && statePolicy !== "isolated") {
+    throw new Error(
+      "PLAUD_MIRROR_ENVIRONMENT=development requires PLAUD_MIRROR_STATE_POLICY=isolated",
+    );
+  }
+  if (statePolicy === "isolated" && deploymentEnvironment !== "development") {
+    throw new Error(
+      "PLAUD_MIRROR_STATE_POLICY=isolated requires PLAUD_MIRROR_ENVIRONMENT=development",
+    );
+  }
+  if (statePolicy === "isolated" && schedulerIntervalMs > 0) {
+    throw new Error(
+      "The isolated development identity requires PLAUD_MIRROR_SCHEDULER_INTERVAL_MS=0",
+    );
+  }
 
   const resolvedEnvironment: ServerEnvironment = {
     port,
@@ -76,6 +105,13 @@ export function loadServerEnvironment(env: NodeJS.ProcessEnv = process.env): Ser
     syncMaxRuntimeMs,
     schedulerIntervalMs,
   };
+
+  if (deploymentEnvironment) {
+    resolvedEnvironment.deploymentEnvironment = deploymentEnvironment;
+  }
+  if (statePolicy) {
+    resolvedEnvironment.statePolicy = statePolicy;
+  }
 
   if (apiBase) {
     resolvedEnvironment.apiBase = apiBase;
@@ -91,6 +127,19 @@ export function loadServerEnvironment(env: NodeJS.ProcessEnv = process.env): Ser
   }
 
   return resolvedEnvironment;
+}
+
+function parseOptionalEnum<const T extends readonly string[]>(
+  input: string | undefined,
+  allowed: T,
+  name: string,
+): T[number] | undefined {
+  const value = input?.trim();
+  if (!value) return undefined;
+  if (!(allowed as readonly string[]).includes(value)) {
+    throw new Error(`${name} must be one of ${allowed.join(", ")}; received: ${value}`);
+  }
+  return value as T[number];
 }
 
 function resolveDefaultWebDistDir(): string {

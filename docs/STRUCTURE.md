@@ -1,4 +1,4 @@
-<!-- doc-version: 0.16.12 -->
+<!-- doc-version: 0.17.0 -->
 # Repository Structure Guide
 
 This document describes the actual Plaud Mirror repository layout as of the first usable Phase 2 slice.
@@ -18,6 +18,7 @@ plaud-mirror/
 +- infra.contract.yml
 +- Dockerfile
 +- compose.yml
++- compose.development.yml
 +- deploy/
 |  +- nas/
 |     +- docker-compose.yml
@@ -107,8 +108,11 @@ plaud-mirror/
 | `.github/workflows/ci.yml` | Repository CI gate | Runs `npm test` on Node 24 for `main` and pull requests |
 | `docs/ROADMAP.md` | Canonical phase boundary document | Use this when scope questions appear |
 | `Dockerfile` | Single-container production image | Builds API and panel together |
-| `compose.yml` | Local `dev-vm` launch path | Mounts `runtime/data` and `runtime/recordings` |
+| `compose.yml` | Safe default Compose entrypoint | Delegates to `compose.development.yml` so a plain local launch cannot revive retired production-like state |
+| `compose.development.yml` | Agent development runtime | Separate container, image, port, external state root, development identity, and disabled scheduler |
 | `deploy/nas/` | QNAP production launch surface | Immutable image, Doppler bootstrap, loopback ingress, split persistent storage, and migrated-state fail-closed gate |
+| `scripts/agent-development.sh` | Stable agent lifecycle command | Prepares, builds, starts, stops, validates, refreshes bounded samples, and reveals development-only credentials |
+| `scripts/select-development-samples.mjs` | Read-only NAS sample selector | Chooses bounded representative audio and emits a private SHA-256 manifest |
 
 ## Runtime Directories
 
@@ -117,7 +121,10 @@ These paths are expected at runtime and should remain uncommitted:
 - `data/` - SQLite DB and encrypted secrets blob
 - `recordings/` - mirrored Plaud artifacts
 - `.state/` - spike reports and optional local state
-- `runtime/` - Docker bind mounts for local compose usage
+- `${XDG_STATE_HOME:-$HOME/.local/state}/plaud-mirror-development/` - default
+  private development state root, intentionally outside the repository
+- `runtime/` - retired production-like dev-vm custody; not an active
+  development mount and not a complete rollback source
 
 ## Key Runtime Modules
 
@@ -134,6 +141,9 @@ These paths are expected at runtime and should remain uncommitted:
   Plaud API client: auth headers, region-retry on `-302`, `listEverything` pagination, `listDevices`, `getFileDetail`, `getAudioTempUrl`, and the observed trash/permanent-delete mutations. Wire-to-domain translation lives here.
 - `apps/api/src/phase1/`
   The original spike utilities (probe CLI). `applyLocalFilters` is reused by both the real sync path and the backfill preview.
+- `apps/api/src/cli/development-seed.ts` and `development-server.ts`
+  Fail-closed development entrypoints: verify the isolated environment marker,
+  validate sample bytes, seed fresh local rows, then start the normal API.
 - `apps/api/src/runtime/`
   SQLite store (recordings, inventory generations, durable upstream deletion
   operations/events, devices, sync_runs, webhook_deliveries, webhook_outbox),

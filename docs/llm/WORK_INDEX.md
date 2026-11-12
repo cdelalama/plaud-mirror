@@ -15,3 +15,5 @@ This index describes retained work, not permission to delete it.
 - [m1-preparation-20261007](work/m1-preparation-20261007.json): closed preparation; private note and L8/S8 delivered with exact Opus GO. Carlos still must accept reading/search/offline on both devices; retained checkout/evidence.
 
 - [idea-continuity-20261007](work/idea-continuity-20261007.json): closed; implement durable idea continuity and scoped historical recovery.
+
+- [agent-dev-publish-20261112](work/agent-dev-publish-20261112.json): pending-integration; publish the D-028 isolated development runtime as 0.17.0 and rebuild the dev-vm copy from published source.

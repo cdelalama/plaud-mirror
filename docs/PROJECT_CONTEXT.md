@@ -1,4 +1,4 @@
-<!-- doc-version: 0.16.12 -->
+<!-- doc-version: 0.17.0 -->
 # Project Context - Plaud Mirror
 
 ## Vision
@@ -25,6 +25,15 @@ Plaud Mirror is a server-first product with two runtime surfaces:
 - `apps/web/`: React/Vite operator panel served by the API runtime
 
 Persistence is split between SQLite for state/indexes and the filesystem for mirrored audio artifacts. Secrets are encrypted at rest with a master key supplied by the surrounding deployment.
+
+## Development environment (2026-11-12, v0.17.0)
+
+Production stays on NAS at immutable `v0.16.1`. `v0.17.0` publishes D-028: a
+persistent `plaud-mirror-development` runtime on `dev-vm` (`10.0.0.110:3041`)
+with fresh external state, generated development-only secrets, the scheduler
+forced off, no Plaud credential authority, and a bounded SHA-256-verified sample
+of real recordings. It is where agents show product changes before any separate
+production action. See `docs/operations/AGENT_DEVELOPMENT.md`.
 
 ## Current Status (2026-09-14, v0.16.3 placement reconciliation)
 

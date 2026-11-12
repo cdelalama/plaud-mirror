@@ -1,9 +1,9 @@
-<!-- doc-version: 0.16.12 -->
+<!-- doc-version: 0.17.0 -->
 # Plaud Mirror Architecture
 
 > Source: 0.16.10; owner contract reconciled at 0.16.3; accepted runtime 0.16.1
-> Last Updated: 2026-09-30 (D-019 lifetime amendment; runtime unchanged)
-> Status: v0.16.0 added the source-owned NAS production surface and migration contract; v0.16.1 corrected its QNAP runtime identity after a clean pre-start rollback; v0.16.2 corrected declared-versus-resolved bind-source verification as a host asset. Direct and canonical acceptance plus the first NAS-owned automatic run passed against the unchanged immutable v0.16.1 container. v0.16.3 declares NAS/production truth for infrastructure consumers without a new image or restart. After full checksum parity and explicit operator authorization, dev-vm recordings were removed. A second authorized retirement pass removed the local container, sole-tagged image, and rebuildable dependencies while retaining the 15 MiB control-state tree as Plaud's only off-NAS custody. NAS is the sole verified audio copy. D-026 connection control and historical replay remain separate gates.
+> Last Updated: 2026-11-12 (D-028 agent-development runtime published; production unchanged)
+> Status: v0.16.0 added the source-owned NAS production surface and migration contract; v0.16.1 corrected its QNAP runtime identity after a clean pre-start rollback; v0.16.2 corrected declared-versus-resolved bind-source verification as a host asset. Direct and canonical acceptance plus the first NAS-owned automatic run passed against the unchanged immutable v0.16.1 container. v0.16.3 declares NAS/production truth for infrastructure consumers without a new image or restart. After full checksum parity and explicit operator authorization, dev-vm recordings were removed. A second authorized retirement pass removed the local container, sole-tagged image, and rebuildable dependencies while retaining the 15 MiB control-state tree as Plaud's only off-NAS custody. NAS is the sole verified audio copy. D-026 connection control and historical replay remain separate gates. v0.17.0 publishes the D-028 isolated agent-development runtime on dev-vm (fresh state, generated local secrets, scheduler forced off, bounded SHA-256-verified samples); it is not a standby, rollback source, or second production version.
 
 ## Overview
 
@@ -47,11 +47,28 @@ to QNAP's live-verified storage identity 1000:100, keeping UID 1000 and mode
 The NAS container publishes port 3040 only on loopback. `edge-caddy` terminates
 TLS and is the only operator ingress. `plaud-mirror/prd` supplies the unchanged
 historical master key, admin passphrase, EU API origin, and immutable image
-reference through a read-only Doppler service token. The old dev-vm runtime was
-stopped before NAS startup because the in-process scheduler is single-writer,
-not a distributed lease. Its retired container and local image have since been
-removed; recreating a development container is a new explicit test action,
-never a recovery shortcut or second production writer.
+reference through a read-only Doppler service token. The old production-like
+dev-vm runtime was stopped before NAS startup because the in-process scheduler
+is single-writer, not a distributed lease. Its state is never reused by the
+new development runtime.
+
+### Agent development placement from v0.17.0
+
+`compose.yml` delegates to `compose.development.yml` and the supported entry is
+`npm run dev:agent`. The `plaud-mirror-development` container binds
+`10.0.0.110:3041`, stores state under the user's external state root, and
+refuses to start without explicit `development` plus `isolated` markers. Its
+entrypoint verifies a private sample manifest and audio hashes before starting
+the normal API. It has a generated development-only master key and operator
+passphrase, no Plaud bearer, and scheduler interval zero.
+
+The container can run concurrently with NAS production because there is no
+shared database, secret material, scheduler, hostname, or write authority.
+This corrects the older blanket rule against two containers: the prohibited
+case is two runtimes sharing production state or credentials. Development has
+ordinary network access for deliberate integration testing and therefore is
+not called air-gapped; its safety boundary is explicit isolation and absence
+of automatic or production authority.
 
 ## What Phase 2 Shipped
 

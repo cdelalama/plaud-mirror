@@ -1,0 +1,51 @@
+services:
+  plaud-mirror-development:
+    image: ${PLAUD_MIRROR_DEV_IMAGE:-plaud-mirror:development}
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        BUILD_BASE_IMAGE: ${PLAUD_MIRROR_DOCKER_BUILD_IMAGE:-node:24-bookworm-slim}
+        RUNTIME_BASE_IMAGE: ${PLAUD_MIRROR_DOCKER_RUNTIME_IMAGE:-node:24-bookworm-slim}
+    container_name: plaud-mirror-development
+    user: "1000:1000"
+    command: ["node", "apps/api/dist/cli/development-server.js"]
+    env_file:
+      - ${PLAUD_MIRROR_DEV_ROOT:?set PLAUD_MIRROR_DEV_ROOT}/runtime.env
+    environment:
+      PORT: "3040"
+      PLAUD_MIRROR_PORT: "3040"
+      PLAUD_MIRROR_ENVIRONMENT: development
+      PLAUD_MIRROR_STATE_POLICY: isolated
+      PLAUD_MIRROR_SCHEDULER_INTERVAL_MS: "0"
+      PLAUD_MIRROR_DEVELOPMENT_SAMPLES: /var/lib/plaud-mirror/samples.json
+      PLAUD_MIRROR_DATA_DIR: /var/lib/plaud-mirror/data
+      PLAUD_MIRROR_RECORDINGS_DIR: /var/lib/plaud-mirror/recordings
+    ports:
+      - "${PLAUD_MIRROR_DEV_BIND_IP:-10.0.0.110}:3041:3040"
+    volumes:
+      - ${PLAUD_MIRROR_DEV_ROOT}/data:/var/lib/plaud-mirror/data
+      - ${PLAUD_MIRROR_DEV_ROOT}/recordings:/var/lib/plaud-mirror/recordings
+      - ${PLAUD_MIRROR_DEV_ROOT}/samples.json:/var/lib/plaud-mirror/samples.json:ro
+    networks:
+      - development
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=32m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 256
+    mem_limit: 768m
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3040/api/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 20s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+networks:
+  development:
+    name: plaud-mirror-development

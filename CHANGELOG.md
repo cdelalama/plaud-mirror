@@ -4,6 +4,37 @@ All notable changes to Plaud Mirror are documented in this file.
 
 This project follows Semantic Versioning (SemVer): MAJOR.MINOR.PATCH.
 
+## [0.17.0] - 2026-11-12
+
+### Added
+
+- Persistent isolated agent-development runtime for `dev-vm` (D-028):
+  `compose.development.yml`, `npm run dev:agent*`, a fail-closed development
+  server entrypoint, and a read-only bounded NAS sample selector with SHA-256
+  verification. Backend rejects Plaud credential enrollment, scheduler
+  activation, sync, backfill, remote restore and upstream delete while the
+  runtime identity is `development` plus `isolated`.
+- The isolated identity also rejects a positive scheduler interval at load
+  time and forces any persisted interval to zero during initialization.
+- The launcher refuses to continue when Docker cannot report the container
+  state, and serializes `prepare`, `up`, `down` and `refresh-samples` with a
+  lock.
+
+### Changed
+
+- The default `compose.yml` now delegates to the development definition so a
+  plain local Compose run cannot remount the retired production-like
+  `./runtime` tree. The development image tag follows `VERSION`.
+- Development no longer uses Doppler `plaud-mirror/dev`; it generates its own
+  development-only master key and operator passphrase outside Git.
+
+### Notes
+
+- This code was first staged on 2026-09-15 as an unpublished `0.16.4`
+  candidate (`61a1fc6`). Its required exact review was blocked by provider
+  quota and the runtime kept running unpublished. It is now re-applied to the
+  current `main`; production on NAS (immutable `0.16.1`) is unchanged.
+
 ## [0.16.12] - 2026-10-07
 
 ### Changed

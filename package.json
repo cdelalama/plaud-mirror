@@ -1,6 +1,6 @@
 {
   "name": "plaud-mirror",
-  "version": "0.16.12",
+  "version": "0.17.0",
   "private": true,
   "type": "module",
   "packageManager": "npm@11.6.2",
@@ -22,6 +22,12 @@
     "typecheck:web": "tsc -p apps/web/tsconfig.json --noEmit",
     "contract:check": "node scripts/check-transcription-contract.mjs",
     "contract:conformance": "node scripts/check-transcription-provider.mjs",
+    "dev:agent": "scripts/agent-development.sh up",
+    "dev:agent:credentials": "scripts/agent-development.sh credentials",
+    "dev:agent:down": "scripts/agent-development.sh down",
+    "dev:agent:prepare": "scripts/agent-development.sh prepare",
+    "dev:agent:refresh-samples": "scripts/agent-development.sh refresh-samples",
+    "dev:agent:status": "scripts/agent-development.sh status",
     "spike": "npm run build:runtime && node apps/api/dist/cli/spike.js"
   },
   "devDependencies": {

@@ -1,4 +1,4 @@
-<!-- doc-version: 0.16.12 -->
+<!-- doc-version: 0.17.0 -->
 # Infra Contract
 
 Plaud Mirror publishes a `home-infra-protocol` project contract in
@@ -17,6 +17,14 @@ Home Infra `0.34.18` source `0519d45` has accepted the NAS owner declaration,
 and live Portal provenance reports that catalog source plus Plaud contract
 source `ffe28e9` with no warnings.
 
+The project contract continues to describe only the production sync job.
+`v0.17.0` development is registered by Home Infra as a second service with the
+same `project_id`, `environment: development`, and `state_policy: isolated`.
+It intentionally does not add a second `sync_jobs[]` entry because its
+scheduler is disabled and its sampled rows are development fixtures, not a
+mirror-authority claim. Infra Portal may probe its public health and present it
+under Development without treating it as production or as a stale sync job.
+
 ## Sync Job
 
 `plaud-mirror-recordings-sync` is a `sync_jobs[]` entry because Plaud Mirror
@@ -30,6 +38,9 @@ Current declaration after the accepted NAS cutover:
   on 2026-09-14. The retired `dev-vm` container and image plus its audio copy
   have been removed; its small retained control state is neither a producer nor
   a complete rollback source.
+- Development runtime: dev-vm (`host_id: dev-vm`), service
+  `plaud-mirror-development`, observed as a service only. It has isolated state
+  and no scheduled producer status.
 - Schedule mode: `internal-loop`.
 - Cadence: `PT15M`.
 - Silence budget: `PT2H` (greater than cadence plus `max_runtime: PT1H`).

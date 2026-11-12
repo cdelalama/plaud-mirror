@@ -1,11 +1,12 @@
 {
   "name": "@plaud-mirror/api",
-  "version": "0.16.12",
+  "version": "0.17.0",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "bin": {
     "plaud-mirror": "./dist/cli/server.js",
+    "plaud-mirror-development": "./dist/cli/development-server.js",
     "plaud-mirror-phase1": "./dist/cli/spike.js"
   },
   "files": [

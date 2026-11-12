@@ -1,15 +1,15 @@
-<!-- doc-version: 0.16.12 -->
+<!-- doc-version: 0.17.0 -->
 # How to Use This Repository
 
 This guide explains how Plaud Mirror is operated end-to-end and how it stays aligned with both `LLM-DocKit` (the governance scaffold it adopts) and the Plaud ecosystem upstreams it watches.
 
 ## Current Reality
 
-`v0.15.0` is deployed with optional provider-neutral transcription delivery
-and local structured failure review. One Media2Text destination has passed real
-MP3 and OGG canaries; two historical failures are reviewed as resolved and one
-180-minute policy block remains active. Bulk replay remains behind a separate
-receiver quotation and operator spend gate. **Operators
+Production is the accepted immutable `v0.16.1` runtime on NAS. Source
+`v0.17.0` adds a permanent, isolated development environment for agent-driven
+work on `dev-vm`; it does not replace or redeploy production. One Media2Text
+destination has passed real MP3 and OGG canaries; bulk replay remains behind a
+separate receiver quotation and operator spend gate. **Operators
 upgrading from any `0.4.x`/`0.5.x` should use the latest released version.**
 Today the repository gives you:
 
@@ -45,10 +45,20 @@ For the full feature inventory see [README.md](README.md); for the product inten
 
 ```bash
 cd ~/src/plaud-mirror
-doppler run --project plaud-mirror --config dev -- docker compose up -d --build
+npm run dev:agent
+npm run dev:agent:credentials
 ```
 
-Then open `http://localhost:3040`, sign in with the operator passphrase, reconnect Plaud from the Configuration screen (Chrome extension recommended, manual paste fallback), and trigger a sync from the Main screen.
+Then open `http://dev.lamanoriega.com:3041/` and sign in with the
+generated development-only operator passphrase. The runtime starts with a
+small verified sample of real audio, but without Plaud or destination
+credentials and with the scheduler disabled. In this mode the backend also
+rejects adding Plaud credentials, enabling the scheduler, or invoking any
+Plaud sync/restore/delete path; this is an enforced boundary, not only an
+initial configuration. Use `npm run dev:agent:status`
+for the live boundary and
+[`docs/operations/AGENT_DEVELOPMENT.md`](docs/operations/AGENT_DEVELOPMENT.md)
+for the complete agent workflow.
 
 ### Permanently deleting a dismissed recording from Plaud
 
@@ -67,7 +77,9 @@ ambiguous, the row changes to `Plaud deletion pending`: Restore stays disabled
 and **Retry deletion** first checks Plaud so a prior successful DELETE can be
 confirmed without sending another destructive request.
 
-On `dev-vm`, the operator passphrase lives in Doppler (`plaud-mirror/dev`). Use the Doppler-wrapped compose command for every recreate unless the same secret is intentionally copied into the local gitignored `.env`.
+The development passphrase is generated locally in the external state root.
+Production secrets remain in `plaud-mirror/prd` and are never part of this
+workflow.
 
 ### NAS production
 
