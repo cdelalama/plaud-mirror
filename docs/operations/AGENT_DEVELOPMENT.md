@@ -50,7 +50,9 @@ revive the retired production-like `./runtime` mounts.
 - Canonical hostname: none active. A private
   `https://plaud-mirror.dev.lamanoriega.com/` DNS record and edge route are an
   optional later Home Infra action that needs separate operator approval.
-- Home Infra service id: `plaud-mirror-development`
+- Home Infra service id: `plaud-mirror-development` (planned; Home Infra
+  records the copy in documentation, and its catalog row waits for Plaud's
+  integration admission there)
 - Home Infra project id: `plaud-mirror` (shared with production)
 - Protocol environment: `development`
 - State policy: `isolated`

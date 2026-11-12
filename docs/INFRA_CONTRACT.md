@@ -18,8 +18,11 @@ and live Portal provenance reports that catalog source plus Plaud contract
 source `ffe28e9` with no warnings.
 
 The project contract continues to describe only the production sync job.
-`v0.17.0` development is registered by Home Infra as a second service with the
-same `project_id`, `environment: development`, and `state_policy: isolated`.
+`v0.17.0` development is intended to be registered by Home Infra as a second
+service with the same `project_id`, `environment: development`, and
+`state_policy: isolated`. As of 2026-11-12 Home Infra records it in its
+documentation only; the catalog row waits for Plaud's Home Infra integration
+admission (`docs/operations/PLAUD_MIRROR_AGENT_DEVELOPMENT_2026-11-12.md` there).
 It intentionally does not add a second `sync_jobs[]` entry because its
 scheduler is disabled and its sampled rows are development fixtures, not a
 mirror-authority claim. Infra Portal may probe its public health and present it
