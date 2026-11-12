@@ -120,6 +120,18 @@ rejects either half of that identity when declared alone.
 - Production and development may run concurrently because they do not share
   state or credentials. Two runtimes pointed at production state may not.
 
+## Current runtime
+
+Rebuild receipt (2026-11-12 00:34 UTC): `npm run dev:agent` from the clean
+`main` checkout at published `4331dbc` built image `plaud-mirror:0.17.0-development`
+(`sha256:7f2637bbff09`) and recreated `plaud-mirror-development` with its existing
+isolated state. Health reports 0.17.0, Plaud auth unconfigured, scheduler off and
+three samples. Authenticated smoke: token save, scheduler enable and manual sync
+return 403; three recordings list; a one-byte Range returns 206. NAS production
+0.16.1 kept its start time, zero restarts and 952/952 coverage. The previous
+image `plaud-mirror:0.16.4-development` is retained as the rollback source;
+removing it is a separate decision.
+
 ## Seeing source changes
 
 `npm run dev:agent` rebuilds the image from the current checkout and recreates

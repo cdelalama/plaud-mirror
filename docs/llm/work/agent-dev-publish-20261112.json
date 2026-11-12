@@ -2,9 +2,9 @@
   "artifacts": [],
   "branch": "work/agent-dev-publish-20261112",
   "id": "agent-dev-publish-20261112",
-  "next_step": "Publish 0.17.0, rebuild the dev-vm development copy from the published commit with npm run dev:agent, then record the rebuild receipt. The 2026-09-15 branch codex/agent-dev-runtime-20260915 and its worktree are retained.",
+  "next_step": "Published 0.17.0 (4331dbc) and rebuilt the dev-vm development copy from it. Optional later actions need separate approval: private DNS and edge route, the Infra Portal Development tab, and removal of the retained 0.16.4-development image and of the 2026-09-15 branch and worktree. Checkout retained.",
   "project": "plaud-mirror",
   "purpose": "Publish the isolated agent development runtime on current main and rebuild the dev-vm runtime from published source",
   "schema": 1,
-  "state": "pending-integration"
+  "state": "closed"
 }
